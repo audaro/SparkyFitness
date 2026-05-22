@@ -8,9 +8,14 @@ import {
   processUserInput,
   getTodaysNutrition,
 } from '@/api/Chatbot/sparkyChatService';
+import { processWorkoutRoutineInput } from '@/api/Chatbot/Chatbot_WorkoutPresetHandler';
 import { UserLoggingLevel } from '@/utils/logging';
 import { chatbotKeys } from '@/api/keys/ai';
-import { MessageMetadata } from '@/types/Chatbot_types';
+import {
+  CoachResponse,
+  MessageMetadata,
+  PendingWorkoutRoutine,
+} from '@/types/Chatbot_types';
 import { AiServiceSettingsResponse } from '@workspace/shared';
 
 export const useChatPreferencesQuery = () => {
@@ -123,6 +128,7 @@ interface ProcessUserInputParams {
   activeAIServiceSetting: AiServiceSettingsResponse | null;
   messages: unknown[];
   userDate: string;
+  userId?: string;
 }
 
 export const useProcessUserInputMutation = () => {
@@ -139,12 +145,57 @@ export const useProcessUserInputMutation = () => {
         params.formatDateInUserTimezone,
         params.activeAIServiceSetting,
         params.messages as never[],
-        params.userDate
+        params.userDate,
+        params.userId
       ),
     meta: {
       errorMessage: t(
         'chat.errorProcessingInput',
         'Failed to process message.'
+      ),
+    },
+  });
+};
+
+interface ImportRoutinesParams {
+  routines: PendingWorkoutRoutine[];
+  userId?: string;
+  userLoggingLevel: UserLoggingLevel;
+}
+
+export const useImportWorkoutRoutinesMutation = () => {
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: async (
+      params: ImportRoutinesParams
+    ): Promise<CoachResponse> => {
+      const results: CoachResponse[] = [];
+      for (const routine of params.routines) {
+        results.push(
+          await processWorkoutRoutineInput(
+            routine,
+            params.userId,
+            params.userLoggingLevel
+          )
+        );
+      }
+      const successes = results.filter(
+        (r) => r.action === 'workout_routine_created'
+      );
+      const combined =
+        successes.length === results.length
+          ? `${results.map((r) => r.response).join('\n\n---\n\n')}\n\n✅ Saved ${successes.length} workout routine${successes.length === 1 ? '' : 's'} to your presets.`
+          : results.map((r) => r.response).join('\n\n---\n\n');
+      return {
+        action: successes.length > 0 ? 'workout_routine_created' : 'none',
+        response: combined,
+      };
+    },
+    meta: {
+      errorMessage: t(
+        'chat.errorImportingRoutines',
+        'Failed to import workout routines.'
       ),
     },
   });

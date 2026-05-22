@@ -68,6 +68,15 @@ export const useExerciseInvalidation = () => {
   }, [queryClient]);
 };
 
+export const useWorkoutPresetInvalidation = () => {
+  const queryClient = useQueryClient();
+
+  return useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: presetKeys.all });
+    queryClient.invalidateQueries({ queryKey: exerciseKeys.all });
+  }, [queryClient]);
+};
+
 export const useMealInvalidation = () => {
   const queryClient = useQueryClient();
 

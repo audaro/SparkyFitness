@@ -3,7 +3,7 @@ import { formatDateToYYYYMMDD } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2, ImageIcon, X } from 'lucide-react';
+import { Send, Loader2, ImageIcon, X, Download } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import DOMPurify from 'dompurify';
 import { usePreferences } from '@/contexts/PreferencesContext';
@@ -13,6 +13,7 @@ import {
   useChatHistoryQuery,
   useChatPreferencesQuery,
   useClearChatHistoryMutation,
+  useImportWorkoutRoutinesMutation,
   useProcessUserInputMutation,
   useSaveMessageMutation,
   useTodaysNutritionQuery,
@@ -22,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   useChatInvalidation,
   useDiaryInvalidation,
+  useWorkoutPresetInvalidation,
 } from '@/hooks/useInvalidateKeys';
 
 const SparkyChatInterface = () => {
@@ -60,6 +62,55 @@ const SparkyChatInterface = () => {
 
   const invalidateDiary = useDiaryInvalidation();
   const invalidateChat = useChatInvalidation();
+  const invalidateWorkoutPresets = useWorkoutPresetInvalidation();
+  const { mutateAsync: importWorkoutRoutines } =
+    useImportWorkoutRoutinesMutation();
+  const [importingMessageId, setImportingMessageId] = useState<string | null>(
+    null
+  );
+  const [importedMessageIds, setImportedMessageIds] = useState<Set<string>>(
+    new Set()
+  );
+
+  const handleImportRoutines = async (message: Message) => {
+    const routines = message.metadata?.pendingRoutines;
+    if (!routines || routines.length === 0) return;
+    setImportingMessageId(message.id);
+    try {
+      const result = await importWorkoutRoutines({
+        routines,
+        userId: user?.id,
+        userLoggingLevel: userPreferences?.logging_level || 'INFO',
+      });
+      if (result.action === 'workout_routine_created') {
+        invalidateWorkoutPresets();
+        setImportedMessageIds((prev) => new Set(prev).add(message.id));
+        toast({
+          title: 'Imported',
+          description: `Saved ${routines.length} workout routine${routines.length === 1 ? '' : 's'} to your presets.`,
+        });
+      } else {
+        toast({
+          title: 'Import failed',
+          description: result.response,
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
+      error(
+        userPreferences?.logging_level || 'INFO',
+        'Failed to import routines',
+        err
+      );
+      toast({
+        title: 'Import failed',
+        description: 'Could not save the routine. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setImportingMessageId(null);
+    }
+  };
   useEffect(() => {
     if (userPreferences?.auto_clear_history === 'all' && !hasAutoCleared) {
       clearChatHistory('all').catch(() => {});
@@ -182,6 +233,7 @@ const SparkyChatInterface = () => {
           activeAIServiceSetting,
           messages: displayMessages,
           userDate,
+          userId: user?.id,
         });
 
         setSelectedImage(null);
@@ -219,6 +271,7 @@ const SparkyChatInterface = () => {
               activeAIServiceSetting,
               messages: displayMessages,
               userDate,
+              userId: user?.id,
             });
           } else {
             response = await processUserInput({
@@ -231,6 +284,7 @@ const SparkyChatInterface = () => {
               activeAIServiceSetting,
               messages: displayMessages,
               userDate,
+              userId: user?.id,
             });
           }
         } else {
@@ -244,6 +298,7 @@ const SparkyChatInterface = () => {
             activeAIServiceSetting,
             messages: displayMessages,
             userDate,
+            userId: user?.id,
           });
         }
       }
@@ -266,6 +321,14 @@ const SparkyChatInterface = () => {
             botMessageContent =
               response.response || 'Entry logged successfully!';
             invalidateDiary();
+            break;
+          case 'workout_routine_created':
+            botMessageContent = response.response || 'Workout routine saved!';
+            invalidateWorkoutPresets();
+            break;
+          case 'workout_routine_proposed':
+            botMessageContent = response.response;
+            messageMetadata = response.metadata;
             break;
           case 'food_options':
           case 'exercise_options':
@@ -388,6 +451,37 @@ const SparkyChatInterface = () => {
                     __html: formatMessage(message),
                   }}
                 />
+                {!message.isUser &&
+                  message.metadata?.pendingRoutines &&
+                  message.metadata.pendingRoutines.length > 0 && (
+                    <div className="mt-3">
+                      <Button
+                        size="sm"
+                        onClick={() => handleImportRoutines(message)}
+                        disabled={
+                          importingMessageId === message.id ||
+                          importedMessageIds.has(message.id)
+                        }
+                      >
+                        {importingMessageId === message.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Importing...
+                          </>
+                        ) : importedMessageIds.has(message.id) ? (
+                          <>✓ Imported</>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4 mr-2" />
+                            Import{' '}
+                            {message.metadata.pendingRoutines.length > 1
+                              ? `${message.metadata.pendingRoutines.length} routines`
+                              : 'routine'}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 <div className="text-xs opacity-70 mt-1">
                   {message.timestamp && !isNaN(message.timestamp.getTime())
                     ? formatDateInUserTimezone(message.timestamp, 'p')
