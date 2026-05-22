@@ -26,6 +26,10 @@ import {
   WaterInput,
 } from '@/api/Chatbot/Chatbot_WaterHandler';
 import {
+  processWorkoutRoutineInput,
+  WorkoutRoutineInput,
+} from '@/api/Chatbot/Chatbot_WorkoutPresetHandler';
+import {
   CoachResponse,
   FoodOption,
   Message,
@@ -71,6 +75,16 @@ interface LogWaterIntent extends BaseAIResponse {
   data: WaterInput;
 }
 
+interface CreateWorkoutRoutineIntent extends BaseAIResponse {
+  intent: 'create_workout_routine';
+  data: WorkoutRoutineInput;
+}
+
+interface ProposeWorkoutRoutineIntent extends BaseAIResponse {
+  intent: 'propose_workout_routine';
+  data: WorkoutRoutineInput;
+}
+
 interface ChatIntent extends BaseAIResponse {
   intent: 'ask_question' | 'chat';
   data: Record<string, unknown>;
@@ -81,6 +95,8 @@ type ParsedAIResponse =
   | LogExerciseIntent
   | LogMeasurementIntent
   | LogWaterIntent
+  | CreateWorkoutRoutineIntent
+  | ProposeWorkoutRoutineIntent
   | ChatIntent;
 
 interface MessagesToSend {
@@ -166,7 +182,8 @@ export const processUserInput = async (
   formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string,
   activeAIServiceSetting: AiServiceSettingsResponse | null,
   messages: Message[],
-  userDate: string
+  userDate: string,
+  userId?: string
 ): Promise<CoachResponse> => {
   try {
     // Check if the current input is a follow-up to a previous food options prompt
@@ -237,6 +254,69 @@ export const processUserInput = async (
       if (Array.isArray(parsed)) {
         if (parsed.length === 0) {
           throw new Error('AI returned an empty JSON array.');
+        }
+        // multi-day proposal: pack all days into one message + Import button
+        const allProposeRoutines = parsed.every(
+          (p) =>
+            p &&
+            typeof p === 'object' &&
+            p.intent === 'propose_workout_routine' &&
+            p.data
+        );
+        if (allProposeRoutines && parsed.length > 1) {
+          info(
+            userLoggingLevel,
+            `[${transactionId}] Combining ${parsed.length} proposed workout routines into one message`
+          );
+          const responseText = parsed
+            .map((p) => p.response)
+            .filter(Boolean)
+            .join('\n\n')
+            .trim();
+          return {
+            action: 'workout_routine_proposed',
+            response:
+              responseText ||
+              "I've drafted a multi-day routine for you. Click Import to save it.",
+            metadata: {
+              pendingRoutines: parsed.map((p) => p.data),
+            },
+          };
+        }
+        // legacy text "import this" path, multi-day version
+        const allWorkoutRoutines = parsed.every(
+          (p) =>
+            p &&
+            typeof p === 'object' &&
+            p.intent === 'create_workout_routine' &&
+            p.data
+        );
+        if (allWorkoutRoutines && parsed.length > 1) {
+          info(
+            userLoggingLevel,
+            `[${transactionId}] Processing ${parsed.length} workout routines from array response`
+          );
+          const results: CoachResponse[] = [];
+          for (const item of parsed) {
+            results.push(
+              await processWorkoutRoutineInput(
+                item.data,
+                userId,
+                userLoggingLevel
+              )
+            );
+          }
+          const successes = results.filter(
+            (r) => r.action === 'workout_routine_created'
+          );
+          const combined =
+            successes.length === results.length
+              ? `${results.map((r) => r.response).join('\n\n---\n\n')}\n\n✅ Saved ${successes.length} workout routine${successes.length === 1 ? '' : 's'} to your presets.`
+              : results.map((r) => r.response).join('\n\n---\n\n');
+          return {
+            action: successes.length > 0 ? 'workout_routine_created' : 'none',
+            response: combined,
+          };
         }
         parsedResponse = parsed[parsed.length - 1];
       } else {
@@ -393,6 +473,27 @@ export const processUserInput = async (
           userLoggingLevel,
           transactionId
         );
+      }
+      case 'create_workout_routine':
+        return await processWorkoutRoutineInput(
+          parsedResponse.data,
+          userId,
+          userLoggingLevel
+        );
+      case 'propose_workout_routine': {
+        const routine = parsedResponse.data;
+        const text =
+          parsedResponse.response?.trim() ||
+          (routine?.name
+            ? `Here's a draft of **${routine.name}**. Click Import to save it as a workout preset.`
+            : 'Here is a draft routine — click Import to save it.');
+        return {
+          action: 'workout_routine_proposed',
+          response: text,
+          metadata: {
+            pendingRoutines: routine ? [routine] : [],
+          },
+        };
       }
       case 'ask_question':
       case 'chat':

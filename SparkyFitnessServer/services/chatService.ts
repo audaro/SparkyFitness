@@ -403,6 +403,37 @@ Possible intents and their required data. You MUST select one of these intents a
    - name: string | null (required if type is "custom") - **Crucially, if the user mentions a custom category from the list provided, use its exact name here.**
 - 'log_water': User wants to log water intake. This intent should be prioritized when the user mentions "water" in conjunction with a quantity or a desire to log water. The AI should understand from the user's context that they are referring to drinking water. Data should include:
  - glasses_consumed: number (e.g., 1, 2) - Infer if possible, default to 1.
+- 'propose_workout_routine': **THE ONLY intent for any workout routine request.** Use this whenever the user asks you to "create / make / design / build / suggest / generate / give me / write me" a routine, workout, split, program, "day" (e.g. "leg day", "push day"), or plan. Examples: "make me a push day", "design a 3-day full-body routine", "build me a beginner program", "create an upper/lower split", "suggest a leg day", "write me an arm workout".
+
+  **CRITICAL RULES:**
+  1. The system shows the user your 'response' text PLUS a one-click "Import" button. NEVER tell the user to type "import" — the button handles it. NEVER auto-save without the user clicking.
+  2. **Generate exactly the routine the user asked for.** If they say "make me a leg day", produce a LEG DAY (squats, leg press, lunges, leg curls, calf raises, etc.) — do NOT regenerate or include previously-discussed push/pull days. Each user request stands on its own.
+  3. **"Same parameters as before"** means same *structure* — same duration target, same difficulty, same equipment constraints, similar set/rep schemes. It does NOT mean repeat the same exercises. Apply the parameters to the NEW body part / focus they requested.
+  4. **NEVER refuse and respond with chat text** for a workout-routine request. If you cannot produce a routine, still emit 'propose_workout_routine' with your best draft. Plain chat responses for routine requests are forbidden.
+  5. If the user says "import this", "save this", "add this to my routines" referring to a routine you just proposed — DO NOTHING. Respond with 'chat' intent and a short message: "Click the Import button on the routine above to save it." The button is the only path.
+
+  Your 'response' field MUST contain the human-readable routine description (markdown rendered: use **bold** for headings, dashes or numbered lists for exercises). The 'data' field MUST contain the structured routine.
+
+  **If the routine spans multiple days** (e.g., "Day 1: Push, Day 2: Pull, Day 3: Legs"), output a JSON ARRAY where each element is a separate 'propose_workout_routine' object — one per day. Each day becomes its own preset. Name each day clearly (e.g., "Push Day", "Pull Day", "Leg Day").
+
+  Data should include:
+ - name: string (e.g., "Push Day", "Leg Day", "Beginner Full Body") - A short descriptive name matching what the user requested.
+ - description: string | null - Optional short description of the routine.
+ - exercises: Array of exercise objects, each with:
+   - exercise_name: string (e.g., "Bench Press", "Barbell Squat", "Plank") - Use a clear common name.
+   - category: string ("strength" or "cardio") - Infer based on the exercise.
+   - sets: Array of set objects (1 entry per set). Each set has:
+     - set_number: number (1-based, ordered)
+     - set_type: string (default "Working Set"; use "Warm-up" only for explicit warm-up sets)
+     - reps: number | null (for strength sets; null for cardio/timed)
+     - weight: number | null (in the user's stated unit; null if bodyweight or unknown)
+     - duration: number | null (in MINUTES, for cardio/timed/plank-style sets; null otherwise)
+     - rest_time: number | null (in seconds; only include if user specifies)
+     - notes: string | null (only if user specified)
+   - For strength like "3x8": output 3 set objects each with reps: 8.
+   - For ranges like "8-12 reps": pick the lower end (8).
+   - For cardio like "20 minutes of running": one exercise with one set with duration: 20.
+   - For a hold like "plank 3x60s": three sets each with duration in MINUTES (so duration: 1 for 60s).
 - 'ask_question': User is asking a general question or seeking advice. Data is an empty object {}.
 - 'chat': User is engaging in casual conversation. Data is an empty object {}.
 
@@ -432,6 +463,16 @@ Example JSON output for logging a custom measurement (e.g., Blood Sugar), using 
 
 Example JSON output for logging water:
 {"intent": "log_water", "data": {"glasses_consumed": 2}, "entryDate": "today"}
+
+Example JSON output for proposing a NEW body-part-specific day after the user has discussed other routines ("Make me a leg day with the same parameters as before"):
+{"intent": "propose_workout_routine", "response": "Here's a **Leg Day** matching the same hour-long, intermediate format:\\n\\n1. **Barbell Squat** — 4 × 8\\n2. **Leg Press** — 3 × 10\\n3. **Romanian Deadlift** — 3 × 10\\n4. **Walking Lunges** — 3 × 12 per leg\\n5. **Leg Curl Machine** — 3 × 12\\n6. **Standing Calf Raise** — 3 × 15\\n\\nClick Import below to save it as a workout preset.", "data": {"name": "Leg Day", "description": "Quads, hamstrings, glutes, calves", "exercises": [{"exercise_name": "Barbell Squat", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 8}, {"set_number": 2, "set_type": "Working Set", "reps": 8}, {"set_number": 3, "set_type": "Working Set", "reps": 8}, {"set_number": 4, "set_type": "Working Set", "reps": 8}]}, {"exercise_name": "Leg Press", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 10}, {"set_number": 2, "set_type": "Working Set", "reps": 10}, {"set_number": 3, "set_type": "Working Set", "reps": 10}]}, {"exercise_name": "Romanian Deadlift", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 10}, {"set_number": 2, "set_type": "Working Set", "reps": 10}, {"set_number": 3, "set_type": "Working Set", "reps": 10}]}, {"exercise_name": "Walking Lunges", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 12}, {"set_number": 2, "set_type": "Working Set", "reps": 12}, {"set_number": 3, "set_type": "Working Set", "reps": 12}]}, {"exercise_name": "Leg Curl Machine", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 12}, {"set_number": 2, "set_type": "Working Set", "reps": 12}, {"set_number": 3, "set_type": "Working Set", "reps": 12}]}, {"exercise_name": "Standing Calf Raise", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 15}, {"set_number": 2, "set_type": "Working Set", "reps": 15}, {"set_number": 3, "set_type": "Working Set", "reps": 15}]}]}}
+
+Example JSON output for proposing a workout routine ("Make me a push day with bench press 3x8 at 60kg, overhead press 3x10, and tricep dips 3x12"):
+{"intent": "propose_workout_routine", "response": "Here's a **Push Day** for you:\\n\\n1. **Bench Press** — 3 sets × 8 reps @ 60kg\\n2. **Overhead Press** — 3 sets × 10 reps\\n3. **Tricep Dips** — 3 sets × 12 reps\\n\\nClick Import below to save it as a workout preset.", "data": {"name": "Push Day", "description": "Chest, shoulders, and triceps", "exercises": [{"exercise_name": "Bench Press", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 8, "weight": 60}, {"set_number": 2, "set_type": "Working Set", "reps": 8, "weight": 60}, {"set_number": 3, "set_type": "Working Set", "reps": 8, "weight": 60}]}, {"exercise_name": "Overhead Press", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 10}, {"set_number": 2, "set_type": "Working Set", "reps": 10}, {"set_number": 3, "set_type": "Working Set", "reps": 10}]}, {"exercise_name": "Tricep Dips", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 12}, {"set_number": 2, "set_type": "Working Set", "reps": 12}, {"set_number": 3, "set_type": "Working Set", "reps": 12}]}]}}
+
+Example JSON output for a multi-day proposal ("Make me a 3-day push/pull/legs split"):
+[{"intent": "propose_workout_routine", "response": "**Day 1 — Push Day**\\n\\n1. Bench Press — 3×8\\n2. Overhead Press — 3×10\\n3. Tricep Dips — 3×12", "data": {"name": "Push Day", "description": "Chest, shoulders, triceps", "exercises": [{"exercise_name": "Bench Press", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 8}, {"set_number": 2, "set_type": "Working Set", "reps": 8}, {"set_number": 3, "set_type": "Working Set", "reps": 8}]}]}}, {"intent": "propose_workout_routine", "response": "**Day 2 — Pull Day**\\n\\n1. Lat Pulldown — 3×8\\n2. Seated Row — 3×10\\n3. Bicep Curls — 3×12", "data": {"name": "Pull Day", "description": "Back and biceps", "exercises": [{"exercise_name": "Lat Pulldown", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 8}, {"set_number": 2, "set_type": "Working Set", "reps": 8}, {"set_number": 3, "set_type": "Working Set", "reps": 8}]}]}}, {"intent": "propose_workout_routine", "response": "**Day 3 — Leg Day**\\n\\n1. Squat — 3×8\\n2. Leg Press — 3×10\\n3. Calf Raises — 3×15", "data": {"name": "Leg Day", "description": "Quads, hamstrings, glutes", "exercises": [{"exercise_name": "Squat", "category": "strength", "sets": [{"set_number": 1, "set_type": "Working Set", "reps": 8}, {"set_number": 2, "set_type": "Working Set", "reps": 8}, {"set_number": 3, "set_type": "Working Set", "reps": 8}]}]}}]
+
 
 Example JSON output for logging current weight:
 {"intent": "log_measurement", "data": {"measurements": [{"type": "weight", "value": 72, "unit": "kg"}]}}

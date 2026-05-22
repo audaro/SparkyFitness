@@ -24,7 +24,9 @@ export interface CoachResponse {
     | 'advice'
     | 'none'
     | 'chat'
-    | 'water_added';
+    | 'water_added'
+    | 'workout_routine_created'
+    | 'workout_routine_proposed';
   response: string;
   metadata?: MessageMetadata;
   entryDate?: string; // Optional date for the entry (YYYY-MM-DD)
@@ -83,6 +85,29 @@ export interface RawFoodOption {
   iron?: number;
 }
 
+export interface PendingWorkoutRoutineSet {
+  set_number?: number;
+  set_type?: string;
+  reps?: number | null;
+  weight?: number | null;
+  duration?: number | null;
+  rest_time?: number | null;
+  notes?: string | null;
+}
+
+export interface PendingWorkoutRoutineExercise {
+  exercise_name: string;
+  category?: string;
+  sets?: PendingWorkoutRoutineSet[];
+}
+
+export interface PendingWorkoutRoutine {
+  name: string;
+  description?: string;
+  is_public?: boolean;
+  exercises: PendingWorkoutRoutineExercise[];
+}
+
 export interface MessageMetadata {
   foodOptions?: FoodOption[];
   mealType?: string;
@@ -92,6 +117,7 @@ export interface MessageMetadata {
   imageUrl?: string;
   is_fallback?: boolean;
   foodName?: string;
+  pendingRoutines?: PendingWorkoutRoutine[];
 }
 
 export interface Message {
