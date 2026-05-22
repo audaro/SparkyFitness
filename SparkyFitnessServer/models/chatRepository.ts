@@ -220,7 +220,13 @@ async function getChatHistoryByUserId(userId: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
-      'SELECT content, message_type, created_at FROM sparky_chat_history ORDER BY created_at ASC LIMIT 5',
+      `SELECT id, content, message_type, metadata, created_at FROM (
+         SELECT id, content, message_type, metadata, created_at
+         FROM sparky_chat_history
+         ORDER BY created_at DESC
+         LIMIT 200
+       ) sub
+       ORDER BY created_at ASC`,
       []
     );
     return result.rows;
