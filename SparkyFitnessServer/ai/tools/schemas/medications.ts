@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { dateSchema, optionalDateSchema, uuidSchema } from './common.js';
+import {
+  dateSchema,
+  optionalDateSchema,
+  paginationSchema,
+  uuidSchema,
+} from './common.js';
 
 // Fixed lookup table medication_schedule_types — seeded by migration, never
 // user-editable, so the ids are pinned here instead of a lookup action.
@@ -381,13 +386,13 @@ const logSymptomSchema = z
     severity_label: z
       .string()
       .min(1)
-      .max(100)
+      .max(40)
       .optional()
       .describe('Severity label for non-numeric scales (e.g. moderate)'),
     body_location: z
       .string()
       .min(1)
-      .max(200)
+      .max(60)
       .optional()
       .describe('Where on the body (e.g. left knee)'),
     context_text: z
@@ -429,6 +434,7 @@ const listSymptomEntriesSchema = z
       .describe('Filter to one symptom by name'),
     from_date: optionalDateSchema,
     to_date: optionalDateSchema,
+    ...paginationSchema.shape,
   })
   .strict();
 
@@ -603,12 +609,27 @@ export const manageMedicationsInput = z.object({
     .describe('Symptom severity 1 (mild) to 10 (severe)'),
   severity_label: z
     .string()
+    .max(40)
     .optional()
     .describe('Symptom severity label for non-numeric scales'),
   body_location: z
     .string()
+    .max(60)
     .optional()
     .describe('Where on the body the symptom occurs'),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .describe('Maximum results to return — for list_symptom_entries'),
+  offset: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Results to skip for pagination — for list_symptom_entries'),
   context_text: z
     .string()
     .optional()

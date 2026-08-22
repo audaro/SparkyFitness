@@ -404,7 +404,7 @@ Actions:
 - list_schedules(medication_id?|medication_name?) — schedules with their IDs
 - log_symptom(symptom_name, severity? 1-10, severity_label?, body_location?, context_text?, bristol_type? 1-7, medication_id?|medication_name? if a medication is suspected, entry_date?)
 - list_symptoms() — the user's tracked symptom definitions
-- list_symptom_entries(symptom_name?, from_date?, to_date?)`,
+- list_symptom_entries(symptom_name?, from_date?, to_date?, limit? (default 20), offset?)`,
       inputSchema: manageMedicationsInput,
       execute: async (rawArgs) => {
         const normalized = normalizeActionArgs(
@@ -935,11 +935,22 @@ Actions:
                 userId
               )) as CustomSymptomRow[];
               const q = args.symptom_name.trim().toLowerCase();
-              const tracked = symptoms.find(
-                (sym) =>
-                  sym.name === q ||
-                  (sym.display_name ?? '').trim().toLowerCase() === q
-              );
+              // Canonical names are unique per user (upsert on user_id+name);
+              // display names are not, so an exact canonical match wins and a
+              // display-name collision is rejected rather than linked to
+              // whichever row happens to come back first.
+              let tracked = symptoms.find((sym) => sym.name === q);
+              if (!tracked) {
+                const byDisplay = symptoms.filter(
+                  (sym) => (sym.display_name ?? '').trim().toLowerCase() === q
+                );
+                if (byDisplay.length > 1) {
+                  return ERRORS.VALIDATION(
+                    `Multiple tracked symptoms are named "${args.symptom_name.trim()}" — see list_symptoms and use the exact stored name`
+                  );
+                }
+                tracked = byDisplay[0];
+              }
               const payload: CreateSymptomEntryBody = {
                 symptom_id: tracked?.id ?? null,
                 symptom_name_snapshot: args.symptom_name.trim(),
@@ -982,25 +993,35 @@ Actions:
               });
             }
             case 'list_symptom_entries': {
-              const entries = (await symptomRepository.listSymptomEntries(
-                userId,
-                {
-                  fromDate: args.from_date,
-                  toDate: args.to_date,
-                  symptomName: args.symptom_name,
-                }
-              )) as SymptomEntryRow[];
-              return formatList(entries, 'Symptom Entries', (e) => {
-                let text = `**${e.symptom_name_snapshot}** on ${dayString(e.entry_date)}`;
-                if (e.severity !== null) text += ` — severity ${e.severity}/10`;
-                else if (e.severity_label) text += ` — ${e.severity_label}`;
-                if (e.body_location) text += ` (${e.body_location})`;
-                if (e.bristol_type !== null) {
-                  text += ` — Bristol type ${e.bristol_type}`;
-                }
-                if (e.context_text) text += ` — ${e.context_text}`;
-                return text;
-              });
+              const all = (await symptomRepository.listSymptomEntries(userId, {
+                fromDate: args.from_date,
+                toDate: args.to_date,
+                symptomName: args.symptom_name,
+              })) as SymptomEntryRow[];
+              const entries = all.slice(args.offset, args.offset + args.limit);
+              const nextOffset = args.offset + entries.length;
+              const meta = {
+                total_count: all.length,
+                has_more: nextOffset < all.length,
+                next_offset: nextOffset < all.length ? nextOffset : null,
+              };
+              return formatList(
+                entries,
+                'Symptom Entries',
+                (e) => {
+                  let text = `**${e.symptom_name_snapshot}** on ${dayString(e.entry_date)}`;
+                  if (e.severity !== null)
+                    text += ` — severity ${e.severity}/10`;
+                  else if (e.severity_label) text += ` — ${e.severity_label}`;
+                  if (e.body_location) text += ` (${e.body_location})`;
+                  if (e.bristol_type !== null) {
+                    text += ` — Bristol type ${e.bristol_type}`;
+                  }
+                  if (e.context_text) text += ` — ${e.context_text}`;
+                  return text;
+                },
+                meta
+              );
             }
             default:
               return ERRORS.INVALID_ACTION(

@@ -898,6 +898,110 @@ describe('symptoms', () => {
     );
   });
 
+  it('list_symptom_entries paginates with honest totals', async () => {
+    vi.mocked(symptomRepository.listSymptomEntries).mockResolvedValue([
+      nauseaEntry,
+      { ...nauseaEntry, entry_date: '2026-08-20' },
+      { ...nauseaEntry, entry_date: '2026-08-19' },
+    ]);
+
+    const result = await tools.sparky_manage_medications.execute!(
+      { action: 'list_symptom_entries', limit: 2 },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Symptom Entries\n\n' +
+        '**Nausea** on 2026-08-21 — severity 6/10\n\n' +
+        '**Nausea** on 2026-08-20 — severity 6/10' +
+        '\n\n---\nShowing 2 of 3 results. Use offset=2 to see more.'
+    );
+
+    const page2 = await tools.sparky_manage_medications.execute!(
+      { action: 'list_symptom_entries', limit: 2, offset: 2 },
+      opts
+    );
+    expect(page2).toBe(
+      '# Symptom Entries\n\n' +
+        '**Nausea** on 2026-08-19 — severity 6/10' +
+        '\n\n---\nShowing 1 of 3 results.'
+    );
+  });
+
+  it('log_symptom prefers the canonical name and rejects display-name collisions', async () => {
+    // "sickness" matches one symptom's display_name and another's canonical
+    // name — the canonical match must win.
+    vi.mocked(symptomRepository.listCustomSymptoms).mockResolvedValue([
+      { ...nauseaSymptom, display_name: 'Sickness' },
+      {
+        id: MED_ID_2,
+        name: 'sickness',
+        display_name: null,
+        scale_type: 'severity',
+        unit: null,
+        is_glp1_flagged: false,
+      },
+    ]);
+    vi.mocked(symptomRepository.createSymptomEntry).mockResolvedValue({
+      ...nauseaEntry,
+      symptom_name_snapshot: 'Sickness',
+      severity: null,
+    });
+
+    await tools.sparky_manage_medications.execute!(
+      { action: 'log_symptom', symptom_name: 'Sickness' },
+      opts
+    );
+    expect(
+      vi.mocked(symptomRepository.createSymptomEntry).mock.calls[0][1]
+        .symptom_id
+    ).toBe(MED_ID_2);
+
+    // Two tracked symptoms sharing a display name are ambiguous.
+    vi.mocked(symptomRepository.listCustomSymptoms).mockResolvedValue([
+      { ...nauseaSymptom, name: 'nausea', display_name: 'Tummy' },
+      {
+        id: MED_ID_2,
+        name: 'stomach ache',
+        display_name: 'Tummy',
+        scale_type: 'severity',
+        unit: null,
+        is_glp1_flagged: false,
+      },
+    ]);
+    const ambiguous = await tools.sparky_manage_medications.execute!(
+      { action: 'log_symptom', symptom_name: 'Tummy' },
+      opts
+    );
+    expect(ambiguous).toBe(
+      'Error [VALIDATION]: Multiple tracked symptoms are named "Tummy" — see list_symptoms and use the exact stored name'
+    );
+    expect(symptomRepository.createSymptomEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('log_symptom rejects labels and locations longer than their DB columns', async () => {
+    const longLabel = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'log_symptom',
+        symptom_name: 'Nausea',
+        severity_label: 'x'.repeat(41),
+      },
+      opts
+    );
+    expect(longLabel).toContain('Error [VALIDATION]');
+
+    const longLocation = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'log_symptom',
+        symptom_name: 'Nausea',
+        body_location: 'x'.repeat(61),
+      },
+      opts
+    );
+    expect(longLocation).toContain('Error [VALIDATION]');
+    expect(symptomRepository.createSymptomEntry).not.toHaveBeenCalled();
+  });
+
   it('list_symptom_entries renders entries with their details', async () => {
     vi.mocked(symptomRepository.listSymptomEntries).mockResolvedValue([
       nauseaEntry,
@@ -920,7 +1024,8 @@ describe('symptoms', () => {
     expect(result).toBe(
       '# Symptom Entries\n\n' +
         '**Nausea** on 2026-08-21 — severity 6/10\n\n' +
-        '**Stomach ache** on 2026-08-21 — moderate (lower abdomen) — Bristol type 6 — after dinner'
+        '**Stomach ache** on 2026-08-21 — moderate (lower abdomen) — Bristol type 6 — after dinner' +
+        '\n\n---\nShowing 2 of 2 results.'
     );
   });
 });
