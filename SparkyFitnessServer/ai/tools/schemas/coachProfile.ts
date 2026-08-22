@@ -1,0 +1,104 @@
+import { z } from 'zod';
+import { uuidSchema } from './common.js';
+
+// An alias maps a personal phrase ("my usual walk") to a concrete record the
+// coach can resolve without asking again.
+// workout_presets.id is SERIAL (integer); the other target tables use UUIDs.
+const aliasTargetSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.enum(['exercise', 'food', 'meal']),
+      id: uuidSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('workout_preset'),
+      id: z.coerce.number().int().positive(),
+    })
+    .strict(),
+]);
+
+const profileEditFields = {
+  goals: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2000)
+    .optional()
+    .describe("The user's training/health goals, in their own words"),
+  training_days_per_week: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(7)
+    .optional()
+    .describe('Days per week the user can train'),
+  session_minutes: z.coerce
+    .number()
+    .int()
+    .min(5)
+    .max(360)
+    .optional()
+    .describe('Minutes available per training session'),
+  equipment: z
+    .array(z.string().trim().min(1).max(100))
+    .max(50)
+    .optional()
+    .describe('Equipment on hand — REPLACES the stored list'),
+  limitations: z
+    .array(z.string().trim().min(1).max(200))
+    .max(50)
+    .optional()
+    .describe('Injuries/constraints, freeform — REPLACES the stored list'),
+  food_preferences: z
+    .record(z.string(), z.unknown())
+    .refine((prefs) => JSON.stringify(prefs).length <= 2000, {
+      message:
+        'food_preferences is too large (max 2000 characters serialized) — store a compact summary',
+    })
+    .optional()
+    .describe(
+      'Food preferences object (e.g. {"likes": [...], "dislikes": [...], "style": "vegetarian"}) — REPLACES the stored object'
+    ),
+  aliases: z
+    .record(z.string().trim().min(1).max(200), aliasTargetSchema)
+    .refine((aliasMap) => Object.keys(aliasMap).length <= 50, {
+      message: 'Too many aliases (max 50)',
+    })
+    .optional()
+    .describe(
+      'Personal phrase → record map (e.g. {"my usual walk": {"kind": "exercise", "id": "..."}}) — REPLACES the stored map'
+    ),
+};
+
+const getCoachProfileSchema = z
+  .object({
+    action: z.literal('get_coach_profile'),
+  })
+  .strict();
+
+const updateCoachProfileSchema = z
+  .object({
+    action: z.literal('update_coach_profile'),
+    ...profileEditFields,
+  })
+  .strict();
+
+export const manageCoachProfileSchema = z.discriminatedUnion('action', [
+  getCoachProfileSchema,
+  updateCoachProfileSchema,
+]);
+
+export type ManageCoachProfileInput = z.infer<typeof manageCoachProfileSchema>;
+
+// Flat input shape published to the LLM as `inputSchema`. See comment on
+// manageFoodInput in ./food.js for the rationale. Runtime validation still
+// uses manageCoachProfileSchema in the tool handler via safeParse.
+export const manageCoachProfileInput = z.object({
+  action: z
+    .enum(['get_coach_profile', 'update_coach_profile'])
+    .optional()
+    .describe('Action to perform; see tool description for per-action fields.'),
+  ...profileEditFields,
+});

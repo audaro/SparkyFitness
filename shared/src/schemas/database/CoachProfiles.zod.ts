@@ -10,10 +10,18 @@ export const coachProfilesIdSchema = z
 const userIdSchema = z.string().uuid();
 
 // An alias maps a personal phrase ("my usual walk") to a concrete record.
-export const coachProfileAliasSchema = z.object({
-  kind: z.enum(["exercise", "food", "meal", "workout_preset"]),
-  id: z.string().uuid(),
-});
+// workout_presets.id is SERIAL, so its alias id is an integer; the other
+// target tables use UUID primary keys.
+export const coachProfileAliasSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.enum(["exercise", "food", "meal"]),
+    id: z.string().uuid(),
+  }),
+  z.object({
+    kind: z.literal("workout_preset"),
+    id: z.number().int().positive(),
+  }),
+]);
 
 const coachProfilesFieldsSchema = z.object({
   user_id: userIdSchema,

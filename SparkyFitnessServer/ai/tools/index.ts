@@ -9,6 +9,7 @@ import {
 import { ASK_USER_TOOL_NAME } from '@workspace/shared';
 import { buildAskTools } from './askTools.js';
 import { buildCheckinTools } from './checkinTools.js';
+import { buildCoachProfileTools } from './coachProfileTools.js';
 import { buildCoachTools } from './coachTools.js';
 import { buildEngagementTools } from './engagementTools.js';
 import { buildExerciseTools } from './exerciseTools.js';
@@ -52,6 +53,7 @@ const CATEGORY_BUILDERS: Record<
   goals: [(u, tz) => buildGoalTools(u, tz)],
   coaching: [
     (u, tz) => buildCoachTools(u, tz),
+    (u, tz) => buildCoachProfileTools(u, tz),
     (u, tz) => buildEngagementTools(u, tz),
     (u) => buildWizardTools(u),
   ],

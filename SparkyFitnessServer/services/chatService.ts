@@ -1,5 +1,8 @@
 import chatRepository from '../models/chatRepository.js';
 import measurementRepository from '../models/measurementRepository.js';
+import coachProfileRepository from '../models/coachProfileRepository.js';
+import { chatContextInputsCache } from './chatContextCache.js';
+import type { CoachProfileRow } from '../models/coachProfileRepository.js';
 import preferenceRepository from '../models/preferenceRepository.js';
 import { log } from '../config/logging.js';
 import { getDefaultModel, getOpenAiCompatibleBaseUrl } from '../ai/config.js';
@@ -15,7 +18,6 @@ import {
   supportsTemperature,
 } from '../ai/modelCapabilities.js';
 import { loadUserTimezone } from '../utils/timezoneLoader.js';
-import { TtlCache } from '../utils/ttlCache.js';
 import {
   assertOutboundUrlShapeAndLiteralAllowed,
   createGuardedFetch,
@@ -429,15 +431,13 @@ async function saveSparkyChatHistory(
  * registry. Everything is scoped to the authenticated user — chat tool calls
  * always act as the logged-in actor, matching the previous MCP behavior.
  */
-// Per-user cache of the two DB lookups behind every chat turn. Timezone and
+// Per-user cache of the DB lookups behind every chat turn. Timezone and
 // custom categories change rarely (settings edits), so a short TTL keeps a
-// multi-turn conversation from re-querying both on each message while a
-// settings change still lands within a minute. Never cache auth/permission
-// state or secrets here.
-const chatContextInputsCache = new TtlCache<{
-  chatTz: string;
-  customCategoriesList: string;
-}>(60_000);
+// multi-turn conversation from re-querying on each message while a settings
+// change still lands within a minute; in-chat edits (coach profile) invalidate
+// it immediately via invalidateChatContextInputs. Never cache auth/permission
+// state or secrets here. Lives in services/chatContextCache.ts so editing
+// tools can invalidate without importing this module (import cycle).
 
 // The agent loop's stop conditions, shared by the streaming and non-streaming
 // chat paths so they can't drift.
@@ -499,6 +499,56 @@ export function buildEscalationPrepareStep(
   };
 }
 
+// Compact single-block summary of the user's coach profile for the system
+// prompt. Only stable, user-edited facts — never per-turn values (see the
+// prefix-caching invariant on getSystemPrompt). Alias targets are omitted;
+// the model reads ids via sparky_manage_coach_profile when it needs them.
+function buildCoachProfileSummary(profile: CoachProfileRow | null): string {
+  if (!profile) return 'None';
+  const lines: string[] = [];
+  if (profile.goals) lines.push(`- Goals: ${profile.goals}`);
+  if (
+    profile.training_days_per_week !== null ||
+    profile.session_minutes !== null
+  ) {
+    const parts: string[] = [];
+    if (profile.training_days_per_week !== null) {
+      parts.push(`${profile.training_days_per_week} days/week`);
+    }
+    if (profile.session_minutes !== null) {
+      parts.push(`${profile.session_minutes} min sessions`);
+    }
+    lines.push(`- Training: ${parts.join(', ')}`);
+  }
+  if (profile.equipment.length) {
+    lines.push(`- Equipment: ${profile.equipment.join(', ')}`);
+  }
+  if (profile.limitations.length) {
+    lines.push(`- Limitations: ${profile.limitations.join(', ')}`);
+  }
+  if (Object.keys(profile.food_preferences).length) {
+    // Defensive cap: this lands in every coaching system prompt, and rows
+    // written before the tool-side size limits existed may be oversized.
+    const prefs = JSON.stringify(profile.food_preferences);
+    lines.push(
+      `- Food preferences: ${
+        prefs.length > 2000 ? `${prefs.slice(0, 2000)}… (truncated)` : prefs
+      }`
+    );
+  }
+  const aliasPhrases = Object.keys(profile.aliases);
+  if (aliasPhrases.length) {
+    const shown = aliasPhrases.slice(0, 25);
+    const more = aliasPhrases.length - shown.length;
+    lines.push(
+      `- Aliases: ${shown.map((phrase) => `"${phrase}"`).join(', ')}${
+        more > 0 ? `, +${more} more` : ''
+      }`
+    );
+  }
+  return lines.length ? lines.join('\n') : 'None';
+}
+
 async function prepareChatContext(
   authenticatedUserId: string,
   serviceType: string,
@@ -513,11 +563,12 @@ async function prepareChatContext(
   categoriesAreManual = false,
   serviceSystemPrompt?: string | null
 ) {
-  const { chatTz, customCategoriesList } =
+  const { chatTz, customCategoriesList, coachProfileSummary } =
     await chatContextInputsCache.getOrLoad(authenticatedUserId, async () => {
-      const [customCategories, tz] = await Promise.all([
+      const [customCategories, tz, coachProfile] = await Promise.all([
         measurementRepository.getCustomCategories(authenticatedUserId),
         loadUserTimezone(authenticatedUserId),
+        coachProfileRepository.getCoachProfile(authenticatedUserId),
       ]);
       return {
         chatTz: tz,
@@ -530,6 +581,7 @@ async function prepareChatContext(
                 )
                 .join('\n')
             : 'None',
+        coachProfileSummary: buildCoachProfileSummary(coachProfile),
       };
     });
 
@@ -634,7 +686,8 @@ async function prepareChatContext(
         [...selectedCategories],
         // Auto mode advertises the escalation tool; manual mode advertises the
         // tool selector as the way to widen.
-        !categoriesAreManual
+        !categoriesAreManual,
+        coachProfileSummary
       ),
       serviceSystemPrompt
     ),
@@ -681,7 +734,10 @@ export function getSystemPrompt(
   // sparky_enable_tools escalation tool. When false (a manual selection), the
   // dormant domains are a hard limit and the model is told to send the user to
   // the tool selector instead of attempting or claiming a dormant capability.
-  allowEscalation = true
+  allowEscalation = true,
+  // Compact coach-profile summary. Cache-stable like customCategoriesList:
+  // changes only when the user edits their profile, never per-turn.
+  coachProfileSummary = 'None'
 ): string {
   const suffix = profile === 'core' ? 'core' : 'full';
   const filePath = path.join(__dirname, '../prompts', `chatbot-${suffix}.md`);
@@ -725,6 +781,17 @@ export function getSystemPrompt(
     }
   }
 
+  if (categories.has('coaching') && suffix === 'full') {
+    const coachingPath = path.join(
+      __dirname,
+      '../prompts',
+      `chatbot-${suffix}-coaching.md`
+    );
+    if (existsSync(coachingPath)) {
+      content += '\n\n' + readFileSync(coachingPath, 'utf-8').trim();
+    }
+  }
+
   if (categories.has('vision') && suffix === 'full') {
     const visionPath = path.join(
       __dirname,
@@ -758,10 +825,20 @@ export function getSystemPrompt(
         '\n\nIf the user asks for something in one of these areas, do NOT attempt it and do NOT claim you did it. Tell them to enable that category using the tool selector in the chat, then retry.';
   }
 
-  // Replace placeholders dynamically
+  // Replace placeholders dynamically. The user-derived values go through
+  // callback replacers: a plain string replacement interprets `$&`, `$'`,
+  // and `$\`` as pattern references, so user text containing them would
+  // corrupt the prompt. The profile summary additionally has its untrusted-
+  // data delimiters stripped so profile text cannot break out of the
+  // <coach_profile_data> block in the coaching fragment.
+  const safeCoachProfile = coachProfileSummary.replace(
+    /<\/?coach_profile_data>/gi,
+    '[removed]'
+  );
   return content
     .replace(/\${today}/g, todayInZone(chatTz))
-    .replace(/\${customCategories}/g, customCategoriesList);
+    .replace(/\${customCategories}/g, () => customCategoriesList)
+    .replace(/\${coachProfile}/g, () => safeCoachProfile);
 }
 
 // OpenAI's 24h extended retention is supported on gpt-5.1 through gpt-5.5 only.

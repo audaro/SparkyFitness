@@ -28,6 +28,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 vi.mock('../models/chatRepository');
 vi.mock('../models/userRepository');
 vi.mock('../models/measurementRepository');
+vi.mock('../models/coachProfileRepository');
 vi.mock('../models/preferenceRepository', () => ({
   default: {
     getUserPreferences: vi.fn(),
@@ -655,7 +656,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 21\/39 active tools for chatbot \(profile=core/
+          /Loaded 21\/40 active tools for chatbot \(profile=core/
         )
       );
       // The core profile is the mitigation, so no context-window warning.
@@ -737,7 +738,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 39\/39 active tools for chatbot \(profile=full/
+          /Loaded 40\/40 active tools for chatbot \(profile=full/
         )
       );
       // Ollama + full profile is the risky combo, so warn about the 4096 default.
@@ -770,7 +771,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 39\/39 active tools for chatbot \(profile=full/
+          /Loaded 40\/40 active tools for chatbot \(profile=full/
         )
       );
     });
@@ -798,7 +799,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 39\/39 active tools for chatbot \(profile=full/
+          /Loaded 40\/40 active tools for chatbot \(profile=full/
         )
       );
       // The context-window warning is Ollama-only; cloud providers never see it.
