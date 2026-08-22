@@ -381,6 +381,125 @@ const updateMealSchema = z
   })
   .strict();
 
+// Weekly meal-plan assignments: which meal/food is planned for which day and
+// meal type. The repository resolves nothing leniently, so the tool validates
+// and resolves meal types itself before sending.
+const mealPlanAssignmentSchema = z
+  .object({
+    day_of_week: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(6)
+      .describe('Day of week: 0=Sunday … 6=Saturday'),
+    meal_type_id: uuidSchema
+      .optional()
+      .describe('Meal type UUID, including custom meal types'),
+    meal_type: z
+      .string()
+      .min(1)
+      .max(100)
+      .optional()
+      .describe(
+        'Built-in meal type name fallback; ignored when meal_type_id is provided'
+      ),
+    item_type: z
+      .enum(['food', 'meal'])
+      .describe("'meal' plans a meal template, 'food' plans a single food"),
+    meal_id: uuidSchema
+      .optional()
+      .describe("Meal template UUID (from search_meal) — for item_type 'meal'"),
+    food_id: uuidSchema
+      .optional()
+      .describe("Food UUID (from search_food) — for item_type 'food'"),
+    variant_id: uuidSchema
+      .optional()
+      .describe('Food variant UUID pinning a specific serving'),
+    quantity: z.coerce
+      .number()
+      .positive()
+      .optional()
+      .describe('Amount planned (default 1)'),
+    unit: z
+      .string()
+      .min(1)
+      .max(50)
+      .optional()
+      .describe("Unit for the quantity (default 'serving')"),
+  })
+  .strict();
+
+const getMealPlansSchema = z
+  .object({
+    action: z.literal('get_meal_plans'),
+  })
+  .strict();
+
+const createMealPlanSchema = z
+  .object({
+    action: z.literal('create_meal_plan'),
+    plan_name: z.string().min(1).max(200).describe('Name of the meal plan'),
+    description: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe('Description of the plan'),
+    start_date: dateSchema
+      .optional()
+      .describe('Plan start date (YYYY-MM-DD); defaults to today'),
+    end_date: dateSchema
+      .optional()
+      .describe('Plan end date (YYYY-MM-DD); open-ended if omitted'),
+    is_active: z
+      .boolean()
+      .optional()
+      .describe(
+        'Active plans auto-generate diary food entries from today onward'
+      ),
+    assignments: z
+      .array(mealPlanAssignmentSchema)
+      .min(1)
+      .describe('Weekly schedule: which meal/food on which day and meal type'),
+  })
+  .strict();
+
+const updateMealPlanSchema = z
+  .object({
+    action: z.literal('update_meal_plan'),
+    plan_id: uuidSchema.optional().describe('UUID of the meal plan'),
+    plan_name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('Name of the plan to update (alternative to ID)'),
+    new_name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('New name for the plan'),
+    description: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe('New description for the plan'),
+    start_date: dateSchema.optional().describe('New start date (YYYY-MM-DD)'),
+    end_date: dateSchema.optional().describe('New end date (YYYY-MM-DD)'),
+    is_active: z
+      .boolean()
+      .optional()
+      .describe('Activate/deactivate the plan; other fields stay unchanged'),
+    assignments: z
+      .array(mealPlanAssignmentSchema)
+      .min(1)
+      .optional()
+      .describe(
+        'Replacement weekly schedule; REPLACES all existing assignments, so send the complete desired week'
+      ),
+  })
+  .strict();
+
 const logMealSchema = z
   .object({
     action: z.literal('log_meal'),
@@ -715,6 +834,9 @@ export const manageFoodSchema = z.discriminatedUnion('action', [
   searchMealSchema,
   createMealSchema,
   updateMealSchema,
+  getMealPlansSchema,
+  createMealPlanSchema,
+  updateMealPlanSchema,
   logMealSchema,
   listDiarySchema,
   deleteEntrySchema,
@@ -746,6 +868,9 @@ export const manageFoodInput = z.object({
       'search_meal',
       'create_meal',
       'update_meal',
+      'get_meal_plans',
+      'create_meal_plan',
+      'update_meal_plan',
       'log_meal',
       'list_diary',
       'delete_entry',
@@ -874,6 +999,44 @@ export const manageFoodInput = z.object({
     .optional()
     .describe(
       'Ingredients for create_meal / update_meal: [{food_id (from search_food) OR child_meal_id (from search_meal), item_type?, variant_id?, quantity, unit}]. On update this REPLACES the whole ingredient list.'
+    ),
+  // meal plans
+  plan_id: z
+    .string()
+    .optional()
+    .describe('Meal plan UUID — for update_meal_plan (see get_meal_plans)'),
+  plan_name: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      'Meal plan name — the name for create_meal_plan, or the plan to update (alternative to plan_id)'
+    ),
+  is_active: z
+    .boolean()
+    .optional()
+    .describe(
+      'For create/update_meal_plan: active plans auto-generate diary food entries'
+    ),
+  assignments: z
+    .array(
+      z.object({
+        day_of_week: z.coerce.number().int().min(0).max(6),
+        meal_type_id: uuidSchema.optional(),
+        meal_type: z.string().min(1).max(100).optional(),
+        item_type: z.enum(['food', 'meal']),
+        meal_id: uuidSchema.optional(),
+        food_id: uuidSchema.optional(),
+        variant_id: uuidSchema.optional(),
+        quantity: z.coerce.number().positive().optional(),
+        unit: z.string().min(1).max(50).optional(),
+      })
+    )
+    .min(1)
+    .optional()
+    .describe(
+      'Weekly schedule for create/update_meal_plan: [{day_of_week 0=Sun…6=Sat, meal_type_id OR meal_type, item_type, meal_id OR food_id, variant_id?, quantity?, unit?}]. On update this REPLACES all existing assignments.'
     ),
   // search
   search_type: searchTypeEnum

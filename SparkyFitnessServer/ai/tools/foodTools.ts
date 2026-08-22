@@ -5,6 +5,7 @@ import { log } from '../../config/logging.js';
 import foodCoreService from '../../services/foodCoreService.js';
 import foodEntryService from '../../services/foodEntryService.js';
 import mealService from '../../services/mealService.js';
+import mealPlanTemplateService from '../../services/mealPlanTemplateService.js';
 import { ValidationError } from '../../utils/errors.js';
 import preferenceService from '../../services/preferenceService.js';
 import measurementService from '../../services/measurementService.js';
@@ -22,6 +23,7 @@ import externalProviderRepository from '../../models/externalProviderRepository.
 import { ERRORS, formatZodError } from './errors.js';
 import {
   compactRecord,
+  DAY_NAMES,
   dayString,
   formatConfirmation,
   formatJsonResult,
@@ -55,6 +57,9 @@ const VALID_ACTIONS = [
   'search_meal',
   'create_meal',
   'update_meal',
+  'get_meal_plans',
+  'create_meal_plan',
+  'update_meal_plan',
   'log_meal',
   'list_diary',
   'delete_entry',
@@ -495,6 +500,295 @@ async function resolveMealType(
   return resolved ? { id: resolved.id, name: resolved.name } : null;
 }
 
+// Nutrition columns persisted on meal_foods rows. The repository inserts
+// whatever the caller supplies verbatim (`item.calories ?? null` etc.) and
+// nothing backfills them later — attachResolvedMealNutrition only resolves
+// sub-meal rows dynamically — so a plain food ingredient saved without these
+// fields reads back as zero-calorie everywhere the meal is used.
+const MEAL_INGREDIENT_SNAPSHOT_FIELDS = [
+  'serving_size',
+  'serving_unit',
+  'calories',
+  'protein',
+  'carbs',
+  'fat',
+  'saturated_fat',
+  'polyunsaturated_fat',
+  'monounsaturated_fat',
+  'trans_fat',
+  'cholesterol',
+  'sodium',
+  'potassium',
+  'dietary_fiber',
+  'sugars',
+  'vitamin_a',
+  'vitamin_c',
+  'calcium',
+  'iron',
+  'glycemic_index',
+  'custom_nutrients',
+] as const;
+
+interface MealIngredientArg {
+  food_id?: string;
+  child_meal_id?: string;
+  item_type?: 'food' | 'meal';
+  variant_id?: string;
+  quantity: number;
+  unit: string;
+}
+
+interface MealIngredientRow {
+  food_id?: string;
+  child_meal_id?: string;
+  item_type: 'food' | 'meal';
+  variant_id?: string;
+  quantity: number;
+  unit: string;
+  [key: string]: unknown;
+}
+
+interface VariantSnapshotRow extends Record<string, unknown> {
+  id: string;
+  food_id: string;
+}
+
+async function resolveMealIngredients(
+  userId: string,
+  foods: MealIngredientArg[]
+): Promise<
+  { ok: true; rows: MealIngredientRow[] } | { ok: false; message: string }
+> {
+  const rows: MealIngredientRow[] = [];
+  for (const f of foods) {
+    if (f.child_meal_id) {
+      if (f.food_id) {
+        return {
+          ok: false,
+          message:
+            'An ingredient cannot reference both food_id and child_meal_id',
+        };
+      }
+      // Sub-meal rows carry no snapshot: their nutrition is resolved
+      // dynamically from the child meal at read time.
+      rows.push({
+        child_meal_id: f.child_meal_id,
+        item_type: 'meal',
+        quantity: f.quantity,
+        unit: f.unit,
+      });
+      continue;
+    }
+    const foodId = f.food_id;
+    if (!foodId) {
+      return {
+        ok: false,
+        message:
+          'Each ingredient needs food_id (from search_food) or child_meal_id (from search_meal)',
+      };
+    }
+    let variant: VariantSnapshotRow | undefined;
+    if (f.variant_id) {
+      const explicit = (await foodRepository.getFoodVariantById(
+        f.variant_id,
+        userId
+      )) as VariantSnapshotRow | null;
+      if (!explicit || explicit.food_id !== foodId) {
+        return {
+          ok: false,
+          message: `Variant '${f.variant_id}' does not belong to food '${foodId}' — use a variant id from search_food, or omit variant_id to use the default serving`,
+        };
+      }
+      variant = explicit;
+    } else {
+      const food = (await foodRepository.getFoodById(foodId, userId)) as {
+        default_variant?: VariantSnapshotRow | null;
+      } | null;
+      variant = food?.default_variant ?? undefined;
+      if (!variant) {
+        const dbVariants = (await foodRepository.getFoodVariantsByFoodId(
+          foodId,
+          userId
+        )) as VariantSnapshotRow[] | null;
+        variant = Array.isArray(dbVariants) ? dbVariants[0] : undefined;
+      }
+      if (!variant) {
+        return {
+          ok: false,
+          message: `Food with ID '${foodId}' was not found or has no serving data — use search_food to find a valid food_id`,
+        };
+      }
+    }
+    const row: MealIngredientRow = {
+      food_id: foodId,
+      item_type: 'food',
+      variant_id: variant.id,
+      quantity: f.quantity,
+      unit: f.unit,
+    };
+    for (const field of MEAL_INGREDIENT_SNAPSHOT_FIELDS) {
+      row[field] = variant[field] ?? null;
+    }
+    rows.push(row);
+  }
+  return { ok: true, rows };
+}
+
+// The joined rows the meal-plan-template repository returns (template row +
+// assignment rows with meal_type/meal_name/food_name resolved by the SELECT).
+interface MealPlanAssignmentRow {
+  id?: string;
+  day_of_week: number;
+  meal_type?: string | null;
+  meal_type_id: string;
+  item_type: 'meal' | 'food';
+  meal_id?: string | null;
+  meal_name?: string | null;
+  food_id?: string | null;
+  food_name?: string | null;
+  variant_id?: string | null;
+  quantity?: number | string | null;
+  unit?: string | null;
+}
+
+interface MealPlanTemplateRow {
+  id: string;
+  user_id?: string;
+  plan_name: string;
+  description?: string | null;
+  start_date: string | Date;
+  end_date?: string | Date | null;
+  is_active: boolean;
+  assignments?: MealPlanAssignmentRow[];
+}
+
+// Full structured projection: update_meal_plan REPLACES the whole weekly
+// schedule, so the read side must expose every assignment field needed to
+// faithfully rebuild the week. Surrogate assignment row ids are dropped — the
+// repository deletes and reinserts all assignment rows on update, so the ids
+// are not stable and the strict update schema would reject them on echo-back.
+function projectMealPlan(p: MealPlanTemplateRow) {
+  return {
+    id: p.id,
+    plan_name: p.plan_name,
+    description: p.description || null,
+    start_date: dayString(p.start_date),
+    end_date: p.end_date ? dayString(p.end_date) : null,
+    is_active: p.is_active,
+    assignments: (p.assignments ?? []).map((a) => ({
+      day: DAY_NAMES[a.day_of_week],
+      day_of_week: a.day_of_week,
+      meal_type: a.meal_type ?? null,
+      meal_type_id: a.meal_type_id,
+      item_type: a.item_type,
+      meal_id: a.meal_id ?? null,
+      meal_name: a.meal_name ?? null,
+      food_id: a.food_id ?? null,
+      food_name: a.food_name ?? null,
+      variant_id: a.variant_id ?? null,
+      quantity:
+        a.quantity !== null && a.quantity !== undefined
+          ? Number(a.quantity)
+          : null,
+      unit: a.unit ?? null,
+    })),
+  };
+}
+
+interface MealPlanAssignmentInput {
+  day_of_week: number;
+  meal_type_id?: string;
+  meal_type?: string;
+  item_type: 'food' | 'meal';
+  meal_id?: string;
+  food_id?: string;
+  variant_id?: string;
+  quantity?: number;
+  unit?: string;
+}
+
+interface ResolvedMealPlanAssignment {
+  day_of_week: number;
+  meal_type_id: string;
+  item_type: 'food' | 'meal';
+  meal_id?: string | null;
+  food_id?: string | null;
+  variant_id?: string | null;
+  quantity: number;
+  unit: string;
+}
+
+// The repository resolves meal_type names itself but throws mid-transaction
+// with the detail swallowed by the service's generic catch, so the tool
+// pre-resolves every assignment's meal type (same rules as log_food: names
+// match built-in types only, custom types need meal_type_id) and validates
+// the item shape before anything is written.
+async function resolveMealPlanAssignments(
+  userId: string,
+  assignments: MealPlanAssignmentInput[]
+): Promise<
+  | { ok: true; rows: ResolvedMealPlanAssignment[] }
+  | { ok: false; message: string }
+> {
+  const rows: ResolvedMealPlanAssignment[] = [];
+  const cache = new Map<string, ResolvedMealType | null>();
+  for (const a of assignments) {
+    if (!a.meal_type_id && !a.meal_type) {
+      return {
+        ok: false,
+        message: `Assignment for day ${a.day_of_week} needs meal_type_id or meal_type`,
+      };
+    }
+    const cacheKey = a.meal_type_id ?? `name:${a.meal_type!.toLowerCase()}`;
+    let resolved = cache.get(cacheKey);
+    if (resolved === undefined) {
+      resolved = await resolveMealType(userId, a.meal_type_id, a.meal_type);
+      cache.set(cacheKey, resolved);
+    }
+    if (!resolved) {
+      return {
+        ok: false,
+        message: `Meal type "${a.meal_type_id ?? a.meal_type}" was not found or is not available to this user.`,
+      };
+    }
+    if (a.item_type === 'meal') {
+      if (!a.meal_id || a.food_id) {
+        return {
+          ok: false,
+          message:
+            "An item_type 'meal' assignment needs meal_id (and no food_id)",
+        };
+      }
+      rows.push({
+        day_of_week: a.day_of_week,
+        meal_type_id: resolved.id,
+        item_type: 'meal',
+        meal_id: a.meal_id,
+        quantity: a.quantity ?? 1,
+        unit: a.unit ?? 'serving',
+      });
+    } else {
+      if (!a.food_id || a.meal_id) {
+        return {
+          ok: false,
+          message:
+            "An item_type 'food' assignment needs food_id (and no meal_id)",
+        };
+      }
+      rows.push({
+        day_of_week: a.day_of_week,
+        meal_type_id: resolved.id,
+        item_type: 'food',
+        food_id: a.food_id,
+        variant_id: a.variant_id ?? null,
+        quantity: a.quantity ?? 1,
+        unit: a.unit ?? 'serving',
+      });
+    }
+  }
+  return { ok: true, rows };
+}
+
 // Resolves a diary food entry from a food name the way log_food resolves
 // foods: small local models reliably repeat a name they just read in the
 // diary but cannot chain a list_diary call into extracting an entry UUID
@@ -899,6 +1193,9 @@ Actions:
 - search_meal(meal_name)
 - create_meal(meal_name, foods:[{food_id (from search_food) OR child_meal_id (from search_meal), item_type?, variant_id?, quantity, unit}], description?, total_servings?, serving_unit?) — creates a reusable meal template from scratch; nutrition is snapshotted from the ingredients
 - update_meal(meal_id?|meal_name?, new_name?, description?, total_servings?, serving_unit?, foods?) — only provided fields change, but foods REPLACES the entire ingredient list, so send the complete desired list
+- get_meal_plans() — weekly meal plan templates with their full day-by-day assignments
+- create_meal_plan(plan_name, assignments:[{day_of_week 0=Sun…6=Sat, meal_type_id?|meal_type?, item_type:'meal'|'food', meal_id?|food_id?, variant_id?, quantity?, unit?}], description?, start_date?, end_date?, is_active?) — active plans generate diary food entries from today
+- update_meal_plan(plan_id?|plan_name?, new_name?, description?, start_date?, end_date?, is_active?, assignments?) — only provided fields change, but assignments REPLACES the entire weekly schedule, so send the complete desired week
 - log_meal(meal_type_id?|meal_type?, entry_date, meal_id?, meal_name?, quantity?)
 - list_diary(entry_date?)
 - delete_entry(entry_id?|food_name?, entry_type?, entry_date?, meal_type?|meal_type_id?) — deletes one diary entry. Provide entry_id when you have it; otherwise food_name is resolved against the diary for entry_date (defaults to today), with meal_type narrowing when the same food appears in several meals. Ambiguous names return the candidates with their ids instead of deleting.
@@ -962,6 +1259,30 @@ Actions:
             }
             if (args.food_name) {
               return 'lookup_food_nutrition';
+            }
+            // A foods ingredient list only exists on the meal-building
+            // actions, and must be checked before the log_meal rules below:
+            // meal_id/meal_name would otherwise infer log_meal and the
+            // salvage logic would drop the entire ingredient list.
+            // A weekly assignments schedule only exists on the meal-plan
+            // actions; plan_id alone means the plan itself is the target.
+            if (Array.isArray(args.assignments) && args.assignments.length) {
+              return args.plan_id ? 'update_meal_plan' : 'create_meal_plan';
+            }
+            if (args.plan_id) {
+              return 'update_meal_plan';
+            }
+            // meal_name + foods is create_meal's exact signature; only an
+            // explicit meal_id or new_name signals editing an existing meal
+            // (update replaces the whole ingredient list — the destructive
+            // reading must not win on ambiguity).
+            if (Array.isArray(args.foods) && args.foods.length) {
+              return args.meal_id || args.new_name
+                ? 'update_meal'
+                : 'create_meal';
+            }
+            if (args.new_name && (args.meal_id || args.meal_name)) {
+              return 'update_meal';
             }
             // log_meal must be checked before copy_from_yesterday: small
             // models often file a logging date under target_date/source_date,
@@ -1734,6 +2055,13 @@ Actions:
             }
 
             case 'create_meal': {
+              const ingredients = await resolveMealIngredients(
+                userId,
+                args.foods
+              );
+              if (!ingredients.ok) {
+                return ERRORS.VALIDATION(ingredients.message);
+              }
               try {
                 const meal = await mealService.createMeal(userId, {
                   name: args.meal_name,
@@ -1745,15 +2073,7 @@ Actions:
                   ...(args.serving_unit !== undefined && {
                     serving_unit: args.serving_unit,
                   }),
-                  foods: args.foods.map((f) => ({
-                    food_id: f.food_id,
-                    child_meal_id: f.child_meal_id,
-                    item_type:
-                      f.item_type ?? (f.child_meal_id ? 'meal' : 'food'),
-                    variant_id: f.variant_id,
-                    quantity: f.quantity,
-                    unit: f.unit,
-                  })),
+                  foods: ingredients.rows,
                 });
                 return formatConfirmation(
                   `Meal "${meal.name}" created with ${args.foods.length} ingredients.`
@@ -1833,6 +2153,17 @@ Actions:
                   'Either meal_id or meal_name must be provided'
                 );
               }
+              let replacementFoods: MealIngredientRow[] | undefined;
+              if (args.foods?.length) {
+                const ingredients = await resolveMealIngredients(
+                  userId,
+                  args.foods
+                );
+                if (!ingredients.ok) {
+                  return ERRORS.VALIDATION(ingredients.message);
+                }
+                replacementFoods = ingredients.rows;
+              }
               try {
                 const updated = await mealService.updateMeal(userId, mealId, {
                   ...(args.new_name !== undefined && { name: args.new_name }),
@@ -1845,17 +2176,7 @@ Actions:
                   ...(args.serving_unit !== undefined && {
                     serving_unit: args.serving_unit,
                   }),
-                  ...(args.foods?.length && {
-                    foods: args.foods.map((f) => ({
-                      food_id: f.food_id,
-                      child_meal_id: f.child_meal_id,
-                      item_type:
-                        f.item_type ?? (f.child_meal_id ? 'meal' : 'food'),
-                      variant_id: f.variant_id,
-                      quantity: f.quantity,
-                      unit: f.unit,
-                    })),
-                  }),
+                  ...(replacementFoods && { foods: replacementFoods }),
                 });
                 return formatConfirmation(`Meal "${updated.name}" updated.`);
               } catch (error) {
@@ -1864,6 +2185,155 @@ Actions:
                 }
                 throw error;
               }
+            }
+
+            case 'get_meal_plans': {
+              const plans = (await mealPlanTemplateService.getMealPlanTemplates(
+                userId
+              )) as MealPlanTemplateRow[];
+              return formatJsonResult(plans.map(projectMealPlan));
+            }
+
+            case 'create_meal_plan': {
+              const resolved = await resolveMealPlanAssignments(
+                userId,
+                args.assignments
+              );
+              if (!resolved.ok) {
+                return ERRORS.VALIDATION(resolved.message);
+              }
+              const startDate = args.start_date ?? todayInZone(tz);
+              if (args.end_date && args.end_date < startDate) {
+                return ERRORS.VALIDATION(
+                  'end_date must be on or after start_date'
+                );
+              }
+              const plan = await mealPlanTemplateService.createMealPlanTemplate(
+                userId,
+                {
+                  plan_name: args.plan_name,
+                  description: args.description ?? '',
+                  start_date: startDate,
+                  end_date: args.end_date ?? null,
+                  is_active: args.is_active ?? false,
+                  assignments: resolved.rows,
+                  currentClientDate: todayInZone(tz),
+                }
+              );
+              return formatConfirmation(
+                `Meal plan "${plan.plan_name}" created: ${resolved.rows.length} assignments.` +
+                  (plan.is_active
+                    ? ' Plan is active — diary food entries were generated.'
+                    : '')
+              );
+            }
+
+            case 'update_meal_plan': {
+              if (!args.plan_id && !args.plan_name) {
+                return ERRORS.VALIDATION(
+                  'Either plan_id or plan_name must be provided'
+                );
+              }
+              if (
+                args.new_name === undefined &&
+                args.description === undefined &&
+                args.start_date === undefined &&
+                args.end_date === undefined &&
+                args.is_active === undefined &&
+                !args.assignments?.length
+              ) {
+                return ERRORS.VALIDATION(
+                  'Nothing to update — provide new_name, description, start_date, end_date, is_active, or assignments'
+                );
+              }
+              // Own-plans-only by construction: the lookup list is scoped to
+              // the user, so a foreign plan id simply comes back NOT_FOUND.
+              const plans = (await mealPlanTemplateService.getMealPlanTemplates(
+                userId
+              )) as MealPlanTemplateRow[];
+              let existing: MealPlanTemplateRow | undefined;
+              if (args.plan_id) {
+                existing = plans.find((p) => p.id === args.plan_id);
+                if (!existing) {
+                  return ERRORS.NOT_FOUND('Meal Plan', args.plan_id);
+                }
+              } else {
+                const name = (args.plan_name as string).toLowerCase();
+                const matches = plans.filter(
+                  (p) => p.plan_name.toLowerCase() === name
+                );
+                if (matches.length === 0) {
+                  return ERRORS.NOT_FOUND(
+                    'Meal Plan',
+                    args.plan_name as string
+                  );
+                }
+                if (matches.length > 1) {
+                  return ERRORS.VALIDATION(
+                    `Multiple meal plans are named "${args.plan_name}" — use plan_id (see get_meal_plans)`
+                  );
+                }
+                existing = matches[0];
+              }
+              // The repository update deletes ALL assignment rows
+              // unconditionally and reinserts only what it is given, so the
+              // existing schedule must be resent whenever the model is not
+              // replacing it.
+              let assignmentRows: ResolvedMealPlanAssignment[];
+              if (args.assignments?.length) {
+                const resolved = await resolveMealPlanAssignments(
+                  userId,
+                  args.assignments
+                );
+                if (!resolved.ok) {
+                  return ERRORS.VALIDATION(resolved.message);
+                }
+                assignmentRows = resolved.rows;
+              } else {
+                assignmentRows = (existing.assignments ?? []).map((a) => ({
+                  day_of_week: a.day_of_week,
+                  meal_type_id: a.meal_type_id,
+                  item_type: a.item_type,
+                  meal_id: a.meal_id ?? null,
+                  food_id: a.food_id ?? null,
+                  variant_id: a.variant_id ?? null,
+                  quantity:
+                    a.quantity !== null && a.quantity !== undefined
+                      ? Number(a.quantity)
+                      : 1,
+                  unit: a.unit ?? 'serving',
+                }));
+              }
+              const mergedStart =
+                args.start_date ?? dayString(existing.start_date);
+              const mergedEnd =
+                args.end_date !== undefined
+                  ? args.end_date
+                  : existing.end_date
+                    ? dayString(existing.end_date)
+                    : null;
+              if (mergedEnd && mergedEnd < mergedStart) {
+                return ERRORS.VALIDATION(
+                  'end_date must be on or after start_date'
+                );
+              }
+              const updated =
+                await mealPlanTemplateService.updateMealPlanTemplate(
+                  existing.id,
+                  userId,
+                  {
+                    plan_name: args.new_name ?? existing.plan_name,
+                    description: args.description ?? existing.description ?? '',
+                    start_date: mergedStart,
+                    end_date: mergedEnd,
+                    is_active: args.is_active ?? existing.is_active,
+                    assignments: assignmentRows,
+                    currentClientDate: todayInZone(tz),
+                  }
+                );
+              return formatConfirmation(
+                `Meal plan "${updated.plan_name}" updated.`
+              );
             }
 
             case 'log_meal': {

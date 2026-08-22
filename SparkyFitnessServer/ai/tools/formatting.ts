@@ -5,6 +5,18 @@ import {
   truncateJsonRecords,
 } from './truncation.js';
 
+// Weekly-schedule day labels indexed by day_of_week (0=Sunday), shared by the
+// workout- and meal-plan projections.
+export const DAY_NAMES = [
+  'Sun',
+  'Mon',
+  'Tue',
+  'Wed',
+  'Thu',
+  'Fri',
+  'Sat',
+] as const;
+
 // pg returns DATE columns as local-midnight Date objects; render them as
 // calendar-day strings.
 export function dayString(value: unknown): string {

@@ -12,6 +12,7 @@ import workoutPresetRepository from '../../models/workoutPresetRepository.js';
 import { ERRORS, formatZodError } from './errors.js';
 import {
   compactRecord,
+  DAY_NAMES,
   dayString,
   formatConfirmation,
   formatJsonResult,
@@ -182,8 +183,6 @@ function toPlanAssignments(assignments: PlanAssignmentInput[]) {
     })),
   }));
 }
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // The joined rows the workout-plan repository returns (template + assignment
 // + set aggregation). Surrogate row ids are typed so the projection can drop
