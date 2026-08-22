@@ -73,6 +73,37 @@ async function getWeeklyReport(
       report += `| ${b.entry_date} | ${b.weight || '-'} | ${b.body_fat_percentage || '-'} | ${b.steps || '-'} |\n`;
     }
   }
+  report += '\n';
+
+  // Training
+  const training = await exerciseEntryDb.getWeeklyTrainingSummary(
+    userId,
+    start,
+    end
+  );
+  report += '## Training\n';
+  if (training.planned_days > 0) {
+    report += `Planned ${training.planned_days} training day(s) this week — trained on ${training.trained_planned_days} of them.\n\n`;
+  }
+  if (training.days.length === 0) {
+    report += '_No training sets logged this week._\n';
+  } else {
+    report += '| Date | Exercises | Sets | Volume (kg) |\n';
+    report += '| :--- | :--- | :--- | :--- |\n';
+    for (const d of training.days) {
+      report += `| ${d.entry_date} | ${d.exercises} | ${d.sets} | ${d.volume ?? '-'} |\n`;
+    }
+  }
+  if (training.prs.length > 0) {
+    report += '\n### Personal records\n';
+    for (const p of training.prs) {
+      const detail =
+        p.reps !== null && p.weight !== null
+          ? ` — ${p.reps}×${p.weight}kg`
+          : '';
+      report += `- ${p.entry_date}: ${p.exercise_name}${detail}\n`;
+    }
+  }
 
   return report;
 }

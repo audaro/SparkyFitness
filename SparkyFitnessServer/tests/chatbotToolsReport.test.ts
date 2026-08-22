@@ -29,6 +29,7 @@ vi.mock('../services/measurementService', () => ({
 vi.mock('../models/exerciseEntry', () => ({
   default: {
     getDailyExerciseTotalsRange: vi.fn(),
+    getWeeklyTrainingSummary: vi.fn(),
   },
 }));
 vi.mock('../models/measurementRepository', () => ({
@@ -68,6 +69,12 @@ beforeEach(() => {
   vi.mocked(getResolvedExerciseCaloriesRange).mockResolvedValue(new Map());
   vi.clearAllMocks();
   vi.mocked(preferenceService.getUserPreferences).mockResolvedValue(PREFS);
+  vi.mocked(exerciseEntryDb.getWeeklyTrainingSummary).mockResolvedValue({
+    days: [],
+    prs: [],
+    planned_days: 0,
+    trained_planned_days: 0,
+  });
   tools = buildReportTools('user-1', 'UTC');
 });
 
@@ -104,6 +111,28 @@ describe('sparky_get_report (get_weekly_report)', () => {
         steps: null,
       },
     ]);
+    vi.mocked(exerciseEntryDb.getWeeklyTrainingSummary).mockResolvedValue({
+      days: [
+        { entry_date: '2026-06-08', exercises: 2, sets: 6, volume: 1920 },
+        { entry_date: '2026-06-09', exercises: 1, sets: 3, volume: null },
+      ],
+      prs: [
+        {
+          entry_date: '2026-06-08',
+          exercise_name: 'Squats',
+          reps: 5,
+          weight: 100,
+        },
+        {
+          entry_date: '2026-06-09',
+          exercise_name: 'Plank',
+          reps: null,
+          weight: null,
+        },
+      ],
+      planned_days: 3,
+      trained_planned_days: 2,
+    });
 
     const result = await tools.sparky_get_report.execute!(
       { action: 'get_weekly_report', end_date: '2026-06-10' },
@@ -127,7 +156,23 @@ describe('sparky_get_report (get_weekly_report)', () => {
         '| Date | Weight (kg) | BF % | Steps |\n' +
         '| :--- | :--- | :--- | :--- |\n' +
         '| 2026-06-08 | 82 | - | - |\n' +
-        '| 2026-06-09 | 81.5 | 22.5 | 9000 |\n'
+        '| 2026-06-09 | 81.5 | 22.5 | 9000 |\n' +
+        '\n' +
+        '## Training\n' +
+        'Planned 3 training day(s) this week — trained on 2 of them.\n\n' +
+        '| Date | Exercises | Sets | Volume (kg) |\n' +
+        '| :--- | :--- | :--- | :--- |\n' +
+        '| 2026-06-08 | 2 | 6 | 1920 |\n' +
+        '| 2026-06-09 | 1 | 3 | - |\n' +
+        '\n' +
+        '### Personal records\n' +
+        '- 2026-06-08: Squats — 5×100kg\n' +
+        '- 2026-06-09: Plank\n'
+    );
+    expect(exerciseEntryDb.getWeeklyTrainingSummary).toHaveBeenCalledWith(
+      'user-1',
+      '2026-06-04',
+      '2026-06-10'
     );
     expect(reportRepository.getDailyNutritionTotalsRange).toHaveBeenCalledWith(
       'user-1',
@@ -169,7 +214,10 @@ describe('sparky_get_report (get_weekly_report)', () => {
         '_No water intake logged this week._\n' +
         '\n' +
         '## Biometrics Trend\n' +
-        '_No biometric data logged this week._\n'
+        '_No biometric data logged this week._\n' +
+        '\n' +
+        '## Training\n' +
+        '_No training sets logged this week._\n'
     );
     expect(reportRepository.getDailyNutritionTotalsRange).toHaveBeenCalledWith(
       'user-1',
