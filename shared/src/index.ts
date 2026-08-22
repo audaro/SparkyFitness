@@ -112,6 +112,7 @@ export * from "./utils/csvValue.ts";
 export * from "./utils/csvFormat.ts";
 export * from "./utils/parseCsv.ts";
 export * from "./utils/activitySport.ts";
+export * from "./utils/spokenText.ts";
 export * from "./ai/unitConversion.ts";
 export * from "./ai/confidenceLabels.ts";
 export * from "./medications/contracts.ts";

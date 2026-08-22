@@ -186,6 +186,18 @@ export default ({ config }: ConfigContext): Partial<ExpoConfig> => {
           enableBackgroundPlayback: false,
         },
       ],
+      [
+        // Push-to-talk voice input for Sparky. Recognition runs on-device
+        // (requiresOnDeviceRecognition) so speech audio never leaves the phone.
+        'expo-speech-recognition',
+        {
+          microphonePermission:
+            'SparkyFitness uses the microphone so you can talk to Sparky, your AI coach.',
+          speechRecognitionPermission:
+            'SparkyFitness transcribes your speech on this device so you can log food and workouts by voice.',
+          androidSpeechServicePackages: ['com.google.android.googlequicksearchbox'],
+        },
+      ],
       './plugins/withGlanceAndroidSupport',
       './plugins/withAppLanguage',
       './plugins/withCalorieWidget',

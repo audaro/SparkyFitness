@@ -136,6 +136,11 @@ const ICON_MAP = {
 
   // AI features
   'sparkles': { sf: 'sparkles', ion: 'sparkles' },
+  'mic': { sf: 'mic.fill', ion: 'mic' },
+  'mic-outline': { sf: 'mic', ion: 'mic-outline' },
+  'waveform': { sf: 'waveform', ion: 'pulse' },
+  'speaker': { sf: 'speaker.wave.2.fill', ion: 'volume-high' },
+  'speaker-off': { sf: 'speaker.slash.fill', ion: 'volume-mute' },
 
   // Biometrics/Security
   'fingerprint': { sf: 'touchid', ion: 'finger-print-outline' },

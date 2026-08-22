@@ -51,7 +51,10 @@ jest.mock('@assistant-ui/react-native', () => {
     useAuiEvent: () => undefined,
     useAuiState: (selector: (s: any) => any) =>
       selector({
-        thread: { isRunning: !!(global as any).__mockChatIsRunning },
+        thread: {
+          isRunning: !!(global as any).__mockChatIsRunning,
+          messages: (global as any).__mockChatMessages ?? [],
+        },
         composer: { text: (global as any).__mockComposerText ?? '' },
       }),
     ThreadPrimitive: {

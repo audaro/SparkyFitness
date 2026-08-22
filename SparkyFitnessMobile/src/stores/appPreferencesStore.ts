@@ -40,6 +40,8 @@ export const PREFERENCE_DEFAULTS = {
   fastingCardVisible: true,
   cycleCardVisible: true,
   askSparkyVisible: true,
+  voiceButtonVisible: true,
+  voiceRepliesEnabled: true,
   medicationsCardVisible: true,
   medicationRemindersEnabled: true,
   medicationReminderRepeats: true,
@@ -71,6 +73,8 @@ export type AppPreferencesData = {
   fastingCardVisible: boolean;
   cycleCardVisible: boolean;
   askSparkyVisible: boolean;
+  voiceButtonVisible: boolean;
+  voiceRepliesEnabled: boolean;
   medicationsCardVisible: boolean;
   medicationRemindersEnabled: boolean;
   medicationReminderRepeats: boolean;
@@ -102,6 +106,8 @@ export interface AppPreferencesState extends AppPreferencesData {
   setFastingCardVisible: (value: boolean) => void;
   setCycleCardVisible: (value: boolean) => void;
   setAskSparkyVisible: (value: boolean) => void;
+  setVoiceButtonVisible: (value: boolean) => void;
+  setVoiceRepliesEnabled: (value: boolean) => void;
   setMedicationsCardVisible: (value: boolean) => void;
   setMedicationRemindersEnabled: (value: boolean) => void;
   setMedicationReminderRepeats: (value: boolean) => void;
@@ -173,6 +179,8 @@ export const useAppPreferencesStore = create<AppPreferencesState>()(
       setFastingCardVisible: (value) => set({ fastingCardVisible: value }),
       setCycleCardVisible: (value) => set({ cycleCardVisible: value }),
       setAskSparkyVisible: (value) => set({ askSparkyVisible: value }),
+      setVoiceButtonVisible: (value) => set({ voiceButtonVisible: value }),
+      setVoiceRepliesEnabled: (value) => set({ voiceRepliesEnabled: value }),
       setMedicationsCardVisible: (value) => set({ medicationsCardVisible: value }),
       setMedicationRemindersEnabled: (value) => set({ medicationRemindersEnabled: value }),
       setMedicationReminderRepeats: (value) => set({ medicationReminderRepeats: value }),
@@ -207,6 +215,8 @@ export const useAppPreferencesStore = create<AppPreferencesState>()(
         fastingCardVisible: state.fastingCardVisible,
         cycleCardVisible: state.cycleCardVisible,
         askSparkyVisible: state.askSparkyVisible,
+        voiceButtonVisible: state.voiceButtonVisible,
+        voiceRepliesEnabled: state.voiceRepliesEnabled,
         medicationsCardVisible: state.medicationsCardVisible,
         medicationRemindersEnabled: state.medicationRemindersEnabled,
         medicationReminderRepeats: state.medicationReminderRepeats,

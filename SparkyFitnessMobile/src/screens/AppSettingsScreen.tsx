@@ -49,6 +49,10 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
     (s) => s.setLiquidGlassTabBarEnabled,
   );
   const languagePreference = useAppPreferencesStore((s) => s.languagePreference);
+  const voiceButtonVisible = useAppPreferencesStore((s) => s.voiceButtonVisible);
+  const setVoiceButtonVisible = useAppPreferencesStore((s) => s.setVoiceButtonVisible);
+  const voiceRepliesEnabled = useAppPreferencesStore((s) => s.voiceRepliesEnabled);
+  const setVoiceRepliesEnabled = useAppPreferencesStore((s) => s.setVoiceRepliesEnabled);
   const isIOS = Platform.OS === 'ios';
   const iosLanguage = isIOS ? getNativeIOSLanguage() : null;
   const supportsLiquidGlassTabBar = canUseLiquidGlass();
@@ -178,6 +182,30 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
             <Switch
               value={hapticsEnabled}
               onValueChange={setHapticsEnabled}
+            />
+          }
+        />
+
+        <SettingsRow
+          title="Talk to Sparky button"
+          subtitle="Show the floating mic on every screen. Speech is transcribed on this device."
+          subtitleNumberOfLines={0}
+          rightAccessory={
+            <Switch
+              value={voiceButtonVisible}
+              onValueChange={setVoiceButtonVisible}
+            />
+          }
+        />
+
+        <SettingsRow
+          title="Sparky speaks replies"
+          subtitle="Read Sparky's answers aloud after voice questions and in chat."
+          subtitleNumberOfLines={0}
+          rightAccessory={
+            <Switch
+              value={voiceRepliesEnabled}
+              onValueChange={setVoiceRepliesEnabled}
             />
           }
         />

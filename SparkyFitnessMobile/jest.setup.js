@@ -179,6 +179,28 @@ jest.mock('expo-audio', () => ({
   setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
+// Mock expo-speech-recognition (native module unavailable under jest). Event
+// handlers registered through useSpeechRecognitionEvent are captured on a
+// global so voice tests can fire them: global.__speechRecognitionHandlers.
+jest.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    start: jest.fn(),
+    stop: jest.fn(),
+    abort: jest.fn(),
+    requestPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+  },
+  useSpeechRecognitionEvent: jest.fn((eventName, handler) => {
+    global.__speechRecognitionHandlers = global.__speechRecognitionHandlers || {};
+    global.__speechRecognitionHandlers[eventName] = handler;
+  }),
+}));
+
+// Mock expo-speech (on-device TTS)
+jest.mock('expo-speech', () => ({
+  speak: jest.fn(),
+  stop: jest.fn(),
+}));
+
 // Mock expo-camera
 jest.mock('expo-camera', () => {
   const React = require('react');

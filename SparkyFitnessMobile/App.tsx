@@ -108,6 +108,7 @@ import ActiveWorkoutBar, {
 } from './src/components/ActiveWorkoutBar';
 import { ActiveWorkoutTransitionScreenLayout } from './src/components/ActiveWorkoutTransitionProbe';
 import ActiveWorkoutKeepAwake from './src/components/ActiveWorkoutKeepAwake';
+import VoicePushToTalk from './src/components/voice/VoicePushToTalk';
 import MedicationReminderReconciler from './src/components/MedicationReminderReconciler';
 import { useNativeIOSTabsActive, useNativeIOSHeadersActive } from './src/services/nativeTabBarPreference';
 import { useWidgetLanguageRefresh } from './src/hooks/useWidgetLanguageRefresh';
@@ -757,6 +758,7 @@ function AppContent() {
           }}
         />
         <ActiveWorkoutBar />
+        <VoicePushToTalk />
         <ActiveWorkoutKeepAwake />
         <MedicationReminderReconciler />
         <SafeAreaToast />

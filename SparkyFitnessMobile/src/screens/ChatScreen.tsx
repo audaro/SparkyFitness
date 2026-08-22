@@ -7,6 +7,7 @@ import {
   FlatList,
   KeyboardAvoidingView as RNKeyboardAvoidingView,
   Platform,
+  Pressable,
   TextInput,
   type TextInputProps,
 } from 'react-native';
@@ -43,6 +44,16 @@ import { addLog } from '../services/LogService';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useActiveAiServiceSetting, useChatHistory, chatHistoryQueryKey } from '../hooks';
 import { useScreenHeader } from '../hooks/useScreenHeader';
+import { useAppPreferencesStore } from '../stores/appPreferencesStore';
+import { useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import {
+  abortRecognition,
+  ensureVoicePermissions,
+  speakReply,
+  startRecognition,
+  stopRecognition,
+  stopSpeaking,
+} from '../services/voice/speechService';
 import type { RootStackScreenProps } from '../types/navigation';
 
 /** Seed (initial) messages accepted by `useChatRuntime`. */
@@ -308,6 +319,98 @@ function LocalComposerInput({ autoFocusReady, ...props }: LocalComposerInputProp
   return <TextInput ref={inputRef} {...props} value={localText} onChangeText={handleChangeText} />;
 }
 
+/**
+ * Mic dictation button for the composer. Tap → on-device speech recognition
+ * streams interim text into the composer (via the assistant-ui store, which
+ * LocalComposerInput adopts as a store-driven change); recognition ends on a
+ * pause or a second tap, and the user reviews/edits before hitting Send.
+ * Events are module-global, so handlers gate on this button's own dictating
+ * state to avoid cross-talk with the global push-to-talk overlay.
+ */
+function ComposerMic() {
+  const aui = useAui();
+  const [dictating, setDictating] = useState(false);
+  // Synced in an effect (not during render) purely for the unmount cleanup.
+  const dictatingRef = useRef(false);
+  useEffect(() => {
+    dictatingRef.current = dictating;
+  }, [dictating]);
+  const [muted, dangerIcon] = useCSSVariable([
+    '--color-text-muted',
+    '--color-icon-danger',
+  ]) as [string, string];
+
+  // useSpeechRecognitionEvent always calls the latest closure, so handlers can
+  // read `dictating` directly.
+  useSpeechRecognitionEvent('result', (event) => {
+    if (!dictating) return;
+    const text = event.results[0]?.transcript ?? '';
+    if (text) aui.composer().setText(text);
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    if (dictating) setDictating(false);
+  });
+
+  useSpeechRecognitionEvent('error', (event) => {
+    if (!dictating) return;
+    setDictating(false);
+    if (event.error !== 'no-speech') {
+      Toast.show({ type: 'error', text1: "Couldn't hear that", text2: event.message });
+    }
+  });
+
+  // Never leave the mic hot when the screen unmounts mid-dictation.
+  useEffect(
+    () => () => {
+      if (dictatingRef.current) abortRecognition();
+    },
+    []
+  );
+
+  const handlePress = useCallback(async () => {
+    if (dictating) {
+      stopRecognition();
+      return;
+    }
+    const granted = await ensureVoicePermissions();
+    if (!granted) {
+      Toast.show({
+        type: 'error',
+        text1: 'Microphone access needed',
+        text2: 'Enable the microphone and speech recognition in Settings.',
+      });
+      return;
+    }
+    setDictating(true);
+    try {
+      startRecognition();
+    } catch (error) {
+      addLog('Chat dictation failed to start', 'ERROR', [
+        error instanceof Error ? error.message : String(error),
+      ]);
+      setDictating(false);
+    }
+  }, [dictating]);
+
+  return (
+    <ThreadPrimitive.If running={false}>
+      <Pressable
+        onPress={handlePress}
+        hitSlop={8}
+        accessibilityLabel={dictating ? 'Stop dictation' : 'Dictate a message'}
+        style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Icon
+          name={dictating ? 'waveform' : 'mic-outline'}
+          size={22}
+          color={dictating ? dangerIcon : muted}
+        />
+      </Pressable>
+    </ThreadPrimitive.If>
+  );
+}
+
 /** The bottom input row. Send/Cancel stay on assistant-ui actions. */
 function Composer({ autoFocusReady }: { autoFocusReady: boolean }) {
   const [muted, raised, textPrimary] = useCSSVariable([
@@ -336,6 +439,7 @@ function Composer({ autoFocusReady }: { autoFocusReady: boolean }) {
           fontSize: 16,
         }}
       />
+      <ComposerMic />
       {/* ThreadPrimitive.If is the running-aware conditional (ComposerPrimitive.If
           is not): show Send when idle, swap to a Stop button while streaming. */}
       <ThreadPrimitive.If running={false}>
@@ -366,6 +470,42 @@ function RunningReporter({ onRunningChange }: { onRunningChange: (running: boole
   useEffect(() => {
     onRunningChange(!!isRunning);
   }, [isRunning, onRunningChange]);
+  return null;
+}
+
+/**
+ * Headless speak-back: when a streamed reply settles (isRunning true → false)
+ * and spoken replies are enabled, reads the final assistant message aloud with
+ * the on-device synthesizer. History seeded on mount never speaks — only a
+ * transition observed while the screen is open triggers speech.
+ */
+function SpeakbackReporter() {
+  const voiceRepliesEnabled = useAppPreferencesStore((s) => s.voiceRepliesEnabled);
+  const isRunning = useAuiState((s) => s.thread.isRunning);
+  const lastAssistantText = useAuiState((s) => {
+    const messages = s.thread.messages;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== 'assistant') return '';
+    return last.content
+      .filter(
+        (part): part is { type: 'text'; text: string } =>
+          part.type === 'text' && typeof (part as { text?: unknown }).text === 'string'
+      )
+      .map((part) => part.text)
+      .join('\n');
+  });
+  const prevRunningRef = useRef(false);
+
+  useEffect(() => {
+    if (prevRunningRef.current && !isRunning && voiceRepliesEnabled && lastAssistantText) {
+      speakReply(lastAssistantText);
+    }
+    prevRunningRef.current = isRunning;
+  }, [isRunning, voiceRepliesEnabled, lastAssistantText]);
+
+  // Leaving the chat stops any in-progress speech.
+  useEffect(() => () => stopSpeaking(), []);
+
   return null;
 }
 
@@ -424,6 +564,7 @@ function ChatThread({
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <RunningReporter onRunningChange={onRunningChange} />
+      <SpeakbackReporter />
       <ThreadPrimitive.Root style={{ flex: 1 }}>
         <View style={{ flex: 1 }}>
           <ThreadPrimitive.Empty>
