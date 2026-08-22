@@ -185,6 +185,73 @@ function toPlanAssignments(assignments: PlanAssignmentInput[]) {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// The joined rows the workout-plan repository returns (template + assignment
+// + set aggregation). Surrogate row ids are typed so the projection can drop
+// them: the tool's replace-style updates must not echo them back.
+interface WorkoutPlanSetRow {
+  id?: number;
+  set_number: number;
+  set_type: string | null;
+  reps: number | null;
+  weight: number | null;
+  duration: number | null;
+  rest_time: number | null;
+  notes: string | null;
+}
+
+interface WorkoutPlanAssignmentRow {
+  id?: number;
+  day_of_week: number;
+  sort_order: number;
+  workout_preset_id: number | null;
+  workout_preset_name: string | null;
+  exercise_id: string | null;
+  exercise_name: string | null;
+  sets?: WorkoutPlanSetRow[] | null;
+}
+
+interface WorkoutPlanRow {
+  id: number;
+  plan_name: string;
+  description: string | null;
+  start_date: unknown;
+  end_date: unknown | null;
+  is_active: boolean;
+  assignments?: WorkoutPlanAssignmentRow[] | null;
+}
+
+// Full structured projection: update_workout_plan REPLACES the whole
+// schedule, so the model must be able to read back every id, sort_order, and
+// per-set number it needs to faithfully rebuild the current week.
+function projectWorkoutPlan(p: WorkoutPlanRow) {
+  return {
+    id: p.id,
+    plan_name: p.plan_name,
+    description: p.description ?? null,
+    is_active: p.is_active,
+    start_date: dayString(p.start_date),
+    end_date: p.end_date ? dayString(p.end_date) : null,
+    assignments: (p.assignments ?? []).map((a) => ({
+      day_of_week: a.day_of_week,
+      day: DAY_NAMES[a.day_of_week],
+      sort_order: a.sort_order,
+      workout_preset_id: a.workout_preset_id,
+      workout_preset_name: a.workout_preset_name,
+      exercise_id: a.exercise_id,
+      exercise_name: a.exercise_name,
+      sets: (a.sets ?? []).map((s) => ({
+        set_number: s.set_number,
+        set_type: s.set_type,
+        reps: s.reps,
+        weight: s.weight,
+        duration: s.duration,
+        rest_time: s.rest_time,
+        notes: s.notes,
+      })),
+    })),
+  };
+}
+
 // The set rows the exercise-entry repository expects: 1-based set_number plus
 // explicit nulls for absent fields (mirrors MCP's per-set INSERT defaults).
 function toRepoSets(sets: ExerciseSetInput[]) {
@@ -934,22 +1001,11 @@ Actions:
             }
 
             case 'get_workout_plans': {
-              const plans =
+              const plans: WorkoutPlanRow[] =
                 await workoutPlanTemplateService.getWorkoutPlanTemplatesByUserId(
                   userId
                 );
-              return formatList(plans, 'Workout Plans', (p: any) => {
-                let text = `**${p.plan_name}**${p.is_active ? ' — ACTIVE' : ''} (${dayString(p.start_date)} → ${p.end_date ? dayString(p.end_date) : 'open-ended'})`;
-                const schedule = (p.assignments ?? [])
-                  .map(
-                    (a: any) =>
-                      `${DAY_NAMES[a.day_of_week]}: ${a.workout_preset_name || a.exercise_name}`
-                  )
-                  .join(', ');
-                if (schedule) text += `\n  Schedule: ${schedule}`;
-                text += `\n  ID: ${p.id}`;
-                return text;
-              });
+              return formatJsonResult(plans.map(projectWorkoutPlan));
             }
 
             case 'create_workout_plan': {
@@ -957,13 +1013,22 @@ Actions:
               if (assignmentError) {
                 return ERRORS.VALIDATION(assignmentError);
               }
+              const createStart = args.start_date ?? todayInZone(tz);
+              // Day strings compare lexicographically. An inverted range would
+              // make the active window empty — worse on update, where the old
+              // future diary entries are deleted and none regenerate.
+              if (args.end_date && args.end_date < createStart) {
+                return ERRORS.VALIDATION(
+                  'end_date must be on or after start_date'
+                );
+              }
               const plan =
                 await workoutPlanTemplateService.createWorkoutPlanTemplate(
                   userId,
                   {
                     plan_name: args.name,
                     description: args.description ?? null,
-                    start_date: args.start_date ?? todayInZone(tz),
+                    start_date: createStart,
                     end_date: args.end_date ?? null,
                     is_active: args.is_active ?? false,
                     assignments: toPlanAssignments(args.assignments),
@@ -1006,31 +1071,51 @@ Actions:
               }
               let planId = args.plan_id;
               if (!planId && args.plan_name) {
-                const plans =
+                const plans: WorkoutPlanRow[] =
                   await workoutPlanTemplateService.getWorkoutPlanTemplatesByUserId(
                     userId
                   );
-                const match = plans.find(
-                  (p: any) =>
+                const matches = plans.filter(
+                  (p) =>
                     String(p.plan_name).toLowerCase() ===
                     args.plan_name!.toLowerCase()
                 );
-                if (!match) {
+                if (matches.length === 0) {
                   return ERRORS.NOT_FOUND('Workout Plan', args.plan_name);
                 }
-                planId = match.id;
+                // Plan names carry no uniqueness constraint; guessing between
+                // duplicates would silently update the wrong plan.
+                if (matches.length > 1) {
+                  return ERRORS.VALIDATION(
+                    `Multiple plans are named "${args.plan_name}" — use plan_id (see get_workout_plans)`
+                  );
+                }
+                planId = matches[0].id;
               }
               // The repository update is a full-replace with '' / false
               // defaults — omitting plan_name would blank it and omitting
               // is_active would deactivate the plan — so merge the request
               // over the current row before sending complete data.
-              const existing =
+              const existing: (WorkoutPlanRow & { user_id: string }) | null =
                 await workoutPlanTemplateRepository.getWorkoutPlanTemplateById(
                   planId,
                   userId
                 );
               if (!existing || existing.user_id !== userId) {
                 return ERRORS.NOT_FOUND('Workout Plan', String(planId));
+              }
+              const mergedStart =
+                args.start_date ??
+                (existing.start_date
+                  ? dayString(existing.start_date)
+                  : todayInZone(tz));
+              const mergedEnd =
+                args.end_date ??
+                (existing.end_date ? dayString(existing.end_date) : null);
+              if (mergedEnd && mergedEnd < mergedStart) {
+                return ERRORS.VALIDATION(
+                  'end_date must be on or after start_date'
+                );
               }
               const updated =
                 await workoutPlanTemplateService.updateWorkoutPlanTemplate(
@@ -1039,14 +1124,8 @@ Actions:
                   {
                     plan_name: args.name ?? existing.plan_name,
                     description: args.description ?? existing.description,
-                    start_date:
-                      args.start_date ??
-                      (existing.start_date
-                        ? dayString(existing.start_date)
-                        : todayInZone(tz)),
-                    end_date:
-                      args.end_date ??
-                      (existing.end_date ? dayString(existing.end_date) : null),
+                    start_date: mergedStart,
+                    end_date: mergedEnd,
                     is_active: args.is_active ?? existing.is_active,
                     ...(args.assignments?.length && {
                       assignments: toPlanAssignments(args.assignments),

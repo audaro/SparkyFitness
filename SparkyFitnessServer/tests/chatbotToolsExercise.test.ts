@@ -1731,25 +1731,55 @@ describe('get_workout_plans', () => {
   const PLAN_ID = 7;
   const PLAN_ID_2 = 8;
 
-  it('renders plans with schedules, activity flag, and date ranges', async () => {
+  it('returns full structured plans so a replace-style update can rebuild them', async () => {
     vi.mocked(
       workoutPlanTemplateService.getWorkoutPlanTemplatesByUserId
     ).mockResolvedValue([
       {
         id: PLAN_ID,
         plan_name: 'PPL Week',
+        description: 'Push/pull/legs',
         is_active: true,
         start_date: new Date(2026, 7, 17),
         end_date: null,
         assignments: [
-          { day_of_week: 1, workout_preset_name: 'Push Day' },
-          { day_of_week: 3, workout_preset_name: 'Pull Day' },
-          { day_of_week: 5, workout_preset_name: null, exercise_name: 'Squat' },
+          {
+            id: 301,
+            day_of_week: 1,
+            sort_order: 0,
+            workout_preset_id: PRESET_ID,
+            workout_preset_name: 'Push Day',
+            exercise_id: null,
+            exercise_name: null,
+            sets: [],
+          },
+          {
+            id: 302,
+            day_of_week: 5,
+            sort_order: 1,
+            workout_preset_id: null,
+            workout_preset_name: null,
+            exercise_id: EXERCISE_ID,
+            exercise_name: 'Squat',
+            sets: [
+              {
+                id: 900,
+                set_number: 1,
+                set_type: 'Working Set',
+                reps: 5,
+                weight: 100,
+                duration: null,
+                rest_time: 180,
+                notes: null,
+              },
+            ],
+          },
         ],
       },
       {
         id: PLAN_ID_2,
         plan_name: 'Deload',
+        description: null,
         is_active: false,
         start_date: new Date(2026, 8, 1),
         end_date: new Date(2026, 8, 7),
@@ -1762,13 +1792,60 @@ describe('get_workout_plans', () => {
       opts
     );
 
+    // Surrogate assignment/set row ids are dropped: the update action's
+    // strict schema would reject them if the model echoed them back.
     expect(result).toBe(
-      '# Workout Plans\n\n' +
-        '**PPL Week** — ACTIVE (2026-08-17 → open-ended)\n' +
-        '  Schedule: Mon: Push Day, Wed: Pull Day, Fri: Squat\n' +
-        `  ID: ${PLAN_ID}\n\n` +
-        '**Deload** (2026-09-01 → 2026-09-07)\n' +
-        `  ID: ${PLAN_ID_2}`
+      JSON.stringify([
+        {
+          id: PLAN_ID,
+          plan_name: 'PPL Week',
+          description: 'Push/pull/legs',
+          is_active: true,
+          start_date: '2026-08-17',
+          end_date: null,
+          assignments: [
+            {
+              day_of_week: 1,
+              day: 'Mon',
+              sort_order: 0,
+              workout_preset_id: PRESET_ID,
+              workout_preset_name: 'Push Day',
+              exercise_id: null,
+              exercise_name: null,
+              sets: [],
+            },
+            {
+              day_of_week: 5,
+              day: 'Fri',
+              sort_order: 1,
+              workout_preset_id: null,
+              workout_preset_name: null,
+              exercise_id: EXERCISE_ID,
+              exercise_name: 'Squat',
+              sets: [
+                {
+                  set_number: 1,
+                  set_type: 'Working Set',
+                  reps: 5,
+                  weight: 100,
+                  duration: null,
+                  rest_time: 180,
+                  notes: null,
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: PLAN_ID_2,
+          plan_name: 'Deload',
+          description: null,
+          is_active: false,
+          start_date: '2026-09-01',
+          end_date: '2026-09-07',
+          assignments: [],
+        },
+      ])
     );
   });
 });
@@ -1924,6 +2001,25 @@ describe('create_workout_plan', () => {
       'Error [VALIDATION]: Assignment sets are only valid with exercise_id'
     );
   });
+
+  it('rejects an end_date before the start_date', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_plan',
+        name: 'Backwards',
+        start_date: '2026-08-24',
+        end_date: '2026-08-20',
+        assignments: [{ day_of_week: 1, workout_preset_id: PRESET_ID }],
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: end_date must be on or after start_date'
+    );
+    expect(
+      workoutPlanTemplateService.createWorkoutPlanTemplate
+    ).not.toHaveBeenCalled();
+  });
 });
 
 describe('update_workout_plan', () => {
@@ -2043,6 +2139,54 @@ describe('update_workout_plan', () => {
       ],
       currentClientDate: TODAY,
     });
+  });
+
+  it('rejects an ambiguous plan name instead of guessing', async () => {
+    vi.mocked(
+      workoutPlanTemplateService.getWorkoutPlanTemplatesByUserId
+    ).mockResolvedValue([
+      { id: 7, plan_name: 'PPL Week' },
+      { id: 9, plan_name: 'ppl week' },
+    ]);
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'update_workout_plan', plan_name: 'PPL Week', is_active: true },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Multiple plans are named "PPL Week" — use plan_id (see get_workout_plans)'
+    );
+    expect(
+      workoutPlanTemplateService.updateWorkoutPlanTemplate
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects a merged range where the kept end_date precedes the new start', async () => {
+    vi.mocked(
+      workoutPlanTemplateRepository.getWorkoutPlanTemplateById
+    ).mockResolvedValue({
+      id: PLAN_ID,
+      user_id: 'user-1',
+      plan_name: 'PPL Week',
+      description: null,
+      start_date: new Date(2026, 7, 17),
+      end_date: new Date(2026, 8, 13),
+      is_active: false,
+      assignments: [],
+    });
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'update_workout_plan',
+        plan_id: PLAN_ID,
+        start_date: '2026-10-01',
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: end_date must be on or after start_date'
+    );
+    expect(
+      workoutPlanTemplateService.updateWorkoutPlanTemplate
+    ).not.toHaveBeenCalled();
   });
 
   it('maps an unknown plan name to NOT_FOUND', async () => {
