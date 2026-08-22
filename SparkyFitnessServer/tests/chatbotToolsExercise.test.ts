@@ -79,7 +79,8 @@ const NOT_FOUND_RESOURCE_TEXT =
 const ENTRY_ID = '11111111-1111-4111-8111-111111111111';
 const EXERCISE_ID = '22222222-2222-4222-8222-222222222222';
 const EXERCISE_ID_2 = '33333333-3333-4333-8333-333333333333';
-const PRESET_ID = '44444444-4444-4444-8444-444444444444';
+// Preset and plan ids are integer SERIAL keys, unlike the uuid exercise ids.
+const PRESET_ID = 44;
 
 let tools: ReturnType<typeof buildExerciseTools>;
 
@@ -1727,8 +1728,8 @@ describe('sparky_get_exercise_progress', () => {
 });
 
 describe('get_workout_plans', () => {
-  const PLAN_ID = '55555555-5555-4555-8555-555555555555';
-  const PLAN_ID_2 = '66666666-6666-4666-8666-666666666666';
+  const PLAN_ID = 7;
+  const PLAN_ID_2 = 8;
 
   it('renders plans with schedules, activity flag, and date ranges', async () => {
     vi.mocked(
@@ -1773,7 +1774,7 @@ describe('get_workout_plans', () => {
 });
 
 describe('create_workout_plan', () => {
-  const PRESET_ID_2 = '77777777-7777-4777-8777-777777777777';
+  const PRESET_ID_2 = 45;
   const TODAY = todayInZone('UTC');
 
   it('creates a weekly plan and sends normalized assignments to the service', async () => {
@@ -1926,7 +1927,7 @@ describe('create_workout_plan', () => {
 });
 
 describe('update_workout_plan', () => {
-  const PLAN_ID = '55555555-5555-4555-8555-555555555555';
+  const PLAN_ID = 7;
   const TODAY = todayInZone('UTC');
 
   it('requires a plan identifier', async () => {

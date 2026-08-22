@@ -8,6 +8,10 @@ import {
   uuidSchema,
 } from './common.js';
 
+// workout_presets and workout_plan_templates use integer SERIAL keys, unlike
+// the uuid-keyed exercise catalog and diary entries.
+const numericIdSchema = z.coerce.number().int().positive();
+
 const exerciseSetSchema = z
   .object({
     reps: z.coerce
@@ -157,7 +161,9 @@ const getWorkoutPresetsSchema = z
 const logWorkoutPresetSchema = z
   .object({
     action: z.literal('log_workout_preset'),
-    preset_id: uuidSchema.optional().describe('UUID of the workout preset'),
+    preset_id: numericIdSchema
+      .optional()
+      .describe('Numeric ID of the workout preset'),
     preset_name: z
       .string()
       .min(1)
@@ -314,7 +320,9 @@ const createWorkoutPresetSchema = z
 const updateWorkoutPresetSchema = z
   .object({
     action: z.literal('update_workout_preset'),
-    preset_id: uuidSchema.optional().describe('UUID of the workout preset'),
+    preset_id: numericIdSchema
+      .optional()
+      .describe('Numeric ID of the workout preset'),
     preset_name: z
       .string()
       .min(1)
@@ -378,10 +386,10 @@ const planAssignmentSchema = z
       .min(0)
       .max(6)
       .describe('Day of week: 0=Sunday … 6=Saturday'),
-    workout_preset_id: uuidSchema
+    workout_preset_id: numericIdSchema
       .optional()
       .describe(
-        'Workout preset to schedule this day (alternative to exercise_id)'
+        'Numeric ID of the workout preset to schedule this day (alternative to exercise_id)'
       ),
     exercise_id: z
       .string()
@@ -436,7 +444,9 @@ const createWorkoutPlanSchema = z
 const updateWorkoutPlanSchema = z
   .object({
     action: z.literal('update_workout_plan'),
-    plan_id: uuidSchema.optional().describe('UUID of the workout plan'),
+    plan_id: numericIdSchema
+      .optional()
+      .describe('Numeric ID of the workout plan'),
     plan_name: z
       .string()
       .min(1)
@@ -696,10 +706,10 @@ export const manageExerciseInput = z.object({
       'Set details as array of objects or JSON string; per-set fields include rpe and notes'
     ),
   // presets
-  preset_id: uuidSchema
+  preset_id: numericIdSchema
     .optional()
     .describe(
-      'Workout preset UUID — for log_workout_preset / update_workout_preset'
+      'Workout preset numeric ID — for log_workout_preset / update_workout_preset'
     ),
   preset_name: z
     .string()
@@ -727,9 +737,9 @@ export const manageExerciseInput = z.object({
       'End date — for get_exercise_progress / create_workout_plan / update_workout_plan'
     ),
   // workout plans
-  plan_id: uuidSchema
+  plan_id: numericIdSchema
     .optional()
-    .describe('Workout plan UUID — for update_workout_plan'),
+    .describe('Workout plan numeric ID — for update_workout_plan'),
   plan_name: z
     .string()
     .min(1)
@@ -748,7 +758,7 @@ export const manageExerciseInput = z.object({
     .array(
       z.object({
         day_of_week: z.coerce.number().int().min(0).max(6),
-        workout_preset_id: uuidSchema.optional(),
+        workout_preset_id: numericIdSchema.optional(),
         exercise_id: z.string().min(1).optional(),
         sort_order: z.coerce.number().int().min(0).optional(),
         sets: z

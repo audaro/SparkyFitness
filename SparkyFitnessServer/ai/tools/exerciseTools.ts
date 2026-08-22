@@ -137,7 +137,7 @@ interface PlanAssignmentSetInput {
 
 interface PlanAssignmentInput {
   day_of_week: number;
-  workout_preset_id?: string;
+  workout_preset_id?: number;
   exercise_id?: string;
   sort_order?: number;
   sets?: PlanAssignmentSetInput[];
