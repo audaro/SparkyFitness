@@ -200,6 +200,14 @@ function validateScheduleFields(
   if (typeId === 'cyclic' && !fields.cycle_on_days) {
     return 'A cyclic schedule needs cycle_on_days — without it the schedule would never come due';
   }
+  // Without an anchor the shared due-date evaluator counts from a fixed
+  // 2020-01-01 epoch, making the due days arbitrary.
+  if (
+    (typeId === 'every_n_days' || typeId === 'cyclic') &&
+    !fields.start_date
+  ) {
+    return `A ${typeId} schedule needs start_date — the repeat cycle is counted from it`;
+  }
   if (
     fields.start_date &&
     fields.end_date &&
@@ -246,6 +254,43 @@ function describeSchedule(s: ScheduleRow): string {
   if (s.prn_reason) parts.push(`for ${s.prn_reason}`);
   return parts.join(' ');
 }
+
+// The resolver matches on display_name || name, so a collision on either
+// stored field breaks name-based addressing. Candidates and stored values are
+// compared trimmed and case-folded.
+function medicationNameConflict(
+  meds: MedicationSummary[],
+  candidates: (string | undefined)[],
+  excludeId?: string
+): { name: string; id: string } | null {
+  const wanted = candidates.filter(
+    (c): c is string => typeof c === 'string' && c.trim().length > 0
+  );
+  for (const m of meds) {
+    if (excludeId && m.id === excludeId) continue;
+    const stored = [m.name, m.display_name]
+      .filter((v): v is string => typeof v === 'string' && v.length > 0)
+      .map((v) => v.trim().toLowerCase());
+    for (const candidate of wanted) {
+      if (stored.includes(candidate.trim().toLowerCase())) {
+        return { name: candidate, id: m.id };
+      }
+    }
+  }
+  return null;
+}
+
+// Type-specific schedule fields; cleared on a type switch so a converted
+// schedule does not keep (and report) fields from its old type.
+const TYPE_SPECIFIC_SCHEDULE_FIELDS = [
+  'days_of_week',
+  'interval_days',
+  'day_of_month',
+  'cycle_on_days',
+  'cycle_off_days',
+  'prn_reason',
+  'prn_max_per_day',
+] as const;
 
 // Schedule fields forwarded verbatim from tool args to the repository.
 const SCHEDULE_PATCH_FIELDS = [
@@ -329,11 +374,17 @@ Actions:
                 ? 'update_medication'
                 : 'create_medication';
             }
+            // notes is deliberately absent: medication_name + notes is a
+            // dose log, not a medication edit.
             if (
               args.new_name ||
               args.display_name !== undefined ||
               args.strength_value !== undefined ||
+              args.strength_unit !== undefined ||
+              args.dose_amount !== undefined ||
+              args.dose_unit !== undefined ||
               args.reason_text !== undefined ||
+              args.is_active !== undefined ||
               args.is_supplement !== undefined ||
               args.is_glp1 !== undefined
             ) {
@@ -562,15 +613,13 @@ Actions:
             case 'create_medication': {
               const meds: MedicationSummary[] =
                 await medicationRepository.listMedications(userId, {});
-              const q = args.name.toLowerCase();
-              const nameTaken = meds.find(
-                (m) =>
-                  m.name.toLowerCase() === q ||
-                  (m.display_name ?? '').toLowerCase() === q
-              );
-              if (nameTaken) {
+              const conflict = medicationNameConflict(meds, [
+                args.name,
+                args.display_name,
+              ]);
+              if (conflict) {
                 return ERRORS.VALIDATION(
-                  `A medication named "${args.name}" already exists (medication_id ${nameTaken.id}) — use update_medication to change it, or choose a different name`
+                  `A medication named "${conflict.name}" already exists (medication_id ${conflict.id}) — use update_medication to change it, or choose a different name`
                 );
               }
               const payload: CreateMedicationBody = { name: args.name };
@@ -609,19 +658,20 @@ Actions:
                   'Nothing to update — provide new_name or at least one medication field'
                 );
               }
-              if (args.new_name !== undefined) {
+              if (
+                args.new_name !== undefined ||
+                args.display_name !== undefined
+              ) {
                 const meds: MedicationSummary[] =
                   await medicationRepository.listMedications(userId, {});
-                const q = args.new_name.toLowerCase();
-                const taken = meds.find(
-                  (m) =>
-                    m.id !== existing.id &&
-                    (m.name.toLowerCase() === q ||
-                      (m.display_name ?? '').toLowerCase() === q)
+                const conflict = medicationNameConflict(
+                  meds,
+                  [args.new_name, args.display_name],
+                  existing.id
                 );
-                if (taken) {
+                if (conflict) {
                   return ERRORS.VALIDATION(
-                    `A medication named "${args.new_name}" already exists — choose a different name`
+                    `A medication named "${conflict.name}" already exists — choose a different name`
                   );
                 }
               }
@@ -710,11 +760,20 @@ Actions:
               // the row without its type-specific fields.
               const mergedType =
                 args.schedule_type_id ?? existing.schedule_type_id;
+              // On a type switch, type-specific fields not sent in this call
+              // are cleared rather than carried, so the converted schedule
+              // does not keep stale fields from its old type.
+              const typeSwitched = mergedType !== existing.schedule_type_id;
+              const mergedOf = (field: keyof ScheduleRow) => {
+                const value = (args as Record<string, unknown>)[field];
+                if (value !== undefined) return value;
+                return typeSwitched ? null : existing[field];
+              };
               const fieldError = validateScheduleFields(mergedType, {
-                days_of_week: args.days_of_week ?? existing.days_of_week,
-                interval_days: args.interval_days ?? existing.interval_days,
-                day_of_month: args.day_of_month ?? existing.day_of_month,
-                cycle_on_days: args.cycle_on_days ?? existing.cycle_on_days,
+                days_of_week: mergedOf('days_of_week') as number[] | null,
+                interval_days: mergedOf('interval_days') as number | null,
+                day_of_month: mergedOf('day_of_month') as number | null,
+                cycle_on_days: mergedOf('cycle_on_days') as number | null,
                 start_date:
                   args.start_date ??
                   (existing.start_date ? dayString(existing.start_date) : null),
@@ -728,6 +787,13 @@ Actions:
                 const value = (args as Record<string, unknown>)[field];
                 if (value !== undefined) {
                   (patch as Record<string, unknown>)[field] = value;
+                }
+              }
+              if (typeSwitched) {
+                for (const field of TYPE_SPECIFIC_SCHEDULE_FIELDS) {
+                  if ((args as Record<string, unknown>)[field] === undefined) {
+                    (patch as Record<string, unknown>)[field] = null;
+                  }
                 }
               }
               const updated = (await medicationRepository.updateSchedule(

@@ -131,6 +131,48 @@ describe('medication management', () => {
     expect(medicationRepository.createMedication).not.toHaveBeenCalled();
   });
 
+  it('create_medication rejects a display_name that collides with an existing medication', async () => {
+    vi.mocked(medicationRepository.listMedications).mockResolvedValue([
+      metformin,
+    ]);
+
+    const result = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'create_medication',
+        name: 'Glucophage',
+        display_name: 'Metformin',
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      `Error [VALIDATION]: A medication named "Metformin" already exists (medication_id ${MED_ID}) — use update_medication to change it, or choose a different name`
+    );
+    expect(medicationRepository.createMedication).not.toHaveBeenCalled();
+  });
+
+  it('infers update_medication from an identifier plus a patch field', async () => {
+    vi.mocked(medicationRepository.getMedicationById).mockResolvedValue(
+      metformin
+    );
+    vi.mocked(medicationRepository.updateMedication).mockResolvedValue({
+      ...metformin,
+      is_active: false,
+    });
+
+    const result = await tools.sparky_manage_medications.execute!(
+      { medication_id: MED_ID, is_active: false },
+      opts
+    );
+
+    expect(result).toBe('✅ Medication "Metformin" updated.');
+    expect(medicationRepository.updateMedication).toHaveBeenCalledWith(
+      'user-1',
+      MED_ID,
+      { is_active: false }
+    );
+  });
+
   it('infers create_medication from a bare name and update from name + id', async () => {
     vi.mocked(medicationRepository.listMedications).mockResolvedValue([]);
     vi.mocked(medicationRepository.createMedication).mockResolvedValue(
@@ -362,6 +404,59 @@ describe('medication schedules', () => {
     expect(medicationRepository.addSchedule).not.toHaveBeenCalled();
   });
 
+  it('add_schedule requires a start_date anchor for repeating cycle types', async () => {
+    vi.mocked(medicationRepository.getMedicationById).mockResolvedValue(
+      metformin
+    );
+
+    const everyN = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'add_schedule',
+        medication_id: MED_ID,
+        schedule_type_id: 'every_n_days',
+        interval_days: 3,
+      },
+      opts
+    );
+    expect(everyN).toBe(
+      'Error [VALIDATION]: A every_n_days schedule needs start_date — the repeat cycle is counted from it'
+    );
+
+    const cyclic = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'add_schedule',
+        medication_id: MED_ID,
+        schedule_type_id: 'cyclic',
+        cycle_on_days: 5,
+        cycle_off_days: 2,
+      },
+      opts
+    );
+    expect(cyclic).toBe(
+      'Error [VALIDATION]: A cyclic schedule needs start_date — the repeat cycle is counted from it'
+    );
+    expect(medicationRepository.addSchedule).not.toHaveBeenCalled();
+  });
+
+  it('add_schedule rejects an out-of-range time_of_day', async () => {
+    vi.mocked(medicationRepository.getMedicationById).mockResolvedValue(
+      metformin
+    );
+
+    const result = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'add_schedule',
+        medication_id: MED_ID,
+        schedule_type_id: 'daily',
+        time_of_day: '99:99',
+      },
+      opts
+    );
+
+    expect(result).toContain('time_of_day must be HH:MM');
+    expect(medicationRepository.addSchedule).not.toHaveBeenCalled();
+  });
+
   it('add_schedule rejects an inverted date range', async () => {
     vi.mocked(medicationRepository.getMedicationById).mockResolvedValue(
       metformin
@@ -422,6 +517,45 @@ describe('medication schedules', () => {
     );
     expect(badSwitch).toBe(
       'Error [VALIDATION]: An every_n_days schedule needs interval_days — without it the schedule would never come due'
+    );
+  });
+
+  it('update_schedule clears type-specific fields on a type switch', async () => {
+    vi.mocked(medicationRepository.listMedications).mockResolvedValue([
+      { ...metformin, schedules: [specificDaysSchedule] },
+    ]);
+    vi.mocked(medicationRepository.updateSchedule).mockResolvedValue({
+      ...specificDaysSchedule,
+      schedule_type_id: 'daily',
+      days_of_week: null,
+      with_meal: 'with',
+    });
+
+    const result = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'update_schedule',
+        schedule_id: SCHED_ID,
+        schedule_type_id: 'daily',
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Schedule updated for Metformin: daily at 08:00 (with meal).'
+    );
+    expect(medicationRepository.updateSchedule).toHaveBeenCalledWith(
+      'user-1',
+      SCHED_ID,
+      {
+        schedule_type_id: 'daily',
+        days_of_week: null,
+        interval_days: null,
+        day_of_month: null,
+        cycle_on_days: null,
+        cycle_off_days: null,
+        prn_reason: null,
+        prn_max_per_day: null,
+      }
     );
   });
 

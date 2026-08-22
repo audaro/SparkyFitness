@@ -22,7 +22,7 @@ const scheduleTypeEnum = z
 
 const timeOfDaySchema = z
   .string()
-  .regex(/^\d{1,2}:\d{2}(:\d{2})?$/, 'time_of_day must be HH:MM')
+  .regex(/^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'time_of_day must be HH:MM')
   .describe('Time of day (HH:MM, 24-hour)');
 
 // Medication fields the chat surface exposes for create/update — form-only
