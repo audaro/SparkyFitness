@@ -5,6 +5,7 @@ import { log } from '../../config/logging.js';
 import foodCoreService from '../../services/foodCoreService.js';
 import foodEntryService from '../../services/foodEntryService.js';
 import mealService from '../../services/mealService.js';
+import { ValidationError } from '../../utils/errors.js';
 import preferenceService from '../../services/preferenceService.js';
 import measurementService from '../../services/measurementService.js';
 import {
@@ -52,6 +53,8 @@ const VALID_ACTIONS = [
   'log_external_food',
   'create_food',
   'search_meal',
+  'create_meal',
+  'update_meal',
   'log_meal',
   'list_diary',
   'delete_entry',
@@ -894,6 +897,8 @@ Actions:
 - log_external_food(food_name, meal_type_id?|meal_type?, quantity?, unit?, entry_date?, external_id?, provider_type?) — PREFERRED way to log an external lookup_food_nutrition match (usda/openfoodfacts/...): the server re-fetches the provider result, saves it with full nutrition, and logs it in one call. quantity is in servings and defaults to 1.
 - create_food(food_name, calories, protein, carbs, fat, brand?, quantity?, unit?, meal_type_id?, meal_type?, entry_date?, saturated_fat?, fiber?, sugar?, sodium?, ...) — MANDATORY: You must run lookup_food_nutrition first. Call only when lookup returns source='ai_estimate' (no match anywhere) or for custom/homemade foods, using AI-estimated values; for external lookup matches use log_external_food instead. Include meal_type_id (or legacy meal_type) + entry_date to also log the food in the same call. Populate as many micro-nutrients, GI classification, and brand ('Homemade' or 'Traditional' if generic) as possible rather than just core macros.
 - search_meal(meal_name)
+- create_meal(meal_name, foods:[{food_id (from search_food) OR child_meal_id (from search_meal), item_type?, variant_id?, quantity, unit}], description?, total_servings?, serving_unit?) — creates a reusable meal template from scratch; nutrition is snapshotted from the ingredients
+- update_meal(meal_id?|meal_name?, new_name?, description?, total_servings?, serving_unit?, foods?) — only provided fields change, but foods REPLACES the entire ingredient list, so send the complete desired list
 - log_meal(meal_type_id?|meal_type?, entry_date, meal_id?, meal_name?, quantity?)
 - list_diary(entry_date?)
 - delete_entry(entry_id?|food_name?, entry_type?, entry_date?, meal_type?|meal_type_id?) — deletes one diary entry. Provide entry_id when you have it; otherwise food_name is resolved against the diary for entry_date (defaults to today), with meal_type narrowing when the same food appears in several meals. Ambiguous names return the candidates with their ids instead of deleting.
@@ -1726,6 +1731,139 @@ Actions:
                   return text;
                 }
               );
+            }
+
+            case 'create_meal': {
+              try {
+                const meal = await mealService.createMeal(userId, {
+                  name: args.meal_name,
+                  description: args.description ?? null,
+                  is_public: false,
+                  ...(args.total_servings !== undefined && {
+                    total_servings: args.total_servings,
+                  }),
+                  ...(args.serving_unit !== undefined && {
+                    serving_unit: args.serving_unit,
+                  }),
+                  foods: args.foods.map((f) => ({
+                    food_id: f.food_id,
+                    child_meal_id: f.child_meal_id,
+                    item_type:
+                      f.item_type ?? (f.child_meal_id ? 'meal' : 'food'),
+                    variant_id: f.variant_id,
+                    quantity: f.quantity,
+                    unit: f.unit,
+                  })),
+                });
+                return formatConfirmation(
+                  `Meal "${meal.name}" created with ${args.foods.length} ingredients.`
+                );
+              } catch (error) {
+                // Ingredient validation (missing food_id, inaccessible
+                // sub-meal, cycles, nesting depth) throws with messages the
+                // model can act on.
+                if (error instanceof ValidationError) {
+                  return ERRORS.VALIDATION(error.message);
+                }
+                throw error;
+              }
+            }
+
+            case 'update_meal': {
+              if (!args.meal_id && !args.meal_name) {
+                return ERRORS.VALIDATION(
+                  'Either meal_id or meal_name must be provided'
+                );
+              }
+              if (
+                args.new_name === undefined &&
+                args.description === undefined &&
+                args.total_servings === undefined &&
+                args.serving_unit === undefined &&
+                !args.foods?.length
+              ) {
+                return ERRORS.VALIDATION(
+                  'Nothing to update — provide new_name, description, total_servings, serving_unit, or foods'
+                );
+              }
+              let mealId = args.meal_id;
+              if (!mealId && args.meal_name) {
+                // Resolve only among the user's own meals: public meals from
+                // other users show up in search but cannot be edited.
+                const meals = await mealService.searchMeals(
+                  userId,
+                  args.meal_name
+                );
+                const name = args.meal_name.toLowerCase();
+                const matches = meals.filter(
+                  (m) =>
+                    String(m['name']).toLowerCase() === name &&
+                    m['user_id'] === userId
+                );
+                if (matches.length === 0) {
+                  return ERRORS.NOT_FOUND('Meal', args.meal_name);
+                }
+                if (matches.length > 1) {
+                  return ERRORS.VALIDATION(
+                    `Multiple meals are named "${args.meal_name}" — use meal_id (see search_meal)`
+                  );
+                }
+                mealId = matches[0].id;
+              } else if (mealId) {
+                let meal;
+                try {
+                  meal = await mealService.getMealById(userId, mealId);
+                } catch (error) {
+                  if (
+                    error instanceof Error &&
+                    error.message.includes('not found')
+                  ) {
+                    return ERRORS.NOT_FOUND('Meal', mealId);
+                  }
+                  throw error;
+                }
+                if (meal.user_id !== userId) {
+                  return ERRORS.VALIDATION(
+                    'Only your own meals can be updated'
+                  );
+                }
+              }
+              if (!mealId) {
+                return ERRORS.VALIDATION(
+                  'Either meal_id or meal_name must be provided'
+                );
+              }
+              try {
+                const updated = await mealService.updateMeal(userId, mealId, {
+                  ...(args.new_name !== undefined && { name: args.new_name }),
+                  ...(args.description !== undefined && {
+                    description: args.description,
+                  }),
+                  ...(args.total_servings !== undefined && {
+                    total_servings: args.total_servings,
+                  }),
+                  ...(args.serving_unit !== undefined && {
+                    serving_unit: args.serving_unit,
+                  }),
+                  ...(args.foods?.length && {
+                    foods: args.foods.map((f) => ({
+                      food_id: f.food_id,
+                      child_meal_id: f.child_meal_id,
+                      item_type:
+                        f.item_type ?? (f.child_meal_id ? 'meal' : 'food'),
+                      variant_id: f.variant_id,
+                      quantity: f.quantity,
+                      unit: f.unit,
+                    })),
+                  }),
+                });
+                return formatConfirmation(`Meal "${updated.name}" updated.`);
+              } catch (error) {
+                if (error instanceof ValidationError) {
+                  return ERRORS.VALIDATION(error.message);
+                }
+                throw error;
+              }
             }
 
             case 'log_meal': {

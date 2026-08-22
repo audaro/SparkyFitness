@@ -283,6 +283,104 @@ const searchMealSchema = z
   })
   .strict();
 
+// Ingredient rows for creating/updating a meal from scratch. The service
+// validates each row references exactly one of food/sub-meal and snapshots
+// nutrition into meal_foods.
+const mealIngredientSchema = z
+  .object({
+    food_id: uuidSchema
+      .optional()
+      .describe('Food UUID (from search_food) — for a food ingredient'),
+    child_meal_id: uuidSchema
+      .optional()
+      .describe(
+        'Meal UUID (from search_meal) — links another meal as a sub-meal ingredient (alternative to food_id)'
+      ),
+    item_type: z
+      .enum(['food', 'meal'])
+      .optional()
+      .describe("'food' (default) or 'meal' for a linked sub-meal"),
+    variant_id: uuidSchema
+      .optional()
+      .describe('Food variant UUID pinning a specific serving'),
+    quantity: z.coerce.number().positive().describe('Amount of the ingredient'),
+    unit: z
+      .string()
+      .min(1)
+      .max(50)
+      .describe("Unit for the quantity ('g', 'serving', ...)"),
+  })
+  .strict();
+
+const createMealSchema = z
+  .object({
+    action: z.literal('create_meal'),
+    meal_name: z.string().min(1).max(200).describe('Name for the new meal'),
+    description: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe('Description of the meal'),
+    total_servings: z.coerce
+      .number()
+      .positive()
+      .optional()
+      .describe('How many servings the recipe yields (default 1)'),
+    serving_unit: z
+      .string()
+      .min(1)
+      .max(50)
+      .optional()
+      .describe("Serving unit for the meal (default 'serving')"),
+    foods: z
+      .array(mealIngredientSchema)
+      .min(1)
+      .describe('Ingredient list for the meal'),
+  })
+  .strict();
+
+const updateMealSchema = z
+  .object({
+    action: z.literal('update_meal'),
+    meal_id: uuidSchema.optional().describe('UUID of the meal to update'),
+    meal_name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('Name of the meal to update (alternative to ID)'),
+    new_name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('New name for the meal'),
+    description: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe('New description for the meal'),
+    total_servings: z.coerce
+      .number()
+      .positive()
+      .optional()
+      .describe('New serving yield'),
+    serving_unit: z
+      .string()
+      .min(1)
+      .max(50)
+      .optional()
+      .describe('New serving unit'),
+    foods: z
+      .array(mealIngredientSchema)
+      .min(1)
+      .optional()
+      .describe(
+        'Replacement ingredient list; REPLACES all existing ingredients, so send the complete desired list'
+      ),
+  })
+  .strict();
+
 const logMealSchema = z
   .object({
     action: z.literal('log_meal'),
@@ -615,6 +713,8 @@ export const manageFoodSchema = z.discriminatedUnion('action', [
   logExternalFoodSchema,
   createFoodSchema,
   searchMealSchema,
+  createMealSchema,
+  updateMealSchema,
   logMealSchema,
   listDiarySchema,
   deleteEntrySchema,
@@ -644,6 +744,8 @@ export const manageFoodInput = z.object({
       'log_external_food',
       'create_food',
       'search_meal',
+      'create_meal',
+      'update_meal',
       'log_meal',
       'list_diary',
       'delete_entry',
@@ -702,7 +804,9 @@ export const manageFoodInput = z.object({
     .min(1)
     .max(50)
     .optional()
-    .describe('For update_food_variant: updated serving unit'),
+    .describe(
+      'Serving unit — for update_food_variant / create_meal / update_meal'
+    ),
   brand: z
     .string()
     .max(200)
@@ -739,7 +843,38 @@ export const manageFoodInput = z.object({
     .min(1)
     .max(200)
     .optional()
-    .describe('Meal template name'),
+    .describe(
+      'Meal template name — the meal to search/log/update, or the name for create_meal'
+    ),
+  new_name: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe('New name for the meal — for update_meal'),
+  total_servings: z.coerce
+    .number()
+    .positive()
+    .optional()
+    .describe(
+      'How many servings a meal recipe yields — for create_meal / update_meal'
+    ),
+  foods: z
+    .array(
+      z.object({
+        food_id: uuidSchema.optional(),
+        child_meal_id: uuidSchema.optional(),
+        item_type: z.enum(['food', 'meal']).optional(),
+        variant_id: uuidSchema.optional(),
+        quantity: z.coerce.number().positive(),
+        unit: z.string().min(1).max(50),
+      })
+    )
+    .min(1)
+    .optional()
+    .describe(
+      'Ingredients for create_meal / update_meal: [{food_id (from search_food) OR child_meal_id (from search_meal), item_type?, variant_id?, quantity, unit}]. On update this REPLACES the whole ingredient list.'
+    ),
   // search
   search_type: searchTypeEnum
     .optional()

@@ -13,6 +13,7 @@ import mealTypeRepository from '../models/mealType.js';
 import measurementRepository from '../models/measurementRepository.js';
 import reportRepository from '../models/reportRepository.js';
 import externalProviderRepository from '../models/externalProviderRepository.js';
+import { ValidationError } from '../utils/errors.js';
 
 vi.mock('../services/foodCoreService', () => ({
   default: {
@@ -45,6 +46,8 @@ vi.mock('../services/mealService', () => ({
     searchMeals: vi.fn(),
     getMealById: vi.fn(),
     createMealFromDiaryEntries: vi.fn(),
+    createMeal: vi.fn(),
+    updateMeal: vi.fn(),
   },
 }));
 vi.mock('../services/preferenceService', () => ({
@@ -111,6 +114,7 @@ const VARIANT_ID = '22222222-2222-4222-8222-222222222222';
 const ENTRY_ID = '33333333-3333-4333-8333-333333333333';
 const MEAL_ID = '44444444-4444-4444-8444-444444444444';
 const FOOD_ID_2 = '55555555-5555-4555-8555-555555555555';
+const MEAL_ID_2 = '66666666-6666-4666-8666-666666666666';
 const MEAL_TYPE_ID = '66666666-6666-4666-8666-666666666666';
 
 const FOOD_PROVIDER_TYPES = [...VALID_PROVIDER_TYPES];
@@ -4163,6 +4167,212 @@ describe('sparky_get_food_usage', () => {
       today,
       20,
       0
+    );
+  });
+});
+
+describe('create_meal', () => {
+  it('creates a meal from scratch and sends normalized ingredients', async () => {
+    vi.mocked(mealService.createMeal).mockResolvedValue({
+      id: MEAL_ID,
+      name: 'Protein Oats',
+    });
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_meal',
+        meal_name: 'Protein Oats',
+        description: 'Breakfast staple',
+        total_servings: 2,
+        foods: [
+          { food_id: FOOD_ID, quantity: 80, unit: 'g' },
+          {
+            child_meal_id: MEAL_ID_2,
+            item_type: 'meal',
+            quantity: 1,
+            unit: 'serving',
+          },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Meal "Protein Oats" created with 2 ingredients.');
+    expect(mealService.createMeal).toHaveBeenCalledWith('user-1', {
+      name: 'Protein Oats',
+      description: 'Breakfast staple',
+      is_public: false,
+      total_servings: 2,
+      foods: [
+        {
+          food_id: FOOD_ID,
+          child_meal_id: undefined,
+          item_type: 'food',
+          variant_id: undefined,
+          quantity: 80,
+          unit: 'g',
+        },
+        {
+          food_id: undefined,
+          child_meal_id: MEAL_ID_2,
+          item_type: 'meal',
+          variant_id: undefined,
+          quantity: 1,
+          unit: 'serving',
+        },
+      ],
+    });
+  });
+
+  it('surfaces ingredient validation errors from the service', async () => {
+    vi.mocked(mealService.createMeal).mockRejectedValue(
+      new ValidationError('A food ingredient requires food_id.')
+    );
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_meal',
+        meal_name: 'Broken',
+        foods: [{ quantity: 1, unit: 'g' }],
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: A food ingredient requires food_id.'
+    );
+  });
+
+  it('requires at least one ingredient', async () => {
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'create_meal', meal_name: 'Empty', foods: [] },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: create_meal call was invalid — foods: Too small: expected array to have >=1 items. Retry sparky_manage_food with all required fields, for example: {"action":"create_meal","meal_name":"Empty","foods":"<foods>"}'
+    );
+    expect(mealService.createMeal).not.toHaveBeenCalled();
+  });
+});
+
+describe('update_meal', () => {
+  it('requires a meal identifier', async () => {
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'update_meal', new_name: 'Renamed' },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Either meal_id or meal_name must be provided'
+    );
+  });
+
+  it('requires at least one updatable field', async () => {
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'update_meal', meal_id: MEAL_ID },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Nothing to update — provide new_name, description, total_servings, serving_unit, or foods'
+    );
+  });
+
+  it('updates by id after verifying ownership, replacing ingredients', async () => {
+    vi.mocked(mealService.getMealById).mockResolvedValue({
+      id: MEAL_ID,
+      user_id: 'user-1',
+      name: 'Protein Oats',
+    });
+    vi.mocked(mealService.updateMeal).mockResolvedValue({
+      id: MEAL_ID,
+      name: 'Protein Oats v2',
+    });
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'update_meal',
+        meal_id: MEAL_ID,
+        new_name: 'Protein Oats v2',
+        foods: [{ food_id: FOOD_ID, quantity: 100, unit: 'g' }],
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Meal "Protein Oats v2" updated.');
+    expect(mealService.updateMeal).toHaveBeenCalledWith('user-1', MEAL_ID, {
+      name: 'Protein Oats v2',
+      foods: [
+        {
+          food_id: FOOD_ID,
+          child_meal_id: undefined,
+          item_type: 'food',
+          variant_id: undefined,
+          quantity: 100,
+          unit: 'g',
+        },
+      ],
+    });
+  });
+
+  it("refuses to update another user's public meal", async () => {
+    vi.mocked(mealService.getMealById).mockResolvedValue({
+      id: MEAL_ID,
+      user_id: 'someone-else',
+      name: 'Shared Meal',
+    });
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'update_meal', meal_id: MEAL_ID, new_name: 'Mine now' },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Only your own meals can be updated'
+    );
+    expect(mealService.updateMeal).not.toHaveBeenCalled();
+  });
+
+  it('resolves by name among own meals only and rejects duplicates', async () => {
+    vi.mocked(mealService.searchMeals).mockResolvedValue([
+      { id: MEAL_ID, name: 'Protein Oats', user_id: 'user-1' },
+      { id: MEAL_ID_2, name: 'protein oats', user_id: 'user-1' },
+      { id: FOOD_ID_2, name: 'Protein Oats', user_id: 'someone-else' },
+    ]);
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'update_meal', meal_name: 'Protein Oats', new_name: 'X' },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Multiple meals are named "Protein Oats" — use meal_id (see search_meal)'
+    );
+  });
+
+  it('updates by name when exactly one own meal matches', async () => {
+    vi.mocked(mealService.searchMeals).mockResolvedValue([
+      { id: MEAL_ID, name: 'Protein Oats', user_id: 'user-1' },
+      { id: FOOD_ID_2, name: 'Protein Oats', user_id: 'someone-else' },
+    ]);
+    vi.mocked(mealService.updateMeal).mockResolvedValue({
+      id: MEAL_ID,
+      name: 'Protein Oats',
+    });
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'update_meal',
+        meal_name: 'Protein Oats',
+        description: 'Updated notes',
+      },
+      opts
+    );
+    expect(result).toBe('✅ Meal "Protein Oats" updated.');
+    expect(mealService.updateMeal).toHaveBeenCalledWith('user-1', MEAL_ID, {
+      description: 'Updated notes',
+    });
+  });
+
+  it('maps an unknown meal name to NOT_FOUND', async () => {
+    vi.mocked(mealService.searchMeals).mockResolvedValue([]);
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'update_meal', meal_name: 'Nope', new_name: 'X' },
+      opts
+    );
+    expect(result).toBe(
+      "Error [NOT_FOUND]: Meal with ID 'Nope' not found.\n\nSuggestion: Check the ID and try again."
     );
   });
 });
