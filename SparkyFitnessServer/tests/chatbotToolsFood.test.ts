@@ -4399,6 +4399,36 @@ describe('create_meal', () => {
     );
   });
 
+  it('falls back past a null-id default_variant JSON object', async () => {
+    // json_build_object under a LEFT JOIN yields a truthy {"id": null, ...}
+    // object for foods with no default variant.
+    vi.mocked(foodRepository.getFoodById).mockResolvedValue({
+      ...eggsRow,
+      default_variant: { ...eggsRow.default_variant, id: null },
+    });
+    vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([
+      eggsRow.default_variant,
+    ]);
+    vi.mocked(mealService.createMeal).mockResolvedValue({
+      id: MEAL_ID,
+      name: 'Oats',
+    });
+    await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_meal',
+        meal_name: 'Oats',
+        foods: [{ food_id: FOOD_ID, quantity: 50, unit: 'g' }],
+      },
+      opts
+    );
+    expect(mealService.createMeal).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        foods: [expect.objectContaining({ variant_id: VARIANT_ID })],
+      })
+    );
+  });
+
   it('rejects an unknown food before writing anything', async () => {
     vi.mocked(foodRepository.getFoodById).mockResolvedValue(null);
     const result = await tools.sparky_manage_food.execute!(
@@ -4653,9 +4683,22 @@ describe('meal plans', () => {
   });
 
   it('create_meal_plan resolves meal types and applies defaults', async () => {
+    vi.mocked(mealPlanTemplateService.getMealPlanTemplates).mockResolvedValue(
+      []
+    );
     vi.mocked(mealTypeRepository.getMealTypeById).mockResolvedValue({
       id: MEAL_TYPE_ID,
       name: 'Second breakfast',
+    });
+    vi.mocked(mealService.getMealById).mockResolvedValue({
+      id: MEAL_ID,
+      name: 'Protein Oats',
+      user_id: 'user-1',
+      foods: [{ food_id: FOOD_ID }],
+    });
+    vi.mocked(foodRepository.getFoodVariantById).mockResolvedValue({
+      ...eggsRow.default_variant,
+      food_id: FOOD_ID,
     });
     vi.mocked(mealPlanTemplateService.createMealPlanTemplate).mockResolvedValue(
       {
@@ -4942,6 +4985,7 @@ describe('meal plans', () => {
   });
 
   it('update_meal_plan resolves a replacement schedule', async () => {
+    vi.mocked(foodRepository.getFoodById).mockResolvedValue(eggsRow);
     vi.mocked(mealPlanTemplateService.getMealPlanTemplates).mockResolvedValue([
       {
         id: PLAN_ID,
@@ -4985,13 +5029,156 @@ describe('meal plans', () => {
             meal_type_id: 'dinner-id',
             item_type: 'food',
             food_id: FOOD_ID,
-            variant_id: null,
+            variant_id: VARIANT_ID,
             quantity: 200,
             unit: 'g',
           },
         ],
       })
     );
+  });
+
+  it('create_meal_plan rejects a composed meal whose ingredients would be dropped', async () => {
+    vi.mocked(mealPlanTemplateService.getMealPlanTemplates).mockResolvedValue(
+      []
+    );
+    vi.mocked(mealService.getMealById).mockResolvedValue({
+      id: MEAL_ID,
+      name: 'Meal Prep Combo',
+      user_id: 'user-1',
+      foods: [{ food_id: FOOD_ID }, { child_meal_id: MEAL_ID_2 }],
+    });
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_meal_plan',
+        plan_name: 'Combo Week',
+        assignments: [
+          {
+            day_of_week: 1,
+            meal_type: 'Breakfast',
+            item_type: 'meal',
+            meal_id: MEAL_ID,
+          },
+        ],
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Meal "Meal Prep Combo" contains nested meals — meal plans can only schedule meals made of plain foods (nested ingredients would be dropped when diary entries are generated)'
+    );
+    expect(
+      mealPlanTemplateService.createMealPlanTemplate
+    ).not.toHaveBeenCalled();
+  });
+
+  it('create_meal_plan rejects an unknown meal id before writing', async () => {
+    vi.mocked(mealPlanTemplateService.getMealPlanTemplates).mockResolvedValue(
+      []
+    );
+    vi.mocked(mealService.getMealById).mockRejectedValue(
+      new Error('Meal not found.')
+    );
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_meal_plan',
+        plan_name: 'Ghost Week',
+        assignments: [
+          {
+            day_of_week: 1,
+            meal_type: 'Breakfast',
+            item_type: 'meal',
+            meal_id: MEAL_ID,
+          },
+        ],
+      },
+      opts
+    );
+    expect(result).toBe(
+      `Error [VALIDATION]: Meal with ID '${MEAL_ID}' was not found — use search_meal to find a valid meal_id`
+    );
+  });
+
+  it('create_meal_plan refuses to duplicate an existing plan name', async () => {
+    vi.mocked(mealPlanTemplateService.getMealPlanTemplates).mockResolvedValue([
+      { id: PLAN_ID, plan_name: 'Cut Week', is_active: true },
+    ]);
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_meal_plan',
+        plan_name: 'cut week',
+        assignments: [
+          {
+            day_of_week: 1,
+            meal_type: 'Breakfast',
+            item_type: 'meal',
+            meal_id: MEAL_ID,
+          },
+        ],
+      },
+      opts
+    );
+    expect(result).toBe(
+      `Error [VALIDATION]: A meal plan named "cut week" already exists (plan_id ${PLAN_ID}) — use update_meal_plan to change it, or choose a different name`
+    );
+    expect(
+      mealPlanTemplateService.createMealPlanTemplate
+    ).not.toHaveBeenCalled();
+  });
+
+  it('update_meal_plan accepts a schedule echoed back from get_meal_plans', async () => {
+    vi.mocked(mealPlanTemplateService.getMealPlanTemplates).mockResolvedValue([
+      {
+        id: PLAN_ID,
+        plan_name: 'Cut Week',
+        description: null,
+        start_date: new Date(2026, 7, 17),
+        end_date: null,
+        is_active: false,
+        assignments: [],
+      },
+    ]);
+    vi.mocked(mealTypeRepository.getMealTypeById).mockResolvedValue({
+      id: MEAL_TYPE_ID,
+      name: 'Second breakfast',
+    });
+    vi.mocked(mealService.getMealById).mockResolvedValue({
+      id: MEAL_ID,
+      name: 'Protein Oats',
+      user_id: 'user-1',
+      foods: [{ food_id: FOOD_ID }],
+    });
+    vi.mocked(mealPlanTemplateService.updateMealPlanTemplate).mockResolvedValue(
+      { id: PLAN_ID, plan_name: 'Cut Week' }
+    );
+
+    // A get_meal_plans assignment row verbatim: display fields and SQL nulls
+    // must be stripped by normalization instead of failing strict parsing.
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'update_meal_plan',
+        plan_id: PLAN_ID,
+        assignments: [
+          {
+            day: 'Mon',
+            day_of_week: 1,
+            meal_type: 'Second breakfast',
+            meal_type_id: MEAL_TYPE_ID,
+            item_type: 'meal',
+            meal_id: MEAL_ID,
+            meal_name: 'Protein Oats',
+            food_id: null,
+            food_name: null,
+            variant_id: null,
+            quantity: 1,
+            unit: 'serving',
+          },
+        ],
+      } as unknown as Parameters<
+        NonNullable<typeof tools.sparky_manage_food.execute>
+      >[0],
+      opts
+    );
+    expect(result).toBe('✅ Meal plan "Cut Week" updated.');
   });
 
   it('update_meal_plan rejects a merged inverted date range', async () => {

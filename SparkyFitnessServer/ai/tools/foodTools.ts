@@ -553,6 +553,56 @@ interface VariantSnapshotRow extends Record<string, unknown> {
   food_id: string;
 }
 
+// Resolves the serving variant a food reference should snapshot/persist: an
+// explicit variant_id must belong to the food; otherwise the food's default
+// variant, then its first listed variant. Downstream consumers (meal nutrition
+// math, plan diary generation) silently skip rows whose variant is missing or
+// look up the wrong nutrition when it belongs to another food, so this is
+// validated before anything is written.
+async function resolveVariantForFood(
+  userId: string,
+  foodId: string,
+  variantId?: string
+): Promise<
+  { ok: true; variant: VariantSnapshotRow } | { ok: false; message: string }
+> {
+  if (variantId) {
+    const explicit = (await foodRepository.getFoodVariantById(
+      variantId,
+      userId
+    )) as VariantSnapshotRow | null;
+    if (!explicit || explicit.food_id !== foodId) {
+      return {
+        ok: false,
+        message: `Variant '${variantId}' does not belong to food '${foodId}' — use a variant id from search_food, or omit variant_id to use the default serving`,
+      };
+    }
+    return { ok: true, variant: explicit };
+  }
+  const food = (await foodRepository.getFoodById(foodId, userId)) as {
+    default_variant?: VariantSnapshotRow | null;
+  } | null;
+  // default_variant is built with json_build_object under a LEFT JOIN, so a
+  // food with no variants yields a truthy object whose fields are all null —
+  // only a real id marks a usable variant.
+  const defaultVariant = food?.default_variant;
+  let variant = defaultVariant?.id ? defaultVariant : undefined;
+  if (!variant) {
+    const dbVariants = (await foodRepository.getFoodVariantsByFoodId(
+      foodId,
+      userId
+    )) as VariantSnapshotRow[] | null;
+    variant = Array.isArray(dbVariants) ? dbVariants[0] : undefined;
+  }
+  if (!variant) {
+    return {
+      ok: false,
+      message: `Food with ID '${foodId}' was not found or has no serving data — use search_food to find a valid food_id`,
+    };
+  }
+  return { ok: true, variant };
+}
+
 async function resolveMealIngredients(
   userId: string,
   foods: MealIngredientArg[]
@@ -587,38 +637,15 @@ async function resolveMealIngredients(
           'Each ingredient needs food_id (from search_food) or child_meal_id (from search_meal)',
       };
     }
-    let variant: VariantSnapshotRow | undefined;
-    if (f.variant_id) {
-      const explicit = (await foodRepository.getFoodVariantById(
-        f.variant_id,
-        userId
-      )) as VariantSnapshotRow | null;
-      if (!explicit || explicit.food_id !== foodId) {
-        return {
-          ok: false,
-          message: `Variant '${f.variant_id}' does not belong to food '${foodId}' — use a variant id from search_food, or omit variant_id to use the default serving`,
-        };
-      }
-      variant = explicit;
-    } else {
-      const food = (await foodRepository.getFoodById(foodId, userId)) as {
-        default_variant?: VariantSnapshotRow | null;
-      } | null;
-      variant = food?.default_variant ?? undefined;
-      if (!variant) {
-        const dbVariants = (await foodRepository.getFoodVariantsByFoodId(
-          foodId,
-          userId
-        )) as VariantSnapshotRow[] | null;
-        variant = Array.isArray(dbVariants) ? dbVariants[0] : undefined;
-      }
-      if (!variant) {
-        return {
-          ok: false,
-          message: `Food with ID '${foodId}' was not found or has no serving data — use search_food to find a valid food_id`,
-        };
-      }
+    const resolvedVariant = await resolveVariantForFood(
+      userId,
+      foodId,
+      f.variant_id
+    );
+    if (!resolvedVariant.ok) {
+      return resolvedVariant;
     }
+    const variant = resolvedVariant.variant;
     const row: MealIngredientRow = {
       food_id: foodId,
       item_type: 'food',
@@ -759,6 +786,29 @@ async function resolveMealPlanAssignments(
             "An item_type 'meal' assignment needs meal_id (and no food_id)",
         };
       }
+      // Diary generation from a plan flattens only the meal's direct food
+      // rows (nested child-meal ingredients are silently dropped by its
+      // joins), so composed meals are rejected up front. The fetch also
+      // catches ids that do not exist — generation would otherwise skip the
+      // slot silently every day.
+      let meal: { name?: string; foods?: Array<Record<string, unknown>> };
+      try {
+        meal = await mealService.getMealById(userId, a.meal_id);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('not found')) {
+          return {
+            ok: false,
+            message: `Meal with ID '${a.meal_id}' was not found — use search_meal to find a valid meal_id`,
+          };
+        }
+        throw error;
+      }
+      if ((meal.foods ?? []).some((f) => f['child_meal_id'])) {
+        return {
+          ok: false,
+          message: `Meal "${meal.name}" contains nested meals — meal plans can only schedule meals made of plain foods (nested ingredients would be dropped when diary entries are generated)`,
+        };
+      }
       rows.push({
         day_of_week: a.day_of_week,
         meal_type_id: resolved.id,
@@ -775,12 +825,23 @@ async function resolveMealPlanAssignments(
             "An item_type 'food' assignment needs food_id (and no meal_id)",
         };
       }
+      // Diary generation skips a food assignment outright when its
+      // variant_id is missing or unknown, so the variant is resolved and
+      // ownership-verified before the schedule is written.
+      const resolvedVariant = await resolveVariantForFood(
+        userId,
+        a.food_id,
+        a.variant_id
+      );
+      if (!resolvedVariant.ok) {
+        return resolvedVariant;
+      }
       rows.push({
         day_of_week: a.day_of_week,
         meal_type_id: resolved.id,
         item_type: 'food',
         food_id: a.food_id,
-        variant_id: a.variant_id ?? null,
+        variant_id: resolvedVariant.variant.id,
         quantity: a.quantity ?? 1,
         unit: a.unit ?? 'serving',
       });
@@ -1364,6 +1425,27 @@ Actions:
             `[foodTools] Ignoring non-UUID variant_id '${normalized.variant_id}'; using the default variant`
           );
           delete normalized.variant_id;
+        }
+        // get_meal_plans assignment rows carry read-side display fields
+        // (day label, meal_type/meal/food names) and SQL nulls; strip them
+        // so a schedule echoed back into update_meal_plan parses against the
+        // strict assignment schema instead of failing on unrecognized keys.
+        if (Array.isArray(normalized.assignments)) {
+          normalized.assignments = normalized.assignments.map((a: unknown) => {
+            if (typeof a !== 'object' || a === null) {
+              return a;
+            }
+            const cleaned = { ...(a as Record<string, unknown>) };
+            delete cleaned['day'];
+            delete cleaned['meal_name'];
+            delete cleaned['food_name'];
+            for (const key of Object.keys(cleaned)) {
+              if (cleaned[key] === null) {
+                delete cleaned[key];
+              }
+            }
+            return cleaned;
+          });
         }
         const loggingActions = [
           'log_food',
@@ -2195,18 +2277,35 @@ Actions:
             }
 
             case 'create_meal_plan': {
+              const startDate = args.start_date ?? todayInZone(tz);
+              if (args.end_date && args.end_date < startDate) {
+                return ERRORS.VALIDATION(
+                  'end_date must be on or after start_date'
+                );
+              }
+              // Duplicate-name guard: when the model omits `action`, an
+              // intended by-name update (plan_name + assignments) infers as
+              // create — reject the duplicate and point at update_meal_plan
+              // instead of silently forking a second plan.
+              const existingPlans =
+                (await mealPlanTemplateService.getMealPlanTemplates(
+                  userId
+                )) as MealPlanTemplateRow[];
+              const nameTaken = existingPlans.find(
+                (p) =>
+                  p.plan_name.toLowerCase() === args.plan_name.toLowerCase()
+              );
+              if (nameTaken) {
+                return ERRORS.VALIDATION(
+                  `A meal plan named "${args.plan_name}" already exists (plan_id ${nameTaken.id}) — use update_meal_plan to change it, or choose a different name`
+                );
+              }
               const resolved = await resolveMealPlanAssignments(
                 userId,
                 args.assignments
               );
               if (!resolved.ok) {
                 return ERRORS.VALIDATION(resolved.message);
-              }
-              const startDate = args.start_date ?? todayInZone(tz);
-              if (args.end_date && args.end_date < startDate) {
-                return ERRORS.VALIDATION(
-                  'end_date must be on or after start_date'
-                );
               }
               const plan = await mealPlanTemplateService.createMealPlanTemplate(
                 userId,
@@ -2275,6 +2374,19 @@ Actions:
                 }
                 existing = matches[0];
               }
+              const mergedStart =
+                args.start_date ?? dayString(existing.start_date);
+              const mergedEnd =
+                args.end_date !== undefined
+                  ? args.end_date
+                  : existing.end_date
+                    ? dayString(existing.end_date)
+                    : null;
+              if (mergedEnd && mergedEnd < mergedStart) {
+                return ERRORS.VALIDATION(
+                  'end_date must be on or after start_date'
+                );
+              }
               // The repository update deletes ALL assignment rows
               // unconditionally and reinserts only what it is given, so the
               // existing schedule must be resent whenever the model is not
@@ -2303,19 +2415,6 @@ Actions:
                       : 1,
                   unit: a.unit ?? 'serving',
                 }));
-              }
-              const mergedStart =
-                args.start_date ?? dayString(existing.start_date);
-              const mergedEnd =
-                args.end_date !== undefined
-                  ? args.end_date
-                  : existing.end_date
-                    ? dayString(existing.end_date)
-                    : null;
-              if (mergedEnd && mergedEnd < mergedStart) {
-                return ERRORS.VALIDATION(
-                  'end_date must be on or after start_date'
-                );
               }
               const updated =
                 await mealPlanTemplateService.updateMealPlanTemplate(
