@@ -281,7 +281,16 @@ const presetExerciseSchema = z
     exercise_id: z
       .string()
       .min(1)
+      .optional()
       .describe('Exercise UUID (from search_exercises) or external source id'),
+    exercise_name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe(
+        'Exercise name — alternative to exercise_id: resolves to an existing exercise or creates a custom one'
+      ),
     sort_order: z.coerce.number().int().min(0).optional(),
     superset_group: z.coerce
       .number()
@@ -583,7 +592,8 @@ export const manageExerciseInput = z.object({
   exercises: z
     .array(
       z.object({
-        exercise_id: z.string().min(1),
+        exercise_id: z.string().min(1).optional(),
+        exercise_name: z.string().min(1).max(200).optional(),
         sort_order: z.coerce.number().int().min(0).optional(),
         superset_group: z.coerce.number().int().optional(),
         sets: z
@@ -606,7 +616,7 @@ export const manageExerciseInput = z.object({
     .min(1)
     .optional()
     .describe(
-      'Fully programmed exercises for create_workout_preset / update_workout_preset: [{exercise_id, sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]. On update this REPLACES the whole list.'
+      'Fully programmed exercises for create_workout_preset / update_workout_preset: [{exercise_id OR exercise_name (names resolve to existing exercises, unknown names become custom exercises), sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]. On update this REPLACES the whole list.'
     ),
   name: z
     .string()

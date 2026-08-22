@@ -1026,6 +1026,168 @@ describe('workout presets', () => {
     expect(workoutPresetService.createWorkoutPreset).not.toHaveBeenCalled();
   });
 
+  it('create_workout_preset resolves exercise_name items against existing exercises', async () => {
+    vi.mocked(exerciseService.searchExercises).mockResolvedValue([
+      { id: EXERCISE_ID, name: 'Bench Press' },
+    ]);
+    vi.mocked(workoutPresetService.createWorkoutPreset).mockResolvedValue({
+      id: 9,
+      name: 'Push Day',
+      exercises: [{}],
+    });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_preset',
+        name: 'Push Day',
+        exercises: [
+          {
+            exercise_name: 'Bench Press',
+            sets: [{ set_number: 1, reps: 8, weight: 60 }],
+          },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Workout preset "Push Day" created: 1 exercises, 1 sets.'
+    );
+    expect(exerciseService.createExercise).not.toHaveBeenCalled();
+    expect(workoutPresetService.createWorkoutPreset).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        exercises: [
+          expect.objectContaining({ exercise_id: EXERCISE_ID, sort_order: 0 }),
+        ],
+      })
+    );
+  });
+
+  it('create_workout_preset auto-creates unknown names once per distinct name', async () => {
+    vi.mocked(exerciseService.searchExercises).mockResolvedValue([]);
+    vi.mocked(exerciseService.createExercise).mockResolvedValue({
+      id: EXERCISE_ID_2,
+      name: 'Cable Crunch',
+    });
+    vi.mocked(workoutPresetService.createWorkoutPreset).mockResolvedValue({
+      id: 9,
+      name: 'Core Day',
+      exercises: [{}, {}],
+    });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_preset',
+        name: 'Core Day',
+        exercises: [
+          {
+            exercise_name: 'Cable Crunch',
+            sets: [{ set_number: 1, reps: 12 }],
+          },
+          {
+            exercise_name: 'cable crunch',
+            superset_group: 1,
+            sets: [{ set_number: 1, reps: 15 }],
+          },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Workout preset "Core Day" created: 2 exercises, 2 sets.'
+    );
+    expect(exerciseService.createExercise).toHaveBeenCalledTimes(1);
+    expect(exerciseService.createExercise).toHaveBeenCalledWith('user-1', {
+      name: 'Cable Crunch',
+      category: 'custom',
+      calories_per_hour: 300,
+      is_custom: true,
+      shared_with_public: false,
+      source: 'manual',
+    });
+    expect(workoutPresetService.createWorkoutPreset).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        exercises: [
+          expect.objectContaining({ exercise_id: EXERCISE_ID_2 }),
+          expect.objectContaining({
+            exercise_id: EXERCISE_ID_2,
+            superset_group: 1,
+          }),
+        ],
+      })
+    );
+  });
+
+  it('create_workout_preset rejects an item with neither exercise_id nor exercise_name', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_preset',
+        name: 'Broken Day',
+        exercises: [{ sets: [{ set_number: 1, reps: 8 }] }],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: exercises[0] needs exercise_id or exercise_name'
+    );
+    expect(workoutPresetService.createWorkoutPreset).not.toHaveBeenCalled();
+  });
+
+  it('create_workout_preset rejects a duplicate name with recovery guidance', async () => {
+    vi.mocked(workoutPresetRepository.getWorkoutPresetByName).mockResolvedValue(
+      { id: PRESET_ID, name: 'Push Day' }
+    );
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_preset',
+        name: 'Push Day',
+        exercise_ids: [EXERCISE_ID],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: A workout preset named "Push Day" already exists. One create_workout_preset call must contain the COMPLETE routine in its exercises array — to change the existing preset, call update_workout_preset with preset_name and the full exercise list; to make another routine, pick a different name'
+    );
+    expect(workoutPresetService.createWorkoutPreset).not.toHaveBeenCalled();
+  });
+
+  it('update_workout_preset resolves exercise_name items', async () => {
+    vi.mocked(exerciseService.searchExercises).mockResolvedValue([
+      { id: EXERCISE_ID, name: 'Squat' },
+    ]);
+    vi.mocked(workoutPresetService.updateWorkoutPreset).mockResolvedValue({
+      id: PRESET_ID,
+      name: 'Leg Day',
+      exercises: [{}],
+    });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'update_workout_preset',
+        preset_id: PRESET_ID,
+        exercises: [
+          { exercise_name: 'Squat', sets: [{ set_number: 1, reps: 5 }] },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Workout preset "Leg Day" updated.');
+    expect(workoutPresetService.updateWorkoutPreset).toHaveBeenCalledWith(
+      'user-1',
+      PRESET_ID,
+      expect.objectContaining({
+        exercises: [expect.objectContaining({ exercise_id: EXERCISE_ID })],
+      })
+    );
+  });
+
   it('update_workout_preset requires preset_id or preset_name', async () => {
     const result = await tools.sparky_manage_exercise.execute!(
       { action: 'update_workout_preset', name: 'New Name' },

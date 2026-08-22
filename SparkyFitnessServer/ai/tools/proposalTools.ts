@@ -110,6 +110,7 @@ export function buildProposalTools() {
         'Proposes a complete workout routine to the user as an interactive card they can accept, edit, or reject. ' +
         'Use this whenever the user asks you to build, design, or generate a workout routine/program — do NOT create it directly with create_workout_preset. ' +
         'First call search_exercises to get real exercise ids, then propose the FULL programming: every exercise with per-set reps, weight (kg), duration (seconds), distance (km), and rest times. ' +
+        'If search_exercises finds no matches (common on a fresh install), do not stall: describe the routine in text, ask the user to confirm, and once they do, create it with create_workout_preset using exercise_name entries. ' +
         'After calling this, stop and wait — never claim the routine was created; only the user accepting the card creates it.',
       inputSchema: ProposeWorkoutPresetSchema,
       execute: async (rawArgs) => {

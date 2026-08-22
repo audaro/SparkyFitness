@@ -100,16 +100,79 @@ interface PresetSetInput {
 }
 
 interface PresetExerciseInput {
-  exercise_id: string;
+  exercise_id?: string;
+  exercise_name?: string;
   sort_order?: number;
   superset_group?: number;
   sets?: PresetSetInput[];
 }
 
+// Exact match first, then fuzzy, then auto-create — MCP's resolution order,
+// shared by log_exercise and the preset exercise_name paths.
+async function resolveOrCreateExerciseId(
+  userId: string,
+  exerciseName: string
+): Promise<string> {
+  const rows: { id: string; name: string }[] =
+    await exerciseService.searchExercises(
+      userId,
+      exerciseName,
+      userId,
+      undefined,
+      undefined
+    );
+  const name = exerciseName.toLowerCase();
+  const found =
+    rows.find((e) => String(e.name).toLowerCase() === name) ?? rows[0];
+  if (found) {
+    return found.id;
+  }
+  const created = await exerciseService.createExercise(userId, {
+    name: exerciseName,
+    category: 'custom',
+    calories_per_hour: 300,
+    is_custom: true,
+    shared_with_public: false,
+    source: 'manual',
+  });
+  return created.id;
+}
+
+// Fills in exercise_id for preset items given by name. Returns an ERRORS.*
+// string when an item carries neither id nor name. Resolution is sequential
+// with a per-call memo so a name repeated across items (e.g. a superset of
+// the same movement) resolves once instead of creating duplicates.
+async function resolvePresetExerciseIds(
+  userId: string,
+  exercises: PresetExerciseInput[]
+): Promise<(PresetExerciseInput & { exercise_id: string })[] | string> {
+  const memo = new Map<string, string>();
+  const resolved: (PresetExerciseInput & { exercise_id: string })[] = [];
+  for (const [i, ex] of exercises.entries()) {
+    let exerciseId = ex.exercise_id;
+    if (!exerciseId) {
+      if (!ex.exercise_name) {
+        return ERRORS.VALIDATION(
+          `exercises[${i}] needs exercise_id or exercise_name`
+        );
+      }
+      const key = ex.exercise_name.toLowerCase();
+      exerciseId =
+        memo.get(key) ??
+        (await resolveOrCreateExerciseId(userId, ex.exercise_name));
+      memo.set(key, exerciseId);
+    }
+    resolved.push({ ...ex, exercise_id: exerciseId });
+  }
+  return resolved;
+}
+
 // The exercise rows the workout-preset service expects: sort_order defaults
 // to list position, and absent set fields become explicit nulls (preset sets
 // have no rpe column, unlike diary sets).
-function toPresetExercises(exercises: PresetExerciseInput[]) {
+function toPresetExercises(
+  exercises: (PresetExerciseInput & { exercise_id: string })[]
+) {
   return exercises.map((ex, i) => ({
     exercise_id: ex.exercise_id,
     sort_order: ex.sort_order ?? i,
@@ -535,7 +598,7 @@ Actions:
 - update_exercise_entry(entry_id, entry_date?, duration_minutes?, calories_burned?, notes?, distance?, avg_heart_rate?, steps?, sets?) — only the provided fields change; sets, when provided, replace all existing sets
 - delete_exercise_entry(entry_id)
 - get_exercise_details(exercise_id?|exercise_name?)
-- create_workout_preset(name, description?, exercise_ids? OR exercises?) — exercises is the programmed form: [{exercise_id, sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]; use search_exercises first to get real exercise ids
+- create_workout_preset(name, description?, exercise_ids? OR exercises?) — ONE call creates the WHOLE routine: pass every exercise in a single exercises array, never one call per exercise. exercises is the programmed form: [{exercise_id OR exercise_name, sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]; prefer real ids from search_exercises, but when an exercise is not in the database just pass exercise_name — it resolves to the closest existing exercise or creates a custom one, so never give up because ids are missing
 - update_workout_preset(preset_id?|preset_name?, name?, description?, exercises?) — exercises REPLACES the entire list, so send the complete desired routine
 - get_exercise_progress(exercise_id?|exercise_name?, start_date?, end_date?, limit?, offset?) — returns paginated performance history
 - get_frequent_sets(weeks?(default 4)) — the user's usual routine mined from history: per weekday, exercises trained 2+ times with their typical sets/reps/weight; use it to build "a routine from what I usually do"
@@ -659,33 +722,10 @@ Actions:
               }
               let exerciseId = args.exercise_id;
               if (!exerciseId && args.exercise_name) {
-                // Exact match first, then fuzzy, then auto-create — MCP's
-                // resolution order.
-                const rows = await exerciseService.searchExercises(
+                exerciseId = await resolveOrCreateExerciseId(
                   userId,
-                  args.exercise_name,
-                  userId,
-                  undefined,
-                  undefined
+                  args.exercise_name
                 );
-                const name = args.exercise_name.toLowerCase();
-                const found =
-                  rows.find(
-                    (e: any) => String(e.name).toLowerCase() === name
-                  ) ?? rows[0];
-                if (found) {
-                  exerciseId = found.id;
-                } else {
-                  const created = await exerciseService.createExercise(userId, {
-                    name: args.exercise_name,
-                    category: 'custom',
-                    calories_per_hour: 300,
-                    is_custom: true,
-                    shared_with_public: false,
-                    source: 'manual',
-                  });
-                  exerciseId = created.id;
-                }
               }
               // skipDuplicateCheck: logging the same exercise twice in a day
               // must create two entries (MCP always inserted), not merge into
@@ -898,7 +938,27 @@ Actions:
                   'Either exercises or exercise_ids must be provided'
                 );
               }
+              // Models sometimes split one routine into a create call per
+              // exercise; the duplicate-name guard turns every call after the
+              // first into an actionable error instead of stacking presets.
+              const sameName =
+                await workoutPresetRepository.getWorkoutPresetByName(
+                  userId,
+                  args.name
+                );
+              if (sameName) {
+                return ERRORS.VALIDATION(
+                  `A workout preset named "${args.name}" already exists. One create_workout_preset call must contain the COMPLETE routine in its exercises array — to change the existing preset, call update_workout_preset with preset_name and the full exercise list; to make another routine, pick a different name`
+                );
+              }
               if (args.exercises?.length) {
+                const resolved = await resolvePresetExerciseIds(
+                  userId,
+                  args.exercises
+                );
+                if (typeof resolved === 'string') {
+                  return resolved;
+                }
                 const preset = await workoutPresetService.createWorkoutPreset(
                   userId,
                   {
@@ -906,7 +966,7 @@ Actions:
                     name: args.name,
                     description: args.description ?? null,
                     is_public: false,
-                    exercises: toPresetExercises(args.exercises),
+                    exercises: toPresetExercises(resolved),
                   }
                 );
                 const setCount = args.exercises.reduce(
@@ -964,6 +1024,19 @@ Actions:
                 }
                 presetId = preset.id;
               }
+              let updatedExercises:
+                | ReturnType<typeof toPresetExercises>
+                | undefined;
+              if (args.exercises?.length) {
+                const resolved = await resolvePresetExerciseIds(
+                  userId,
+                  args.exercises
+                );
+                if (typeof resolved === 'string') {
+                  return resolved;
+                }
+                updatedExercises = toPresetExercises(resolved);
+              }
               const updated = await workoutPresetService.updateWorkoutPreset(
                 userId,
                 presetId,
@@ -972,9 +1045,7 @@ Actions:
                   ...(args.description !== undefined && {
                     description: args.description,
                   }),
-                  ...(args.exercises?.length && {
-                    exercises: toPresetExercises(args.exercises),
-                  }),
+                  ...(updatedExercises && { exercises: updatedExercises }),
                 }
               );
               return formatConfirmation(
