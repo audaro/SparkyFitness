@@ -5,8 +5,12 @@ import {
 } from '@/components/attachment';
 import { MarkdownText } from '@/components/markdown-text';
 import { Reasoning } from '@/components/reasoning';
-import { ASK_USER_TOOL_NAME } from '@workspace/shared';
+import {
+  ASK_USER_TOOL_NAME,
+  PROPOSE_WORKOUT_PRESET_TOOL_NAME,
+} from '@workspace/shared';
 import { AskUserToolUI } from '@/components/ai/AskUserToolUI';
+import { WorkoutPresetProposalToolUI } from '@/components/ai/WorkoutPresetProposalToolUI';
 import { ToolFallback } from '@/components/tool-fallback';
 import { TooltipIconButton } from '@/components/tooltip-icon-button';
 import { Button } from '@/components/ui/button';
@@ -343,6 +347,7 @@ const AssistantMessage: FC = () => {
             tools: {
               by_name: {
                 [ASK_USER_TOOL_NAME]: AskUserToolUI,
+                [PROPOSE_WORKOUT_PRESET_TOOL_NAME]: WorkoutPresetProposalToolUI,
               },
               Fallback: ToolFallback,
             },

@@ -7,6 +7,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   getWorkoutPresets,
+  getWorkoutPresetById,
   createWorkoutPreset,
   updateWorkoutPreset,
   deleteWorkoutPreset,
@@ -36,6 +37,18 @@ export const useWorkoutPresets = (userId?: string, limit: number = 10) => {
       ),
     },
   });
+};
+
+// Imperative fetch of one preset's fully joined shape (exercise objects
+// included), cached under the detail key. Used by flows that need the server
+// join on demand — e.g. the chat proposal card's Accept-then-Edit.
+export const useFetchWorkoutPresetById = () => {
+  const queryClient = useQueryClient();
+  return (id: string): Promise<WorkoutPreset> =>
+    queryClient.fetchQuery({
+      queryKey: presetKeys.detail(id),
+      queryFn: () => getWorkoutPresetById(id),
+    });
 };
 
 // --- Mutations ---

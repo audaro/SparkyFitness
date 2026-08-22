@@ -21,6 +21,11 @@ jest.mock('@/components/attachment', () => ({
   ComposerAttachments: () => null,
   UserMessageAttachments: () => null,
 }));
+// The proposal card pulls in useAuth (better-auth ESM) and the preset editor
+// tree — the same class of boundary as the mocks above.
+jest.mock('@/components/ai/WorkoutPresetProposalToolUI', () => ({
+  WorkoutPresetProposalToolUI: () => null,
+}));
 
 import { getThreadMessageTokenUsage } from '@assistant-ui/react-ai-sdk';
 import {
