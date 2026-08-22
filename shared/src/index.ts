@@ -97,6 +97,7 @@ export * from "./constants/nutrientGoalDefaults.ts";
 export * from "./constants/chatToolCategories.ts";
 export * from "./constants/exercise.ts";
 export * from "./constants/chatAskUser.ts";
+export * from "./constants/chatProposals.ts";
 export * from "./nutrients/micronutrientCatalog.ts";
 export * from "./nutrients/macroPickerFields.ts";
 export * from "./utils/timezone.ts";
