@@ -342,6 +342,134 @@ const updateWorkoutPresetSchema = z
   })
   .strict();
 
+// Weekly-plan assignment sets: like preset sets but the
+// workout_plan_assignment_sets table has no distance column.
+const planAssignmentSetSchema = z
+  .object({
+    set_number: z.coerce
+      .number()
+      .int()
+      .positive()
+      .describe('1-based set number'),
+    set_type: setTypeEnum.optional(),
+    reps: z.coerce.number().int().min(0).optional(),
+    weight: z.coerce.number().min(0).optional().describe('Weight in kg'),
+    duration: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Seconds — for duration/cardio sets'),
+    rest_time: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Rest after this set, seconds'),
+    notes: z.string().max(500).optional(),
+  })
+  .strict();
+
+const planAssignmentSchema = z
+  .object({
+    day_of_week: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(6)
+      .describe('Day of week: 0=Sunday … 6=Saturday'),
+    workout_preset_id: uuidSchema
+      .optional()
+      .describe(
+        'Workout preset to schedule this day (alternative to exercise_id)'
+      ),
+    exercise_id: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Single exercise to schedule this day (alternative to workout_preset_id)'
+      ),
+    sort_order: z.coerce.number().int().min(0).optional(),
+    sets: z
+      .array(planAssignmentSetSchema)
+      .min(1)
+      .optional()
+      .describe('Per-set programming — only valid with exercise_id'),
+  })
+  .strict();
+
+const getWorkoutPlansSchema = z
+  .object({
+    action: z.literal('get_workout_plans'),
+  })
+  .strict();
+
+const createWorkoutPlanSchema = z
+  .object({
+    action: z.literal('create_workout_plan'),
+    name: z.string().min(1).max(200).describe('Name of the workout plan'),
+    description: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe('Description of the plan'),
+    start_date: dateSchema
+      .optional()
+      .describe('Plan start date (YYYY-MM-DD); defaults to today'),
+    end_date: dateSchema
+      .optional()
+      .describe('Plan end date (YYYY-MM-DD); open-ended if omitted'),
+    is_active: z
+      .boolean()
+      .optional()
+      .describe(
+        'Active plans auto-generate workout diary entries from today onward'
+      ),
+    assignments: z
+      .array(planAssignmentSchema)
+      .min(1)
+      .describe('Weekly schedule: which preset/exercise runs on which day'),
+  })
+  .strict();
+
+const updateWorkoutPlanSchema = z
+  .object({
+    action: z.literal('update_workout_plan'),
+    plan_id: uuidSchema.optional().describe('UUID of the workout plan'),
+    plan_name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('Name of the plan to update (alternative to ID)'),
+    name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('New name for the plan'),
+    description: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe('New description for the plan'),
+    start_date: dateSchema.optional().describe('New start date (YYYY-MM-DD)'),
+    end_date: dateSchema.optional().describe('New end date (YYYY-MM-DD)'),
+    is_active: z
+      .boolean()
+      .optional()
+      .describe('Activate/deactivate the plan; other fields stay unchanged'),
+    assignments: z
+      .array(planAssignmentSchema)
+      .min(1)
+      .optional()
+      .describe(
+        'Replacement weekly schedule; REPLACES all existing assignments, so send the complete desired week'
+      ),
+  })
+  .strict();
+
 const getExerciseProgressSchema = z
   .object({
     action: z.literal('get_exercise_progress'),
@@ -373,6 +501,9 @@ export const manageExerciseSchema = z.discriminatedUnion('action', [
   createWorkoutPresetSchema,
   updateWorkoutPresetSchema,
   getExerciseProgressSchema,
+  getWorkoutPlansSchema,
+  createWorkoutPlanSchema,
+  updateWorkoutPlanSchema,
 ]);
 
 export type ManageExerciseInput = z.infer<typeof manageExerciseSchema>;
@@ -395,6 +526,9 @@ export const manageExerciseInput = z.object({
       'create_workout_preset',
       'update_workout_preset',
       'get_exercise_progress',
+      'get_workout_plans',
+      'create_workout_plan',
+      'update_workout_plan',
     ])
     .optional()
     .describe(
@@ -581,9 +715,61 @@ export const manageExerciseInput = z.object({
     .describe(
       'Exercise diary entry UUID — for update_exercise_entry / delete_exercise_entry'
     ),
-  // progress range
+  // progress range / workout plan dates
   start_date: dateSchema
     .optional()
-    .describe('Start date for progress tracking'),
-  end_date: dateSchema.optional().describe('End date for progress tracking'),
+    .describe(
+      'Start date — for get_exercise_progress / create_workout_plan / update_workout_plan'
+    ),
+  end_date: dateSchema
+    .optional()
+    .describe(
+      'End date — for get_exercise_progress / create_workout_plan / update_workout_plan'
+    ),
+  // workout plans
+  plan_id: uuidSchema
+    .optional()
+    .describe('Workout plan UUID — for update_workout_plan'),
+  plan_name: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      'Workout plan name — for update_workout_plan (alternative to plan_id)'
+    ),
+  is_active: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether the workout plan is active — active plans auto-generate workout diary entries'
+    ),
+  assignments: z
+    .array(
+      z.object({
+        day_of_week: z.coerce.number().int().min(0).max(6),
+        workout_preset_id: uuidSchema.optional(),
+        exercise_id: z.string().min(1).optional(),
+        sort_order: z.coerce.number().int().min(0).optional(),
+        sets: z
+          .array(
+            z.object({
+              set_number: z.coerce.number().int().positive(),
+              set_type: setTypeEnum.optional(),
+              reps: z.coerce.number().int().min(0).optional(),
+              weight: z.coerce.number().min(0).optional(),
+              duration: z.coerce.number().int().min(0).optional(),
+              rest_time: z.coerce.number().int().min(0).optional(),
+              notes: z.string().max(500).optional(),
+            })
+          )
+          .min(1)
+          .optional(),
+      })
+    )
+    .min(1)
+    .optional()
+    .describe(
+      'Weekly schedule for create_workout_plan / update_workout_plan: [{day_of_week 0-6 (0=Sunday), workout_preset_id? OR exercise_id? (exactly one), sort_order?, sets?}] — sets only with exercise_id. On update this REPLACES the whole schedule.'
+    ),
 });

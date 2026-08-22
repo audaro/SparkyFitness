@@ -6,6 +6,8 @@ import workoutPresetService from '../services/workoutPresetService.js';
 import exerciseDb from '../models/exercise.js';
 import exerciseEntryDb from '../models/exerciseEntry.js';
 import workoutPresetRepository from '../models/workoutPresetRepository.js';
+import workoutPlanTemplateService from '../services/workoutPlanTemplateService.js';
+import workoutPlanTemplateRepository from '../models/workoutPlanTemplateRepository.js';
 import { getResolvedExerciseCaloriesRange } from '../services/exerciseCalorieRangeService.js';
 
 vi.mock('../services/exerciseService', () => ({
@@ -46,6 +48,18 @@ vi.mock('../models/exerciseEntry', () => ({
 vi.mock('../models/workoutPresetRepository', () => ({
   default: {
     getWorkoutPresetByName: vi.fn(),
+  },
+}));
+vi.mock('../services/workoutPlanTemplateService', () => ({
+  default: {
+    getWorkoutPlanTemplatesByUserId: vi.fn(),
+    createWorkoutPlanTemplate: vi.fn(),
+    updateWorkoutPlanTemplate: vi.fn(),
+  },
+}));
+vi.mock('../models/workoutPlanTemplateRepository', () => ({
+  default: {
+    getWorkoutPlanTemplateById: vi.fn(),
   },
 }));
 vi.mock('../services/exerciseCalorieRangeService', () => ({
@@ -1709,5 +1723,340 @@ describe('sparky_get_exercise_progress', () => {
         total_count: 1,
       })
     );
+  });
+});
+
+describe('get_workout_plans', () => {
+  const PLAN_ID = '55555555-5555-4555-8555-555555555555';
+  const PLAN_ID_2 = '66666666-6666-4666-8666-666666666666';
+
+  it('renders plans with schedules, activity flag, and date ranges', async () => {
+    vi.mocked(
+      workoutPlanTemplateService.getWorkoutPlanTemplatesByUserId
+    ).mockResolvedValue([
+      {
+        id: PLAN_ID,
+        plan_name: 'PPL Week',
+        is_active: true,
+        start_date: new Date(2026, 7, 17),
+        end_date: null,
+        assignments: [
+          { day_of_week: 1, workout_preset_name: 'Push Day' },
+          { day_of_week: 3, workout_preset_name: 'Pull Day' },
+          { day_of_week: 5, workout_preset_name: null, exercise_name: 'Squat' },
+        ],
+      },
+      {
+        id: PLAN_ID_2,
+        plan_name: 'Deload',
+        is_active: false,
+        start_date: new Date(2026, 8, 1),
+        end_date: new Date(2026, 8, 7),
+        assignments: [],
+      },
+    ]);
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'get_workout_plans' },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Workout Plans\n\n' +
+        '**PPL Week** — ACTIVE (2026-08-17 → open-ended)\n' +
+        '  Schedule: Mon: Push Day, Wed: Pull Day, Fri: Squat\n' +
+        `  ID: ${PLAN_ID}\n\n` +
+        '**Deload** (2026-09-01 → 2026-09-07)\n' +
+        `  ID: ${PLAN_ID_2}`
+    );
+  });
+});
+
+describe('create_workout_plan', () => {
+  const PRESET_ID_2 = '77777777-7777-4777-8777-777777777777';
+  const TODAY = todayInZone('UTC');
+
+  it('creates a weekly plan and sends normalized assignments to the service', async () => {
+    vi.mocked(
+      workoutPlanTemplateService.createWorkoutPlanTemplate
+    ).mockResolvedValue({
+      plan_name: 'PPL Week',
+      is_active: false,
+      assignments: [{}, {}, {}],
+    });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_plan',
+        name: 'PPL Week',
+        assignments: [
+          { day_of_week: 1, workout_preset_id: PRESET_ID },
+          { day_of_week: 3, workout_preset_id: PRESET_ID_2 },
+          {
+            day_of_week: 5,
+            exercise_id: EXERCISE_ID,
+            sets: [{ set_number: 1, reps: 5, weight: 100 }],
+          },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Workout plan "PPL Week" created: 3 day assignments.'
+    );
+    expect(
+      workoutPlanTemplateService.createWorkoutPlanTemplate
+    ).toHaveBeenCalledWith('user-1', {
+      plan_name: 'PPL Week',
+      description: null,
+      start_date: TODAY,
+      end_date: null,
+      is_active: false,
+      assignments: [
+        {
+          day_of_week: 1,
+          workout_preset_id: PRESET_ID,
+          exercise_id: null,
+          sort_order: 0,
+          sets: undefined,
+        },
+        {
+          day_of_week: 3,
+          workout_preset_id: PRESET_ID_2,
+          exercise_id: null,
+          sort_order: 1,
+          sets: undefined,
+        },
+        {
+          day_of_week: 5,
+          workout_preset_id: null,
+          exercise_id: EXERCISE_ID,
+          sort_order: 2,
+          sets: [
+            {
+              set_number: 1,
+              set_type: 'Working Set',
+              reps: 5,
+              weight: 100,
+              duration: null,
+              rest_time: null,
+              notes: null,
+            },
+          ],
+        },
+      ],
+      currentClientDate: TODAY,
+    });
+  });
+
+  it('confirms diary generation when the plan is created active', async () => {
+    vi.mocked(
+      workoutPlanTemplateService.createWorkoutPlanTemplate
+    ).mockResolvedValue({
+      plan_name: 'PPL Week',
+      is_active: true,
+      assignments: [{}],
+    });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_plan',
+        name: 'PPL Week',
+        is_active: true,
+        start_date: '2026-08-24',
+        assignments: [{ day_of_week: 1, workout_preset_id: PRESET_ID }],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Workout plan "PPL Week" created: 1 day assignments. Plan is active — workout diary entries were generated.'
+    );
+    expect(
+      workoutPlanTemplateService.createWorkoutPlanTemplate
+    ).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ start_date: '2026-08-24', is_active: true })
+    );
+  });
+
+  it('rejects an assignment carrying both a preset and an exercise', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_plan',
+        name: 'Broken',
+        assignments: [
+          {
+            day_of_week: 1,
+            workout_preset_id: PRESET_ID,
+            exercise_id: EXERCISE_ID,
+          },
+        ],
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Each assignment needs exactly one of workout_preset_id or exercise_id'
+    );
+    expect(
+      workoutPlanTemplateService.createWorkoutPlanTemplate
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects sets attached to a preset assignment', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_plan',
+        name: 'Broken',
+        assignments: [
+          {
+            day_of_week: 1,
+            workout_preset_id: PRESET_ID,
+            sets: [{ set_number: 1, reps: 5 }],
+          },
+        ],
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Assignment sets are only valid with exercise_id'
+    );
+  });
+});
+
+describe('update_workout_plan', () => {
+  const PLAN_ID = '55555555-5555-4555-8555-555555555555';
+  const TODAY = todayInZone('UTC');
+
+  it('requires a plan identifier', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'update_workout_plan', is_active: true },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Either plan_id or plan_name must be provided'
+    );
+  });
+
+  it('requires at least one updatable field', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'update_workout_plan', plan_id: PLAN_ID },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Nothing to update — provide name, description, start_date, end_date, is_active, or assignments'
+    );
+  });
+
+  it('merges the request over the existing row (read-modify-write)', async () => {
+    vi.mocked(
+      workoutPlanTemplateService.getWorkoutPlanTemplatesByUserId
+    ).mockResolvedValue([{ id: PLAN_ID, plan_name: 'PPL Week' }]);
+    vi.mocked(
+      workoutPlanTemplateRepository.getWorkoutPlanTemplateById
+    ).mockResolvedValue({
+      id: PLAN_ID,
+      user_id: 'user-1',
+      plan_name: 'PPL Week',
+      description: 'Original split',
+      start_date: new Date(2026, 7, 17),
+      end_date: null,
+      is_active: true,
+      assignments: [{ day_of_week: 1 }],
+    });
+    vi.mocked(
+      workoutPlanTemplateService.updateWorkoutPlanTemplate
+    ).mockResolvedValue({ plan_name: 'PPL Week' });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'update_workout_plan',
+        plan_name: 'ppl week',
+        is_active: false,
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Workout plan "PPL Week" updated.');
+    // The merged payload keeps every unspecified field from the current row
+    // (the repository would otherwise blank plan_name and deactivate) and
+    // omits assignments entirely so they stay untouched.
+    expect(
+      workoutPlanTemplateService.updateWorkoutPlanTemplate
+    ).toHaveBeenCalledWith('user-1', PLAN_ID, {
+      plan_name: 'PPL Week',
+      description: 'Original split',
+      start_date: '2026-08-17',
+      end_date: null,
+      is_active: false,
+      currentClientDate: TODAY,
+    });
+  });
+
+  it('replaces the schedule when assignments are provided', async () => {
+    vi.mocked(
+      workoutPlanTemplateRepository.getWorkoutPlanTemplateById
+    ).mockResolvedValue({
+      id: PLAN_ID,
+      user_id: 'user-1',
+      plan_name: 'PPL Week',
+      description: null,
+      start_date: new Date(2026, 7, 17),
+      end_date: new Date(2026, 8, 13),
+      is_active: false,
+      assignments: [],
+    });
+    vi.mocked(
+      workoutPlanTemplateService.updateWorkoutPlanTemplate
+    ).mockResolvedValue({ plan_name: 'PPL Week' });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'update_workout_plan',
+        plan_id: PLAN_ID,
+        assignments: [
+          { day_of_week: 2, workout_preset_id: PRESET_ID, sort_order: 4 },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Workout plan "PPL Week" updated.');
+    expect(
+      workoutPlanTemplateService.updateWorkoutPlanTemplate
+    ).toHaveBeenCalledWith('user-1', PLAN_ID, {
+      plan_name: 'PPL Week',
+      description: null,
+      start_date: '2026-08-17',
+      end_date: '2026-09-13',
+      is_active: false,
+      assignments: [
+        {
+          day_of_week: 2,
+          workout_preset_id: PRESET_ID,
+          exercise_id: null,
+          sort_order: 4,
+          sets: undefined,
+        },
+      ],
+      currentClientDate: TODAY,
+    });
+  });
+
+  it('maps an unknown plan name to NOT_FOUND', async () => {
+    vi.mocked(
+      workoutPlanTemplateService.getWorkoutPlanTemplatesByUserId
+    ).mockResolvedValue([]);
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'update_workout_plan', plan_name: 'Nope', is_active: true },
+      opts
+    );
+    expect(result).toBe(
+      "Error [NOT_FOUND]: Workout Plan with ID 'Nope' not found.\n\nSuggestion: Check the ID and try again."
+    );
+    expect(
+      workoutPlanTemplateService.updateWorkoutPlanTemplate
+    ).not.toHaveBeenCalled();
   });
 });

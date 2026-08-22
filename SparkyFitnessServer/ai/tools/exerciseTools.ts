@@ -4,6 +4,8 @@ import { todayInZone } from '@workspace/shared';
 import { log } from '../../config/logging.js';
 import exerciseService from '../../services/exerciseService.js';
 import workoutPresetService from '../../services/workoutPresetService.js';
+import workoutPlanTemplateService from '../../services/workoutPlanTemplateService.js';
+import workoutPlanTemplateRepository from '../../models/workoutPlanTemplateRepository.js';
 import exerciseDb from '../../models/exercise.js';
 import exerciseEntryDb from '../../models/exerciseEntry.js';
 import workoutPresetRepository from '../../models/workoutPresetRepository.js';
@@ -42,6 +44,9 @@ const VALID_ACTIONS = [
   'create_workout_preset',
   'update_workout_preset',
   'get_exercise_progress',
+  'get_workout_plans',
+  'create_workout_plan',
+  'update_workout_plan',
 ];
 
 // Optional inputs and nullable DB columns are treated alike: absent.
@@ -119,6 +124,66 @@ function toPresetExercises(exercises: PresetExerciseInput[]) {
     })),
   }));
 }
+
+interface PlanAssignmentSetInput {
+  set_number: number;
+  set_type?: string;
+  reps?: number;
+  weight?: number;
+  duration?: number;
+  rest_time?: number;
+  notes?: string;
+}
+
+interface PlanAssignmentInput {
+  day_of_week: number;
+  workout_preset_id?: string;
+  exercise_id?: string;
+  sort_order?: number;
+  sets?: PlanAssignmentSetInput[];
+}
+
+// The workout-plan REST routes carry no Zod validation, so the tool enforces
+// the assignment invariants itself: exactly one of preset/exercise per slot,
+// and per-set programming only where an exercise is scheduled directly.
+function validatePlanAssignments(
+  assignments: PlanAssignmentInput[]
+): string | null {
+  for (const a of assignments) {
+    const hasPreset = Boolean(a.workout_preset_id);
+    const hasExercise = Boolean(a.exercise_id);
+    if (hasPreset === hasExercise) {
+      return 'Each assignment needs exactly one of workout_preset_id or exercise_id';
+    }
+    if (a.sets?.length && !hasExercise) {
+      return 'Assignment sets are only valid with exercise_id';
+    }
+  }
+  return null;
+}
+
+// The assignment rows the workout-plan-template service expects: sort_order
+// defaults to list position, and absent set fields become explicit nulls
+// (assignment sets have no distance or rpe column).
+function toPlanAssignments(assignments: PlanAssignmentInput[]) {
+  return assignments.map((a, i) => ({
+    day_of_week: a.day_of_week,
+    workout_preset_id: a.workout_preset_id ?? null,
+    exercise_id: a.exercise_id ?? null,
+    sort_order: a.sort_order ?? i,
+    sets: a.sets?.map((s) => ({
+      set_number: s.set_number,
+      set_type: s.set_type || 'Working Set',
+      reps: s.reps ?? null,
+      weight: s.weight ?? null,
+      duration: s.duration ?? null,
+      rest_time: s.rest_time ?? null,
+      notes: s.notes ?? null,
+    })),
+  }));
+}
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // The set rows the exercise-entry repository expects: 1-based set_number plus
 // explicit nulls for absent fields (mirrors MCP's per-set INSERT defaults).
@@ -405,7 +470,10 @@ Actions:
 - get_exercise_details(exercise_id?|exercise_name?)
 - create_workout_preset(name, description?, exercise_ids? OR exercises?) — exercises is the programmed form: [{exercise_id, sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]; use search_exercises first to get real exercise ids
 - update_workout_preset(preset_id?|preset_name?, name?, description?, exercises?) — exercises REPLACES the entire list, so send the complete desired routine
-- get_exercise_progress(exercise_id?|exercise_name?, start_date?, end_date?, limit?, offset?) — returns paginated performance history`,
+- get_exercise_progress(exercise_id?|exercise_name?, start_date?, end_date?, limit?, offset?) — returns paginated performance history
+- get_workout_plans() — lists the user's weekly workout plans with their day schedules
+- create_workout_plan(name, description?, start_date?(default today), end_date?, is_active?, assignments:[{day_of_week 0-6 (0=Sunday), workout_preset_id? OR exercise_id? (exactly one), sort_order?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), rest_time?(seconds), notes?}]}]) — sets only with exercise_id; active plans auto-generate workout diary entries from today; get preset ids from get_workout_presets
+- update_workout_plan(plan_id?|plan_name?, name?, description?, start_date?, end_date?, is_active?, assignments?) — only provided fields change, but assignments REPLACES the entire weekly schedule, so send the complete desired week`,
       inputSchema: manageExerciseInput,
       execute: async (rawArgs) => {
         const normalized = normalizeActionArgs(
@@ -862,6 +930,132 @@ Actions:
                   has_more: progress.has_more,
                   next_offset: progress.next_offset,
                 }
+              );
+            }
+
+            case 'get_workout_plans': {
+              const plans =
+                await workoutPlanTemplateService.getWorkoutPlanTemplatesByUserId(
+                  userId
+                );
+              return formatList(plans, 'Workout Plans', (p: any) => {
+                let text = `**${p.plan_name}**${p.is_active ? ' — ACTIVE' : ''} (${dayString(p.start_date)} → ${p.end_date ? dayString(p.end_date) : 'open-ended'})`;
+                const schedule = (p.assignments ?? [])
+                  .map(
+                    (a: any) =>
+                      `${DAY_NAMES[a.day_of_week]}: ${a.workout_preset_name || a.exercise_name}`
+                  )
+                  .join(', ');
+                if (schedule) text += `\n  Schedule: ${schedule}`;
+                text += `\n  ID: ${p.id}`;
+                return text;
+              });
+            }
+
+            case 'create_workout_plan': {
+              const assignmentError = validatePlanAssignments(args.assignments);
+              if (assignmentError) {
+                return ERRORS.VALIDATION(assignmentError);
+              }
+              const plan =
+                await workoutPlanTemplateService.createWorkoutPlanTemplate(
+                  userId,
+                  {
+                    plan_name: args.name,
+                    description: args.description ?? null,
+                    start_date: args.start_date ?? todayInZone(tz),
+                    end_date: args.end_date ?? null,
+                    is_active: args.is_active ?? false,
+                    assignments: toPlanAssignments(args.assignments),
+                    currentClientDate: todayInZone(tz),
+                  }
+                );
+              const base = `Workout plan "${plan.plan_name}" created: ${plan.assignments.length} day assignments.`;
+              return formatConfirmation(
+                plan.is_active
+                  ? `${base} Plan is active — workout diary entries were generated.`
+                  : base
+              );
+            }
+
+            case 'update_workout_plan': {
+              if (!args.plan_id && !args.plan_name) {
+                return ERRORS.VALIDATION(
+                  'Either plan_id or plan_name must be provided'
+                );
+              }
+              if (
+                args.name === undefined &&
+                args.description === undefined &&
+                args.start_date === undefined &&
+                args.end_date === undefined &&
+                args.is_active === undefined &&
+                !args.assignments?.length
+              ) {
+                return ERRORS.VALIDATION(
+                  'Nothing to update — provide name, description, start_date, end_date, is_active, or assignments'
+                );
+              }
+              if (args.assignments?.length) {
+                const assignmentError = validatePlanAssignments(
+                  args.assignments
+                );
+                if (assignmentError) {
+                  return ERRORS.VALIDATION(assignmentError);
+                }
+              }
+              let planId = args.plan_id;
+              if (!planId && args.plan_name) {
+                const plans =
+                  await workoutPlanTemplateService.getWorkoutPlanTemplatesByUserId(
+                    userId
+                  );
+                const match = plans.find(
+                  (p: any) =>
+                    String(p.plan_name).toLowerCase() ===
+                    args.plan_name!.toLowerCase()
+                );
+                if (!match) {
+                  return ERRORS.NOT_FOUND('Workout Plan', args.plan_name);
+                }
+                planId = match.id;
+              }
+              // The repository update is a full-replace with '' / false
+              // defaults — omitting plan_name would blank it and omitting
+              // is_active would deactivate the plan — so merge the request
+              // over the current row before sending complete data.
+              const existing =
+                await workoutPlanTemplateRepository.getWorkoutPlanTemplateById(
+                  planId,
+                  userId
+                );
+              if (!existing || existing.user_id !== userId) {
+                return ERRORS.NOT_FOUND('Workout Plan', String(planId));
+              }
+              const updated =
+                await workoutPlanTemplateService.updateWorkoutPlanTemplate(
+                  userId,
+                  planId,
+                  {
+                    plan_name: args.name ?? existing.plan_name,
+                    description: args.description ?? existing.description,
+                    start_date:
+                      args.start_date ??
+                      (existing.start_date
+                        ? dayString(existing.start_date)
+                        : todayInZone(tz)),
+                    end_date:
+                      args.end_date ??
+                      (existing.end_date ? dayString(existing.end_date) : null),
+                    is_active: args.is_active ?? existing.is_active,
+                    ...(args.assignments?.length && {
+                      assignments: toPlanAssignments(args.assignments),
+                    }),
+                    currentClientDate: todayInZone(tz),
+                  }
+                );
+              return formatConfirmation(
+                `Workout plan "${updated.plan_name}" updated.`
               );
             }
 

@@ -171,6 +171,10 @@ describe('published (flat) chatbot tool schemas', () => {
         'entry_id',
         'start_date',
         'end_date',
+        'plan_id',
+        'plan_name',
+        'is_active',
+        'assignments',
       ],
       actions: [
         'search_exercises',
@@ -185,6 +189,9 @@ describe('published (flat) chatbot tool schemas', () => {
         'create_workout_preset',
         'update_workout_preset',
         'get_exercise_progress',
+        'get_workout_plans',
+        'create_workout_plan',
+        'update_workout_plan',
       ],
     },
     {
