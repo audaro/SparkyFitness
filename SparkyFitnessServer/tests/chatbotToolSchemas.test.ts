@@ -155,6 +155,7 @@ describe('published (flat) chatbot tool schemas', () => {
       schema: manageExerciseInput,
       properties: [
         'action',
+        'weeks',
         'exercise_id',
         'exercise_name',
         'exercise_ids',
@@ -201,6 +202,7 @@ describe('published (flat) chatbot tool schemas', () => {
         'create_workout_preset',
         'update_workout_preset',
         'get_exercise_progress',
+        'get_frequent_sets',
         'get_workout_plans',
         'create_workout_plan',
         'update_workout_plan',

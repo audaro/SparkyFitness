@@ -43,6 +43,7 @@ vi.mock('../models/exerciseEntry', () => ({
     getDailyExerciseTotalsRange: vi.fn(),
     getRecentExerciseEntries: vi.fn(),
     getExerciseUsage: vi.fn(),
+    getFrequentSets: vi.fn(),
   },
 }));
 vi.mock('../models/workoutPresetRepository', () => ({
@@ -1724,6 +1725,83 @@ describe('sparky_get_exercise_progress', () => {
         total_count: 1,
       })
     );
+  });
+});
+
+describe('get_frequent_sets', () => {
+  it('renders the usual-workouts summary grouped by weekday', async () => {
+    vi.mocked(exerciseEntryDb.getFrequentSets).mockResolvedValue([
+      {
+        day_of_week: 1,
+        exercise_id: EXERCISE_ID,
+        exercise_name: 'Squats',
+        session_count: 4,
+        modal_sets: 3,
+        modal_reps: 8,
+        modal_weight: 80,
+        modal_duration: null,
+      },
+      {
+        day_of_week: 1,
+        exercise_id: ENTRY_ID,
+        exercise_name: 'Plank',
+        session_count: 2,
+        modal_sets: 3,
+        modal_reps: null,
+        modal_weight: null,
+        modal_duration: 60,
+      },
+      {
+        day_of_week: 4,
+        exercise_id: EXERCISE_ID,
+        exercise_name: 'Squats',
+        session_count: 3,
+        modal_sets: 3,
+        modal_reps: 5,
+        modal_weight: 90,
+        modal_duration: null,
+      },
+    ]);
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'get_frequent_sets', weeks: 6 },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Usual workouts (last 6 weeks)\n' +
+        '\n## Monday\n' +
+        `- Squats — 4 sessions, typically 3×8 @ 80kg (id: ${EXERCISE_ID})\n` +
+        `- Plank — 2 sessions, typically 3 sets of 60s (id: ${ENTRY_ID})\n` +
+        '\n## Thursday\n' +
+        `- Squats — 3 sessions, typically 3×5 @ 90kg (id: ${EXERCISE_ID})`
+    );
+    // Window: 6 weeks back from today (UTC) — the repo gets a day string.
+    const since = vi.mocked(exerciseEntryDb.getFrequentSets).mock.calls[0][1];
+    expect(since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('explains an empty result instead of inventing a routine', async () => {
+    vi.mocked(exerciseEntryDb.getFrequentSets).mockResolvedValue([]);
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'get_frequent_sets' },
+      opts
+    );
+
+    expect(result).toBe(
+      'No repeated workouts found in the last 4 weeks (an exercise must appear on the same weekday at least twice to count). Ask the user about their routine instead.'
+    );
+  });
+
+  it('rejects an out-of-range weeks value', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'get_frequent_sets', weeks: 26 },
+      opts
+    );
+
+    expect(result).toContain('Error [VALIDATION]');
+    expect(exerciseEntryDb.getFrequentSets).not.toHaveBeenCalled();
   });
 });
 

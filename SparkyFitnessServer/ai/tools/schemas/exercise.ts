@@ -498,6 +498,13 @@ const getExerciseProgressSchema = z
   })
   .strict();
 
+const getFrequentSetsSchema = z
+  .object({
+    action: z.literal('get_frequent_sets'),
+    weeks: z.coerce.number().int().min(1).max(12).optional(),
+  })
+  .strict();
+
 export const manageExerciseSchema = z.discriminatedUnion('action', [
   searchExercisesSchema,
   createExerciseSchema,
@@ -511,6 +518,7 @@ export const manageExerciseSchema = z.discriminatedUnion('action', [
   createWorkoutPresetSchema,
   updateWorkoutPresetSchema,
   getExerciseProgressSchema,
+  getFrequentSetsSchema,
   getWorkoutPlansSchema,
   createWorkoutPlanSchema,
   updateWorkoutPlanSchema,
@@ -536,6 +544,7 @@ export const manageExerciseInput = z.object({
       'create_workout_preset',
       'update_workout_preset',
       'get_exercise_progress',
+      'get_frequent_sets',
       'get_workout_plans',
       'create_workout_plan',
       'update_workout_plan',
@@ -544,6 +553,13 @@ export const manageExerciseInput = z.object({
     .describe(
       'Optional action to perform (server infers if omitted); see tool description for per-action fields.'
     ),
+  weeks: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(12)
+    .optional()
+    .describe('History window in weeks for get_frequent_sets (default 4)'),
   // identity
   exercise_id: uuidSchema
     .optional()

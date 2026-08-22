@@ -1,6 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { todayInZone } from '@workspace/shared';
+import { addDays, todayInZone } from '@workspace/shared';
 import { log } from '../../config/logging.js';
 import exerciseService from '../../services/exerciseService.js';
 import workoutPresetService from '../../services/workoutPresetService.js';
@@ -45,6 +45,7 @@ const VALID_ACTIONS = [
   'create_workout_preset',
   'update_workout_preset',
   'get_exercise_progress',
+  'get_frequent_sets',
   'get_workout_plans',
   'create_workout_plan',
   'update_workout_plan',
@@ -537,6 +538,7 @@ Actions:
 - create_workout_preset(name, description?, exercise_ids? OR exercises?) — exercises is the programmed form: [{exercise_id, sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]; use search_exercises first to get real exercise ids
 - update_workout_preset(preset_id?|preset_name?, name?, description?, exercises?) — exercises REPLACES the entire list, so send the complete desired routine
 - get_exercise_progress(exercise_id?|exercise_name?, start_date?, end_date?, limit?, offset?) — returns paginated performance history
+- get_frequent_sets(weeks?(default 4)) — the user's usual routine mined from history: per weekday, exercises trained 2+ times with their typical sets/reps/weight; use it to build "a routine from what I usually do"
 - get_workout_plans() — lists the user's weekly workout plans with their day schedules
 - create_workout_plan(name, description?, start_date?(default today), end_date?, is_active?, assignments:[{day_of_week 0-6 (0=Sunday), workout_preset_id? OR exercise_id? (exactly one), sort_order?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), rest_time?(seconds), notes?}]}]) — sets only with exercise_id; active plans auto-generate workout diary entries from today; get preset ids from get_workout_presets
 - update_workout_plan(plan_id?|plan_name?, name?, description?, start_date?, end_date?, is_active?, assignments?) — only provided fields change, but assignments REPLACES the entire weekly schedule, so send the complete desired week`,
@@ -997,6 +999,45 @@ Actions:
                   next_offset: progress.next_offset,
                 }
               );
+            }
+
+            case 'get_frequent_sets': {
+              const weeks = args.weeks ?? 4;
+              const since = addDays(todayInZone(tz), -(weeks * 7));
+              const rows = await exerciseEntryDb.getFrequentSets(userId, since);
+              if (rows.length === 0) {
+                return `No repeated workouts found in the last ${weeks} weeks (an exercise must appear on the same weekday at least twice to count). Ask the user about their routine instead.`;
+              }
+              const DOW_NAMES = [
+                'Sunday',
+                'Monday',
+                'Tuesday',
+                'Wednesday',
+                'Thursday',
+                'Friday',
+                'Saturday',
+              ];
+              let text = `# Usual workouts (last ${weeks} weeks)\n`;
+              let currentDay = -1;
+              for (const row of rows) {
+                if (row.day_of_week !== currentDay) {
+                  currentDay = row.day_of_week;
+                  text += `\n## ${DOW_NAMES[currentDay] ?? currentDay}\n`;
+                }
+                let typical: string;
+                if (row.modal_reps !== null) {
+                  typical = `${row.modal_sets ?? '?'}×${row.modal_reps}`;
+                  if (row.modal_weight !== null) {
+                    typical += ` @ ${row.modal_weight}kg`;
+                  }
+                } else if (row.modal_duration !== null) {
+                  typical = `${row.modal_sets ?? '?'} sets of ${row.modal_duration}s`;
+                } else {
+                  typical = `${row.modal_sets ?? '?'} sets`;
+                }
+                text += `- ${row.exercise_name} — ${row.session_count} sessions, typically ${typical} (id: ${row.exercise_id})\n`;
+              }
+              return text.trimEnd();
             }
 
             case 'get_workout_plans': {

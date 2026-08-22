@@ -1482,6 +1482,61 @@ async function getRecentSessionsForExercise(
     client.release();
   }
 }
+export interface FrequentSetRow {
+  day_of_week: number; // Postgres DOW: 0=Sunday … 6=Saturday
+  exercise_id: string;
+  exercise_name: string;
+  session_count: number;
+  modal_sets: number | null;
+  modal_reps: number | null;
+  modal_weight: number | null;
+  modal_duration: number | null;
+}
+// "What does this user usually do?" — for each weekday/exercise pair trained
+// at least twice since `sinceDate`, the modal (most common) set count, reps,
+// weight, and duration. Mode is taken over per-session aggregates so one
+// unusual session cannot outvote the routine set-by-set.
+async function getFrequentSets(
+  userId: string,
+  sinceDate: string
+): Promise<FrequentSetRow[]> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `WITH sessions AS (
+         SELECT ee.exercise_id,
+                EXTRACT(DOW FROM ee.entry_date)::int AS day_of_week,
+                COUNT(ees.id)::int AS set_count,
+                mode() WITHIN GROUP (ORDER BY ees.reps) AS session_reps,
+                mode() WITHIN GROUP (ORDER BY ees.weight) AS session_weight,
+                mode() WITHIN GROUP (ORDER BY ees.duration) AS session_duration
+           FROM exercise_entries ee
+           JOIN exercise_entry_sets ees ON ees.exercise_entry_id = ee.id
+          WHERE ee.user_id = $1
+            AND ee.entry_date >= $2
+          GROUP BY ee.id, ee.exercise_id, ee.entry_date
+       )
+       SELECT s.day_of_week,
+              s.exercise_id,
+              e.name AS exercise_name,
+              COUNT(*)::int AS session_count,
+              (mode() WITHIN GROUP (ORDER BY s.set_count))::int AS modal_sets,
+              (mode() WITHIN GROUP (ORDER BY s.session_reps))::int AS modal_reps,
+              (mode() WITHIN GROUP (ORDER BY s.session_weight))::float8 AS modal_weight,
+              (mode() WITHIN GROUP (ORDER BY s.session_duration))::int AS modal_duration
+         FROM sessions s
+         JOIN exercises e ON e.id = s.exercise_id
+        GROUP BY s.day_of_week, s.exercise_id, e.name
+       HAVING COUNT(*) >= 2
+        ORDER BY s.day_of_week, COUNT(*) DESC, e.name`,
+      [userId, sinceDate]
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
 async function deleteExerciseEntriesByEntrySourceAndDateWithClient(
   client: PoolClient,
   userId: string,
@@ -1809,6 +1864,7 @@ export { getExerciseHistory };
 export { getBestSetForExercise };
 export { getLastSetForExercise };
 export { getRecentSessionsForExercise };
+export { getFrequentSets };
 export { deleteExerciseEntriesByEntrySourceAndDate };
 export { deleteExerciseEntriesByEntrySourceAndDateWithClient };
 export { getDailyExerciseTotalsRange };
@@ -1841,6 +1897,7 @@ export default {
   getBestSetForExercise,
   getLastSetForExercise,
   getRecentSessionsForExercise,
+  getFrequentSets,
   deleteExerciseEntriesByEntrySourceAndDate,
   deleteExerciseEntriesByEntrySourceAndDateWithClient,
   getDailyExerciseTotalsRange,
