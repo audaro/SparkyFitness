@@ -2358,10 +2358,12 @@ async function processChatMessageStream(
     throw error;
   }
 }
-// Ceiling for one quick-log request: lookup → log → confirm fits in four
-// steps, and the quick-log bar is for terse single-action logging, not
-// conversation.
-const QUICK_LOG_MAX_STEPS = 4;
+// Ceiling for one quick-log request. Live testing showed the common
+// new-food path is lookup_food_nutrition → log_external_food → confirm per
+// food (a fresh database has no local matches), so four steps starved even a
+// two-food note; six covers two foods without opening the door to a
+// runaway conversation.
+const QUICK_LOG_MAX_STEPS = 6;
 // Much tighter than the chat wall-clock cap: a quick-log is a fire-and-forget
 // bar on the Diary, so a slow provider should fail fast rather than hold the
 // UI for minutes.
@@ -2372,6 +2374,7 @@ const QUICK_LOG_SYSTEM_PROMPT = `You are Sparky's quick-log assistant. The user 
 Rules:
 - Log exactly what the note states. Never invent quantities, foods, or exercises.
 - If the note names no date, log it for today.
+- If a tool reports the item is not in the database and names a follow-up action (for example lookup_food_nutrition, then logging the external result), do that follow-up now instead of giving up — the user only sees your final confirmation.
 - If the note is not something you can log (a question, chit-chat, or too vague to act on), do not call any tool — reply with one sentence telling the user what to type instead.
 - Never ask follow-up questions; this is a one-shot interaction.`;
 
