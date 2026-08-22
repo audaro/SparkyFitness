@@ -2,6 +2,8 @@ import { vi, beforeEach, describe, expect, it } from 'vitest';
 import { todayInZone } from '@workspace/shared';
 import { buildGoalTools } from '../ai/tools/goalTools.js';
 import goalService from '../services/goalService.js';
+import goalPresetService from '../services/goalPresetService.js';
+import weeklyGoalPlanService from '../services/weeklyGoalPlanService.js';
 import goalRepository from '../models/goalRepository.js';
 
 vi.mock('../services/goalService', () => ({
@@ -13,6 +15,20 @@ vi.mock('../services/goalService', () => ({
 vi.mock('../models/goalRepository', () => ({
   default: {
     getGoalTimeline: vi.fn(),
+  },
+}));
+vi.mock('../services/goalPresetService', () => ({
+  default: {
+    getGoalPresets: vi.fn(),
+    createGoalPreset: vi.fn(),
+    updateGoalPreset: vi.fn(),
+  },
+}));
+vi.mock('../services/weeklyGoalPlanService', () => ({
+  default: {
+    getWeeklyGoalPlans: vi.fn(),
+    createWeeklyGoalPlan: vi.fn(),
+    updateWeeklyGoalPlan: vi.fn(),
   },
 }));
 vi.mock('../config/logging', () => ({
@@ -351,5 +367,572 @@ describe('sparky_get_goal_snapshot', () => {
     const result = await tools.sparky_get_goal_snapshot.execute!({}, opts);
 
     expect(result).toBe(DB_ERROR_TEXT);
+  });
+});
+
+const PRESET_ID = '11111111-1111-4111-8111-111111111111';
+const PRESET_ID_2 = '22222222-2222-4222-8222-222222222222';
+const WPLAN_ID = '33333333-3333-4333-8333-333333333333';
+const WPLAN_ID_2 = '44444444-4444-4444-8444-444444444444';
+const TODAY = todayInZone('UTC');
+
+// A stored preset the way goalPresetService returns it (water_goal already
+// mapped to water_goal_ml), including form-only fields the tool must carry
+// through the full-replace update untouched.
+const cutPreset = {
+  id: PRESET_ID,
+  user_id: 'user-1',
+  preset_name: 'Cut Day',
+  calories: 1800,
+  protein: 150,
+  carbs: 150,
+  fat: 60,
+  water_goal_ml: 2500,
+  saturated_fat: 18,
+  polyunsaturated_fat: null,
+  monounsaturated_fat: null,
+  trans_fat: null,
+  cholesterol: null,
+  sodium: 2300,
+  potassium: null,
+  dietary_fiber: 30,
+  sugars: null,
+  vitamin_a: null,
+  vitamin_c: null,
+  calcium: null,
+  iron: null,
+  protein_percentage: null,
+  carbs_percentage: null,
+  fat_percentage: null,
+  target_exercise_calories_burned: 300,
+  target_exercise_duration_minutes: 30,
+  breakfast_percentage: 25,
+  lunch_percentage: 25,
+  dinner_percentage: 30,
+  snacks_percentage: 20,
+  custom_nutrients: { creatine: 5 },
+  custom_meal_percentages: {},
+};
+
+describe('goal presets', () => {
+  it('get_goal_presets returns the full structured targets', async () => {
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([cutPreset]);
+
+    const result = await tools.sparky_manage_goals.execute!(
+      { action: 'get_goal_presets' },
+      opts
+    );
+
+    expect(result).toBe(
+      JSON.stringify([
+        {
+          id: PRESET_ID,
+          preset_name: 'Cut Day',
+          calories: 1800,
+          protein: 150,
+          carbs: 150,
+          fat: 60,
+          water_goal_ml: 2500,
+          saturated_fat: 18,
+          polyunsaturated_fat: null,
+          monounsaturated_fat: null,
+          trans_fat: null,
+          cholesterol: null,
+          sodium: 2300,
+          potassium: null,
+          dietary_fiber: 30,
+          sugars: null,
+          vitamin_a: null,
+          vitamin_c: null,
+          calcium: null,
+          iron: null,
+          protein_percentage: null,
+          carbs_percentage: null,
+          fat_percentage: null,
+        },
+      ])
+    );
+  });
+
+  it('create_goal_preset sends only the provided fields', async () => {
+    vi.mocked(goalPresetService.createGoalPreset).mockResolvedValue({
+      id: PRESET_ID,
+      preset_name: 'Refeed Day',
+    });
+
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'create_goal_preset',
+        preset_name: 'Refeed Day',
+        calories: 2600,
+        protein: 160,
+        water_goal_ml: 3000,
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Goal preset "Refeed Day" created.');
+    expect(goalPresetService.createGoalPreset).toHaveBeenCalledWith('user-1', {
+      preset_name: 'Refeed Day',
+      calories: 2600,
+      protein: 160,
+      water_goal_ml: 3000,
+    });
+  });
+
+  it('create_goal_preset accepts a complete percentage set', async () => {
+    vi.mocked(goalPresetService.createGoalPreset).mockResolvedValue({
+      id: PRESET_ID,
+      preset_name: 'Macro Split',
+    });
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'create_goal_preset',
+        preset_name: 'Macro Split',
+        calories: 2000,
+        protein_percentage: 30,
+        carbs_percentage: 40,
+        fat_percentage: 30,
+      },
+      opts
+    );
+    expect(result).toBe('✅ Goal preset "Macro Split" created.');
+  });
+
+  it('create_goal_preset rejects a partial percentage set', async () => {
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'create_goal_preset',
+        preset_name: 'Broken',
+        calories: 2000,
+        protein_percentage: 30,
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Macro percentages must be sent as a full set: protein_percentage, carbs_percentage, and fat_percentage together'
+    );
+    expect(goalPresetService.createGoalPreset).not.toHaveBeenCalled();
+  });
+
+  it('create_goal_preset rejects percentages that do not sum to 100', async () => {
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'create_goal_preset',
+        preset_name: 'Broken',
+        calories: 2000,
+        protein_percentage: 30,
+        carbs_percentage: 30,
+        fat_percentage: 30,
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Macro percentages must sum to 100 (got 90)'
+    );
+  });
+
+  it('create_goal_preset surfaces the duplicate-name constraint', async () => {
+    vi.mocked(goalPresetService.createGoalPreset).mockRejectedValue(
+      new Error('A goal preset with this name already exists.')
+    );
+    const result = await tools.sparky_manage_goals.execute!(
+      { action: 'create_goal_preset', preset_name: 'Cut Day', calories: 1800 },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: A goal preset named "Cut Day" already exists — use update_goal_preset to change it, or choose a different name'
+    );
+  });
+
+  it('update_goal_preset requires an identifier and an update field', async () => {
+    const noId = await tools.sparky_manage_goals.execute!(
+      { action: 'update_goal_preset', calories: 2000 },
+      opts
+    );
+    expect(noId).toBe(
+      'Error [VALIDATION]: Either preset_id or preset_name must be provided'
+    );
+    const noFields = await tools.sparky_manage_goals.execute!(
+      { action: 'update_goal_preset', preset_id: PRESET_ID },
+      opts
+    );
+    expect(noFields).toBe(
+      'Error [VALIDATION]: Nothing to update — provide new_name or at least one goal field'
+    );
+  });
+
+  it('update_goal_preset merges the existing row and carries form-only fields', async () => {
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([cutPreset]);
+    vi.mocked(goalPresetService.updateGoalPreset).mockResolvedValue({
+      id: PRESET_ID,
+      preset_name: 'Cut Day',
+    });
+
+    const result = await tools.sparky_manage_goals.execute!(
+      { action: 'update_goal_preset', preset_name: 'Cut Day', calories: 1700 },
+      opts
+    );
+
+    expect(result).toBe('✅ Goal preset "Cut Day" updated.');
+    expect(goalPresetService.updateGoalPreset).toHaveBeenCalledWith(
+      PRESET_ID,
+      'user-1',
+      {
+        preset_name: 'Cut Day',
+        calories: 1700,
+        protein: 150,
+        carbs: 150,
+        fat: 60,
+        water_goal_ml: 2500,
+        saturated_fat: 18,
+        polyunsaturated_fat: null,
+        monounsaturated_fat: null,
+        trans_fat: null,
+        cholesterol: null,
+        sodium: 2300,
+        potassium: null,
+        dietary_fiber: 30,
+        sugars: null,
+        vitamin_a: null,
+        vitamin_c: null,
+        calcium: null,
+        iron: null,
+        protein_percentage: null,
+        carbs_percentage: null,
+        fat_percentage: null,
+        target_exercise_calories_burned: 300,
+        target_exercise_duration_minutes: 30,
+        breakfast_percentage: 25,
+        lunch_percentage: 25,
+        dinner_percentage: 30,
+        snacks_percentage: 20,
+        custom_nutrients: { creatine: 5 },
+        custom_meal_percentages: {},
+      }
+    );
+  });
+
+  it('update_goal_preset drops stored percentages when explicit grams arrive', async () => {
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([
+      {
+        ...cutPreset,
+        protein_percentage: 30,
+        carbs_percentage: 40,
+        fat_percentage: 30,
+      },
+    ]);
+    vi.mocked(goalPresetService.updateGoalPreset).mockResolvedValue({
+      id: PRESET_ID,
+      preset_name: 'Cut Day',
+    });
+
+    await tools.sparky_manage_goals.execute!(
+      { action: 'update_goal_preset', preset_id: PRESET_ID, protein: 170 },
+      opts
+    );
+
+    expect(goalPresetService.updateGoalPreset).toHaveBeenCalledWith(
+      PRESET_ID,
+      'user-1',
+      expect.objectContaining({
+        protein: 170,
+        protein_percentage: null,
+        carbs_percentage: null,
+        fat_percentage: null,
+      })
+    );
+  });
+
+  it('update_goal_preset rejects ambiguous names and maps unknown ids', async () => {
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([
+      cutPreset,
+      { ...cutPreset, id: PRESET_ID_2, preset_name: 'cut day' },
+    ]);
+    const ambiguous = await tools.sparky_manage_goals.execute!(
+      { action: 'update_goal_preset', preset_name: 'Cut Day', calories: 1700 },
+      opts
+    );
+    expect(ambiguous).toBe(
+      'Error [VALIDATION]: Multiple goal presets are named "Cut Day" — use preset_id (see get_goal_presets)'
+    );
+
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([]);
+    const missing = await tools.sparky_manage_goals.execute!(
+      { action: 'update_goal_preset', preset_id: PRESET_ID, calories: 1700 },
+      opts
+    );
+    expect(missing).toBe(
+      `Error [NOT_FOUND]: Goal Preset with ID '${PRESET_ID}' not found.\n\nSuggestion: Check the ID and try again.`
+    );
+  });
+});
+
+describe('weekly goal plans', () => {
+  const storedPlan = {
+    id: WPLAN_ID,
+    user_id: 'user-1',
+    plan_name: 'Training Split',
+    start_date: new Date(2026, 7, 17),
+    end_date: null,
+    is_active: true,
+    sunday_preset_id: null,
+    monday_preset_id: PRESET_ID,
+    tuesday_preset_id: null,
+    wednesday_preset_id: PRESET_ID,
+    thursday_preset_id: null,
+    friday_preset_id: PRESET_ID_2,
+    saturday_preset_id: null,
+  };
+
+  it('get_weekly_goal_plans resolves preset names per weekday', async () => {
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([
+      storedPlan,
+    ]);
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([
+      cutPreset,
+      { ...cutPreset, id: PRESET_ID_2, preset_name: 'Rest Day' },
+    ]);
+
+    const result = await tools.sparky_manage_goals.execute!(
+      { action: 'get_weekly_goal_plans' },
+      opts
+    );
+
+    expect(result).toBe(
+      JSON.stringify([
+        {
+          id: WPLAN_ID,
+          plan_name: 'Training Split',
+          start_date: '2026-08-17',
+          end_date: null,
+          is_active: true,
+          day_presets: [
+            {
+              day: 'Mon',
+              day_of_week: 1,
+              preset_id: PRESET_ID,
+              preset_name: 'Cut Day',
+            },
+            {
+              day: 'Wed',
+              day_of_week: 3,
+              preset_id: PRESET_ID,
+              preset_name: 'Cut Day',
+            },
+            {
+              day: 'Fri',
+              day_of_week: 5,
+              preset_id: PRESET_ID_2,
+              preset_name: 'Rest Day',
+            },
+          ],
+        },
+      ])
+    );
+  });
+
+  it('create_weekly_goal_plan maps day_presets onto weekday columns', async () => {
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([]);
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([
+      cutPreset,
+      { ...cutPreset, id: PRESET_ID_2, preset_name: 'Rest Day' },
+    ]);
+    vi.mocked(weeklyGoalPlanService.createWeeklyGoalPlan).mockResolvedValue({
+      id: WPLAN_ID,
+      plan_name: 'Training Split',
+      is_active: true,
+    });
+
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'create_weekly_goal_plan',
+        plan_name: 'Training Split',
+        is_active: true,
+        day_presets: [
+          { day_of_week: 1, preset_id: PRESET_ID },
+          { day_of_week: 5, preset_name: 'Rest Day' },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Weekly goal plan "Training Split" created. Plan is active — other weekly goal plans were deactivated.'
+    );
+    expect(weeklyGoalPlanService.createWeeklyGoalPlan).toHaveBeenCalledWith(
+      'user-1',
+      {
+        plan_name: 'Training Split',
+        start_date: TODAY,
+        end_date: null,
+        is_active: true,
+        sunday_preset_id: null,
+        monday_preset_id: PRESET_ID,
+        tuesday_preset_id: null,
+        wednesday_preset_id: null,
+        thursday_preset_id: null,
+        friday_preset_id: PRESET_ID_2,
+        saturday_preset_id: null,
+      }
+    );
+  });
+
+  it('create_weekly_goal_plan rejects duplicate names, days, and unknown presets', async () => {
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([
+      storedPlan,
+    ]);
+    const dupName = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'create_weekly_goal_plan',
+        plan_name: 'training split',
+        day_presets: [{ day_of_week: 1, preset_id: PRESET_ID }],
+      },
+      opts
+    );
+    expect(dupName).toBe(
+      `Error [VALIDATION]: A weekly goal plan named "training split" already exists (plan_id ${WPLAN_ID}) — use update_weekly_goal_plan to change it, or choose a different name`
+    );
+
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([]);
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([cutPreset]);
+    const dupDay = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'create_weekly_goal_plan',
+        plan_name: 'Split',
+        day_presets: [
+          { day_of_week: 1, preset_id: PRESET_ID },
+          { day_of_week: 1, preset_id: PRESET_ID },
+        ],
+      },
+      opts
+    );
+    expect(dupDay).toBe(
+      'Error [VALIDATION]: Duplicate day_of_week 1 in day_presets'
+    );
+
+    const unknownPreset = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'create_weekly_goal_plan',
+        plan_name: 'Split',
+        day_presets: [{ day_of_week: 1, preset_name: 'Nope' }],
+      },
+      opts
+    );
+    expect(unknownPreset).toBe(
+      'Error [VALIDATION]: Goal preset "Nope" was not found — see get_goal_presets'
+    );
+    expect(weeklyGoalPlanService.createWeeklyGoalPlan).not.toHaveBeenCalled();
+  });
+
+  it('update_weekly_goal_plan carries the weekday columns when only renaming', async () => {
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([
+      storedPlan,
+    ]);
+    vi.mocked(weeklyGoalPlanService.updateWeeklyGoalPlan).mockResolvedValue({
+      id: WPLAN_ID,
+      plan_name: 'Training Split v2',
+    });
+
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'update_weekly_goal_plan',
+        plan_id: WPLAN_ID,
+        new_name: 'Training Split v2',
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Weekly goal plan "Training Split v2" updated.');
+    expect(weeklyGoalPlanService.updateWeeklyGoalPlan).toHaveBeenCalledWith(
+      WPLAN_ID,
+      'user-1',
+      {
+        plan_name: 'Training Split v2',
+        start_date: '2026-08-17',
+        end_date: null,
+        is_active: true,
+        sunday_preset_id: null,
+        monday_preset_id: PRESET_ID,
+        tuesday_preset_id: null,
+        wednesday_preset_id: PRESET_ID,
+        thursday_preset_id: null,
+        friday_preset_id: PRESET_ID_2,
+        saturday_preset_id: null,
+      }
+    );
+  });
+
+  it('update_weekly_goal_plan replaces the whole week when day_presets is sent', async () => {
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([
+      storedPlan,
+    ]);
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([cutPreset]);
+    vi.mocked(weeklyGoalPlanService.updateWeeklyGoalPlan).mockResolvedValue({
+      id: WPLAN_ID,
+      plan_name: 'Training Split',
+    });
+
+    await tools.sparky_manage_goals.execute!(
+      {
+        action: 'update_weekly_goal_plan',
+        plan_name: 'Training Split',
+        day_presets: [{ day_of_week: 2, preset_id: PRESET_ID }],
+      },
+      opts
+    );
+
+    expect(weeklyGoalPlanService.updateWeeklyGoalPlan).toHaveBeenCalledWith(
+      WPLAN_ID,
+      'user-1',
+      expect.objectContaining({
+        monday_preset_id: null,
+        tuesday_preset_id: PRESET_ID,
+        wednesday_preset_id: null,
+        friday_preset_id: null,
+      })
+    );
+  });
+
+  it('update_weekly_goal_plan validates identifiers, ambiguity, and dates', async () => {
+    const noId = await tools.sparky_manage_goals.execute!(
+      { action: 'update_weekly_goal_plan', new_name: 'X' },
+      opts
+    );
+    expect(noId).toBe(
+      'Error [VALIDATION]: Either plan_id or plan_name must be provided'
+    );
+
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([
+      storedPlan,
+      { ...storedPlan, id: WPLAN_ID_2, plan_name: 'training split' },
+    ]);
+    const ambiguous = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'update_weekly_goal_plan',
+        plan_name: 'Training Split',
+        new_name: 'X',
+      },
+      opts
+    );
+    expect(ambiguous).toBe(
+      'Error [VALIDATION]: Multiple weekly goal plans are named "Training Split" — use plan_id (see get_weekly_goal_plans)'
+    );
+
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([
+      storedPlan,
+    ]);
+    const inverted = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'update_weekly_goal_plan',
+        plan_id: WPLAN_ID,
+        end_date: '2026-08-01',
+      },
+      opts
+    );
+    expect(inverted).toBe(
+      'Error [VALIDATION]: end_date must be on or after start_date'
+    );
+    expect(weeklyGoalPlanService.updateWeeklyGoalPlan).not.toHaveBeenCalled();
   });
 });
