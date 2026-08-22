@@ -2,6 +2,7 @@ import { vi, beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error TS(7016): Could not find a declaration file for module 'supertest'
 import request from 'supertest';
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import chatService from '../services/chatService.js';
 import { resolveIsAdmin } from '../utils/adminCheck.js';
 import chatRoutes from '../routes/chatRoutes.js';
@@ -22,8 +23,7 @@ vi.mock('../utils/adminCheck.js', () => ({
 // Distinct active vs authenticated ids so the delegated-identity pass-through
 // is actually asserted, not accidentally satisfied by a shared value.
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticate: (req: any, _res: any, next: any) => {
+  authenticate: (req: Request, _res: Response, next: NextFunction) => {
     req.userId = 'active-user-1';
     req.authenticatedUserId = 'actor-user-2';
     next();
@@ -36,10 +36,16 @@ vi.mock('../config/logging.js', () => ({
 const app = express();
 app.use(express.json());
 app.use('/api/chat', chatRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-app.use((err: any, _req: any, res: any, _next: any) => {
-  res.status(err.status || 500).json({ error: err.message });
-});
+app.use(
+  (
+    err: Error & { status?: number },
+    _req: Request,
+    res: Response,
+    _next: NextFunction
+  ) => {
+    res.status(err.status ?? 500).json({ error: err.message });
+  }
+);
 
 describe('POST /api/chat/quick-log', () => {
   beforeEach(() => {

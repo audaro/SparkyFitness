@@ -2430,44 +2430,62 @@ async function processQuickLog(
   const tools = buildChatbotTools(authenticatedUserId, tz, 'core');
 
   const actions: QuickLogAction[] = [];
-  const result = await generateText({
-    model: modelInstance,
-    system: QUICK_LOG_SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: message }],
-    tools,
-    providerOptions: buildChatProviderOptions(
-      aiService.service_type,
-      authenticatedUserId,
-      modelName
-    ),
-    stopWhen: stepCountIs(QUICK_LOG_MAX_STEPS),
-    // A single retry: the bar is interactive, so failing fast beats a 3×
-    // re-send of the full request.
-    maxRetries: CORE_PROFILE_MAX_PROVIDER_RETRIES,
-    abortSignal: AbortSignal.timeout(QUICK_LOG_TIMEOUT_MS),
-    onStepFinish({ toolCalls, toolResults }) {
-      toolCalls?.forEach((call) => {
-        log(
-          'info',
-          `[quick-log] executed tool: ${call.toolName} with args: ${JSON.stringify(call.input)}`
-        );
-      });
-      toolResults?.forEach((r) => {
-        if (typeof r.output !== 'string') return;
-        const summary = r.output.split('\n', 1)[0].slice(0, 200);
-        actions.push({ toolName: r.toolName, summary });
-      });
-    },
-  });
+  let generated;
+  try {
+    generated = await generateText({
+      model: modelInstance,
+      system: QUICK_LOG_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: message }],
+      tools,
+      providerOptions: buildChatProviderOptions(
+        aiService.service_type,
+        authenticatedUserId,
+        modelName
+      ),
+      stopWhen: stepCountIs(QUICK_LOG_MAX_STEPS),
+      // A single retry: the bar is interactive, so failing fast beats a 3×
+      // re-send of the full request.
+      maxRetries: CORE_PROFILE_MAX_PROVIDER_RETRIES,
+      abortSignal: AbortSignal.timeout(QUICK_LOG_TIMEOUT_MS),
+      onStepFinish({ toolCalls, toolResults }) {
+        toolCalls?.forEach((call) => {
+          // Args carry diary/health details — keep them out of INFO logs.
+          log('info', `[quick-log] executed tool: ${call.toolName}`);
+          log('debug', `[quick-log] ${call.toolName} args:`, call.input);
+        });
+        toolResults?.forEach((r) => {
+          if (typeof r.output !== 'string') return;
+          const summary = r.output.split('\n', 1)[0].slice(0, 200);
+          actions.push({ toolName: r.toolName, summary });
+        });
+      },
+    });
+  } catch (error) {
+    // The provider can die (timeout, 5xx) on the step AFTER a write already
+    // committed. Surfacing a 500 then invites a retry that double-logs, so
+    // when a confirmation exists, report what landed instead of throwing.
+    const confirmed = actions.filter((a) => a.summary.startsWith('✅'));
+    if (confirmed.length > 0) {
+      log(
+        'warn',
+        '[quick-log] provider failed after a committed action; returning the partial result:',
+        error
+      );
+      return { text: confirmed[confirmed.length - 1].summary, actions };
+    }
+    throw error;
+  }
 
-  let text = result.text.trim();
-  // Never let model prose claim success when every executed tool failed —
-  // surface the last tool's own error line instead. Successful reads and
-  // confirmations (anything not 'Error […]') keep the model's wording.
-  const allToolsFailed =
-    actions.length > 0 && actions.every((a) => a.summary.startsWith('Error ['));
-  if (allToolsFailed) {
-    text = actions[actions.length - 1].summary;
+  let text = generated.text.trim();
+  // Never let model prose claim success when nothing was actually logged —
+  // if the run ended on a tool error and no tool ever confirmed ('✅ '), the
+  // response surfaces that error line instead of the model's wording. A
+  // successful read before the failed write doesn't count as success, and a
+  // partial run with a real confirmation keeps the model's summary of it.
+  const lastAction = actions[actions.length - 1];
+  const anyConfirmed = actions.some((a) => a.summary.startsWith('✅'));
+  if (lastAction?.summary.startsWith('Error [') && !anyConfirmed) {
+    text = lastAction.summary;
   } else if (!text) {
     text = actions.some((a) => a.summary.startsWith('✅'))
       ? 'Logged it for you.'

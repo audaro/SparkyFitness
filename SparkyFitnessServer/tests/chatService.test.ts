@@ -1180,6 +1180,83 @@ describe('chatService', () => {
         ).rejects.toThrow('AI service setting not found for quick-log.');
       });
 
+      it('surfaces a failed write even when an earlier read succeeded', async () => {
+        // Step 1: list_meal_types succeeds (a read — no '✅' prefix). Step 2:
+        // log_food dies in the repository. The model then claims success; the
+        // response must carry the write's error, not the hallucination.
+        vi.mocked(foodRepository.getFoodsWithPagination).mockRejectedValue(
+          new Error('boom')
+        );
+        scriptModel([
+          toolCallStep({ action: 'list_meal_types' }),
+          toolCallStep({
+            action: 'log_food',
+            food_name: 'Eggs',
+            quantity: 2,
+            unit: 'serving',
+            meal_type: 'breakfast',
+            entry_date: '2026-06-10',
+          }),
+          textStep('Logged your eggs!'),
+        ]);
+
+        const result = await chatService.processQuickLog(
+          'log 2 eggs',
+          activeUserId,
+          actorUserId,
+          false,
+          'svc-1'
+        );
+
+        expect(result.text).toBe(
+          'Error [DB_ERROR]: A database error occurred.'
+        );
+        expect(result.actions).toHaveLength(2);
+      });
+
+      it('returns the committed confirmation when the provider dies after a successful write', async () => {
+        vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+          {
+            ...eggsRow,
+            default_variant: {
+              ...eggsRow.default_variant,
+              serving_size: 1,
+              serving_unit: 'serving',
+            },
+          },
+        ]);
+        vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+        vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+          id: 'entry-1',
+          food_name: 'Eggs',
+        });
+        // Only the tool-call step is scripted: the follow-up generation throws
+        // ('no scripted step left'), simulating a provider failure after the
+        // write landed. That must not become a 500 — a retry would double-log.
+        scriptModel([
+          toolCallStep({
+            action: 'log_food',
+            food_name: 'Eggs',
+            quantity: 2,
+            unit: 'serving',
+            meal_type: 'breakfast',
+            entry_date: '2026-06-10',
+          }),
+        ]);
+
+        const result = await chatService.processQuickLog(
+          'log 2 eggs',
+          activeUserId,
+          actorUserId,
+          false,
+          'svc-1'
+        );
+
+        expect(result.actions).toHaveLength(1);
+        expect(result.actions[0].summary).toMatch(/^✅ /);
+        expect(result.text).toBe(result.actions[0].summary);
+      });
+
       it('replaces model prose with the tool error when every executed tool failed', async () => {
         vi.mocked(foodRepository.getFoodsWithPagination).mockRejectedValue(
           new Error('boom')

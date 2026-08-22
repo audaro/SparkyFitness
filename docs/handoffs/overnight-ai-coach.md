@@ -39,9 +39,11 @@ failure: mobile healthconnect `dataTransformation` sleep test is TZ-dependent
 
 1. **Quick-log frontend** (M6.1 UI + M6.2 voice): build the Diary quick-log bar
    against `POST /api/chat/quick-log`. Success signal per action is the summary's
-   `✅ ` prefix; render undo where a tool summary carries an id. Promote
-   `SparkyFitnessServer/schemas/chatSchemas.ts:quickLogRequestSchema` into
-   `shared/src/schemas/api/` when the frontend consumes it.
+   `✅ ` prefix. For undo, don't parse ids out of summary prose — extend the
+   response with structured resource ids (reviewer round 22 is right that the
+   current summaries don't reliably carry them) as part of the frontend slice.
+   Promote `SparkyFitnessServer/schemas/chatSchemas.ts:quickLogRequestSchema`
+   (and the response shape) into `shared/src/schemas/api/` at the same time.
 2. **Live E2E**: add an AI provider key, sign up via UI, exercise the new tools in
    real chat (everything so far is mock/golden + live-DB-smoke verified, not
    live-LLM verified).

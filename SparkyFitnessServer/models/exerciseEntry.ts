@@ -1627,14 +1627,23 @@ async function getWeeklyTrainingSummary(
       [userId, startDate, endDate]
     );
     const adherenceResult = await client.query(
-      `WITH planned AS (
-         SELECT DISTINCT a.day_of_week
-           FROM workout_plan_template_assignments a
-           JOIN workout_plan_templates t ON t.id = a.template_id
-          WHERE t.user_id = $1
+      `WITH days AS (
+         SELECT d::date AS day, EXTRACT(DOW FROM d)::int AS dow
+           FROM generate_series($2::date, $3::date, interval '1 day') AS d
+       ),
+       -- Plan bounds apply per concrete date: a plan starting mid-week only
+       -- makes the weekdays on/after its start date "planned" this week.
+       planned AS (
+         SELECT DISTINCT dy.dow AS day_of_week
+           FROM days dy
+           JOIN workout_plan_templates t
+             ON t.user_id = $1
             AND t.is_active = TRUE
-            AND (t.start_date IS NULL OR t.start_date <= $3)
-            AND (t.end_date IS NULL OR t.end_date >= $2)
+            AND (t.start_date IS NULL OR t.start_date <= dy.day)
+            AND (t.end_date IS NULL OR t.end_date >= dy.day)
+           JOIN workout_plan_template_assignments a
+             ON a.template_id = t.id
+            AND a.day_of_week = dy.dow
        ),
        trained AS (
          SELECT DISTINCT EXTRACT(DOW FROM ee.entry_date)::int AS day_of_week
