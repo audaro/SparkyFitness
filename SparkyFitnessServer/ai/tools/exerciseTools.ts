@@ -139,27 +139,31 @@ async function resolveOrCreateExerciseId(
 }
 
 // Fills in exercise_id for preset items given by name. Returns an ERRORS.*
-// string when an item carries neither id nor name. Resolution is sequential
-// with a per-call memo so a name repeated across items (e.g. a superset of
-// the same movement) resolves once instead of creating duplicates.
+// string when an item carries neither id nor name — checked for EVERY item
+// before any resolution runs, so an invalid item can't leave auto-created
+// exercises behind. Resolution is sequential with a per-call memo so a name
+// repeated across items (e.g. a superset of the same movement) resolves once
+// instead of creating duplicates.
 async function resolvePresetExerciseIds(
   userId: string,
   exercises: PresetExerciseInput[]
 ): Promise<(PresetExerciseInput & { exercise_id: string })[] | string> {
+  for (const [i, ex] of exercises.entries()) {
+    if (!ex.exercise_id && !ex.exercise_name) {
+      return ERRORS.VALIDATION(
+        `exercises[${i}] needs exercise_id or exercise_name`
+      );
+    }
+  }
   const memo = new Map<string, string>();
   const resolved: (PresetExerciseInput & { exercise_id: string })[] = [];
-  for (const [i, ex] of exercises.entries()) {
+  for (const ex of exercises) {
     let exerciseId = ex.exercise_id;
     if (!exerciseId) {
-      if (!ex.exercise_name) {
-        return ERRORS.VALIDATION(
-          `exercises[${i}] needs exercise_id or exercise_name`
-        );
-      }
-      const key = ex.exercise_name.toLowerCase();
+      const key = (ex.exercise_name as string).toLowerCase();
       exerciseId =
         memo.get(key) ??
-        (await resolveOrCreateExerciseId(userId, ex.exercise_name));
+        (await resolveOrCreateExerciseId(userId, ex.exercise_name as string));
       memo.set(key, exerciseId);
     }
     resolved.push({ ...ex, exercise_id: exerciseId });

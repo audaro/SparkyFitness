@@ -1214,6 +1214,60 @@ describe('chatService', () => {
         expect(result.actions).toHaveLength(2);
       });
 
+      it('reports partial success when a later write fails after a confirmed one', async () => {
+        // Step 1: log_food lands ('✅'). Step 2: a second log_food dies. The
+        // model then claims both succeeded; the response must be the real
+        // confirmation plus the error line, never the "logged both" prose.
+        vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+          {
+            ...eggsRow,
+            default_variant: {
+              ...eggsRow.default_variant,
+              serving_size: 1,
+              serving_unit: 'serving',
+            },
+          },
+        ]);
+        vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+        vi.mocked(foodEntryService.createFoodEntry)
+          .mockResolvedValueOnce({ id: 'entry-1', food_name: 'Eggs' })
+          .mockRejectedValueOnce(new Error('boom'));
+        scriptModel([
+          toolCallStep({
+            action: 'log_food',
+            food_name: 'Eggs',
+            quantity: 2,
+            unit: 'serving',
+            meal_type: 'breakfast',
+            entry_date: '2026-06-10',
+          }),
+          toolCallStep({
+            action: 'log_food',
+            food_name: 'Eggs',
+            quantity: 1,
+            unit: 'serving',
+            meal_type: 'lunch',
+            entry_date: '2026-06-10',
+          }),
+          textStep('Logged both for you!'),
+        ]);
+
+        const result = await chatService.processQuickLog(
+          'log eggs for breakfast and lunch',
+          activeUserId,
+          actorUserId,
+          false,
+          'svc-1'
+        );
+
+        expect(result.actions).toHaveLength(2);
+        expect(result.actions[0].summary).toMatch(/^✅ /);
+        expect(result.actions[1].summary).toMatch(/^Error \[/);
+        expect(result.text).toBe(
+          `${result.actions[0].summary}\n${result.actions[1].summary}`
+        );
+      });
+
       it('returns the committed confirmation when the provider dies after a successful write', async () => {
         vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
           {

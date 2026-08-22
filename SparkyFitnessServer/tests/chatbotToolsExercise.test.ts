@@ -1137,6 +1137,28 @@ describe('workout presets', () => {
     expect(workoutPresetService.createWorkoutPreset).not.toHaveBeenCalled();
   });
 
+  it('create_workout_preset validates every item before creating any exercise', async () => {
+    vi.mocked(exerciseService.searchExercises).mockResolvedValue([]);
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_preset',
+        name: 'Half Day',
+        exercises: [
+          { exercise_name: 'Brand New Movement' },
+          { sets: [{ set_number: 1, reps: 8 }] },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: exercises[1] needs exercise_id or exercise_name'
+    );
+    expect(exerciseService.createExercise).not.toHaveBeenCalled();
+    expect(workoutPresetService.createWorkoutPreset).not.toHaveBeenCalled();
+  });
+
   it('create_workout_preset rejects a duplicate name with recovery guidance', async () => {
     vi.mocked(workoutPresetRepository.getWorkoutPresetByName).mockResolvedValue(
       { id: PRESET_ID, name: 'Push Day' }

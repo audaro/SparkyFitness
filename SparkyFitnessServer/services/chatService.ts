@@ -2480,19 +2480,26 @@ async function processQuickLog(
   }
 
   let text = generated.text.trim();
-  // Never let model prose claim success when nothing was actually logged —
-  // if the run ended on a tool error and no tool ever confirmed ('✅ '), the
-  // response surfaces that error line instead of the model's wording. A
-  // successful read before the failed write doesn't count as success, and a
-  // partial run with a real confirmation keeps the model's summary of it.
+  // Never let model prose claim success when a write actually failed — if the
+  // run ended on a tool error, the response is built from the tool outputs
+  // instead of the model's wording: the error line alone when nothing was
+  // confirmed ('✅ '), or every confirmation plus the error line for a partial
+  // run (a two-item note where the second write died must not read as "logged
+  // both"). A successful read before the failed write doesn't count as success.
   const lastAction = actions[actions.length - 1];
-  const anyConfirmed = actions.some((a) => a.summary.startsWith('✅'));
-  if (lastAction?.summary.startsWith('Error [') && !anyConfirmed) {
-    text = lastAction.summary;
+  const confirmedSummaries = actions
+    .filter((a) => a.summary.startsWith('✅'))
+    .map((a) => a.summary);
+  if (lastAction?.summary.startsWith('Error [')) {
+    text =
+      confirmedSummaries.length > 0
+        ? [...confirmedSummaries, lastAction.summary].join('\n')
+        : lastAction.summary;
   } else if (!text) {
-    text = actions.some((a) => a.summary.startsWith('✅'))
-      ? 'Logged it for you.'
-      : EMPTY_RESPONSE_ERROR_TEXT;
+    text =
+      confirmedSummaries.length > 0
+        ? 'Logged it for you.'
+        : EMPTY_RESPONSE_ERROR_TEXT;
   }
   return { text, actions };
 }
