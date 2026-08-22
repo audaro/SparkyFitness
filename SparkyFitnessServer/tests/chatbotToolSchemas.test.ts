@@ -225,6 +225,7 @@ describe('published (flat) chatbot tool schemas', () => {
         'muscle_mass',
         'bone_mass',
         'body_water',
+        'clear',
         'category_name',
         'value',
         'unit',
@@ -246,6 +247,8 @@ describe('published (flat) chatbot tool schemas', () => {
       ],
       actions: [
         'log_biometrics',
+        'update_checkin',
+        'delete_checkin_entry',
         'log_custom_metric',
         'list_categories',
         'create_category',

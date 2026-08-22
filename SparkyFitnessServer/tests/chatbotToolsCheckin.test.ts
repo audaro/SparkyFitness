@@ -11,6 +11,8 @@ vi.mock('../services/measurementService', () => ({
   default: {
     upsertCheckInMeasurements: vi.fn(),
     getCheckInMeasurements: vi.fn(),
+    updateCheckInMeasurements: vi.fn(),
+    deleteCheckInMeasurements: vi.fn(),
     getCheckInMeasurementsByDateRange: vi.fn(),
     getCustomCategories: vi.fn(),
     createCustomCategory: vi.fn(),
@@ -1063,5 +1065,174 @@ describe('error handling', () => {
       '2026-06-01',
       ['anxious', 'tired']
     );
+  });
+});
+
+describe('update_checkin and delete_checkin_entry', () => {
+  it('update_checkin corrects values and clears fields on an existing entry', async () => {
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+      weight: 81,
+      waist: 90,
+    });
+    vi.mocked(measurementService.updateCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+    });
+
+    const today = todayInZone('UTC');
+    const result = await tools.sparky_manage_checkin.execute!(
+      { action: 'update_checkin', weight: 80, clear: ['waist'] },
+      opts
+    );
+
+    expect(result).toBe(
+      `\u2705 Check-in for ${today} updated (weight: 80kg, waist cleared).`
+    );
+    expect(measurementService.updateCheckInMeasurements).toHaveBeenCalledWith(
+      'user-1',
+      'user-1',
+      today,
+      { weight: 80, waist: null }
+    );
+  });
+
+  it('update_checkin maps tool field names to storage columns when clearing', async () => {
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+      body_fat_percentage: 25,
+    });
+    vi.mocked(measurementService.updateCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+    });
+
+    await tools.sparky_manage_checkin.execute!(
+      {
+        action: 'update_checkin',
+        entry_date: '2026-08-20',
+        clear: ['body_fat', 'muscle_mass'],
+      },
+      opts
+    );
+
+    expect(measurementService.updateCheckInMeasurements).toHaveBeenCalledWith(
+      'user-1',
+      'user-1',
+      '2026-08-20',
+      { body_fat_percentage: null, muscle_mass_kg: null }
+    );
+  });
+
+  it('update_checkin errors when no entry exists for the date', async () => {
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({});
+
+    const result = await tools.sparky_manage_checkin.execute!(
+      { action: 'update_checkin', entry_date: '2026-08-20', weight: 80 },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: No check-in entry found for 2026-08-20. Use log_biometrics to create one.'
+    );
+    expect(measurementService.updateCheckInMeasurements).not.toHaveBeenCalled();
+  });
+
+  it('update_checkin rejects a field that is both set and cleared', async () => {
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+      weight: 81,
+    });
+
+    const result = await tools.sparky_manage_checkin.execute!(
+      {
+        action: 'update_checkin',
+        entry_date: '2026-08-20',
+        weight: 80,
+        clear: ['weight'],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: weight cannot be both set and cleared'
+    );
+    expect(measurementService.updateCheckInMeasurements).not.toHaveBeenCalled();
+  });
+
+  it('update_checkin rejects an empty patch', async () => {
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+      weight: 81,
+    });
+
+    const result = await tools.sparky_manage_checkin.execute!(
+      { action: 'update_checkin', entry_date: '2026-08-20' },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: Nothing to update \u2014 provide at least one corrected value or a clear list.'
+    );
+  });
+
+  it('infers update_checkin from a bare clear list', async () => {
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+      waist: 90,
+    });
+    vi.mocked(measurementService.updateCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+    });
+
+    await tools.sparky_manage_checkin.execute!({ clear: ['waist'] }, opts);
+
+    expect(measurementService.updateCheckInMeasurements).toHaveBeenCalledWith(
+      'user-1',
+      'user-1',
+      todayInZone('UTC'),
+      { waist: null }
+    );
+  });
+
+  it('delete_checkin_entry deletes the resolved row and reports a miss', async () => {
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValueOnce({
+      id: 'ci-9',
+      weight: 81,
+    });
+    vi.mocked(measurementService.deleteCheckInMeasurements).mockResolvedValue({
+      message: 'Check-in measurement deleted successfully.',
+    });
+
+    const result = await tools.sparky_manage_checkin.execute!(
+      { action: 'delete_checkin_entry', entry_date: '2026-08-20' },
+      opts
+    );
+    expect(result).toBe('\u2705 Check-in entry for 2026-08-20 deleted.');
+    expect(measurementService.deleteCheckInMeasurements).toHaveBeenCalledWith(
+      'user-1',
+      'ci-9'
+    );
+
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValueOnce(
+      {}
+    );
+    const miss = await tools.sparky_manage_checkin.execute!(
+      { action: 'delete_checkin_entry', entry_date: '2026-08-21' },
+      opts
+    );
+    expect(miss).toBe(
+      'Error [VALIDATION]: No check-in entry found for 2026-08-21.'
+    );
+  });
+
+  it('never infers delete_checkin_entry from a bare entry_date', async () => {
+    mockEmptyDiary();
+
+    const result = await tools.sparky_manage_checkin.execute!(
+      { entry_date: '2026-08-20' },
+      opts
+    );
+
+    expect(result).toContain('Check-in Diary');
+    expect(measurementService.deleteCheckInMeasurements).not.toHaveBeenCalled();
   });
 });

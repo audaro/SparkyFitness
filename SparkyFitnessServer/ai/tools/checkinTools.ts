@@ -74,6 +74,8 @@ interface CustomMeasurementEntryRow {
 
 const VALID_ACTIONS = [
   'log_biometrics',
+  'update_checkin',
+  'delete_checkin_entry',
   'log_custom_metric',
   'list_categories',
   'create_category',
@@ -89,6 +91,20 @@ const VALID_ACTIONS = [
 function isSet<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
+
+// update_checkin's tool-facing field names -> check_in_measurements columns.
+const CHECKIN_COLUMN_BY_FIELD: Record<string, string> = {
+  weight: 'weight',
+  steps: 'steps',
+  height: 'height',
+  neck: 'neck',
+  waist: 'waist',
+  hips: 'hips',
+  body_fat: 'body_fat_percentage',
+  muscle_mass: 'muscle_mass_kg',
+  bone_mass: 'bone_mass_kg',
+  body_water: 'body_water_percentage',
+};
 
 function formatMoodTags(tags?: string[] | null): string {
   if (!tags || !tags.length) return '';
@@ -151,6 +167,8 @@ export function buildCheckinTools(userId: string, tz: string) {
 
 Actions:
 - log_biometrics(entry_date, weight?, steps?, height?, neck?, waist?, hips?, body_fat?, muscle_mass?, bone_mass?, body_water?, weight_unit?:"kg"|"lbs", height_unit?:"cm"|"in", measurements_unit?:"cm"|"in")
+- update_checkin(entry_date, corrected biometric values and/or clear:["waist",...] to remove fields) — corrects an EXISTING day's entry; errors if none exists
+- delete_checkin_entry(entry_date) — deletes the whole day's biometrics entry. Destructive: confirm with the user first and always pass action explicitly
 - log_mood(entry_date, mood_value:1-10, notes?)
 - log_sleep(entry_date, duration_seconds?, sleep_score?:0-100, bedtime?, wake_time?, source?)
 - log_fasting(start_time:ISO8601, end_time?, fasting_status?:"ACTIVE"|"COMPLETED"|"CANCELLED", fasting_type?)
@@ -190,6 +208,9 @@ Actions:
             if (args.category_name !== undefined && args.value !== undefined) {
               return 'log_custom_metric';
             }
+            if (args.clear !== undefined) {
+              return 'update_checkin';
+            }
             if (
               args.weight !== undefined ||
               args.steps !== undefined ||
@@ -217,6 +238,7 @@ Actions:
         // Default missing entry_date to today's date string for logging actions
         const loggingActions = [
           'log_biometrics',
+          'update_checkin',
           'log_mood',
           'log_sleep',
           'log_custom_metric',
@@ -329,6 +351,137 @@ Actions:
                 parts.length > 0 ? parts.join(', ') : 'no changes';
               return formatConfirmation(
                 `Biometrics logged for ${args.entry_date} (${summary}).`
+              );
+            }
+
+            case 'update_checkin': {
+              const existing = await measurementService.getCheckInMeasurements(
+                userId,
+                userId,
+                args.entry_date
+              );
+              if (!existing || Object.keys(existing).length === 0) {
+                return ERRORS.VALIDATION(
+                  `No check-in entry found for ${args.entry_date}. Use log_biometrics to create one.`
+                );
+              }
+              const cleared = args.clear ?? [];
+              for (const field of cleared) {
+                if (args[field] !== undefined) {
+                  return ERRORS.VALIDATION(
+                    `${field} cannot be both set and cleared`
+                  );
+                }
+              }
+
+              const prefs = await preferenceService.getUserPreferences(
+                userId,
+                userId
+              );
+              const mUnit =
+                args.measurements_unit ||
+                prefs.default_measurement_unit ||
+                'cm';
+              const wUnit =
+                args.weight_unit || prefs.default_weight_unit || 'kg';
+              const hUnit =
+                args.height_unit || prefs.default_measurement_unit || 'cm';
+
+              const updates: Record<string, number | null> = {};
+              if (isSet(args.weight)) {
+                updates.weight = convertWeight(args.weight, wUnit, 'kg');
+              }
+              if (isSet(args.height)) {
+                updates.height = convertMeasurement(args.height, hUnit, 'cm');
+              }
+              if (isSet(args.body_fat)) {
+                updates.body_fat_percentage = args.body_fat;
+              }
+              if (isSet(args.neck)) {
+                updates.neck = convertMeasurement(args.neck, mUnit, 'cm');
+              }
+              if (isSet(args.waist)) {
+                updates.waist = convertMeasurement(args.waist, mUnit, 'cm');
+              }
+              if (isSet(args.hips)) {
+                updates.hips = convertMeasurement(args.hips, mUnit, 'cm');
+              }
+              if (isSet(args.steps)) updates.steps = args.steps;
+              if (isSet(args.muscle_mass)) {
+                updates.muscle_mass_kg = convertWeight(
+                  args.muscle_mass,
+                  wUnit,
+                  'kg'
+                );
+              }
+              if (isSet(args.bone_mass)) {
+                updates.bone_mass_kg = convertWeight(
+                  args.bone_mass,
+                  wUnit,
+                  'kg'
+                );
+              }
+              if (isSet(args.body_water)) {
+                updates.body_water_percentage = args.body_water;
+              }
+              for (const field of cleared) {
+                updates[CHECKIN_COLUMN_BY_FIELD[field]] = null;
+              }
+              if (Object.keys(updates).length === 0) {
+                return ERRORS.VALIDATION(
+                  'Nothing to update — provide at least one corrected value or a clear list.'
+                );
+              }
+
+              await measurementService.updateCheckInMeasurements(
+                userId,
+                userId,
+                args.entry_date,
+                updates
+              );
+
+              const parts: string[] = [];
+              if (isSet(args.weight))
+                parts.push(`weight: ${args.weight}${wUnit}`);
+              if (isSet(args.steps)) parts.push(`steps: ${args.steps}`);
+              if (isSet(args.height))
+                parts.push(`height: ${args.height}${hUnit}`);
+              if (isSet(args.body_fat))
+                parts.push(`body fat: ${args.body_fat}%`);
+              if (isSet(args.neck)) parts.push(`neck: ${args.neck}${mUnit}`);
+              if (isSet(args.waist)) parts.push(`waist: ${args.waist}${mUnit}`);
+              if (isSet(args.hips)) parts.push(`hips: ${args.hips}${mUnit}`);
+              if (isSet(args.muscle_mass))
+                parts.push(`muscle mass: ${args.muscle_mass}${wUnit}`);
+              if (isSet(args.bone_mass))
+                parts.push(`bone mass: ${args.bone_mass}${wUnit}`);
+              if (isSet(args.body_water))
+                parts.push(`body water: ${args.body_water}%`);
+              for (const field of cleared) {
+                parts.push(`${field} cleared`);
+              }
+              return formatConfirmation(
+                `Check-in for ${args.entry_date} updated (${parts.join(', ')}).`
+              );
+            }
+
+            case 'delete_checkin_entry': {
+              const existing = (await measurementService.getCheckInMeasurements(
+                userId,
+                userId,
+                args.entry_date
+              )) as { id?: string } | null;
+              if (!existing || !existing.id) {
+                return ERRORS.VALIDATION(
+                  `No check-in entry found for ${args.entry_date}.`
+                );
+              }
+              await measurementService.deleteCheckInMeasurements(
+                userId,
+                existing.id
+              );
+              return formatConfirmation(
+                `Check-in entry for ${args.entry_date} deleted.`
               );
             }
 

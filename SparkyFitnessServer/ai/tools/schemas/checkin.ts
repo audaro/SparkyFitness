@@ -56,6 +56,81 @@ const logBiometricsSchema = z
   })
   .strict();
 
+// Tool-facing biometric field names for update_checkin's clear list; mapped
+// to their storage columns in the tool handler.
+export const CLEARABLE_BIOMETRICS = [
+  'weight',
+  'steps',
+  'height',
+  'neck',
+  'waist',
+  'hips',
+  'body_fat',
+  'muscle_mass',
+  'bone_mass',
+  'body_water',
+] as const;
+
+const updateCheckinSchema = z
+  .object({
+    action: z.literal('update_checkin'),
+    entry_date: dateSchema,
+    weight: z.coerce.number().min(0).optional().describe('Corrected weight'),
+    weight_unit: weightUnitEnum
+      .optional()
+      .describe('Unit for weight (defaults to kg)'),
+    steps: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Corrected step count'),
+    height: z.coerce.number().min(0).optional().describe('Corrected height'),
+    height_unit: heightUnitEnum.optional().describe('Unit for height'),
+    neck: z.coerce.number().min(0).optional().describe('Corrected neck'),
+    waist: z.coerce.number().min(0).optional().describe('Corrected waist'),
+    hips: z.coerce.number().min(0).optional().describe('Corrected hips'),
+    measurements_unit: measurementsUnitEnum
+      .optional()
+      .describe('Unit for body measurements'),
+    body_fat: z.coerce
+      .number()
+      .min(0)
+      .optional()
+      .describe('Corrected body fat percentage'),
+    muscle_mass: z.coerce
+      .number()
+      .min(0)
+      .optional()
+      .describe('Corrected muscle mass (uses weight_unit)'),
+    bone_mass: z.coerce
+      .number()
+      .min(0)
+      .optional()
+      .describe('Corrected bone mass (uses weight_unit)'),
+    body_water: z.coerce
+      .number()
+      .min(0)
+      .max(100)
+      .optional()
+      .describe('Corrected body water percentage'),
+    clear: z
+      .array(z.enum(CLEARABLE_BIOMETRICS))
+      .min(1)
+      .optional()
+      .describe('Biometric fields to remove from the entry'),
+  })
+  .strict();
+
+const deleteCheckinEntrySchema = z
+  .object({
+    action: z.literal('delete_checkin_entry'),
+    entry_date: dateSchema.describe(
+      'Date of the check-in entry to delete (YYYY-MM-DD)'
+    ),
+  })
+  .strict();
+
 const logCustomMetricSchema = z
   .object({
     action: z.literal('log_custom_metric'),
@@ -203,6 +278,8 @@ const getBiometricsHistorySchema = z
 
 export const manageCheckinSchema = z.discriminatedUnion('action', [
   logBiometricsSchema,
+  updateCheckinSchema,
+  deleteCheckinEntrySchema,
   logCustomMetricSchema,
   listCategoriesSchema,
   createCategorySchema,
@@ -223,6 +300,8 @@ export const manageCheckinInput = z.object({
   action: z
     .enum([
       'log_biometrics',
+      'update_checkin',
+      'delete_checkin_entry',
       'log_custom_metric',
       'list_categories',
       'create_category',
@@ -267,6 +346,10 @@ export const manageCheckinInput = z.object({
     .max(100)
     .optional()
     .describe('Body water percentage'),
+  clear: z
+    .array(z.enum(CLEARABLE_BIOMETRICS))
+    .optional()
+    .describe('Biometric fields to remove — for update_checkin'),
   // custom metrics / categories
   category_name: z
     .string()
