@@ -163,6 +163,7 @@ describe.runIf(RUN)('RLS permission matrix', () => {
   const DOMAIN: Record<string, Domain> = {
     // owner-only (no delegation)
     api_key: 'owner',
+    coach_profiles: 'owner',
     sparky_chat_history: 'owner',
     user_ignored_updates: 'owner',
     user_oidc_links: 'owner',

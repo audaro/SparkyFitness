@@ -20,6 +20,7 @@ export * from "./schemas/database/AiServiceSettings.zod.ts";
 export * from "./schemas/database/ApiKey.zod.ts";
 export * from "./schemas/database/BackupSettings.zod.ts";
 export * from "./schemas/database/CheckInMeasurements.zod.ts";
+export * from "./schemas/database/CoachProfiles.zod.ts";
 export * from "./schemas/database/CustomCategories.zod.ts";
 export * from "./schemas/database/CustomMeasurements.zod.ts";
 export * from "./schemas/database/DailySleepNeed.zod.ts";

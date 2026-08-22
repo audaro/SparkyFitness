@@ -25,6 +25,7 @@ BEGIN
     'ai_service_settings',
     'check_in_measurements',
     'check_in_photos',
+    'coach_profiles',
     'custom_categories',
     'custom_measurements',
     'exercise_entries',
@@ -555,6 +556,9 @@ USING (
 SELECT create_owner_policy('api_key', 'reference_id');
 SELECT create_owner_policy('user_oidc_links');
 SELECT create_owner_policy('sparky_chat_history');
+-- Coaching context (goals, injuries, limitations) is as sensitive as chat
+-- history and is never family-delegated.
+SELECT create_owner_policy('coach_profiles');
 
 -- Profiles: delegates can read (with any meaningful permission) but only owner can write.
 -- Delegates do not need to modify another user's profile to manage their diary.
