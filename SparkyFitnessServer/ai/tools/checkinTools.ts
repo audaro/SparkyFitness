@@ -13,7 +13,13 @@ import fastingRepository from '../../models/fastingRepository.js';
 import sleepRepository from '../../models/sleepRepository.js';
 import { ERRORS, formatZodError } from './errors.js';
 import { normalizeActionArgs } from './dates.js';
-import { formatConfirmation, formatList, formatSuccess } from './formatting.js';
+import {
+  dayString,
+  formatConfirmation,
+  formatList,
+  formatSuccess,
+} from './formatting.js';
+import { clearUserTdeeCache } from '../../services/AdaptiveTdeeService.js';
 import { convertWeight, convertMeasurement } from './unitConversion.js';
 import {
   manageCheckinSchema,
@@ -329,6 +335,7 @@ Actions:
                 args.entry_date,
                 measurements
               );
+              clearUserTdeeCache(userId);
 
               const parts: string[] = [];
               if (isSet(args.weight))
@@ -355,12 +362,19 @@ Actions:
             }
 
             case 'update_checkin': {
-              const existing = await measurementService.getCheckInMeasurements(
+              // getCheckInMeasurements returns the latest row ON OR BEFORE the
+              // date, so an exact-date check is required before mutating —
+              // otherwise a miss would silently target an earlier day's row.
+              const existing = (await measurementService.getCheckInMeasurements(
                 userId,
                 userId,
                 args.entry_date
-              );
-              if (!existing || Object.keys(existing).length === 0) {
+              )) as { entry_date?: unknown } | null;
+              if (
+                !existing ||
+                Object.keys(existing).length === 0 ||
+                dayString(existing.entry_date) !== args.entry_date
+              ) {
                 return ERRORS.VALIDATION(
                   `No check-in entry found for ${args.entry_date}. Use log_biometrics to create one.`
                 );
@@ -439,6 +453,7 @@ Actions:
                 args.entry_date,
                 updates
               );
+              clearUserTdeeCache(userId);
 
               const parts: string[] = [];
               if (isSet(args.weight))
@@ -466,12 +481,18 @@ Actions:
             }
 
             case 'delete_checkin_entry': {
+              // Same on-or-before getter: without the exact-date guard a miss
+              // would resolve — and DELETE — an earlier day's check-in.
               const existing = (await measurementService.getCheckInMeasurements(
                 userId,
                 userId,
                 args.entry_date
-              )) as { id?: string } | null;
-              if (!existing || !existing.id) {
+              )) as { id?: string; entry_date?: unknown } | null;
+              if (
+                !existing ||
+                !existing.id ||
+                dayString(existing.entry_date) !== args.entry_date
+              ) {
                 return ERRORS.VALIDATION(
                   `No check-in entry found for ${args.entry_date}.`
                 );
@@ -480,6 +501,7 @@ Actions:
                 userId,
                 existing.id
               );
+              clearUserTdeeCache(userId);
               return formatConfirmation(
                 `Check-in entry for ${args.entry_date} deleted.`
               );

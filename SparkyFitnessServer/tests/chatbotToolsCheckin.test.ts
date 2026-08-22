@@ -6,6 +6,7 @@ import preferenceService from '../services/preferenceService.js';
 import moodRepository from '../models/moodRepository.js';
 import fastingRepository from '../models/fastingRepository.js';
 import sleepRepository from '../models/sleepRepository.js';
+import { clearUserTdeeCache } from '../services/AdaptiveTdeeService.js';
 
 vi.mock('../services/measurementService', () => ({
   default: {
@@ -44,6 +45,9 @@ vi.mock('../models/sleepRepository', () => ({
   default: {
     getSleepEntriesByUserIdAndDateRange: vi.fn(),
   },
+}));
+vi.mock('../services/AdaptiveTdeeService', () => ({
+  clearUserTdeeCache: vi.fn(),
 }));
 vi.mock('../config/logging', () => ({
   log: vi.fn(),
@@ -1072,6 +1076,7 @@ describe('update_checkin and delete_checkin_entry', () => {
   it('update_checkin corrects values and clears fields on an existing entry', async () => {
     vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
       id: 'ci-1',
+      entry_date: todayInZone('UTC'),
       weight: 81,
       waist: 90,
     });
@@ -1099,6 +1104,7 @@ describe('update_checkin and delete_checkin_entry', () => {
   it('update_checkin maps tool field names to storage columns when clearing', async () => {
     vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
       id: 'ci-1',
+      entry_date: '2026-08-20',
       body_fat_percentage: 25,
     });
     vi.mocked(measurementService.updateCheckInMeasurements).mockResolvedValue({
@@ -1139,6 +1145,7 @@ describe('update_checkin and delete_checkin_entry', () => {
   it('update_checkin rejects a field that is both set and cleared', async () => {
     vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
       id: 'ci-1',
+      entry_date: '2026-08-20',
       weight: 81,
     });
 
@@ -1161,6 +1168,7 @@ describe('update_checkin and delete_checkin_entry', () => {
   it('update_checkin rejects an empty patch', async () => {
     vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
       id: 'ci-1',
+      entry_date: '2026-08-20',
       weight: 81,
     });
 
@@ -1177,6 +1185,7 @@ describe('update_checkin and delete_checkin_entry', () => {
   it('infers update_checkin from a bare clear list', async () => {
     vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
       id: 'ci-1',
+      entry_date: todayInZone('UTC'),
       waist: 90,
     });
     vi.mocked(measurementService.updateCheckInMeasurements).mockResolvedValue({
@@ -1196,6 +1205,7 @@ describe('update_checkin and delete_checkin_entry', () => {
   it('delete_checkin_entry deletes the resolved row and reports a miss', async () => {
     vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValueOnce({
       id: 'ci-9',
+      entry_date: '2026-08-20',
       weight: 81,
     });
     vi.mocked(measurementService.deleteCheckInMeasurements).mockResolvedValue({
@@ -1222,6 +1232,69 @@ describe('update_checkin and delete_checkin_entry', () => {
     expect(miss).toBe(
       'Error [VALIDATION]: No check-in entry found for 2026-08-21.'
     );
+  });
+
+  it('update and delete refuse a stale earlier row from the on-or-before getter', async () => {
+    // The service getter returns the latest row ON OR BEFORE the date; a miss
+    // for the requested day must not mutate the earlier row it falls back to.
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
+      id: 'ci-old',
+      entry_date: '2026-08-15',
+      weight: 81,
+    });
+
+    const del = await tools.sparky_manage_checkin.execute!(
+      { action: 'delete_checkin_entry', entry_date: '2026-08-20' },
+      opts
+    );
+    expect(del).toBe(
+      'Error [VALIDATION]: No check-in entry found for 2026-08-20.'
+    );
+    expect(measurementService.deleteCheckInMeasurements).not.toHaveBeenCalled();
+
+    const upd = await tools.sparky_manage_checkin.execute!(
+      { action: 'update_checkin', entry_date: '2026-08-20', weight: 80 },
+      opts
+    );
+    expect(upd).toBe(
+      'Error [VALIDATION]: No check-in entry found for 2026-08-20. Use log_biometrics to create one.'
+    );
+    expect(measurementService.updateCheckInMeasurements).not.toHaveBeenCalled();
+    expect(clearUserTdeeCache).not.toHaveBeenCalled();
+  });
+
+  it('invalidates the adaptive-TDEE cache after each successful mutation', async () => {
+    vi.mocked(measurementService.upsertCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+    });
+    await tools.sparky_manage_checkin.execute!(
+      { action: 'log_biometrics', entry_date: '2026-08-20', weight: 80 },
+      opts
+    );
+    expect(clearUserTdeeCache).toHaveBeenCalledTimes(1);
+
+    vi.mocked(measurementService.getCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+      entry_date: '2026-08-20',
+      weight: 81,
+    });
+    vi.mocked(measurementService.updateCheckInMeasurements).mockResolvedValue({
+      id: 'ci-1',
+    });
+    await tools.sparky_manage_checkin.execute!(
+      { action: 'update_checkin', entry_date: '2026-08-20', weight: 80 },
+      opts
+    );
+    expect(clearUserTdeeCache).toHaveBeenCalledTimes(2);
+
+    vi.mocked(measurementService.deleteCheckInMeasurements).mockResolvedValue({
+      message: 'Check-in measurement deleted successfully.',
+    });
+    await tools.sparky_manage_checkin.execute!(
+      { action: 'delete_checkin_entry', entry_date: '2026-08-20' },
+      opts
+    );
+    expect(clearUserTdeeCache).toHaveBeenCalledTimes(3);
   });
 
   it('never infers delete_checkin_entry from a bare entry_date', async () => {
