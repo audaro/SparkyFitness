@@ -2,10 +2,21 @@ import { tool } from 'ai';
 import { todayInZone } from '@workspace/shared';
 import { log } from '../../config/logging.js';
 import medicationRepository from '../../models/medicationRepository.js';
+import type {
+  CreateMedicationBody,
+  UpdateMedicationBody,
+  CreateScheduleBody,
+  UpdateScheduleBody,
+} from '../../schemas/medicationSchemas.js';
 import medicationEntryRepository from '../../models/medicationEntryRepository.js';
 import injectionRepository from '../../models/injectionRepository.js';
 import { ERRORS, formatZodError } from './errors.js';
-import { dayString, formatConfirmation, formatList } from './formatting.js';
+import {
+  DAY_NAMES,
+  dayString,
+  formatConfirmation,
+  formatList,
+} from './formatting.js';
 import { normalizeActionArgs } from './dates.js';
 import {
   manageMedicationsSchema,
@@ -92,6 +103,31 @@ interface PreProcessedArgs {
   site?: string;
   deduct_pen?: boolean;
   entry_id?: string;
+  name?: string;
+  new_name?: string;
+  schedule_id?: string;
+  schedule_type_id?: string;
+  time_of_day?: string;
+  days_of_week?: number[];
+  interval_days?: number;
+  day_of_month?: number;
+  cycle_on_days?: number;
+  cycle_off_days?: number;
+  with_meal?: string;
+  prn_reason?: string;
+  prn_max_per_day?: number;
+  start_date?: string;
+  end_date?: string;
+  active?: boolean;
+  display_name?: string;
+  strength_value?: number;
+  strength_unit?: string;
+  dose_amount?: number;
+  dose_unit?: string;
+  reason_text?: string;
+  is_active?: boolean;
+  is_glp1?: boolean;
+  is_supplement?: boolean;
 }
 
 const VALID_ACTIONS = [
@@ -103,26 +139,145 @@ const VALID_ACTIONS = [
   'delete_entry',
   'log_injection',
   'list_injections',
+  'create_medication',
+  'update_medication',
+  'add_schedule',
+  'update_schedule',
+  'delete_schedule',
+  'list_schedules',
 ];
 
 async function resolveMedicationId(
   userId: string,
   nameOrId: string | undefined
-): Promise<string | null> {
+): Promise<{ id: string } | { error: string } | null> {
   if (!nameOrId) return null;
   const uuidRe =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (uuidRe.test(nameOrId)) return nameOrId;
+  if (uuidRe.test(nameOrId)) return { id: nameOrId };
   const meds: MedicationSummary[] = await medicationRepository.listMedications(
     userId,
     {}
   );
   const q = nameOrId.trim().toLowerCase();
-  const match = meds.find(
+  const matches = meds.filter(
     (m) => (m.display_name || m.name).toLowerCase() === q
   );
-  return match?.id ?? null;
+  if (matches.length === 0) return null;
+  if (matches.length > 1) {
+    return {
+      error: `Multiple medications are named "${nameOrId}" — use medication_id (see list_medications)`,
+    };
+  }
+  return { id: matches[0].id };
 }
+
+// A schedule missing its type-specific fields would insert fine but never
+// come due (isScheduleDueOnDate returns false), so require them up front.
+function validateScheduleFields(
+  typeId: string,
+  fields: {
+    days_of_week?: number[] | null;
+    interval_days?: number | null;
+    day_of_month?: number | null;
+    cycle_on_days?: number | null;
+    start_date?: string | null;
+    end_date?: string | null;
+  }
+): string | null {
+  if (
+    (typeId === 'specific_days' || typeId === 'weekly') &&
+    !fields.days_of_week?.length
+  ) {
+    return `A ${typeId} schedule needs days_of_week (0=Sunday … 6=Saturday) — without it the schedule would never come due`;
+  }
+  if (typeId === 'every_n_days' && !fields.interval_days) {
+    return 'An every_n_days schedule needs interval_days — without it the schedule would never come due';
+  }
+  if (typeId === 'monthly' && !fields.day_of_month) {
+    return 'A monthly schedule needs day_of_month — without it the schedule would never come due';
+  }
+  if (typeId === 'cyclic' && !fields.cycle_on_days) {
+    return 'A cyclic schedule needs cycle_on_days — without it the schedule would never come due';
+  }
+  if (
+    fields.start_date &&
+    fields.end_date &&
+    fields.end_date < fields.start_date
+  ) {
+    return 'end_date must be on or after start_date';
+  }
+  return null;
+}
+
+interface ScheduleRow {
+  id: string;
+  medication_id: string;
+  schedule_type_id: string;
+  time_of_day: string | null;
+  dose_amount: number | null;
+  days_of_week: number[] | null;
+  interval_days: number | null;
+  day_of_month: number | null;
+  cycle_on_days: number | null;
+  cycle_off_days: number | null;
+  with_meal: string | null;
+  prn_reason: string | null;
+  prn_max_per_day: number | null;
+  start_date: unknown;
+  end_date: unknown;
+  active: boolean | null;
+}
+
+function describeSchedule(s: ScheduleRow): string {
+  const parts: string[] = [s.schedule_type_id];
+  if (s.days_of_week?.length) {
+    parts.push(`on ${s.days_of_week.map((d) => DAY_NAMES[d]).join(', ')}`);
+  }
+  if (s.interval_days) parts.push(`every ${s.interval_days} days`);
+  if (s.day_of_month) parts.push(`on day ${s.day_of_month} of the month`);
+  if (s.cycle_on_days) {
+    parts.push(
+      `${s.cycle_on_days} days on / ${s.cycle_off_days ?? 0} days off`
+    );
+  }
+  if (s.time_of_day) parts.push(`at ${s.time_of_day}`);
+  if (s.with_meal) parts.push(`(${s.with_meal.replace(/_/g, ' ')} meal)`);
+  if (s.prn_reason) parts.push(`for ${s.prn_reason}`);
+  return parts.join(' ');
+}
+
+// Schedule fields forwarded verbatim from tool args to the repository.
+const SCHEDULE_PATCH_FIELDS = [
+  'schedule_type_id',
+  'time_of_day',
+  'dose_amount',
+  'days_of_week',
+  'interval_days',
+  'day_of_month',
+  'cycle_on_days',
+  'cycle_off_days',
+  'with_meal',
+  'prn_reason',
+  'prn_max_per_day',
+  'start_date',
+  'end_date',
+  'active',
+] as const;
+
+// Medication fields forwarded verbatim from tool args to the repository.
+const MEDICATION_PATCH_FIELDS = [
+  'display_name',
+  'strength_value',
+  'strength_unit',
+  'dose_amount',
+  'dose_unit',
+  'reason_text',
+  'is_active',
+  'is_glp1',
+  'is_supplement',
+  'notes',
+] as const;
 
 export function buildMedicationTools(userId: string, tz: string) {
   return {
@@ -137,7 +292,13 @@ Actions:
 - update_entry(entry_id, status?, taken_at?, entry_date?, notes?)
 - delete_entry(entry_id)
 - log_injection(medication_id?|medication_name?, dose_mg?, site?, deduct_pen?, entry_date?, notes?)
-- list_injections(medication_id?, from_date?, to_date?)`,
+- list_injections(medication_id?, from_date?, to_date?)
+- create_medication(name, display_name?, strength_value?, strength_unit?, dose_amount?, dose_unit?, reason_text?, is_active?, is_glp1?, is_supplement?, notes?)
+- update_medication(medication_id?|medication_name?, new_name?, any medication field) — only provided fields change
+- add_schedule(medication_id?|medication_name?, schedule_type_id, time_of_day?, days_of_week?, interval_days?, day_of_month?, cycle_on_days?, cycle_off_days?, with_meal?, prn_reason?, prn_max_per_day?, start_date?, end_date?, dose_amount?) — schedule types: daily, specific_days, every_n_days, cyclic, weekly, monthly, prn, taper
+- update_schedule(schedule_id, any schedule field) — only provided fields change
+- delete_schedule(schedule_id) — DESTRUCTIVE: confirm with the user (sparky_ask_user) before calling
+- list_schedules(medication_id?|medication_name?) — schedules with their IDs`,
       inputSchema: manageMedicationsInput,
       execute: async (rawArgs) => {
         const normalized = normalizeActionArgs(
@@ -155,6 +316,28 @@ Actions:
                 return 'update_entry';
               }
               return 'delete_entry';
+            }
+            // delete_schedule is destructive and is never inferred.
+            if (args.schedule_id) {
+              return 'update_schedule';
+            }
+            if (args.schedule_type_id) {
+              return 'add_schedule';
+            }
+            if (args.name) {
+              return args.medication_id || args.medication_name
+                ? 'update_medication'
+                : 'create_medication';
+            }
+            if (
+              args.new_name ||
+              args.display_name !== undefined ||
+              args.strength_value !== undefined ||
+              args.reason_text !== undefined ||
+              args.is_supplement !== undefined ||
+              args.is_glp1 !== undefined
+            ) {
+              return 'update_medication';
             }
             if (args.site || args.dose_mg || args.deduct_pen !== undefined) {
               return 'log_injection';
@@ -195,16 +378,19 @@ Actions:
         delete normalized.dosage_unit;
 
         if (normalized.medication_name && !normalized.medication_id) {
-          const resolvedId = await resolveMedicationId(
+          const resolved = await resolveMedicationId(
             userId,
             normalized.medication_name
           );
-          if (!resolvedId) {
+          if (!resolved) {
             return ERRORS.VALIDATION(
               `Medication "${normalized.medication_name}" not found.`
             );
           }
-          normalized.medication_id = resolvedId;
+          if ('error' in resolved) {
+            return ERRORS.VALIDATION(resolved.error);
+          }
+          normalized.medication_id = resolved.id;
           delete normalized.medication_name;
         }
 
@@ -371,6 +557,222 @@ Actions:
                 'Injections',
                 (i) =>
                   `${dayString(i.entry_date)}: ${i.dose_mg} mg${i.site ? ` at ${i.site}` : ''}${i.notes ? ` — ${i.notes}` : ''}`
+              );
+            }
+            case 'create_medication': {
+              const meds: MedicationSummary[] =
+                await medicationRepository.listMedications(userId, {});
+              const q = args.name.toLowerCase();
+              const nameTaken = meds.find(
+                (m) =>
+                  m.name.toLowerCase() === q ||
+                  (m.display_name ?? '').toLowerCase() === q
+              );
+              if (nameTaken) {
+                return ERRORS.VALIDATION(
+                  `A medication named "${args.name}" already exists (medication_id ${nameTaken.id}) — use update_medication to change it, or choose a different name`
+                );
+              }
+              const payload: CreateMedicationBody = { name: args.name };
+              for (const field of MEDICATION_PATCH_FIELDS) {
+                const value = (args as Record<string, unknown>)[field];
+                if (value !== undefined) {
+                  (payload as Record<string, unknown>)[field] = value;
+                }
+              }
+              if (args.notes !== undefined && args.notes !== null) {
+                payload.notes = args.notes;
+              }
+              const med = (await medicationRepository.createMedication(
+                userId,
+                payload
+              )) as MedicationRow;
+              return formatConfirmation(
+                `Medication "${med.display_name || med.name}" created (ID: ${med.id}). Use add_schedule to set when it is taken.`
+              );
+            }
+            case 'update_medication': {
+              const medId = args.medication_id!;
+              const existing = (await medicationRepository.getMedicationById(
+                userId,
+                medId
+              )) as MedicationDetailRow | null;
+              if (!existing) return ERRORS.NOT_FOUND('Medication', medId);
+              const hasUpdate =
+                args.new_name !== undefined ||
+                args.notes !== undefined ||
+                MEDICATION_PATCH_FIELDS.some(
+                  (f) => (args as Record<string, unknown>)[f] !== undefined
+                );
+              if (!hasUpdate) {
+                return ERRORS.VALIDATION(
+                  'Nothing to update — provide new_name or at least one medication field'
+                );
+              }
+              if (args.new_name !== undefined) {
+                const meds: MedicationSummary[] =
+                  await medicationRepository.listMedications(userId, {});
+                const q = args.new_name.toLowerCase();
+                const taken = meds.find(
+                  (m) =>
+                    m.id !== existing.id &&
+                    (m.name.toLowerCase() === q ||
+                      (m.display_name ?? '').toLowerCase() === q)
+                );
+                if (taken) {
+                  return ERRORS.VALIDATION(
+                    `A medication named "${args.new_name}" already exists — choose a different name`
+                  );
+                }
+              }
+              const patch: UpdateMedicationBody = {};
+              if (args.new_name !== undefined) patch.name = args.new_name;
+              if (args.notes !== undefined) patch.notes = args.notes;
+              for (const field of MEDICATION_PATCH_FIELDS) {
+                const value = (args as Record<string, unknown>)[field];
+                if (value !== undefined) {
+                  (patch as Record<string, unknown>)[field] = value;
+                }
+              }
+              const updated = (await medicationRepository.updateMedication(
+                userId,
+                medId,
+                patch
+              )) as MedicationRow | null;
+              if (!updated) return ERRORS.NOT_FOUND('Medication', medId);
+              return formatConfirmation(
+                `Medication "${updated.display_name || updated.name}" updated.`
+              );
+            }
+            case 'add_schedule': {
+              const medId = args.medication_id!;
+              // Verify ownership before inserting: the medication_id FK is
+              // checked outside RLS, so an unverified id could attach a
+              // schedule to another user's medication.
+              const med = (await medicationRepository.getMedicationById(
+                userId,
+                medId
+              )) as MedicationDetailRow | null;
+              if (!med) return ERRORS.NOT_FOUND('Medication', medId);
+              const fieldError = validateScheduleFields(
+                args.schedule_type_id,
+                args
+              );
+              if (fieldError) return ERRORS.VALIDATION(fieldError);
+              const payload: CreateScheduleBody = {
+                schedule_type_id: args.schedule_type_id,
+              };
+              for (const field of SCHEDULE_PATCH_FIELDS) {
+                if (field === 'schedule_type_id') continue;
+                const value = (args as Record<string, unknown>)[field];
+                if (value !== undefined) {
+                  (payload as Record<string, unknown>)[field] = value;
+                }
+              }
+              const sched = (await medicationRepository.addSchedule(
+                userId,
+                medId,
+                payload
+              )) as ScheduleRow;
+              return formatConfirmation(
+                `Schedule added to ${med.display_name || med.name}: ${describeSchedule(sched)} (schedule_id ${sched.id}).`
+              );
+            }
+            case 'update_schedule': {
+              const meds = (await medicationRepository.listMedications(
+                userId,
+                {}
+              )) as (MedicationSummary & { schedules?: ScheduleRow[] })[];
+              let existing: ScheduleRow | undefined;
+              let parent: MedicationSummary | undefined;
+              for (const m of meds) {
+                const match = m.schedules?.find(
+                  (s) => s.id === args.schedule_id
+                );
+                if (match) {
+                  existing = match;
+                  parent = m;
+                  break;
+                }
+              }
+              if (!existing || !parent) {
+                return ERRORS.NOT_FOUND('Schedule', args.schedule_id);
+              }
+              const hasUpdate = SCHEDULE_PATCH_FIELDS.some(
+                (f) => (args as Record<string, unknown>)[f] !== undefined
+              );
+              if (!hasUpdate) {
+                return ERRORS.VALIDATION(
+                  'Nothing to update — provide at least one schedule field'
+                );
+              }
+              // Validate the merged schedule so a type switch cannot strand
+              // the row without its type-specific fields.
+              const mergedType =
+                args.schedule_type_id ?? existing.schedule_type_id;
+              const fieldError = validateScheduleFields(mergedType, {
+                days_of_week: args.days_of_week ?? existing.days_of_week,
+                interval_days: args.interval_days ?? existing.interval_days,
+                day_of_month: args.day_of_month ?? existing.day_of_month,
+                cycle_on_days: args.cycle_on_days ?? existing.cycle_on_days,
+                start_date:
+                  args.start_date ??
+                  (existing.start_date ? dayString(existing.start_date) : null),
+                end_date:
+                  args.end_date ??
+                  (existing.end_date ? dayString(existing.end_date) : null),
+              });
+              if (fieldError) return ERRORS.VALIDATION(fieldError);
+              const patch: UpdateScheduleBody = {};
+              for (const field of SCHEDULE_PATCH_FIELDS) {
+                const value = (args as Record<string, unknown>)[field];
+                if (value !== undefined) {
+                  (patch as Record<string, unknown>)[field] = value;
+                }
+              }
+              const updated = (await medicationRepository.updateSchedule(
+                userId,
+                args.schedule_id,
+                patch
+              )) as ScheduleRow | null;
+              if (!updated) {
+                return ERRORS.NOT_FOUND('Schedule', args.schedule_id);
+              }
+              return formatConfirmation(
+                `Schedule updated for ${parent.display_name || parent.name}: ${describeSchedule(updated)}.`
+              );
+            }
+            case 'delete_schedule': {
+              const ok = await medicationRepository.deleteSchedule(
+                userId,
+                args.schedule_id
+              );
+              if (!ok) return ERRORS.NOT_FOUND('Schedule', args.schedule_id);
+              return formatConfirmation('Schedule deleted.');
+            }
+            case 'list_schedules': {
+              const medId = args.medication_id!;
+              const med = (await medicationRepository.getMedicationById(
+                userId,
+                medId
+              )) as (MedicationDetailRow & { schedules: ScheduleRow[] }) | null;
+              if (!med) return ERRORS.NOT_FOUND('Medication', medId);
+              return formatList(
+                med.schedules ?? [],
+                `Schedules — ${med.display_name || med.name}`,
+                (s) => {
+                  let text = `**${describeSchedule(s)}**`;
+                  if (s.active === false) text += ' (inactive)';
+                  text += `\n  ID: ${s.id}`;
+                  if (s.dose_amount) text += `\n  Dose: ${s.dose_amount}`;
+                  if (s.start_date)
+                    text += `\n  From: ${dayString(s.start_date)}`;
+                  if (s.end_date) text += `\n  Until: ${dayString(s.end_date)}`;
+                  if (s.prn_max_per_day) {
+                    text += `\n  Max/day: ${s.prn_max_per_day}`;
+                  }
+                  return text;
+                }
               );
             }
             default:

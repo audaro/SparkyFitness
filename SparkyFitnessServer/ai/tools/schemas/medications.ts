@@ -1,5 +1,143 @@
 import { z } from 'zod';
-import { optionalDateSchema, uuidSchema } from './common.js';
+import { dateSchema, optionalDateSchema, uuidSchema } from './common.js';
+
+// Fixed lookup table medication_schedule_types — seeded by migration, never
+// user-editable, so the ids are pinned here instead of a lookup action.
+export const SCHEDULE_TYPE_IDS = [
+  'daily',
+  'specific_days',
+  'every_n_days',
+  'cyclic',
+  'weekly',
+  'monthly',
+  'prn',
+  'taper',
+] as const;
+
+const scheduleTypeEnum = z
+  .enum(SCHEDULE_TYPE_IDS)
+  .describe(
+    'Schedule type: daily, specific_days (needs days_of_week), every_n_days (needs interval_days), cyclic (needs cycle_on_days), weekly (needs days_of_week), monthly (needs day_of_month), prn (as needed), taper'
+  );
+
+const timeOfDaySchema = z
+  .string()
+  .regex(/^\d{1,2}:\d{2}(:\d{2})?$/, 'time_of_day must be HH:MM')
+  .describe('Time of day (HH:MM, 24-hour)');
+
+// Medication fields the chat surface exposes for create/update — form-only
+// columns (colors, icons, pharmacy details, nutrient panels) stay in the UI.
+const medicationEditFields = {
+  display_name: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe('Display name shown in the UI (defaults to name)'),
+  strength_value: z
+    .number()
+    .positive()
+    .optional()
+    .describe('Strength per unit (e.g. 500 for 500mg tablets)'),
+  strength_unit: z
+    .string()
+    .min(1)
+    .max(50)
+    .optional()
+    .describe('Strength unit (mg, mcg, IU, ...)'),
+  dose_amount: z
+    .number()
+    .positive()
+    .optional()
+    .describe('Default dose amount per intake'),
+  dose_unit: z
+    .string()
+    .min(1)
+    .max(50)
+    .optional()
+    .describe('Default dose unit (tablets, mg, mL, ...)'),
+  reason_text: z
+    .string()
+    .min(1)
+    .max(500)
+    .optional()
+    .describe('Why the medication is taken'),
+  is_active: z
+    .boolean()
+    .optional()
+    .describe('Whether the medication is active'),
+  is_glp1: z
+    .boolean()
+    .optional()
+    .describe('Whether this is a GLP-1 medication'),
+  is_supplement: z
+    .boolean()
+    .optional()
+    .describe('Whether this is a supplement'),
+};
+
+// Schedule fields shared by add_schedule / update_schedule.
+const scheduleEditFields = {
+  time_of_day: timeOfDaySchema.optional(),
+  dose_amount: z
+    .number()
+    .positive()
+    .optional()
+    .describe('Dose amount for this schedule slot'),
+  days_of_week: z
+    .array(z.number().int().min(0).max(6))
+    .min(1)
+    .optional()
+    .describe(
+      'Days of week (0=Sunday … 6=Saturday) — required for specific_days/weekly'
+    ),
+  interval_days: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Repeat every N days — required for every_n_days'),
+  day_of_month: z
+    .number()
+    .int()
+    .min(1)
+    .max(31)
+    .optional()
+    .describe('Day of the month (1-31) — required for monthly'),
+  cycle_on_days: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Days on per cycle — required for cyclic'),
+  cycle_off_days: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Days off per cycle (cyclic)'),
+  with_meal: z
+    .enum(['before', 'with', 'after', 'away_from_meals'])
+    .optional()
+    .describe('Relation to meals'),
+  prn_reason: z
+    .string()
+    .min(1)
+    .max(500)
+    .optional()
+    .describe('Reason for as-needed use (prn)'),
+  prn_max_per_day: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Maximum doses per day (prn)'),
+  start_date: dateSchema
+    .optional()
+    .describe('Schedule start date (YYYY-MM-DD)'),
+  end_date: dateSchema.optional().describe('Schedule end date (YYYY-MM-DD)'),
+  active: z.boolean().optional().describe('Whether the schedule is active'),
+};
 
 const listMedicationsSchema = z
   .object({
@@ -134,6 +272,89 @@ const listInjectionsSchema = z
   })
   .strict();
 
+const createMedicationSchema = z
+  .object({
+    action: z.literal('create_medication'),
+    name: z.string().min(1).max(200).describe('Medication or supplement name'),
+    notes: z.string().max(2000).optional().describe('Notes'),
+    ...medicationEditFields,
+  })
+  .strict();
+
+const updateMedicationSchema = z
+  .object({
+    action: z.literal('update_medication'),
+    medication_id: uuidSchema
+      .optional()
+      .describe('UUID of the medication (or use medication_name)'),
+    medication_name: z
+      .string()
+      .optional()
+      .describe('Name of the medication (alternative to medication_id)'),
+    new_name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('New name for the medication'),
+    notes: z
+      .string()
+      .max(2000)
+      .nullable()
+      .optional()
+      .describe('New notes (pass null to clear)'),
+    ...medicationEditFields,
+  })
+  .strict();
+
+const addScheduleSchema = z
+  .object({
+    action: z.literal('add_schedule'),
+    medication_id: uuidSchema
+      .optional()
+      .describe('UUID of the medication (or use medication_name)'),
+    medication_name: z
+      .string()
+      .optional()
+      .describe('Name of the medication (alternative to medication_id)'),
+    schedule_type_id: scheduleTypeEnum,
+    ...scheduleEditFields,
+  })
+  .strict();
+
+const updateScheduleSchema = z
+  .object({
+    action: z.literal('update_schedule'),
+    schedule_id: uuidSchema.describe(
+      'UUID of the schedule (see list_schedules)'
+    ),
+    schedule_type_id: scheduleTypeEnum.optional(),
+    ...scheduleEditFields,
+  })
+  .strict();
+
+const deleteScheduleSchema = z
+  .object({
+    action: z.literal('delete_schedule'),
+    schedule_id: uuidSchema.describe(
+      'UUID of the schedule to delete (see list_schedules)'
+    ),
+  })
+  .strict();
+
+const listSchedulesSchema = z
+  .object({
+    action: z.literal('list_schedules'),
+    medication_id: uuidSchema
+      .optional()
+      .describe('UUID of the medication (or use medication_name)'),
+    medication_name: z
+      .string()
+      .optional()
+      .describe('Name of the medication (alternative to medication_id)'),
+  })
+  .strict();
+
 export const manageMedicationsSchema = z
   .discriminatedUnion('action', [
     listMedicationsSchema,
@@ -144,10 +365,22 @@ export const manageMedicationsSchema = z
     deleteEntrySchema,
     logInjectionSchema,
     listInjectionsSchema,
+    createMedicationSchema,
+    updateMedicationSchema,
+    addScheduleSchema,
+    updateScheduleSchema,
+    deleteScheduleSchema,
+    listSchedulesSchema,
   ])
   .refine(
     (data) => {
-      if (data.action === 'log' || data.action === 'log_injection') {
+      if (
+        data.action === 'log' ||
+        data.action === 'log_injection' ||
+        data.action === 'update_medication' ||
+        data.action === 'add_schedule' ||
+        data.action === 'list_schedules'
+      ) {
         return !!(data.medication_id || data.medication_name);
       }
       return true;
@@ -168,9 +401,113 @@ export const manageMedicationsInput = z.object({
       'delete_entry',
       'log_injection',
       'list_injections',
+      'create_medication',
+      'update_medication',
+      'add_schedule',
+      'update_schedule',
+      'delete_schedule',
+      'list_schedules',
     ])
     .optional()
     .describe('Action to perform'),
+  name: z
+    .string()
+    .optional()
+    .describe(
+      'Medication name — for create_medication (use new_name to rename)'
+    ),
+  new_name: z
+    .string()
+    .optional()
+    .describe('New medication name (for update_medication)'),
+  schedule_id: uuidSchema
+    .optional()
+    .describe(
+      'UUID of the schedule (for update_schedule / delete_schedule, see list_schedules)'
+    ),
+  schedule_type_id: z
+    .enum(SCHEDULE_TYPE_IDS)
+    .optional()
+    .describe(
+      'Schedule type (for add_schedule / update_schedule): daily, specific_days, every_n_days, cyclic, weekly, monthly, prn, taper'
+    ),
+  time_of_day: z
+    .string()
+    .optional()
+    .describe('Schedule time of day (HH:MM, 24-hour)'),
+  days_of_week: z
+    .array(z.number().int().min(0).max(6))
+    .optional()
+    .describe('Schedule days of week (0=Sunday … 6=Saturday)'),
+  interval_days: z
+    .number()
+    .optional()
+    .describe('Repeat every N days (every_n_days schedules)'),
+  day_of_month: z
+    .number()
+    .optional()
+    .describe('Day of the month 1-31 (monthly schedules)'),
+  cycle_on_days: z
+    .number()
+    .optional()
+    .describe('Days on per cycle (cyclic schedules)'),
+  cycle_off_days: z
+    .number()
+    .optional()
+    .describe('Days off per cycle (cyclic schedules)'),
+  with_meal: z
+    .enum(['before', 'with', 'after', 'away_from_meals'])
+    .optional()
+    .describe('Schedule relation to meals'),
+  prn_reason: z
+    .string()
+    .optional()
+    .describe('Reason for as-needed use (prn schedules)'),
+  prn_max_per_day: z
+    .number()
+    .optional()
+    .describe('Maximum doses per day (prn schedules)'),
+  start_date: optionalDateSchema.describe('Schedule start date (YYYY-MM-DD)'),
+  end_date: optionalDateSchema.describe('Schedule end date (YYYY-MM-DD)'),
+  active: z.boolean().optional().describe('Whether the schedule is active'),
+  display_name: z
+    .string()
+    .optional()
+    .describe('Medication display name (create/update_medication)'),
+  strength_value: z
+    .number()
+    .optional()
+    .describe('Medication strength per unit (create/update_medication)'),
+  strength_unit: z
+    .string()
+    .optional()
+    .describe('Medication strength unit (create/update_medication)'),
+  dose_amount: z
+    .number()
+    .optional()
+    .describe(
+      'Default dose amount (create/update_medication or a schedule slot)'
+    ),
+  dose_unit: z
+    .string()
+    .optional()
+    .describe('Default dose unit (create/update_medication)'),
+  reason_text: z
+    .string()
+    .optional()
+    .describe('Why the medication is taken (create/update_medication)'),
+  is_active: z
+    .boolean()
+    .optional()
+    .describe('Whether the medication is active (create/update_medication)'),
+  is_glp1: z
+    .boolean()
+    .optional()
+    .describe('Whether this is a GLP-1 medication (create/update_medication)'),
+  is_supplement: z
+    .boolean()
+    .optional()
+    .describe('Whether this is a supplement (create/update_medication)'),
   medication_id: uuidSchema.optional().describe('UUID of the medication'),
   medication_name: z
     .string()
