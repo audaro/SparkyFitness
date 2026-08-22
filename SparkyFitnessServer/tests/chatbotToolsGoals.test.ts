@@ -545,6 +545,109 @@ describe('goal presets', () => {
     );
   });
 
+  it('create_goal_preset rejects a case-only duplicate name before the service', async () => {
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([cutPreset]);
+    const result = await tools.sparky_manage_goals.execute!(
+      { action: 'create_goal_preset', preset_name: 'cut day', calories: 1800 },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: A goal preset named "cut day" already exists — use update_goal_preset to change it, or choose a different name'
+    );
+    expect(goalPresetService.createGoalPreset).not.toHaveBeenCalled();
+  });
+
+  it('update_goal_preset round-trips an echoed get_goal_presets row', async () => {
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([cutPreset]);
+    vi.mocked(goalPresetService.updateGoalPreset).mockResolvedValue({
+      id: PRESET_ID,
+      preset_name: 'Cut Day',
+    });
+
+    // The projected row exactly as get_goal_presets returns it (nulls and
+    // surrogate id included), with only calories edited.
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'update_goal_preset',
+        id: PRESET_ID,
+        preset_name: 'Cut Day',
+        calories: 1750,
+        protein: 150,
+        carbs: 150,
+        fat: 60,
+        water_goal_ml: 2500,
+        saturated_fat: 18,
+        polyunsaturated_fat: null,
+        monounsaturated_fat: null,
+        trans_fat: null,
+        cholesterol: null,
+        sodium: 2300,
+        potassium: null,
+        dietary_fiber: 30,
+        sugars: null,
+        vitamin_a: null,
+        vitamin_c: null,
+        calcium: null,
+        iron: null,
+        protein_percentage: null,
+        carbs_percentage: null,
+        fat_percentage: null,
+      } as unknown as Parameters<
+        NonNullable<typeof tools.sparky_manage_goals.execute>
+      >[0],
+      opts
+    );
+
+    expect(result).toBe('✅ Goal preset "Cut Day" updated.');
+    const payload = vi.mocked(goalPresetService.updateGoalPreset).mock
+      .calls[0][2] as Record<string, unknown>;
+    expect(payload.calories).toBe(1750);
+    // Echoed nulls must stay null — z.coerce.number() would otherwise turn
+    // them into 0 and zero out every unset target.
+    expect(payload.polyunsaturated_fat).toBeNull();
+    expect(payload.sugars).toBeNull();
+    expect(payload.sodium).toBe(2300);
+  });
+
+  it('update_goal_preset rejects renaming onto another preset but allows re-casing itself', async () => {
+    const bulkPreset = {
+      ...cutPreset,
+      id: PRESET_ID_2,
+      preset_name: 'Bulk Day',
+    };
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([
+      cutPreset,
+      bulkPreset,
+    ]);
+
+    const collision = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'update_goal_preset',
+        preset_id: PRESET_ID_2,
+        new_name: 'CUT DAY',
+      },
+      opts
+    );
+    expect(collision).toBe(
+      'Error [VALIDATION]: A goal preset named "CUT DAY" already exists — choose a different name'
+    );
+    expect(goalPresetService.updateGoalPreset).not.toHaveBeenCalled();
+
+    vi.mocked(goalPresetService.updateGoalPreset).mockResolvedValue({
+      id: PRESET_ID,
+      preset_name: 'CUT DAY',
+    });
+    const recase = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'update_goal_preset',
+        preset_id: PRESET_ID,
+        new_name: 'CUT DAY',
+      },
+      opts
+    );
+    expect(recase).toBe('✅ Goal preset "CUT DAY" updated.');
+  });
+
   it('update_goal_preset requires an identifier and an update field', async () => {
     const noId = await tools.sparky_manage_goals.execute!(
       { action: 'update_goal_preset', calories: 2000 },
@@ -823,6 +926,30 @@ describe('weekly goal plans', () => {
       'Error [VALIDATION]: Goal preset "Nope" was not found — see get_goal_presets'
     );
     expect(weeklyGoalPlanService.createWeeklyGoalPlan).not.toHaveBeenCalled();
+  });
+
+  it('update_weekly_goal_plan rejects renaming onto another plan', async () => {
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([
+      storedPlan,
+      {
+        ...storedPlan,
+        id: WPLAN_ID_2,
+        plan_name: 'Deload Week',
+        is_active: false,
+      },
+    ]);
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'update_weekly_goal_plan',
+        plan_id: WPLAN_ID_2,
+        new_name: 'training split',
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: A weekly goal plan named "training split" already exists — choose a different name'
+    );
+    expect(weeklyGoalPlanService.updateWeeklyGoalPlan).not.toHaveBeenCalled();
   });
 
   it('update_weekly_goal_plan carries the weekday columns when only renaming', async () => {

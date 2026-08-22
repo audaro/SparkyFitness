@@ -34,6 +34,17 @@ const VALID_ACTIONS = [
   'list_goal_timeline',
 ];
 
+// Actions whose inputs may be echoed-back projection rows and need the
+// null/id/day normalization in execute before the strict parse.
+const PRESET_PLAN_ACTIONS = new Set([
+  'get_goal_presets',
+  'create_goal_preset',
+  'update_goal_preset',
+  'get_weekly_goal_plans',
+  'create_weekly_goal_plan',
+  'update_weekly_goal_plan',
+]);
+
 // Goal-preset columns the tool exposes; used for payload building, merge, and
 // the get_goal_presets projection.
 const PRESET_FIELDS = [
@@ -316,6 +327,45 @@ Actions:
             return undefined;
           }
         );
+        // get_goal_presets / get_weekly_goal_plans rows are projected with
+        // explicit nulls and an `id` key; when a row is echoed back into an
+        // update, z.coerce.number() would turn each null into 0
+        // (Number(null) === 0) and silently zero every unset target. Nulls
+        // never mean "clear" on these actions, so drop them pre-parse, map the
+        // row id onto the action's id field, and strip the day_presets
+        // projection label.
+        const rec = normalized as Record<string, unknown>;
+        if (
+          typeof rec.action === 'string' &&
+          PRESET_PLAN_ACTIONS.has(rec.action)
+        ) {
+          for (const key of Object.keys(rec)) {
+            if (rec[key] === null) {
+              delete rec[key];
+            }
+          }
+          const idKey =
+            rec.action === 'update_goal_preset'
+              ? 'preset_id'
+              : rec.action === 'update_weekly_goal_plan'
+                ? 'plan_id'
+                : null;
+          if (idKey && rec.id !== undefined && rec[idKey] === undefined) {
+            rec[idKey] = rec.id;
+            delete rec.id;
+          }
+          if (Array.isArray(rec.day_presets)) {
+            rec.day_presets = rec.day_presets.map((item) =>
+              item && typeof item === 'object'
+                ? Object.fromEntries(
+                    Object.entries(item).filter(
+                      ([k, v]) => v !== null && k !== 'day'
+                    )
+                  )
+                : item
+            );
+          }
+        }
         const parsed = manageGoalsSchema.safeParse(normalized);
         if (!parsed.success) {
           return formatZodError(parsed.error);
@@ -455,6 +505,23 @@ Actions:
               if (pctError) {
                 return ERRORS.VALIDATION(pctError);
               }
+              // Case-insensitive pre-check: the DB unique constraint is
+              // case-sensitive, and a case-only duplicate would break
+              // name-based addressing (the ambiguity guard matches
+              // case-insensitively).
+              const existingPresets = (await goalPresetService.getGoalPresets(
+                userId
+              )) as GoalPresetRow[];
+              const presetNameTaken = existingPresets.find(
+                (p) =>
+                  p.preset_name.toLowerCase() ===
+                  (args.preset_name as string).toLowerCase()
+              );
+              if (presetNameTaken) {
+                return ERRORS.VALIDATION(
+                  `A goal preset named "${args.preset_name}" already exists — use update_goal_preset to change it, or choose a different name`
+                );
+              }
               try {
                 const preset = (await goalPresetService.createGoalPreset(
                   userId,
@@ -519,6 +586,20 @@ Actions:
                   );
                 }
                 existing = matches[0];
+              }
+              if (args.new_name !== undefined) {
+                const selfId = existing.id;
+                const renameTaken = presets.find(
+                  (p) =>
+                    p.id !== selfId &&
+                    p.preset_name.toLowerCase() ===
+                      (args.new_name as string).toLowerCase()
+                );
+                if (renameTaken) {
+                  return ERRORS.VALIDATION(
+                    `A goal preset named "${args.new_name}" already exists — choose a different name`
+                  );
+                }
               }
               // Full-replace repository update: merge over the existing row
               // and carry through the fields this tool does not expose.
@@ -678,6 +759,20 @@ Actions:
                   );
                 }
                 existing = matches[0];
+              }
+              if (args.new_name !== undefined) {
+                const selfId = existing.id;
+                const renameTaken = plans.find(
+                  (p) =>
+                    p.id !== selfId &&
+                    p.plan_name.toLowerCase() ===
+                      (args.new_name as string).toLowerCase()
+                );
+                if (renameTaken) {
+                  return ERRORS.VALIDATION(
+                    `A weekly goal plan named "${args.new_name}" already exists — choose a different name`
+                  );
+                }
               }
               const mergedStart =
                 args.start_date ?? dayString(existing.start_date);
