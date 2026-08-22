@@ -609,6 +609,35 @@ describe('goal presets', () => {
     expect(payload.sodium).toBe(2300);
   });
 
+  it('infers update_goal_preset from an echoed row with no action', async () => {
+    vi.mocked(goalPresetService.getGoalPresets).mockResolvedValue([cutPreset]);
+    vi.mocked(goalPresetService.updateGoalPreset).mockResolvedValue({
+      id: PRESET_ID,
+      preset_name: 'Cut Day',
+    });
+
+    // No action field — the surrogate id alone must select the update path
+    // rather than inferring create_goal_preset and choking on the id key.
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        id: PRESET_ID,
+        preset_name: 'Cut Day',
+        calories: 1700,
+        sodium: 2300,
+        sugars: null,
+      } as unknown as Parameters<
+        NonNullable<typeof tools.sparky_manage_goals.execute>
+      >[0],
+      opts
+    );
+
+    expect(result).toBe('✅ Goal preset "Cut Day" updated.');
+    const payload = vi.mocked(goalPresetService.updateGoalPreset).mock
+      .calls[0][2] as Record<string, unknown>;
+    expect(payload.calories).toBe(1700);
+    expect(payload.sugars).toBeNull();
+  });
+
   it('update_goal_preset rejects renaming onto another preset but allows re-casing itself', async () => {
     const bulkPreset = {
       ...cutPreset,
@@ -926,6 +955,34 @@ describe('weekly goal plans', () => {
       'Error [VALIDATION]: Goal preset "Nope" was not found — see get_goal_presets'
     );
     expect(weeklyGoalPlanService.createWeeklyGoalPlan).not.toHaveBeenCalled();
+  });
+
+  it('update_weekly_goal_plan clears the end date with an explicit null', async () => {
+    const boundedPlan = { ...storedPlan, end_date: new Date(2026, 8, 30) };
+    vi.mocked(weeklyGoalPlanService.getWeeklyGoalPlans).mockResolvedValue([
+      boundedPlan,
+    ]);
+    vi.mocked(weeklyGoalPlanService.updateWeeklyGoalPlan).mockResolvedValue({
+      ...boundedPlan,
+      end_date: null,
+    });
+
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'update_weekly_goal_plan',
+        plan_id: WPLAN_ID,
+        end_date: null,
+      } as unknown as Parameters<
+        NonNullable<typeof tools.sparky_manage_goals.execute>
+      >[0],
+      opts
+    );
+
+    expect(result).toBe('✅ Weekly goal plan "Training Split" updated.');
+    const payload = vi.mocked(weeklyGoalPlanService.updateWeeklyGoalPlan).mock
+      .calls[0][2] as Record<string, unknown>;
+    expect(payload.end_date).toBeNull();
+    expect(payload.monday_preset_id).toBe(PRESET_ID);
   });
 
   it('update_weekly_goal_plan rejects renaming onto another plan', async () => {

@@ -284,7 +284,7 @@ Actions:
 - action: 'update_goal_preset' (fields: preset_id?|preset_name?, new_name?, any goal fields) — only provided fields change
 - action: 'get_weekly_goal_plans' — lists weekly goal plans mapping weekdays to presets
 - action: 'create_weekly_goal_plan' (fields: plan_name, day_presets:[{day_of_week 0=Sun…6=Sat, preset_id?|preset_name?}], start_date?, end_date?, is_active?) — activating a plan deactivates all others
-- action: 'update_weekly_goal_plan' (fields: plan_id?|plan_name?, new_name?, start_date?, end_date?, is_active?, day_presets?) — day_presets REPLACES all seven day slots, so send the complete desired week
+- action: 'update_weekly_goal_plan' (fields: plan_id?|plan_name?, new_name?, start_date?, end_date?, is_active?, day_presets?) — day_presets REPLACES all seven day slots, so send the complete desired week; end_date: null makes the plan open-ended
 - action: 'list_goal_timeline' — lists all goal changes over time`,
       inputSchema: manageGoalsInput,
       execute: async (rawArgs) => {
@@ -293,6 +293,14 @@ Actions:
           tz,
           VALID_ACTIONS,
           (args) => {
+            // A bare `id` is the surrogate key of an echoed projection row —
+            // the model is pointing at an existing record, so this is always
+            // an update (the pre-parse normalization below remaps the id).
+            if (args.id) {
+              return args.plan_name || args.day_presets
+                ? 'update_weekly_goal_plan'
+                : 'update_goal_preset';
+            }
             if (args.day_presets) {
               return args.plan_id || args.new_name
                 ? 'update_weekly_goal_plan'
@@ -340,6 +348,14 @@ Actions:
           PRESET_PLAN_ACTIONS.has(rec.action)
         ) {
           for (const key of Object.keys(rec)) {
+            // end_date: null on a plan update is an explicit "make the plan
+            // open-ended", not projection noise — keep it for the parse.
+            if (
+              key === 'end_date' &&
+              rec.action === 'update_weekly_goal_plan'
+            ) {
+              continue;
+            }
             if (rec[key] === null) {
               delete rec[key];
             }

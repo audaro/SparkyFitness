@@ -292,7 +292,12 @@ const updateWeeklyGoalPlanSchema = z
       .optional()
       .describe('New name for the plan'),
     start_date: dateSchema.optional().describe('New start date (YYYY-MM-DD)'),
-    end_date: dateSchema.optional().describe('New end date (YYYY-MM-DD)'),
+    end_date: dateSchema
+      .nullable()
+      .optional()
+      .describe(
+        'New end date (YYYY-MM-DD), or null to make the plan open-ended'
+      ),
     is_active: z
       .boolean()
       .optional()
@@ -501,8 +506,11 @@ export const manageGoalsInput = z.object({
       'Weekly goal plan name — the name for create_weekly_goal_plan, or the plan to update (alternative to plan_id)'
     ),
   end_date: dateSchema
+    .nullable()
     .optional()
-    .describe('Plan end date (YYYY-MM-DD) — for weekly goal plans'),
+    .describe(
+      'Plan end date (YYYY-MM-DD) — for weekly goal plans; null on update makes the plan open-ended'
+    ),
   is_active: z
     .boolean()
     .optional()
