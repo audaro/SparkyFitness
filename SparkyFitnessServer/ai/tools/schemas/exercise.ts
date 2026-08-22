@@ -236,13 +236,109 @@ const getExerciseDetailsSchema = z
   })
   .strict();
 
+// Per-set programming for workout presets. Unlike diary sets
+// (exerciseSetSchema) preset sets carry an explicit 1-based set_number and
+// have no rpe column (workout_preset_exercise_sets has none).
+const presetSetSchema = z
+  .object({
+    set_number: z.coerce
+      .number()
+      .int()
+      .positive()
+      .describe('1-based set number'),
+    set_type: setTypeEnum.optional(),
+    reps: z.coerce.number().int().min(0).optional(),
+    weight: z.coerce.number().min(0).optional().describe('Weight in kg'),
+    duration: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Seconds — for duration/cardio sets'),
+    distance: z.coerce
+      .number()
+      .min(0)
+      .optional()
+      .describe('Km — for duration_distance sets'),
+    rest_time: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Rest after this set, seconds'),
+    notes: z.string().max(500).optional(),
+  })
+  .strict();
+
+const presetExerciseSchema = z
+  .object({
+    exercise_id: z
+      .string()
+      .min(1)
+      .describe('Exercise UUID (from search_exercises) or external source id'),
+    sort_order: z.coerce.number().int().min(0).optional(),
+    superset_group: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Same number on 2+ exercises marks them a superset'),
+    sets: z.array(presetSetSchema).min(1).optional(),
+  })
+  .strict();
+
 const createWorkoutPresetSchema = z
   .object({
     action: z.literal('create_workout_preset'),
     name: z.string().min(1).max(200).describe('Name of the workout preset'),
+    description: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe('Description of the preset'),
     exercise_ids: z
       .array(uuidSchema)
-      .describe('List of exercise UUIDs to include in the preset'),
+      .optional()
+      .describe(
+        'List of exercise UUIDs to include in the preset (simple form, no programming)'
+      ),
+    exercises: z
+      .array(presetExerciseSchema)
+      .min(1)
+      .optional()
+      .describe(
+        'Fully programmed exercises with per-set reps/weight/duration/rest — preferred over exercise_ids'
+      ),
+  })
+  .strict();
+
+const updateWorkoutPresetSchema = z
+  .object({
+    action: z.literal('update_workout_preset'),
+    preset_id: uuidSchema.optional().describe('UUID of the workout preset'),
+    preset_name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('Name of the preset to update (alternative to ID)'),
+    name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('New name for the preset'),
+    description: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe('New description for the preset'),
+    exercises: z
+      .array(presetExerciseSchema)
+      .min(1)
+      .optional()
+      .describe(
+        'Replacement exercise list with programming; REPLACES all existing exercises/sets, so send the complete desired list'
+      ),
   })
   .strict();
 
@@ -275,6 +371,7 @@ export const manageExerciseSchema = z.discriminatedUnion('action', [
   deleteExerciseEntrySchema,
   getExerciseDetailsSchema,
   createWorkoutPresetSchema,
+  updateWorkoutPresetSchema,
   getExerciseProgressSchema,
 ]);
 
@@ -296,6 +393,7 @@ export const manageExerciseInput = z.object({
       'delete_exercise_entry',
       'get_exercise_details',
       'create_workout_preset',
+      'update_workout_preset',
       'get_exercise_progress',
     ])
     .optional()
@@ -319,13 +417,45 @@ export const manageExerciseInput = z.object({
   exercise_ids: z
     .array(uuidSchema)
     .optional()
-    .describe('List of exercise UUIDs — for create_workout_preset'),
+    .describe(
+      'List of exercise UUIDs — for create_workout_preset (simple form)'
+    ),
+  exercises: z
+    .array(
+      z.object({
+        exercise_id: z.string().min(1),
+        sort_order: z.coerce.number().int().min(0).optional(),
+        superset_group: z.coerce.number().int().optional(),
+        sets: z
+          .array(
+            z.object({
+              set_number: z.coerce.number().int().positive(),
+              set_type: setTypeEnum.optional(),
+              reps: z.coerce.number().int().min(0).optional(),
+              weight: z.coerce.number().min(0).optional(),
+              duration: z.coerce.number().int().min(0).optional(),
+              distance: z.coerce.number().min(0).optional(),
+              rest_time: z.coerce.number().int().min(0).optional(),
+              notes: z.string().max(500).optional(),
+            })
+          )
+          .min(1)
+          .optional(),
+      })
+    )
+    .min(1)
+    .optional()
+    .describe(
+      'Fully programmed exercises for create_workout_preset / update_workout_preset: [{exercise_id, sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]. On update this REPLACES the whole list.'
+    ),
   name: z
     .string()
     .min(1)
     .max(200)
     .optional()
-    .describe('Name — for create_exercise / create_workout_preset'),
+    .describe(
+      'Name — for create_exercise / create_workout_preset / update_workout_preset (new name)'
+    ),
   // search
   searchTerm: z
     .string()
@@ -368,7 +498,9 @@ export const manageExerciseInput = z.object({
     .string()
     .max(1000)
     .optional()
-    .describe('Description of the exercise'),
+    .describe(
+      'Description — for create_exercise / create_workout_preset / update_workout_preset'
+    ),
   modality: z
     .enum(EXERCISE_MODALITIES)
     .optional()
@@ -430,13 +562,19 @@ export const manageExerciseInput = z.object({
       'Set details as array of objects or JSON string; per-set fields include rpe and notes'
     ),
   // presets
-  preset_id: uuidSchema.optional().describe('Workout preset UUID'),
+  preset_id: uuidSchema
+    .optional()
+    .describe(
+      'Workout preset UUID — for log_workout_preset / update_workout_preset'
+    ),
   preset_name: z
     .string()
     .min(1)
     .max(200)
     .optional()
-    .describe('Workout preset name'),
+    .describe(
+      'Workout preset name — for log_workout_preset / update_workout_preset (alternative to preset_id)'
+    ),
   // entry management
   entry_id: uuidSchema
     .optional()

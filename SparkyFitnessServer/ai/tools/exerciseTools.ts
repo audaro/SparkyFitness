@@ -40,6 +40,7 @@ const VALID_ACTIONS = [
   'delete_exercise_entry',
   'get_exercise_details',
   'create_workout_preset',
+  'update_workout_preset',
   'get_exercise_progress',
 ];
 
@@ -78,6 +79,45 @@ interface ExerciseSetInput {
   set_type?: string;
   rpe?: number;
   notes?: string;
+}
+
+interface PresetSetInput {
+  set_number: number;
+  set_type?: string;
+  reps?: number;
+  weight?: number;
+  duration?: number;
+  distance?: number;
+  rest_time?: number;
+  notes?: string;
+}
+
+interface PresetExerciseInput {
+  exercise_id: string;
+  sort_order?: number;
+  superset_group?: number;
+  sets?: PresetSetInput[];
+}
+
+// The exercise rows the workout-preset service expects: sort_order defaults
+// to list position, and absent set fields become explicit nulls (preset sets
+// have no rpe column, unlike diary sets).
+function toPresetExercises(exercises: PresetExerciseInput[]) {
+  return exercises.map((ex, i) => ({
+    exercise_id: ex.exercise_id,
+    sort_order: ex.sort_order ?? i,
+    superset_group: ex.superset_group ?? null,
+    sets: ex.sets?.map((s) => ({
+      set_number: s.set_number,
+      set_type: s.set_type || 'Working Set',
+      reps: s.reps ?? null,
+      weight: s.weight ?? null,
+      duration: s.duration ?? null,
+      distance: s.distance ?? null,
+      rest_time: s.rest_time ?? null,
+      notes: s.notes ?? null,
+    })),
+  }));
 }
 
 // The set rows the exercise-entry repository expects: 1-based set_number plus
@@ -363,7 +403,8 @@ Actions:
 - update_exercise_entry(entry_id, entry_date?, duration_minutes?, calories_burned?, notes?, distance?, avg_heart_rate?, steps?, sets?) — only the provided fields change; sets, when provided, replace all existing sets
 - delete_exercise_entry(entry_id)
 - get_exercise_details(exercise_id?|exercise_name?)
-- create_workout_preset(name, exercise_ids)
+- create_workout_preset(name, description?, exercise_ids? OR exercises?) — exercises is the programmed form: [{exercise_id, sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]; use search_exercises first to get real exercise ids
+- update_workout_preset(preset_id?|preset_name?, name?, description?, exercises?) — exercises REPLACES the entire list, so send the complete desired routine
 - get_exercise_progress(exercise_id?|exercise_name?, start_date?, end_date?, limit?, offset?) — returns paginated performance history`,
       inputSchema: manageExerciseInput,
       execute: async (rawArgs) => {
@@ -713,21 +754,92 @@ Actions:
             }
 
             case 'create_workout_preset': {
+              if (!args.exercises?.length && !args.exercise_ids?.length) {
+                return ERRORS.VALIDATION(
+                  'Either exercises or exercise_ids must be provided'
+                );
+              }
+              if (args.exercises?.length) {
+                const preset = await workoutPresetService.createWorkoutPreset(
+                  userId,
+                  {
+                    user_id: userId,
+                    name: args.name,
+                    description: args.description ?? null,
+                    is_public: false,
+                    exercises: toPresetExercises(args.exercises),
+                  }
+                );
+                const setCount = args.exercises.reduce(
+                  (sum, ex) => sum + (ex.sets?.length ?? 0),
+                  0
+                );
+                return formatConfirmation(
+                  `Workout preset "${preset.name}" created: ${preset.exercises.length} exercises, ${setCount} sets.`
+                );
+              }
               const preset = await workoutPresetService.createWorkoutPreset(
                 userId,
                 {
                   user_id: userId,
                   name: args.name,
-                  description: null,
+                  description: args.description ?? null,
                   is_public: false,
-                  exercises: args.exercise_ids.map((exerciseId, i) => ({
-                    exercise_id: exerciseId,
-                    sort_order: i,
-                  })),
+                  exercises: (args.exercise_ids as string[]).map(
+                    (exerciseId, i) => ({
+                      exercise_id: exerciseId,
+                      sort_order: i,
+                    })
+                  ),
                 }
               );
               return formatConfirmation(
                 `Workout preset "${preset.name}" created with ${preset.exercises.length} exercises.`
+              );
+            }
+
+            case 'update_workout_preset': {
+              if (!args.preset_id && !args.preset_name) {
+                return ERRORS.VALIDATION(
+                  'Either preset_id or preset_name must be provided'
+                );
+              }
+              if (
+                args.name === undefined &&
+                args.description === undefined &&
+                !args.exercises?.length
+              ) {
+                return ERRORS.VALIDATION(
+                  'Nothing to update — provide name, description, or exercises'
+                );
+              }
+              let presetId = args.preset_id;
+              if (!presetId && args.preset_name) {
+                const preset =
+                  await workoutPresetRepository.getWorkoutPresetByName(
+                    userId,
+                    args.preset_name
+                  );
+                if (!preset) {
+                  return ERRORS.NOT_FOUND('Workout Preset', args.preset_name);
+                }
+                presetId = preset.id;
+              }
+              const updated = await workoutPresetService.updateWorkoutPreset(
+                userId,
+                presetId,
+                {
+                  ...(args.name !== undefined && { name: args.name }),
+                  ...(args.description !== undefined && {
+                    description: args.description,
+                  }),
+                  ...(args.exercises?.length && {
+                    exercises: toPresetExercises(args.exercises),
+                  }),
+                }
+              );
+              return formatConfirmation(
+                `Workout preset "${updated.name}" updated.`
               );
             }
 

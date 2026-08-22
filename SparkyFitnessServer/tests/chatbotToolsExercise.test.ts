@@ -26,6 +26,7 @@ vi.mock('../services/workoutPresetService', () => ({
   default: {
     getWorkoutPresets: vi.fn(),
     createWorkoutPreset: vi.fn(),
+    updateWorkoutPreset: vi.fn(),
   },
 }));
 vi.mock('../models/exercise', () => ({
@@ -883,6 +884,248 @@ describe('workout presets', () => {
         ],
       }
     );
+  });
+
+  it('create_workout_preset requires exercises or exercise_ids', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'create_workout_preset', name: 'Empty Day' },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Either exercises or exercise_ids must be provided'
+    );
+    expect(workoutPresetService.createWorkoutPreset).not.toHaveBeenCalled();
+  });
+
+  it('create_workout_preset accepts fully programmed exercises and confirms with set count', async () => {
+    vi.mocked(workoutPresetService.createWorkoutPreset).mockResolvedValue({
+      id: 9,
+      name: 'Leg Day',
+      exercises: [{}, {}],
+    });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_preset',
+        name: 'Leg Day',
+        description: 'Lower body strength',
+        exercises: [
+          {
+            exercise_id: EXERCISE_ID,
+            sets: [
+              {
+                set_number: 1,
+                set_type: 'Warmup',
+                reps: 5,
+                weight: 60,
+                rest_time: 120,
+              },
+              { set_number: 2, reps: 5, weight: 100, rest_time: 180 },
+            ],
+          },
+          {
+            exercise_id: EXERCISE_ID_2,
+            sort_order: 5,
+            superset_group: 1,
+            sets: [{ set_number: 1, reps: 10, notes: 'slow tempo' }],
+          },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Workout preset "Leg Day" created: 2 exercises, 3 sets.'
+    );
+    expect(workoutPresetService.createWorkoutPreset).toHaveBeenCalledWith(
+      'user-1',
+      {
+        user_id: 'user-1',
+        name: 'Leg Day',
+        description: 'Lower body strength',
+        is_public: false,
+        exercises: [
+          {
+            exercise_id: EXERCISE_ID,
+            sort_order: 0,
+            superset_group: null,
+            sets: [
+              {
+                set_number: 1,
+                set_type: 'Warmup',
+                reps: 5,
+                weight: 60,
+                duration: null,
+                distance: null,
+                rest_time: 120,
+                notes: null,
+              },
+              {
+                set_number: 2,
+                set_type: 'Working Set',
+                reps: 5,
+                weight: 100,
+                duration: null,
+                distance: null,
+                rest_time: 180,
+                notes: null,
+              },
+            ],
+          },
+          {
+            exercise_id: EXERCISE_ID_2,
+            sort_order: 5,
+            superset_group: 1,
+            sets: [
+              {
+                set_number: 1,
+                set_type: 'Working Set',
+                reps: 10,
+                weight: null,
+                duration: null,
+                distance: null,
+                rest_time: null,
+                notes: 'slow tempo',
+              },
+            ],
+          },
+        ],
+      }
+    );
+  });
+
+  it('create_workout_preset rejects a missing name with a validation error', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'create_workout_preset',
+        exercises: [
+          { exercise_id: EXERCISE_ID, sets: [{ set_number: 1, reps: 5 }] },
+        ],
+      },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: name: Invalid input: expected string, received undefined'
+    );
+    expect(workoutPresetService.createWorkoutPreset).not.toHaveBeenCalled();
+  });
+
+  it('update_workout_preset requires preset_id or preset_name', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'update_workout_preset', name: 'New Name' },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Either preset_id or preset_name must be provided'
+    );
+    expect(workoutPresetService.updateWorkoutPreset).not.toHaveBeenCalled();
+  });
+
+  it('update_workout_preset requires something to update', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'update_workout_preset', preset_id: PRESET_ID },
+      opts
+    );
+    expect(result).toBe(
+      'Error [VALIDATION]: Nothing to update — provide name, description, or exercises'
+    );
+    expect(workoutPresetService.updateWorkoutPreset).not.toHaveBeenCalled();
+  });
+
+  it('update_workout_preset replaces programming by preset id', async () => {
+    vi.mocked(workoutPresetService.updateWorkoutPreset).mockResolvedValue({
+      id: PRESET_ID,
+      name: 'Leg Day v2',
+      exercises: [{}],
+    });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'update_workout_preset',
+        preset_id: PRESET_ID,
+        name: 'Leg Day v2',
+        exercises: [
+          {
+            exercise_id: EXERCISE_ID,
+            sets: [{ set_number: 1, reps: 8, weight: 90, rest_time: 150 }],
+          },
+        ],
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Workout preset "Leg Day v2" updated.');
+    expect(workoutPresetService.updateWorkoutPreset).toHaveBeenCalledWith(
+      'user-1',
+      PRESET_ID,
+      {
+        name: 'Leg Day v2',
+        exercises: [
+          {
+            exercise_id: EXERCISE_ID,
+            sort_order: 0,
+            superset_group: null,
+            sets: [
+              {
+                set_number: 1,
+                set_type: 'Working Set',
+                reps: 8,
+                weight: 90,
+                duration: null,
+                distance: null,
+                rest_time: 150,
+                notes: null,
+              },
+            ],
+          },
+        ],
+      }
+    );
+  });
+
+  it('update_workout_preset resolves the preset by name', async () => {
+    vi.mocked(workoutPresetRepository.getWorkoutPresetByName).mockResolvedValue(
+      { id: 7, name: 'Push Day' }
+    );
+    vi.mocked(workoutPresetService.updateWorkoutPreset).mockResolvedValue({
+      id: 7,
+      name: 'Push Day',
+      exercises: [],
+    });
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'update_workout_preset',
+        preset_name: 'Push Day',
+        description: 'Chest, shoulders, triceps',
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Workout preset "Push Day" updated.');
+    expect(workoutPresetRepository.getWorkoutPresetByName).toHaveBeenCalledWith(
+      'user-1',
+      'Push Day'
+    );
+    expect(workoutPresetService.updateWorkoutPreset).toHaveBeenCalledWith(
+      'user-1',
+      7,
+      { description: 'Chest, shoulders, triceps' }
+    );
+  });
+
+  it('update_workout_preset reports an unknown preset name as not found', async () => {
+    vi.mocked(workoutPresetRepository.getWorkoutPresetByName).mockResolvedValue(
+      null
+    );
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'update_workout_preset', preset_name: 'Nope', name: 'X' },
+      opts
+    );
+    expect(result).toBe(
+      "Error [NOT_FOUND]: Workout Preset with ID 'Nope' not found.\n\nSuggestion: Check the ID and try again."
+    );
+    expect(workoutPresetService.updateWorkoutPreset).not.toHaveBeenCalled();
   });
 });
 
