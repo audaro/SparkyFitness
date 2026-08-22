@@ -393,6 +393,81 @@ async function getActiveMealPlansForDate(userId: string, date: Date | string) {
   }
 }
 
+export interface GroceryListItem {
+  food_name: string;
+  unit: string | null;
+  total_quantity: number | null;
+  times: number;
+}
+export interface GroceryListResult {
+  items: GroceryListItem[];
+  unexpanded_meal_count: number;
+}
+// Shopping list for the week containing `date`: every food the active plans'
+// assignments call for, summed per (food, unit) across the week's rows —
+// direct food assignments as stored, plus one level of meal ingredients.
+// Meals nested inside meals are counted, not expanded, so the caller can
+// surface the gap instead of silently under-buying.
+async function getGroceryListItems(
+  userId: string,
+  date: string
+): Promise<GroceryListResult> {
+  const client = await getClient(userId);
+  try {
+    const itemsResult = await client.query(
+      `WITH active AS (
+         SELECT a.item_type, a.meal_id, a.food_id, a.quantity, a.unit
+           FROM meal_plan_template_assignments a
+           JOIN meal_plan_templates t ON t.id = a.template_id
+          WHERE t.user_id = $1
+            AND t.is_active = TRUE
+            AND t.start_date <= $2
+            AND (t.end_date IS NULL OR t.end_date >= $2)
+       ),
+       items AS (
+         SELECT f.name AS food_name, act.quantity, act.unit
+           FROM active act
+           JOIN foods f ON f.id = act.food_id
+          WHERE act.item_type = 'food'
+         UNION ALL
+         SELECT f.name, mf.quantity, mf.unit
+           FROM active act
+           JOIN meal_foods mf
+             ON mf.meal_id = act.meal_id AND mf.item_type = 'food'
+           JOIN foods f ON f.id = mf.food_id
+          WHERE act.item_type = 'meal'
+       )
+       SELECT food_name,
+              unit,
+              SUM(quantity)::float8 AS total_quantity,
+              COUNT(*)::int AS times
+         FROM items
+        GROUP BY food_name, unit
+        ORDER BY food_name, unit`,
+      [userId, date]
+    );
+    const nestedResult = await client.query(
+      `SELECT COUNT(*)::int AS nested
+         FROM meal_plan_template_assignments a
+         JOIN meal_plan_templates t ON t.id = a.template_id
+         JOIN meal_foods mf
+           ON mf.meal_id = a.meal_id AND mf.item_type = 'meal'
+        WHERE t.user_id = $1
+          AND t.is_active = TRUE
+          AND t.start_date <= $2
+          AND (t.end_date IS NULL OR t.end_date >= $2)
+          AND a.item_type = 'meal'`,
+      [userId, date]
+    );
+    return {
+      items: itemsResult.rows,
+      unexpanded_meal_count: nestedResult.rows[0]?.nested ?? 0,
+    };
+  } finally {
+    client.release();
+  }
+}
+
 async function getActiveMealPlanForDate(userId: string, date: Date | string) {
   const plans = await getActiveMealPlansForDate(userId, date);
   return plans[0] || null;
@@ -460,6 +535,7 @@ export default {
   getMealPlanTemplateOwnerId,
   getActiveMealPlanForDate,
   getActiveMealPlansForDate,
+  getGroceryListItems,
   getMealPlanTemplatesByMealId,
   getMealPlanTemplateAssignments,
 };

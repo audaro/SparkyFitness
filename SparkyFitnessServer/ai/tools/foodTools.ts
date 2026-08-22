@@ -6,6 +6,7 @@ import foodCoreService from '../../services/foodCoreService.js';
 import foodEntryService from '../../services/foodEntryService.js';
 import mealService from '../../services/mealService.js';
 import mealPlanTemplateService from '../../services/mealPlanTemplateService.js';
+import mealPlanTemplateRepository from '../../models/mealPlanTemplateRepository.js';
 import { ValidationError } from '../../utils/errors.js';
 import preferenceService from '../../services/preferenceService.js';
 import measurementService from '../../services/measurementService.js';
@@ -58,6 +59,7 @@ const VALID_ACTIONS = [
   'create_meal',
   'update_meal',
   'get_meal_plans',
+  'get_grocery_list',
   'create_meal_plan',
   'update_meal_plan',
   'log_meal',
@@ -1255,6 +1257,7 @@ Actions:
 - create_meal(meal_name, foods:[{food_id (from search_food) OR child_meal_id (from search_meal), item_type?, variant_id?, quantity, unit}], description?, total_servings?, serving_unit?) — creates a reusable meal template from scratch; nutrition is snapshotted from the ingredients
 - update_meal(meal_id?|meal_name?, new_name?, description?, total_servings?, serving_unit?, foods?) — only provided fields change, but foods REPLACES the entire ingredient list, so send the complete desired list
 - get_meal_plans() — weekly meal plan templates with their full day-by-day assignments
+- get_grocery_list(week_start?(default today)) — shopping list for the active meal plan week: every ingredient summed across the week's assignments
 - create_meal_plan(plan_name, assignments:[{day_of_week 0=Sun…6=Sat, meal_type_id?|meal_type?, item_type:'meal'|'food', meal_id?|food_id?, variant_id?, quantity?, unit?}], description?, start_date?, end_date?, is_active?) — active plans generate diary food entries from today
 - update_meal_plan(plan_id?|plan_name?, new_name?, description?, start_date?, end_date?, is_active?, assignments?) — only provided fields change, but assignments REPLACES the entire weekly schedule, so send the complete desired week
 - log_meal(meal_type_id?|meal_type?, entry_date, meal_id?, meal_name?, quantity?)
@@ -1296,6 +1299,9 @@ Actions:
             }
             if (args.amount_ml) {
               return 'log_water';
+            }
+            if (args.week_start) {
+              return 'get_grocery_list';
             }
             if (args.external_id) {
               return 'log_external_food';
@@ -2274,6 +2280,30 @@ Actions:
                 userId
               )) as MealPlanTemplateRow[];
               return formatJsonResult(plans.map(projectMealPlan));
+            }
+
+            case 'get_grocery_list': {
+              const weekDate = args.week_start ?? todayInZone(tz);
+              const grocery =
+                await mealPlanTemplateRepository.getGroceryListItems(
+                  userId,
+                  weekDate
+                );
+              if (grocery.items.length === 0) {
+                return `No active meal plan covers ${weekDate}, so there is nothing to buy. Create or activate a meal plan first (create_meal_plan / update_meal_plan).`;
+              }
+              let text = `# Grocery list (plan week of ${weekDate})\n\n`;
+              for (const item of grocery.items) {
+                const amount =
+                  item.total_quantity !== null
+                    ? `${item.total_quantity}${item.unit ? ` ${item.unit}` : ''}`
+                    : 'amount not set';
+                text += `- ${item.food_name} — ${amount} (${item.times}× this week)\n`;
+              }
+              if (grocery.unexpanded_meal_count > 0) {
+                text += `\n${grocery.unexpanded_meal_count} nested meal(s) inside planned meals were NOT expanded — open those meals to add their ingredients.`;
+              }
+              return text.trimEnd();
             }
 
             case 'create_meal_plan': {

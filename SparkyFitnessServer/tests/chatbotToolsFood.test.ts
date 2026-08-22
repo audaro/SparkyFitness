@@ -1,6 +1,7 @@
 import { vi, beforeEach, describe, expect, it } from 'vitest';
 import { addDays, todayInZone } from '@workspace/shared';
 import { buildFoodTools } from '../ai/tools/foodTools.js';
+import mealPlanTemplateRepository from '../models/mealPlanTemplateRepository.js';
 import foodCoreService from '../services/foodCoreService.js';
 import foodEntryService from '../services/foodEntryService.js';
 import mealService from '../services/mealService.js';
@@ -56,6 +57,11 @@ vi.mock('../services/mealPlanTemplateService', () => ({
     getMealPlanTemplates: vi.fn(),
     createMealPlanTemplate: vi.fn(),
     updateMealPlanTemplate: vi.fn(),
+  },
+}));
+vi.mock('../models/mealPlanTemplateRepository', () => ({
+  default: {
+    getGroceryListItems: vi.fn(),
   },
 }));
 vi.mock('../services/preferenceService', () => ({
@@ -5203,5 +5209,73 @@ describe('meal plans', () => {
     expect(
       mealPlanTemplateService.updateMealPlanTemplate
     ).not.toHaveBeenCalled();
+  });
+});
+
+describe('get_grocery_list', () => {
+  it('renders the summed shopping list and flags unexpanded nested meals', async () => {
+    vi.mocked(mealPlanTemplateRepository.getGroceryListItems).mockResolvedValue(
+      {
+        items: [
+          {
+            food_name: 'Chicken breast',
+            unit: 'g',
+            total_quantity: 600,
+            times: 3,
+          },
+          {
+            food_name: 'Greek yogurt',
+            unit: null,
+            total_quantity: null,
+            times: 2,
+          },
+        ],
+        unexpanded_meal_count: 1,
+      }
+    );
+
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'get_grocery_list', week_start: '2026-08-24' },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Grocery list (plan week of 2026-08-24)\n\n' +
+        '- Chicken breast — 600 g (3× this week)\n' +
+        '- Greek yogurt — amount not set (2× this week)\n' +
+        '\n1 nested meal(s) inside planned meals were NOT expanded — open those meals to add their ingredients.'
+    );
+    expect(mealPlanTemplateRepository.getGroceryListItems).toHaveBeenCalledWith(
+      'user-1',
+      '2026-08-24'
+    );
+  });
+
+  it('explains when no active plan covers the requested week', async () => {
+    vi.mocked(mealPlanTemplateRepository.getGroceryListItems).mockResolvedValue(
+      { items: [], unexpanded_meal_count: 0 }
+    );
+
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'get_grocery_list' },
+      opts
+    );
+
+    expect(result).toBe(
+      `No active meal plan covers ${todayInZone('UTC')}, so there is nothing to buy. Create or activate a meal plan first (create_meal_plan / update_meal_plan).`
+    );
+  });
+
+  it('infers get_grocery_list from a bare week_start', async () => {
+    vi.mocked(mealPlanTemplateRepository.getGroceryListItems).mockResolvedValue(
+      { items: [], unexpanded_meal_count: 0 }
+    );
+
+    await tools.sparky_manage_food.execute!({ week_start: '2026-08-24' }, opts);
+
+    expect(mealPlanTemplateRepository.getGroceryListItems).toHaveBeenCalledWith(
+      'user-1',
+      '2026-08-24'
+    );
   });
 });

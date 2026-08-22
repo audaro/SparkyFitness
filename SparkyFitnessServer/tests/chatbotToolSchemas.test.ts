@@ -70,6 +70,7 @@ describe('published (flat) chatbot tool schemas', () => {
       schema: manageFoodInput,
       properties: [
         'action',
+        'week_start',
         'food_name',
         'food_id',
         'variant_id',
@@ -135,6 +136,7 @@ describe('published (flat) chatbot tool schemas', () => {
         'create_meal',
         'update_meal',
         'get_meal_plans',
+        'get_grocery_list',
         'create_meal_plan',
         'update_meal_plan',
         'log_meal',

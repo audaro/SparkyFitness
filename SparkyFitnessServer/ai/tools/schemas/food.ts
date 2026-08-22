@@ -435,6 +435,15 @@ const getMealPlansSchema = z
   })
   .strict();
 
+const getGroceryListSchema = z
+  .object({
+    action: z.literal('get_grocery_list'),
+    week_start: dateSchema
+      .optional()
+      .describe('A date the desired plan week covers (default today)'),
+  })
+  .strict();
+
 const createMealPlanSchema = z
   .object({
     action: z.literal('create_meal_plan'),
@@ -835,6 +844,7 @@ export const manageFoodSchema = z.discriminatedUnion('action', [
   createMealSchema,
   updateMealSchema,
   getMealPlansSchema,
+  getGroceryListSchema,
   createMealPlanSchema,
   updateMealPlanSchema,
   logMealSchema,
@@ -869,6 +879,7 @@ export const manageFoodInput = z.object({
       'create_meal',
       'update_meal',
       'get_meal_plans',
+      'get_grocery_list',
       'create_meal_plan',
       'update_meal_plan',
       'log_meal',
@@ -886,6 +897,11 @@ export const manageFoodInput = z.object({
     .optional()
     .describe(
       'Optional action to perform (server infers if omitted); see tool description for per-action fields.'
+    ),
+  week_start: dateSchema
+    .optional()
+    .describe(
+      'For get_grocery_list: a date in the desired plan week (default today)'
     ),
   // food identity
   food_name: z
