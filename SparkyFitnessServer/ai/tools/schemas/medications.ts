@@ -30,6 +30,7 @@ const timeOfDaySchema = z
 const medicationEditFields = {
   display_name: z
     .string()
+    .trim()
     .min(1)
     .max(200)
     .optional()
@@ -275,7 +276,12 @@ const listInjectionsSchema = z
 const createMedicationSchema = z
   .object({
     action: z.literal('create_medication'),
-    name: z.string().min(1).max(200).describe('Medication or supplement name'),
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .describe('Medication or supplement name'),
     notes: z.string().max(2000).optional().describe('Notes'),
     ...medicationEditFields,
   })
@@ -293,6 +299,7 @@ const updateMedicationSchema = z
       .describe('Name of the medication (alternative to medication_id)'),
     new_name: z
       .string()
+      .trim()
       .min(1)
       .max(200)
       .optional()
@@ -355,6 +362,76 @@ const listSchedulesSchema = z
   })
   .strict();
 
+const logSymptomSchema = z
+  .object({
+    action: z.literal('log_symptom'),
+    symptom_name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .describe('Symptom name (e.g. nausea, headache)'),
+    severity: z
+      .number()
+      .int()
+      .min(1)
+      .max(10)
+      .optional()
+      .describe('Severity 1 (mild) to 10 (severe)'),
+    severity_label: z
+      .string()
+      .min(1)
+      .max(100)
+      .optional()
+      .describe('Severity label for non-numeric scales (e.g. moderate)'),
+    body_location: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('Where on the body (e.g. left knee)'),
+    context_text: z
+      .string()
+      .min(1)
+      .max(2000)
+      .optional()
+      .describe('Free-text context (what happened, triggers)'),
+    bristol_type: z
+      .number()
+      .int()
+      .min(1)
+      .max(7)
+      .optional()
+      .describe('Bristol stool scale type 1-7 (digestive symptoms)'),
+    medication_id: uuidSchema
+      .optional()
+      .describe('Medication suspected as the cause (or use medication_name)'),
+    medication_name: z
+      .string()
+      .optional()
+      .describe('Medication name (alternative to medication_id)'),
+    entry_date: optionalDateSchema,
+  })
+  .strict();
+
+const listSymptomsSchema = z
+  .object({
+    action: z.literal('list_symptoms'),
+  })
+  .strict();
+
+const listSymptomEntriesSchema = z
+  .object({
+    action: z.literal('list_symptom_entries'),
+    symptom_name: z
+      .string()
+      .optional()
+      .describe('Filter to one symptom by name'),
+    from_date: optionalDateSchema,
+    to_date: optionalDateSchema,
+  })
+  .strict();
+
 export const manageMedicationsSchema = z
   .discriminatedUnion('action', [
     listMedicationsSchema,
@@ -371,6 +448,9 @@ export const manageMedicationsSchema = z
     updateScheduleSchema,
     deleteScheduleSchema,
     listSchedulesSchema,
+    logSymptomSchema,
+    listSymptomsSchema,
+    listSymptomEntriesSchema,
   ])
   .refine(
     (data) => {
@@ -407,6 +487,9 @@ export const manageMedicationsInput = z.object({
       'update_schedule',
       'delete_schedule',
       'list_schedules',
+      'log_symptom',
+      'list_symptoms',
+      'list_symptom_entries',
     ])
     .optional()
     .describe('Action to perform'),
@@ -508,6 +591,32 @@ export const manageMedicationsInput = z.object({
     .boolean()
     .optional()
     .describe('Whether this is a supplement (create/update_medication)'),
+  symptom_name: z
+    .string()
+    .optional()
+    .describe(
+      'Symptom name — logs it (log_symptom) or filters entries (list_symptom_entries)'
+    ),
+  severity: z
+    .number()
+    .optional()
+    .describe('Symptom severity 1 (mild) to 10 (severe)'),
+  severity_label: z
+    .string()
+    .optional()
+    .describe('Symptom severity label for non-numeric scales'),
+  body_location: z
+    .string()
+    .optional()
+    .describe('Where on the body the symptom occurs'),
+  context_text: z
+    .string()
+    .optional()
+    .describe('Free-text context for the symptom entry'),
+  bristol_type: z
+    .number()
+    .optional()
+    .describe('Bristol stool scale type 1-7 (digestive symptoms)'),
   medication_id: uuidSchema.optional().describe('UUID of the medication'),
   medication_name: z
     .string()

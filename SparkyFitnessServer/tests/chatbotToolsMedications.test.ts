@@ -1,6 +1,8 @@
 import { vi, beforeEach, describe, expect, it } from 'vitest';
+import { todayInZone } from '@workspace/shared';
 import { buildMedicationTools } from '../ai/tools/medicationTools.js';
 import medicationRepository from '../models/medicationRepository.js';
+import symptomRepository from '../models/symptomRepository.js';
 
 vi.mock('../models/medicationRepository', () => ({
   default: {
@@ -26,6 +28,13 @@ vi.mock('../models/injectionRepository', () => ({
   default: {
     createInjection: vi.fn(),
     listInjections: vi.fn(),
+  },
+}));
+vi.mock('../models/symptomRepository', () => ({
+  default: {
+    listCustomSymptoms: vi.fn(),
+    createSymptomEntry: vi.fn(),
+    listSymptomEntries: vi.fn(),
   },
 }));
 vi.mock('../config/logging', () => ({
@@ -74,6 +83,30 @@ const specificDaysSchedule = {
   start_date: null,
   end_date: null,
   active: true,
+};
+
+const SYMPTOM_ID = '44444444-4444-4444-8444-444444444444';
+
+// A tracked custom symptom the way the repository returns it (names are
+// stored lowercased/trimmed by the upsert).
+const nauseaSymptom = {
+  id: SYMPTOM_ID,
+  name: 'nausea',
+  display_name: 'Nausea',
+  scale_type: 'severity',
+  unit: null,
+  is_glp1_flagged: true,
+};
+
+const nauseaEntry = {
+  id: MED_ID_2,
+  symptom_name_snapshot: 'Nausea',
+  severity: 6,
+  severity_label: null,
+  entry_date: '2026-08-21',
+  body_location: null,
+  context_text: null,
+  bristol_type: null,
 };
 
 let tools: ReturnType<typeof buildMedicationTools>;
@@ -647,6 +680,247 @@ describe('medication schedules', () => {
       '# Schedules — Metformin\n\n' +
         `**specific_days on Mon, Wed, Fri at 08:00 (with meal)**\n  ID: ${SCHED_ID}\n\n` +
         `**prn for headache** (inactive)\n  ID: ${MED_ID_2}\n  Max/day: 3`
+    );
+  });
+});
+
+describe('schedule field applicability', () => {
+  it('add_schedule rejects fields that do not apply to the schedule type', async () => {
+    vi.mocked(medicationRepository.getMedicationById).mockResolvedValue(
+      metformin
+    );
+
+    const result = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'add_schedule',
+        medication_id: MED_ID,
+        schedule_type_id: 'daily',
+        days_of_week: [1],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: days_of_week does not apply to a daily schedule'
+    );
+    expect(medicationRepository.addSchedule).not.toHaveBeenCalled();
+  });
+
+  it('update_schedule rejects echoed fields irrelevant to the new type', async () => {
+    vi.mocked(medicationRepository.listMedications).mockResolvedValue([
+      { ...metformin, schedules: [specificDaysSchedule] },
+    ]);
+
+    const result = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'update_schedule',
+        schedule_id: SCHED_ID,
+        schedule_type_id: 'daily',
+        days_of_week: [1, 3, 5],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: days_of_week does not apply to a daily schedule'
+    );
+    expect(medicationRepository.updateSchedule).not.toHaveBeenCalled();
+  });
+});
+
+describe('name trimming', () => {
+  it('create_medication trims padded names and rejects whitespace-only ones', async () => {
+    vi.mocked(medicationRepository.listMedications).mockResolvedValue([]);
+    vi.mocked(medicationRepository.createMedication).mockResolvedValue(
+      metformin
+    );
+
+    await tools.sparky_manage_medications.execute!(
+      { action: 'create_medication', name: '  Metformin  ' },
+      opts
+    );
+    expect(medicationRepository.createMedication).toHaveBeenCalledWith(
+      'user-1',
+      { name: 'Metformin' }
+    );
+
+    const rejected = await tools.sparky_manage_medications.execute!(
+      { action: 'create_medication', name: '   ' },
+      opts
+    );
+    expect(rejected).toContain('Error [VALIDATION]');
+    expect(medicationRepository.createMedication).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('symptoms', () => {
+  it('log_symptom links a tracked symptom and defaults entry_date to today', async () => {
+    vi.mocked(symptomRepository.listCustomSymptoms).mockResolvedValue([
+      nauseaSymptom,
+    ]);
+    vi.mocked(symptomRepository.createSymptomEntry).mockResolvedValue(
+      nauseaEntry
+    );
+
+    const result = await tools.sparky_manage_medications.execute!(
+      { action: 'log_symptom', symptom_name: 'Nausea', severity: 6 },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Symptom "Nausea" (severity 6/10) logged for 2026-08-21.'
+    );
+    expect(symptomRepository.createSymptomEntry).toHaveBeenCalledWith(
+      'user-1',
+      {
+        symptom_id: SYMPTOM_ID,
+        symptom_name_snapshot: 'Nausea',
+        severity: 6,
+        severity_label: null,
+        entry_date: todayInZone('UTC'),
+        body_location: null,
+        context_text: null,
+        bristol_type: null,
+        medication_id: null,
+      }
+    );
+  });
+
+  it('log_symptom stores an unmatched name as snapshot-only', async () => {
+    vi.mocked(symptomRepository.listCustomSymptoms).mockResolvedValue([
+      nauseaSymptom,
+    ]);
+    vi.mocked(symptomRepository.createSymptomEntry).mockResolvedValue({
+      ...nauseaEntry,
+      symptom_name_snapshot: 'Headache',
+      severity: null,
+    });
+
+    const result = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'log_symptom',
+        symptom_name: '  Headache  ',
+        entry_date: '2026-08-21',
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Symptom "Headache" logged for 2026-08-21.');
+    const payload = vi.mocked(symptomRepository.createSymptomEntry).mock
+      .calls[0][1];
+    expect(payload.symptom_id).toBeNull();
+    expect(payload.symptom_name_snapshot).toBe('Headache');
+    expect(payload.entry_date).toBe('2026-08-21');
+  });
+
+  it('log_symptom verifies ownership of a linked medication', async () => {
+    vi.mocked(medicationRepository.getMedicationById).mockResolvedValue(null);
+
+    const result = await tools.sparky_manage_medications.execute!(
+      {
+        action: 'log_symptom',
+        symptom_name: 'Nausea',
+        medication_id: MED_ID,
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      `Error [NOT_FOUND]: Medication with ID '${MED_ID}' not found.\n\nSuggestion: Check the ID and try again.`
+    );
+    expect(symptomRepository.createSymptomEntry).not.toHaveBeenCalled();
+  });
+
+  it('log_symptom rejects out-of-range severity and bristol_type', async () => {
+    const badSeverity = await tools.sparky_manage_medications.execute!(
+      { action: 'log_symptom', symptom_name: 'Nausea', severity: 11 },
+      opts
+    );
+    expect(badSeverity).toContain('Error [VALIDATION]');
+
+    const badBristol = await tools.sparky_manage_medications.execute!(
+      { action: 'log_symptom', symptom_name: 'Nausea', bristol_type: 8 },
+      opts
+    );
+    expect(badBristol).toContain('Error [VALIDATION]');
+    expect(symptomRepository.createSymptomEntry).not.toHaveBeenCalled();
+  });
+
+  it('infers log_symptom from symptom_name and list from a date filter', async () => {
+    vi.mocked(symptomRepository.listCustomSymptoms).mockResolvedValue([]);
+    vi.mocked(symptomRepository.createSymptomEntry).mockResolvedValue(
+      nauseaEntry
+    );
+    vi.mocked(symptomRepository.listSymptomEntries).mockResolvedValue([]);
+
+    await tools.sparky_manage_medications.execute!(
+      { symptom_name: 'Nausea', severity: 6 },
+      opts
+    );
+    expect(symptomRepository.createSymptomEntry).toHaveBeenCalledTimes(1);
+
+    await tools.sparky_manage_medications.execute!(
+      { symptom_name: 'Nausea', from_date: '2026-08-01' },
+      opts
+    );
+    expect(symptomRepository.listSymptomEntries).toHaveBeenCalledWith(
+      'user-1',
+      {
+        fromDate: '2026-08-01',
+        toDate: undefined,
+        symptomName: 'Nausea',
+      }
+    );
+  });
+
+  it('list_symptoms renders tracked symptom definitions', async () => {
+    vi.mocked(symptomRepository.listCustomSymptoms).mockResolvedValue([
+      nauseaSymptom,
+      {
+        id: MED_ID_2,
+        name: 'headache',
+        display_name: null,
+        scale_type: 'severity',
+        unit: null,
+        is_glp1_flagged: false,
+      },
+    ]);
+
+    const result = await tools.sparky_manage_medications.execute!(
+      { action: 'list_symptoms' },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Tracked Symptoms\n\n' +
+        '**Nausea** (GLP-1 side effect)\n  Scale: severity\n\n' +
+        '**headache**\n  Scale: severity'
+    );
+  });
+
+  it('list_symptom_entries renders entries with their details', async () => {
+    vi.mocked(symptomRepository.listSymptomEntries).mockResolvedValue([
+      nauseaEntry,
+      {
+        ...nauseaEntry,
+        symptom_name_snapshot: 'Stomach ache',
+        severity: null,
+        severity_label: 'moderate',
+        body_location: 'lower abdomen',
+        bristol_type: 6,
+        context_text: 'after dinner',
+      },
+    ]);
+
+    const result = await tools.sparky_manage_medications.execute!(
+      { action: 'list_symptom_entries' },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Symptom Entries\n\n' +
+        '**Nausea** on 2026-08-21 — severity 6/10\n\n' +
+        '**Stomach ache** on 2026-08-21 — moderate (lower abdomen) — Bristol type 6 — after dinner'
     );
   });
 });

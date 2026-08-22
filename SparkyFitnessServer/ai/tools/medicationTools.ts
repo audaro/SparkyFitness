@@ -10,6 +10,8 @@ import type {
 } from '../../schemas/medicationSchemas.js';
 import medicationEntryRepository from '../../models/medicationEntryRepository.js';
 import injectionRepository from '../../models/injectionRepository.js';
+import symptomRepository from '../../models/symptomRepository.js';
+import type { CreateSymptomEntryBody } from '../../schemas/symptomSchemas.js';
 import { ERRORS, formatZodError } from './errors.js';
 import {
   DAY_NAMES,
@@ -128,6 +130,12 @@ interface PreProcessedArgs {
   is_active?: boolean;
   is_glp1?: boolean;
   is_supplement?: boolean;
+  symptom_name?: string;
+  severity?: number;
+  severity_label?: string;
+  body_location?: string;
+  context_text?: string;
+  bristol_type?: number;
 }
 
 const VALID_ACTIONS = [
@@ -145,6 +153,9 @@ const VALID_ACTIONS = [
   'update_schedule',
   'delete_schedule',
   'list_schedules',
+  'log_symptom',
+  'list_symptoms',
+  'list_symptom_entries',
 ];
 
 async function resolveMedicationId(
@@ -255,6 +266,26 @@ function describeSchedule(s: ScheduleRow): string {
   return parts.join(' ');
 }
 
+interface CustomSymptomRow {
+  id: string;
+  name: string;
+  display_name: string | null;
+  scale_type: string;
+  unit: string | null;
+  is_glp1_flagged: boolean;
+}
+
+interface SymptomEntryRow {
+  id: string;
+  symptom_name_snapshot: string;
+  severity: number | null;
+  severity_label: string | null;
+  entry_date: unknown;
+  body_location: string | null;
+  context_text: string | null;
+  bristol_type: number | null;
+}
+
 // The resolver matches on display_name || name, so a collision on either
 // stored field breaks name-based addressing. Candidates and stored values are
 // compared trimmed and case-folded.
@@ -291,6 +322,33 @@ const TYPE_SPECIFIC_SCHEDULE_FIELDS = [
   'prn_reason',
   'prn_max_per_day',
 ] as const;
+
+// Which type-specific fields each schedule type actually uses; anything else
+// sent explicitly is rejected so a schedule cannot carry rules its due-date
+// evaluator ignores (e.g. "daily on Monday").
+const SCHEDULE_TYPE_FIELDS: Record<string, readonly string[]> = {
+  daily: [],
+  taper: [],
+  specific_days: ['days_of_week'],
+  weekly: ['days_of_week'],
+  every_n_days: ['interval_days'],
+  monthly: ['day_of_month'],
+  cyclic: ['cycle_on_days', 'cycle_off_days'],
+  prn: ['prn_reason', 'prn_max_per_day'],
+};
+
+function irrelevantScheduleField(
+  typeId: string,
+  args: Record<string, unknown>
+): string | null {
+  const allowed = SCHEDULE_TYPE_FIELDS[typeId] ?? [];
+  for (const field of TYPE_SPECIFIC_SCHEDULE_FIELDS) {
+    if (!allowed.includes(field) && args[field] !== undefined) {
+      return `${field} does not apply to a ${typeId} schedule`;
+    }
+  }
+  return null;
+}
 
 // Schedule fields forwarded verbatim from tool args to the repository.
 const SCHEDULE_PATCH_FIELDS = [
@@ -343,7 +401,10 @@ Actions:
 - add_schedule(medication_id?|medication_name?, schedule_type_id, time_of_day?, days_of_week?, interval_days?, day_of_month?, cycle_on_days?, cycle_off_days?, with_meal?, prn_reason?, prn_max_per_day?, start_date?, end_date?, dose_amount?) — schedule types: daily, specific_days, every_n_days, cyclic, weekly, monthly, prn, taper
 - update_schedule(schedule_id, any schedule field) — only provided fields change
 - delete_schedule(schedule_id) — DESTRUCTIVE: confirm with the user (sparky_ask_user) before calling
-- list_schedules(medication_id?|medication_name?) — schedules with their IDs`,
+- list_schedules(medication_id?|medication_name?) — schedules with their IDs
+- log_symptom(symptom_name, severity? 1-10, severity_label?, body_location?, context_text?, bristol_type? 1-7, medication_id?|medication_name? if a medication is suspected, entry_date?)
+- list_symptoms() — the user's tracked symptom definitions
+- list_symptom_entries(symptom_name?, from_date?, to_date?)`,
       inputSchema: manageMedicationsInput,
       execute: async (rawArgs) => {
         const normalized = normalizeActionArgs(
@@ -361,6 +422,11 @@ Actions:
                 return 'update_entry';
               }
               return 'delete_entry';
+            }
+            if (args.symptom_name) {
+              return args.from_date || args.to_date
+                ? 'list_symptom_entries'
+                : 'log_symptom';
             }
             // delete_schedule is destructive and is never inferred.
             if (args.schedule_id) {
@@ -704,6 +770,11 @@ Actions:
                 medId
               )) as MedicationDetailRow | null;
               if (!med) return ERRORS.NOT_FOUND('Medication', medId);
+              const irrelevant = irrelevantScheduleField(
+                args.schedule_type_id,
+                args as Record<string, unknown>
+              );
+              if (irrelevant) return ERRORS.VALIDATION(irrelevant);
               const fieldError = validateScheduleFields(
                 args.schedule_type_id,
                 args
@@ -764,6 +835,11 @@ Actions:
               // are cleared rather than carried, so the converted schedule
               // does not keep stale fields from its old type.
               const typeSwitched = mergedType !== existing.schedule_type_id;
+              const irrelevant = irrelevantScheduleField(
+                mergedType,
+                args as Record<string, unknown>
+              );
+              if (irrelevant) return ERRORS.VALIDATION(irrelevant);
               const mergedOf = (field: keyof ScheduleRow) => {
                 const value = (args as Record<string, unknown>)[field];
                 if (value !== undefined) return value;
@@ -840,6 +916,91 @@ Actions:
                   return text;
                 }
               );
+            }
+            case 'log_symptom': {
+              // The SQL default is UTC CURRENT_DATE; anchor to the user's day.
+              const entryDate = args.entry_date ?? todayInZone(tz);
+              if (args.medication_id) {
+                const med = (await medicationRepository.getMedicationById(
+                  userId,
+                  args.medication_id
+                )) as MedicationDetailRow | null;
+                if (!med) {
+                  return ERRORS.NOT_FOUND('Medication', args.medication_id);
+                }
+              }
+              // Link the entry to a tracked custom symptom when one matches;
+              // an unmatched name still logs as a snapshot-only entry.
+              const symptoms = (await symptomRepository.listCustomSymptoms(
+                userId
+              )) as CustomSymptomRow[];
+              const q = args.symptom_name.trim().toLowerCase();
+              const tracked = symptoms.find(
+                (sym) =>
+                  sym.name === q ||
+                  (sym.display_name ?? '').trim().toLowerCase() === q
+              );
+              const payload: CreateSymptomEntryBody = {
+                symptom_id: tracked?.id ?? null,
+                symptom_name_snapshot: args.symptom_name.trim(),
+                severity: args.severity ?? null,
+                severity_label: args.severity_label ?? null,
+                entry_date: entryDate,
+                body_location: args.body_location ?? null,
+                context_text: args.context_text ?? null,
+                bristol_type: args.bristol_type ?? null,
+                medication_id: args.medication_id ?? null,
+              };
+              const entry = (await symptomRepository.createSymptomEntry(
+                userId,
+                payload
+              )) as SymptomEntryRow;
+              const details: string[] = [];
+              if (entry.severity !== null) {
+                details.push(`severity ${entry.severity}/10`);
+              }
+              if (entry.severity_label) details.push(entry.severity_label);
+              if (entry.body_location) details.push(entry.body_location);
+              if (entry.bristol_type !== null) {
+                details.push(`Bristol type ${entry.bristol_type}`);
+              }
+              const suffix = details.length ? ` (${details.join(', ')})` : '';
+              return formatConfirmation(
+                `Symptom "${entry.symptom_name_snapshot}"${suffix} logged for ${dayString(entry.entry_date)}.`
+              );
+            }
+            case 'list_symptoms': {
+              const symptoms = (await symptomRepository.listCustomSymptoms(
+                userId
+              )) as CustomSymptomRow[];
+              return formatList(symptoms, 'Tracked Symptoms', (sym) => {
+                let text = `**${sym.display_name || sym.name}**`;
+                if (sym.is_glp1_flagged) text += ' (GLP-1 side effect)';
+                text += `\n  Scale: ${sym.scale_type}`;
+                if (sym.unit) text += ` (${sym.unit})`;
+                return text;
+              });
+            }
+            case 'list_symptom_entries': {
+              const entries = (await symptomRepository.listSymptomEntries(
+                userId,
+                {
+                  fromDate: args.from_date,
+                  toDate: args.to_date,
+                  symptomName: args.symptom_name,
+                }
+              )) as SymptomEntryRow[];
+              return formatList(entries, 'Symptom Entries', (e) => {
+                let text = `**${e.symptom_name_snapshot}** on ${dayString(e.entry_date)}`;
+                if (e.severity !== null) text += ` — severity ${e.severity}/10`;
+                else if (e.severity_label) text += ` — ${e.severity_label}`;
+                if (e.body_location) text += ` (${e.body_location})`;
+                if (e.bristol_type !== null) {
+                  text += ` — Bristol type ${e.bristol_type}`;
+                }
+                if (e.context_text) text += ` — ${e.context_text}`;
+                return text;
+              });
             }
             default:
               return ERRORS.INVALID_ACTION(
