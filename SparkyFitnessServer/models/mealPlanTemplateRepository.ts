@@ -403,35 +403,54 @@ export interface GroceryListResult {
   items: GroceryListItem[];
   unexpanded_meal_count: number;
 }
-// Shopping list for the week containing `date`: every food the active plans'
-// assignments call for, summed per (food, unit) across the week's rows —
-// direct food assignments as stored, plus one level of meal ingredients.
-// Meals nested inside meals are counted, not expanded, so the caller can
-// surface the gap instead of silently under-buying.
+// Shopping list for the 7 days starting at `date`: every food the active
+// plans' assignments call for on each concrete day, summed per (food, unit) —
+// direct food assignments as stored, plus one level of meal ingredients
+// scaled the same way diary generation scales them. Meals nested inside
+// meals are counted, not expanded, so the caller can surface the gap
+// instead of silently under-buying.
 async function getGroceryListItems(
   userId: string,
   date: string
 ): Promise<GroceryListResult> {
   const client = await getClient(userId);
   try {
+    // Seven concrete dates starting at `date`, each matched to the plans
+    // whose bounds cover THAT day — a plan starting or ending mid-week
+    // contributes only its in-bounds days. Meal ingredients are scaled by
+    // assignment.quantity / (serving_size × total_servings), mirroring the
+    // diary generation in models/foodTemplate.ts (|| 1.0 fallbacks included).
     const itemsResult = await client.query(
-      `WITH active AS (
+      `WITH days AS (
+         SELECT d::date AS day, EXTRACT(DOW FROM d)::int AS dow
+           FROM generate_series($2::date, $2::date + 6, interval '1 day') AS d
+       ),
+       active AS (
          SELECT a.item_type, a.meal_id, a.food_id, a.quantity, a.unit
-           FROM meal_plan_template_assignments a
-           JOIN meal_plan_templates t ON t.id = a.template_id
-          WHERE t.user_id = $1
+           FROM days dy
+           JOIN meal_plan_templates t
+             ON t.user_id = $1
             AND t.is_active = TRUE
-            AND t.start_date <= $2
-            AND (t.end_date IS NULL OR t.end_date >= $2)
+            AND t.start_date <= dy.day
+            AND (t.end_date IS NULL OR t.end_date >= dy.day)
+           JOIN meal_plan_template_assignments a
+             ON a.template_id = t.id
+            AND a.day_of_week = dy.dow
        ),
        items AS (
-         SELECT f.name AS food_name, act.quantity, act.unit
+         SELECT f.name AS food_name, act.quantity::float8 AS quantity, act.unit
            FROM active act
            JOIN foods f ON f.id = act.food_id
           WHERE act.item_type = 'food'
          UNION ALL
-         SELECT f.name, mf.quantity, mf.unit
+         SELECT f.name,
+                (mf.quantity * COALESCE(act.quantity, 1.0) / (
+                   COALESCE(NULLIF(m.serving_size, 0), 1.0)
+                   * COALESCE(NULLIF(m.total_servings, 0), 1.0)
+                ))::float8,
+                mf.unit
            FROM active act
+           JOIN meals m ON m.id = act.meal_id
            JOIN meal_foods mf
              ON mf.meal_id = act.meal_id AND mf.item_type = 'food'
            JOIN foods f ON f.id = mf.food_id
@@ -447,16 +466,23 @@ async function getGroceryListItems(
       [userId, date]
     );
     const nestedResult = await client.query(
-      `SELECT COUNT(*)::int AS nested
-         FROM meal_plan_template_assignments a
-         JOIN meal_plan_templates t ON t.id = a.template_id
+      `WITH days AS (
+         SELECT d::date AS day, EXTRACT(DOW FROM d)::int AS dow
+           FROM generate_series($2::date, $2::date + 6, interval '1 day') AS d
+       )
+       SELECT COUNT(*)::int AS nested
+         FROM days dy
+         JOIN meal_plan_templates t
+           ON t.user_id = $1
+          AND t.is_active = TRUE
+          AND t.start_date <= dy.day
+          AND (t.end_date IS NULL OR t.end_date >= dy.day)
+         JOIN meal_plan_template_assignments a
+           ON a.template_id = t.id
+          AND a.day_of_week = dy.dow
          JOIN meal_foods mf
            ON mf.meal_id = a.meal_id AND mf.item_type = 'meal'
-        WHERE t.user_id = $1
-          AND t.is_active = TRUE
-          AND t.start_date <= $2
-          AND (t.end_date IS NULL OR t.end_date >= $2)
-          AND a.item_type = 'meal'`,
+        WHERE a.item_type = 'meal'`,
       [userId, date]
     );
     return {

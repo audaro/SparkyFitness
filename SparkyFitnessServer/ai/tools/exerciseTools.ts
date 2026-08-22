@@ -1006,7 +1006,8 @@ Actions:
 
             case 'get_frequent_sets': {
               const weeks = args.weeks ?? 4;
-              const since = addDays(todayInZone(tz), -(weeks * 7));
+              // Inclusive of today, so N weeks spans exactly N*7 days.
+              const since = addDays(todayInZone(tz), -(weeks * 7 - 1));
               const rows = await exerciseEntryDb.getFrequentSets(
                 userId,
                 since,

@@ -1497,8 +1497,9 @@ export interface FrequentSetRow {
 // session shape (set count, reps, weight, duration picked as one tuple, so
 // the result is a session the user actually performed — independent
 // per-column modes could synthesize a reps/weight combination that never
-// happened). The upper bound matters: active workout plans pre-generate
-// diary entries for future dates, and those are prescriptions, not history.
+// happened). Plan-generated entries carry prescribed sets before anything
+// is performed, so plan-linked sets only count once completed_at is stamped,
+// and the upper bound at today keeps future prescriptions out entirely.
 async function getFrequentSets(
   userId: string,
   sinceDate: string,
@@ -1519,6 +1520,8 @@ async function getFrequentSets(
           WHERE ee.user_id = $1
             AND ee.entry_date >= $2
             AND ee.entry_date <= $3
+            AND (ee.workout_plan_assignment_id IS NULL
+                 OR ees.completed_at IS NOT NULL)
           GROUP BY ee.id, ee.exercise_id, ee.entry_date
        ),
        ranked AS (
@@ -1557,6 +1560,102 @@ async function getFrequentSets(
       [userId, sinceDate, untilDate]
     );
     return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
+export interface WeeklyTrainingDay {
+  entry_date: string;
+  exercises: number;
+  sets: number;
+  volume: number | null;
+}
+export interface WeeklyTrainingPr {
+  entry_date: string;
+  exercise_name: string;
+  reps: number | null;
+  weight: number | null;
+}
+export interface WeeklyTrainingSummary {
+  days: WeeklyTrainingDay[];
+  prs: WeeklyTrainingPr[];
+  planned_days: number;
+  trained_planned_days: number;
+}
+// One week of performed training for the weekly report. "Performed" means a
+// set with data attached, and for plan-generated entries additionally a
+// stamped completed_at — plans insert prescribed sets up front, so data
+// alone doesn't prove the session happened. Plan adherence compares the
+// weekdays an active workout plan schedules against the weekdays that
+// actually saw performed sets.
+async function getWeeklyTrainingSummary(
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<WeeklyTrainingSummary> {
+  const client = await getClient(userId);
+  try {
+    const daysResult = await client.query(
+      `SELECT ee.entry_date::TEXT AS entry_date,
+              COUNT(DISTINCT ee.id)::int AS exercises,
+              COUNT(ees.id)::int AS sets,
+              SUM(ees.reps * ees.weight)::float8 AS volume
+         FROM exercise_entries ee
+         JOIN exercise_entry_sets ees ON ees.exercise_entry_id = ee.id
+        WHERE ee.user_id = $1
+          AND ee.entry_date BETWEEN $2 AND $3
+          AND (ees.weight IS NOT NULL OR ees.reps IS NOT NULL OR ees.duration IS NOT NULL OR ees.distance IS NOT NULL)
+          AND (ee.workout_plan_assignment_id IS NULL
+               OR ees.completed_at IS NOT NULL)
+        GROUP BY ee.entry_date
+        ORDER BY ee.entry_date`,
+      [userId, startDate, endDate]
+    );
+    const prsResult = await client.query(
+      `SELECT ee.entry_date::TEXT AS entry_date,
+              e.name AS exercise_name,
+              ees.reps,
+              (ees.weight)::float8 AS weight
+         FROM exercise_entry_sets ees
+         JOIN exercise_entries ee ON ee.id = ees.exercise_entry_id
+         JOIN exercises e ON e.id = ee.exercise_id
+        WHERE ee.user_id = $1
+          AND ee.entry_date BETWEEN $2 AND $3
+          AND ees.is_pr = TRUE
+        ORDER BY ee.entry_date, e.name`,
+      [userId, startDate, endDate]
+    );
+    const adherenceResult = await client.query(
+      `WITH planned AS (
+         SELECT DISTINCT a.day_of_week
+           FROM workout_plan_template_assignments a
+           JOIN workout_plan_templates t ON t.id = a.template_id
+          WHERE t.user_id = $1
+            AND t.is_active = TRUE
+            AND (t.start_date IS NULL OR t.start_date <= $3)
+            AND (t.end_date IS NULL OR t.end_date >= $2)
+       ),
+       trained AS (
+         SELECT DISTINCT EXTRACT(DOW FROM ee.entry_date)::int AS day_of_week
+           FROM exercise_entries ee
+           JOIN exercise_entry_sets ees ON ees.exercise_entry_id = ee.id
+          WHERE ee.user_id = $1
+            AND ee.entry_date BETWEEN $2 AND $3
+            AND (ees.weight IS NOT NULL OR ees.reps IS NOT NULL OR ees.duration IS NOT NULL OR ees.distance IS NOT NULL)
+            AND (ee.workout_plan_assignment_id IS NULL
+                 OR ees.completed_at IS NOT NULL)
+       )
+       SELECT (SELECT COUNT(*) FROM planned)::int AS planned_days,
+              (SELECT COUNT(*) FROM planned p WHERE p.day_of_week IN (SELECT day_of_week FROM trained))::int AS trained_planned_days`,
+      [userId, startDate, endDate]
+    );
+    return {
+      days: daysResult.rows,
+      prs: prsResult.rows,
+      planned_days: adherenceResult.rows[0]?.planned_days ?? 0,
+      trained_planned_days: adherenceResult.rows[0]?.trained_planned_days ?? 0,
+    };
   } finally {
     client.release();
   }
@@ -1890,6 +1989,7 @@ export { getBestSetForExercise };
 export { getLastSetForExercise };
 export { getRecentSessionsForExercise };
 export { getFrequentSets };
+export { getWeeklyTrainingSummary };
 export { deleteExerciseEntriesByEntrySourceAndDate };
 export { deleteExerciseEntriesByEntrySourceAndDateWithClient };
 export { getDailyExerciseTotalsRange };
@@ -1923,6 +2023,7 @@ export default {
   getLastSetForExercise,
   getRecentSessionsForExercise,
   getFrequentSets,
+  getWeeklyTrainingSummary,
   deleteExerciseEntriesByEntrySourceAndDate,
   deleteExerciseEntriesByEntrySourceAndDateWithClient,
   getDailyExerciseTotalsRange,

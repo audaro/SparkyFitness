@@ -1,5 +1,5 @@
 import { vi, beforeEach, describe, expect, it } from 'vitest';
-import { todayInZone } from '@workspace/shared';
+import { addDays, todayInZone } from '@workspace/shared';
 import { buildExerciseTools } from '../ai/tools/exerciseTools.js';
 import exerciseService from '../services/exerciseService.js';
 import workoutPresetService from '../services/workoutPresetService.js';
@@ -1780,9 +1780,9 @@ describe('get_frequent_sets', () => {
     // plan-generated entries must not count as history.
     const [, since, until] = vi.mocked(exerciseEntryDb.getFrequentSets).mock
       .calls[0];
-    expect(since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(until).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(since < until).toBe(true);
+    // Inclusive window: exactly 6*7 days ending today.
+    expect(until).toBe(todayInZone('UTC'));
+    expect(since).toBe(addDays(todayInZone('UTC'), -(6 * 7 - 1)));
   });
 
   it('infers get_frequent_sets when only weeks is provided', async () => {
