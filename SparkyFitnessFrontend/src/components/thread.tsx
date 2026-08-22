@@ -25,6 +25,7 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAui,
   useAuiState,
 } from '@assistant-ui/react';
 import type { AssistantRuntime } from '@assistant-ui/react';
@@ -39,12 +40,27 @@ import {
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
+  MicIcon,
   MoreHorizontalIcon,
   PencilIcon,
   RefreshCwIcon,
   SquareIcon,
+  Volume2Icon,
+  VolumeXIcon,
 } from 'lucide-react';
 import type { FC } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  isDictationSupported,
+  isSpeechSynthesisSupported,
+  isVoiceRepliesEnabled,
+  setVoiceRepliesEnabled,
+  speakMarkdown,
+  startDictation,
+  stopSpeaking,
+  subscribeVoiceReplies,
+  type BrowserSpeechRecognition,
+} from '@/lib/speech';
 
 interface ThreadProps {
   runtime?: AssistantRuntime;
@@ -64,41 +80,44 @@ export const Thread: FC<ThreadProps> = ({ runtime }) => {
 
 const ThreadInner: FC = () => {
   return (
-    <ThreadPrimitive.Root
-      className="aui-root aui-thread-root bg-background @container flex h-full flex-col"
-      style={{
-        ['--thread-max-width' as string]: '44rem',
-        ['--composer-radius' as string]: '24px',
-        ['--composer-padding' as string]: '10px',
-      }}
-    >
-      <ThreadPrimitive.Viewport
-        turnAnchor="top"
-        data-slot="aui_thread-viewport"
-        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth"
+    <>
+      <SpeakOnSettle />
+      <ThreadPrimitive.Root
+        className="aui-root aui-thread-root bg-background @container flex h-full flex-col"
+        style={{
+          ['--thread-max-width' as string]: '44rem',
+          ['--composer-radius' as string]: '24px',
+          ['--composer-padding' as string]: '10px',
+        }}
       >
-        <div className="mx-auto flex w-full max-w-[44rem] flex-1 flex-col px-4 pt-4">
-          <AuiIf condition={(s) => s.thread.isEmpty}>
-            <ThreadWelcome />
-          </AuiIf>
+        <ThreadPrimitive.Viewport
+          turnAnchor="top"
+          data-slot="aui_thread-viewport"
+          className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth"
+        >
+          <div className="mx-auto flex w-full max-w-[44rem] flex-1 flex-col px-4 pt-4">
+            <AuiIf condition={(s) => s.thread.isEmpty}>
+              <ThreadWelcome />
+            </AuiIf>
 
-          <div
-            data-slot="aui_message-group"
-            className="mb-10 flex flex-col gap-y-8 empty:hidden"
-          >
-            <ThreadPrimitive.Messages>
-              {() => <ThreadMessage />}
-            </ThreadPrimitive.Messages>
+            <div
+              data-slot="aui_message-group"
+              className="mb-10 flex flex-col gap-y-8 empty:hidden"
+            >
+              <ThreadPrimitive.Messages>
+                {() => <ThreadMessage />}
+              </ThreadPrimitive.Messages>
+            </div>
+
+            <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer bg-background sticky bottom-0 mt-auto flex flex-col gap-4 overflow-visible pb-4 md:pb-6">
+              <ThreadScrollToBottom />
+              <SessionTokenUsage />
+              <Composer />
+            </ThreadPrimitive.ViewportFooter>
           </div>
-
-          <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer bg-background sticky bottom-0 mt-auto flex flex-col gap-4 overflow-visible pb-4 md:pb-6">
-            <ThreadScrollToBottom />
-            <SessionTokenUsage />
-            <Composer />
-          </ThreadPrimitive.ViewportFooter>
-        </div>
-      </ThreadPrimitive.Viewport>
-    </ThreadPrimitive.Root>
+        </ThreadPrimitive.Viewport>
+      </ThreadPrimitive.Root>
+    </>
   );
 };
 
@@ -199,12 +218,141 @@ const Composer: FC = () => {
   );
 };
 
+/**
+ * Composer dictation: browser SpeechRecognition streams the live transcript
+ * into the composer input; recognition ends on a pause in speech or a second
+ * click, and the user reviews/edits before sending. Hidden entirely in
+ * browsers without the Web Speech API (e.g. Firefox).
+ */
+const ComposerDictateButton: FC = () => {
+  const aui = useAui();
+  const [dictating, setDictating] = useState(false);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+
+  // Never leave the mic hot if the composer unmounts mid-dictation.
+  useEffect(
+    () => () => {
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
+    },
+    []
+  );
+
+  if (!isDictationSupported()) return null;
+
+  const handleClick = () => {
+    if (dictating) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    stopSpeaking();
+    const recognition = startDictation({
+      onTranscript: (text) => aui.composer().setText(text),
+      onEnd: () => {
+        recognitionRef.current = null;
+        setDictating(false);
+      },
+    });
+    if (recognition) {
+      recognitionRef.current = recognition;
+      setDictating(true);
+    }
+  };
+
+  return (
+    <TooltipIconButton
+      tooltip={dictating ? 'Stop dictation' : 'Dictate a message'}
+      side="bottom"
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={cn(
+        'aui-composer-dictate size-8 rounded-full',
+        dictating && 'text-destructive animate-pulse'
+      )}
+      aria-label={dictating ? 'Stop dictation' : 'Dictate a message'}
+      onClick={handleClick}
+    >
+      <MicIcon className="size-4" />
+    </TooltipIconButton>
+  );
+};
+
+/** Toggle for reading Sparky's replies aloud (browser speech synthesis). */
+const VoiceRepliesToggle: FC = () => {
+  const enabled = useSyncExternalStore(
+    subscribeVoiceReplies,
+    isVoiceRepliesEnabled
+  );
+
+  if (!isSpeechSynthesisSupported()) return null;
+
+  return (
+    <TooltipIconButton
+      tooltip={enabled ? 'Turn off spoken replies' : 'Read replies aloud'}
+      side="bottom"
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="aui-composer-voice-toggle size-8 rounded-full"
+      aria-label={enabled ? 'Turn off spoken replies' : 'Read replies aloud'}
+      onClick={() => setVoiceRepliesEnabled(!enabled)}
+    >
+      {enabled ? (
+        <Volume2Icon className="size-4" />
+      ) : (
+        <VolumeXIcon className="size-4" />
+      )}
+    </TooltipIconButton>
+  );
+};
+
+/**
+ * Headless speak-back: when a streamed reply settles (isRunning true → false)
+ * and spoken replies are on, reads the final assistant message aloud. History
+ * rendered on mount never speaks — only a settle observed while open does.
+ */
+const SpeakOnSettle: FC = () => {
+  const enabled = useSyncExternalStore(
+    subscribeVoiceReplies,
+    isVoiceRepliesEnabled
+  );
+  const isRunning = useAuiState((s) => s.thread.isRunning);
+  const lastAssistantText = useAuiState((s) => {
+    const messages = s.thread.messages;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== 'assistant') return '';
+    return last.content
+      .filter(
+        (part): part is { type: 'text'; text: string } =>
+          part.type === 'text' &&
+          typeof (part as { text?: unknown }).text === 'string'
+      )
+      .map((part) => part.text)
+      .join('\n');
+  });
+  const prevRunningRef = useRef(false);
+
+  useEffect(() => {
+    if (prevRunningRef.current && !isRunning && enabled && lastAssistantText) {
+      speakMarkdown(lastAssistantText);
+    }
+    prevRunningRef.current = isRunning;
+  }, [isRunning, enabled, lastAssistantText]);
+
+  useEffect(() => () => stopSpeaking(), []);
+
+  return null;
+};
+
 const ComposerAction: FC = () => {
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <div className="flex items-center gap-1">
         <ComposerAddAttachment />
         <ChatToolCategoriesSelector />
+        <ComposerDictateButton />
+        <VoiceRepliesToggle />
       </div>
       <AuiIf condition={(s) => !s.thread.isRunning}>
         <ComposerPrimitive.Send asChild>
