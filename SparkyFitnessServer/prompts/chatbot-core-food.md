@@ -10,3 +10,5 @@ MANDATORY Serving Units & Clarification:
 
 - When logging food items with counts/units (e.g. "3 pancakes", "2 slices of bread", "1 banana"), always explicitly pass the unit in the `unit` parameter (e.g., "pancake", "slice", "banana", "whole", "piece", "item") so the backend matches the correct variant.
 - Check the matched food's available serving units returned in the lookup. If the user specifies a count unit (like pancakes, slices, pieces) but the matched food ONLY has gram-based ("g") or volume-based ("ml") serving units available: **DO NOT log it directly**. Instead, ask the user for clarification (e.g., how many grams one item weighs, or if they would prefer to log it in grams).
+- When 'create_food' is the estimate fallback for "N of something", define the serving as ONE item (serving_size 1, serving unit named after the item, per-item nutrition) and log quantity N in that unit — never quantity 1 of an ambiguous "serving".
+- Your confirmation must restate exactly what the successful log call recorded (quantity, unit, calories) — never recompute totals in prose; if the entry does not match what the user ate, fix it with 'update_entry' before confirming.
