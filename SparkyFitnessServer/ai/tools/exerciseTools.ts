@@ -552,6 +552,9 @@ Actions:
             if (args.searchTerm) {
               return 'search_exercises';
             }
+            if (args.weeks !== undefined) {
+              return 'get_frequent_sets';
+            }
             if (args.sets || args.duration_minutes || args.calories_burned) {
               return 'log_exercise';
             }
@@ -1004,7 +1007,11 @@ Actions:
             case 'get_frequent_sets': {
               const weeks = args.weeks ?? 4;
               const since = addDays(todayInZone(tz), -(weeks * 7));
-              const rows = await exerciseEntryDb.getFrequentSets(userId, since);
+              const rows = await exerciseEntryDb.getFrequentSets(
+                userId,
+                since,
+                todayInZone(tz)
+              );
               if (rows.length === 0) {
                 return `No repeated workouts found in the last ${weeks} weeks (an exercise must appear on the same weekday at least twice to count). Ask the user about their routine instead.`;
               }

@@ -1493,12 +1493,16 @@ export interface FrequentSetRow {
   modal_duration: number | null;
 }
 // "What does this user usually do?" — for each weekday/exercise pair trained
-// at least twice since `sinceDate`, the modal (most common) set count, reps,
-// weight, and duration. Mode is taken over per-session aggregates so one
-// unusual session cannot outvote the routine set-by-set.
+// at least twice between `sinceDate` and `untilDate`, the most frequent
+// session shape (set count, reps, weight, duration picked as one tuple, so
+// the result is a session the user actually performed — independent
+// per-column modes could synthesize a reps/weight combination that never
+// happened). The upper bound matters: active workout plans pre-generate
+// diary entries for future dates, and those are prescriptions, not history.
 async function getFrequentSets(
   userId: string,
-  sinceDate: string
+  sinceDate: string,
+  untilDate: string
 ): Promise<FrequentSetRow[]> {
   const client = await getClient(userId);
   try {
@@ -1514,22 +1518,43 @@ async function getFrequentSets(
            JOIN exercise_entry_sets ees ON ees.exercise_entry_id = ee.id
           WHERE ee.user_id = $1
             AND ee.entry_date >= $2
+            AND ee.entry_date <= $3
           GROUP BY ee.id, ee.exercise_id, ee.entry_date
+       ),
+       ranked AS (
+         SELECT s.day_of_week,
+                s.exercise_id,
+                e.name AS exercise_name,
+                SUM(COUNT(*)) OVER (
+                  PARTITION BY s.day_of_week, s.exercise_id
+                )::int AS session_count,
+                s.set_count AS modal_sets,
+                (s.session_reps)::int AS modal_reps,
+                (s.session_weight)::float8 AS modal_weight,
+                (s.session_duration)::int AS modal_duration,
+                ROW_NUMBER() OVER (
+                  PARTITION BY s.day_of_week, s.exercise_id
+                  ORDER BY COUNT(*) DESC, s.set_count DESC NULLS LAST
+                ) AS rn
+           FROM sessions s
+           JOIN exercises e ON e.id = s.exercise_id
+          GROUP BY s.day_of_week, s.exercise_id, e.name,
+                   s.set_count, s.session_reps, s.session_weight,
+                   s.session_duration
        )
-       SELECT s.day_of_week,
-              s.exercise_id,
-              e.name AS exercise_name,
-              COUNT(*)::int AS session_count,
-              (mode() WITHIN GROUP (ORDER BY s.set_count))::int AS modal_sets,
-              (mode() WITHIN GROUP (ORDER BY s.session_reps))::int AS modal_reps,
-              (mode() WITHIN GROUP (ORDER BY s.session_weight))::float8 AS modal_weight,
-              (mode() WITHIN GROUP (ORDER BY s.session_duration))::int AS modal_duration
-         FROM sessions s
-         JOIN exercises e ON e.id = s.exercise_id
-        GROUP BY s.day_of_week, s.exercise_id, e.name
-       HAVING COUNT(*) >= 2
-        ORDER BY s.day_of_week, COUNT(*) DESC, e.name`,
-      [userId, sinceDate]
+       SELECT day_of_week,
+              exercise_id,
+              exercise_name,
+              session_count,
+              modal_sets,
+              modal_reps,
+              modal_weight,
+              modal_duration
+         FROM ranked
+        WHERE rn = 1
+          AND session_count >= 2
+        ORDER BY day_of_week, session_count DESC, exercise_name`,
+      [userId, sinceDate, untilDate]
     );
     return result.rows;
   } finally {

@@ -1776,9 +1776,27 @@ describe('get_frequent_sets', () => {
         '\n## Thursday\n' +
         `- Squats — 3 sessions, typically 3×5 @ 90kg (id: ${EXERCISE_ID})`
     );
-    // Window: 6 weeks back from today (UTC) — the repo gets a day string.
-    const since = vi.mocked(exerciseEntryDb.getFrequentSets).mock.calls[0][1];
+    // Window: 6 weeks back from today (UTC) through today — future
+    // plan-generated entries must not count as history.
+    const [, since, until] = vi.mocked(exerciseEntryDb.getFrequentSets).mock
+      .calls[0];
     expect(since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(until).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(since < until).toBe(true);
+  });
+
+  it('infers get_frequent_sets when only weeks is provided', async () => {
+    vi.mocked(exerciseEntryDb.getFrequentSets).mockResolvedValue([]);
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      { weeks: 2 },
+      opts
+    );
+
+    expect(result).toBe(
+      'No repeated workouts found in the last 2 weeks (an exercise must appear on the same weekday at least twice to count). Ask the user about their routine instead.'
+    );
+    expect(exerciseEntryDb.getFrequentSets).toHaveBeenCalledTimes(1);
   });
 
   it('explains an empty result instead of inventing a routine', async () => {
