@@ -117,6 +117,10 @@ SparkyAI provides a conversational interface for logging data and reviewing prog
 
 Note: AI features are currently in beta.
 
+## Connect an AI Assistant (MCP)
+
+The full chatbot tool set is also served over the [Model Context Protocol](https://modelcontextprotocol.io) at `POST /mcp`, in-process — no separate service. Point Claude Desktop, Cursor, or any MCP client at `https://<your-host>/mcp` with an `Authorization: Bearer <API key>` header (generate the key under **Settings → Developer & Integrations → API Key Management**). Client-specific configs, including the `mcp-remote` bridge for stdio-only clients, are in the [MCP server guide](https://codewithcj.github.io/SparkyFitness/features/mcp-server).
+
 ## Installation
 
 Choose one of the two ways to run SparkyFitness:

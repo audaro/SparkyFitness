@@ -23,6 +23,8 @@ vi.mock('../utils/timezoneLoader', () => ({
   loadUserTimezone: vi.fn(async () => 'UTC'),
 }));
 // goalService backs the sparky_get_goal_snapshot tools/call case.
+// Automocked: getCoachProfile resolves undefined, i.e. "no profile yet".
+vi.mock('../models/coachProfileRepository');
 vi.mock('../services/goalService', () => ({
   default: { getUserGoals: vi.fn() },
 }));
@@ -211,6 +213,29 @@ describe('POST /mcp', () => {
       undefined,
       true
     );
+  });
+
+  it('tools/call serves the coach profile tool with chat-golden output', async () => {
+    const res = await request(app)
+      .post('/mcp')
+      .set(MCP_HEADERS)
+      .set('Authorization', 'Bearer valid')
+      .send({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: { name: 'sparky_manage_coach_profile', arguments: {} },
+      });
+
+    expect(res.status).toBe(200);
+    // Exact same text the chatbotToolsCoachProfile golden asserts for the
+    // no-profile case — the MCP path must not diverge from the chat path.
+    expect(res.body.result.content).toEqual([
+      {
+        type: 'text',
+        text: 'No coach profile yet. Interview the user conversationally (goals, training days per week, minutes per session, equipment, injuries/limitations, food preferences) before their first program, then save the answers with update_coach_profile.',
+      },
+    ]);
   });
 
   it('returns a per-action validation error instead of -32602 when a required field is passed as null', async () => {
