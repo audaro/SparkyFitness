@@ -2461,7 +2461,14 @@ async function processQuickLog(
   });
 
   let text = result.text.trim();
-  if (!text) {
+  // Never let model prose claim success when every executed tool failed —
+  // surface the last tool's own error line instead. Successful reads and
+  // confirmations (anything not 'Error […]') keep the model's wording.
+  const allToolsFailed =
+    actions.length > 0 && actions.every((a) => a.summary.startsWith('Error ['));
+  if (allToolsFailed) {
+    text = actions[actions.length - 1].summary;
+  } else if (!text) {
     text = actions.some((a) => a.summary.startsWith('✅'))
       ? 'Logged it for you.'
       : EMPTY_RESPONSE_ERROR_TEXT;

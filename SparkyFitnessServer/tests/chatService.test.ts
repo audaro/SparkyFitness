@@ -1180,6 +1180,37 @@ describe('chatService', () => {
         ).rejects.toThrow('AI service setting not found for quick-log.');
       });
 
+      it('replaces model prose with the tool error when every executed tool failed', async () => {
+        vi.mocked(foodRepository.getFoodsWithPagination).mockRejectedValue(
+          new Error('boom')
+        );
+        scriptModel([
+          toolCallStep({
+            action: 'log_food',
+            food_name: 'Eggs',
+            quantity: 2,
+            unit: 'serving',
+            meal_type: 'breakfast',
+            entry_date: '2026-06-10',
+          }),
+          // The model hallucinates success; the response must not repeat it.
+          textStep('Logged your eggs!'),
+        ]);
+
+        const result = await chatService.processQuickLog(
+          'log 2 eggs',
+          activeUserId,
+          actorUserId,
+          false,
+          'svc-1'
+        );
+
+        expect(result.text).toBe(
+          'Error [DB_ERROR]: A database error occurred.'
+        );
+        expect(result.actions).toHaveLength(1);
+      });
+
       it('substitutes a confirmation when the model returns no text after a successful action', async () => {
         vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
           {
