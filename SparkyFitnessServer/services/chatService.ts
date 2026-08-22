@@ -33,6 +33,7 @@ import {
   ChatToolCategorySlug,
   CHAT_TOOL_CATEGORY_SLUGS,
   isChatToolCategorySlug,
+  PROPOSE_WORKOUT_PRESET_TOOL_NAME,
 } from '@workspace/shared';
 
 interface ChatMessagePart {
@@ -447,6 +448,10 @@ const chatContextInputsCache = new TtlCache<{
 //   turn is over — without this the echoed tool result would come straight back
 //   and the model would answer its own question. Harmless on the non-streaming
 //   path (no chip UI there): the question simply degrades to plain text.
+// - sparky_propose_workout_preset: the model has put a proposal card in front
+//   of the user; the turn is over for the same reason — without this the
+//   echoed result would come back and the model could "accept" its own
+//   proposal by calling create_workout_preset.
 export function buildChatStopConditions(toolProfile: ChatToolProfile) {
   return [
     stepCountIs(
@@ -455,6 +460,7 @@ export function buildChatStopConditions(toolProfile: ChatToolProfile) {
         : MAX_AGENTIC_STEPS
     ),
     hasToolCall(ASK_USER_TOOL_NAME),
+    hasToolCall(PROPOSE_WORKOUT_PRESET_TOOL_NAME),
   ];
 }
 
@@ -582,9 +588,12 @@ async function prepareChatContext(
         )
       ),
       ENABLE_TOOLS_TOOL_NAME,
-      // Quick-reply chips: full profile only. The tool belongs to no category,
-      // so it is never pulled in by the classifier — it has to be added here.
-      ...(toolProfile === 'full' ? [ASK_USER_TOOL_NAME] : []),
+      // Chat-only tools: full profile only. They belong to no category, so
+      // they are never pulled in by the classifier — they have to be added
+      // here. (Core-profile models get neither chips nor proposal cards.)
+      ...(toolProfile === 'full'
+        ? [ASK_USER_TOOL_NAME, PROPOSE_WORKOUT_PRESET_TOOL_NAME]
+        : []),
     ];
     prepareStep = buildEscalationPrepareStep(
       surface.toolNamesByCategory,
@@ -1048,6 +1057,25 @@ function noteStreamParameterRejection(
 // the client (and out of saved history).
 const ASK_USER_PART_TYPE = `tool-${ASK_USER_TOOL_NAME}`;
 
+// The part type for a sparky_propose_workout_preset tool call — the proposal
+// card renders client-side from this part's input, so it must survive
+// persistence and replay like the ask-user part does.
+const PROPOSAL_PART_TYPE = `tool-${PROPOSE_WORKOUT_PRESET_TOOL_NAME}`;
+
+// Replays a stored proposal part as plain text so the model remembers what it
+// proposed in earlier turns (name and size are enough context — the card and
+// the user's accept/undo replies carry the rest) without any tool_use block
+// reaching a provider.
+function proposalPartToText(part: ChatMessagePart): string | null {
+  const input = part.input as
+    | { name?: unknown; exercises?: unknown }
+    | undefined;
+  const name = typeof input?.name === 'string' ? input.name : '';
+  if (!name) return null;
+  const count = Array.isArray(input?.exercises) ? input.exercises.length : 0;
+  return `[You proposed workout preset "${name}" with ${count} exercises. The user saw an interactive card.]`;
+}
+
 // Replays a quick-reply tool call as plain text so the model remembers the
 // question it asked and what the chips meant.
 //
@@ -1116,6 +1144,9 @@ function mapMessagePart(part: ChatMessagePart): ProcessedMessagePart {
   }
   if (part.type === ASK_USER_PART_TYPE) {
     return { type: 'text' as const, text: askUserPartToText(part) ?? '' };
+  }
+  if (part.type === PROPOSAL_PART_TYPE) {
+    return { type: 'text' as const, text: proposalPartToText(part) ?? '' };
   }
   if (part.type.startsWith('tool-')) {
     return { type: 'text' as const, text: toolPartToText(part) ?? '' };
@@ -2168,7 +2199,14 @@ async function processChatMessageStream(
           (call) => call.toolName === ASK_USER_TOOL_NAME
         );
 
-        if (!text.trim() && !askCall) {
+        // Same reasoning for a turn that ends on a proposal card: the entire
+        // routine lives in the tool call's input, and the card re-renders from
+        // the persisted part after a reload.
+        const proposeCall = toolCalls?.find(
+          (call) => call.toolName === PROPOSE_WORKOUT_PRESET_TOOL_NAME
+        );
+
+        if (!text.trim() && !askCall && !proposeCall) {
           log(
             'warn',
             `Skipping empty assistant chat history for user ${userId} (finishReason: ${finishReason})`
@@ -2187,18 +2225,33 @@ async function processChatMessageStream(
             output: '',
           });
         }
+        if (proposeCall) {
+          assistantParts.push({
+            type: PROPOSAL_PART_TYPE,
+            toolCallId: proposeCall.toolCallId,
+            state: 'output-available',
+            input: proposeCall.input,
+            output: '',
+          });
+        }
 
+        const proposeInput = proposeCall?.input as
+          | { name?: unknown }
+          | undefined;
         await chatRepository
           .saveChatHistory({
             user_id: userId,
-            // The question is the user-visible content when the model let the
-            // chips speak for it.
+            // The question (or the proposal) is the user-visible content when
+            // the model let the card speak for it.
             content:
               text.trim() ||
               askUserPartToText({
                 type: ASK_USER_PART_TYPE,
                 input: askCall?.input,
               }) ||
+              (proposeCall && typeof proposeInput?.name === 'string'
+                ? `Proposed workout preset "${proposeInput.name}".`
+                : '') ||
               '',
             messageType: 'assistant',
             parts: assistantParts,

@@ -7,7 +7,10 @@ import chatService, {
   mapUsageToMetadata,
   buildChatStopConditions,
 } from '../services/chatService.js';
-import { ASK_USER_TOOL_NAME } from '@workspace/shared';
+import {
+  ASK_USER_TOOL_NAME,
+  PROPOSE_WORKOUT_PRESET_TOOL_NAME,
+} from '@workspace/shared';
 import chatRepository from '../models/chatRepository.js';
 import {
   recordRejectedParam,
@@ -652,7 +655,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 21\/38 active tools for chatbot \(profile=core/
+          /Loaded 21\/39 active tools for chatbot \(profile=core/
         )
       );
       // The core profile is the mitigation, so no context-window warning.
@@ -734,7 +737,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 38\/38 active tools for chatbot \(profile=full/
+          /Loaded 39\/39 active tools for chatbot \(profile=full/
         )
       );
       // Ollama + full profile is the risky combo, so warn about the 4096 default.
@@ -767,7 +770,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 38\/38 active tools for chatbot \(profile=full/
+          /Loaded 39\/39 active tools for chatbot \(profile=full/
         )
       );
     });
@@ -795,7 +798,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 38\/38 active tools for chatbot \(profile=full/
+          /Loaded 39\/39 active tools for chatbot \(profile=full/
         )
       );
       // The context-window warning is Ollama-only; cloud providers never see it.
@@ -1052,6 +1055,44 @@ describe('chatService', () => {
 
       expect(modelToolNames(model)).toContain(ASK_USER_TOOL_NAME);
     });
+
+    // A stored proposal part must replay as text — otherwise after a reload
+    // the model has no memory of what it proposed and re-proposes from
+    // scratch when the user says "make the second one harder".
+    it('replays a previous workout proposal as text so the model remembers it', async () => {
+      const model = scriptModel([textStep('Sure, revising.')]);
+
+      await chatService.processChatMessage(
+        [
+          { role: 'user', content: 'build me a push day' },
+          {
+            role: 'assistant',
+            content: '',
+            parts: [
+              {
+                type: `tool-${PROPOSE_WORKOUT_PRESET_TOOL_NAME}`,
+                input: {
+                  name: 'Push Day',
+                  exercises: [
+                    { exercise_id: 'e1', exercise_name: 'Bench Press' },
+                    { exercise_id: 'e2', exercise_name: 'Overhead Press' },
+                  ],
+                },
+              },
+            ],
+          },
+          { role: 'user', content: 'Please revise: less bench volume' },
+        ] as unknown as Parameters<typeof chatService.processChatMessage>[0],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+
+      const sent = JSON.stringify(model.doGenerateCalls[0].prompt);
+      expect(sent).toContain(
+        'You proposed workout preset \\"Push Day\\" with 2 exercises'
+      );
+    });
   });
 
   // The agent loop must halt the moment the model offers chips. Without this the
@@ -1076,6 +1117,35 @@ describe('chatService', () => {
       };
       expect(
         stopOnAsk(loggingStep as unknown as Parameters<typeof stopOnAsk>[0])
+      ).toBe(false);
+    });
+
+    // Same halt for a proposal card: without it the echoed tool result feeds
+    // straight back and the model could "accept" its own proposal by calling
+    // create_workout_preset itself.
+    it('stops the loop as soon as sparky_propose_workout_preset is called', () => {
+      const [, , stopOnPropose] = buildChatStopConditions('full');
+      const proposeCallStep = {
+        steps: [
+          { toolCalls: [{ toolName: PROPOSE_WORKOUT_PRESET_TOOL_NAME }] },
+        ],
+      };
+      expect(
+        stopOnPropose(
+          proposeCallStep as unknown as Parameters<typeof stopOnPropose>[0]
+        )
+      ).toBe(true);
+    });
+
+    it('does not stop the proposal condition for an ordinary tool call', () => {
+      const [, , stopOnPropose] = buildChatStopConditions('full');
+      const loggingStep = {
+        steps: [{ toolCalls: [{ toolName: 'sparky_manage_exercise' }] }],
+      };
+      expect(
+        stopOnPropose(
+          loggingStep as unknown as Parameters<typeof stopOnPropose>[0]
+        )
       ).toBe(false);
     });
   });
@@ -1367,6 +1437,68 @@ describe('chatService', () => {
           messageType: 'user',
           content: 'Show my goal timeline',
         })
+      );
+    });
+
+    // A turn that ends on a proposal card with no accompanying text must still
+    // persist: the whole routine lives in the tool call's input, and the card
+    // re-renders from the saved part after a reload.
+    it('persists a proposal-only turn with the proposal part and a readable content fallback', async () => {
+      const proposalInput = {
+        name: 'Push Day',
+        exercises: [
+          {
+            exercise_id: '55555555-5555-4555-8555-555555555555',
+            exercise_name: 'Bench Press',
+            sort_order: 0,
+            sets: [{ set_number: 1, reps: 8, weight: 60, rest_time: 120 }],
+          },
+          {
+            exercise_id: '66666666-6666-4666-8666-666666666666',
+            exercise_name: 'Overhead Press',
+            sort_order: 1,
+            sets: [{ set_number: 1, reps: 10, weight: 30 }],
+          },
+        ],
+      };
+      streamModel([
+        { type: 'stream-start', warnings: [] },
+        {
+          type: 'tool-call',
+          toolCallId: 'call-propose-1',
+          toolName: PROPOSE_WORKOUT_PRESET_TOOL_NAME,
+          input: JSON.stringify(proposalInput),
+        },
+        {
+          type: 'finish',
+          finishReason: { unified: 'tool-calls', raw: undefined },
+          usage,
+        },
+      ]);
+
+      const { stream } = await chatService.processChatMessageStream(
+        [{ role: 'user', content: 'build me a push day' }],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+      await drainStream(stream);
+
+      await vi.waitFor(() =>
+        expect(chatRepository.saveChatHistory).toHaveBeenCalledWith(
+          expect.objectContaining({
+            messageType: 'assistant',
+            content: 'Proposed workout preset "Push Day".',
+            parts: [
+              expect.objectContaining({
+                type: `tool-${PROPOSE_WORKOUT_PRESET_TOOL_NAME}`,
+                toolCallId: 'call-propose-1',
+                state: 'output-available',
+                input: expect.objectContaining({ name: 'Push Day' }),
+              }),
+            ],
+          })
+        )
       );
     });
 

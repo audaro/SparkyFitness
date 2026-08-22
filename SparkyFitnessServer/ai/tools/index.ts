@@ -18,6 +18,7 @@ import { buildHabitTools } from './habitTools.js';
 import { buildMedicationTools } from './medicationTools.js';
 import { ENABLE_TOOLS_TOOL_NAME, buildMetaTools } from './metaTools.js';
 import { buildProfileTools } from './profileTools.js';
+import { buildProposalTools } from './proposalTools.js';
 import { buildReportTools } from './reportTools.js';
 import { buildVisionTools } from './visionTools.js';
 import { buildWizardTools } from './wizardTools.js';
@@ -260,10 +261,14 @@ export function buildChatbotTools(
   }
 
   const tools = composeTools(userId, tz, profile, categories);
-  // Composed last so applyChatProviderTuning's Anthropic cache breakpoint lands
-  // on it: when present it is always present, so the marker position stays
-  // stable no matter which categories were selected.
+  // Chat-only tools ride the same flag: like sparky_ask_user, the proposal
+  // card tool renders client-side UI, so it must stay off the MCP surface
+  // (an MCP client would be told a card was shown that nobody can see).
+  // Ask is composed last so applyChatProviderTuning's Anthropic cache
+  // breakpoint lands on it: when present it is always present, so the marker
+  // position stays stable no matter which categories were selected.
   if (includeAskTool) {
+    Object.assign(tools, buildProposalTools());
     Object.assign(tools, buildAskTools());
   }
   if (providerTuning) {
@@ -311,9 +316,11 @@ export function buildChatToolSurface(
   }
 
   const { tools, toolNamesByCategory } = composeAllToolsWithIndex(userId, tz);
-  // The quick-reply tool is composed for every surface but only made active for
-  // the 'full' profile (see activeToolNames in chatService.ts); it belongs to no
-  // category, so it is not in toolNamesByCategory.
+  // The chat-only tools (quick replies and the workout proposal card) are
+  // composed for every surface but only made active for the 'full' profile
+  // (see activeToolNames in chatService.ts); they belong to no category, so
+  // they are not in toolNamesByCategory.
+  Object.assign(tools, buildProposalTools());
   Object.assign(tools, buildAskTools());
   // The escalation tool must be composed last so applyChatProviderTuning's
   // Anthropic cache breakpoint lands on it — it is always present and always

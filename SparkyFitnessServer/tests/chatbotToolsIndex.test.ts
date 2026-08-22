@@ -1,7 +1,10 @@
 import { vi, describe, expect, it } from 'vitest';
 import { buildChatbotTools, buildChatToolSurface } from '../ai/tools/index.js';
 import { ENABLE_TOOLS_TOOL_NAME } from '../ai/tools/metaTools.js';
-import { ASK_USER_TOOL_NAME } from '@workspace/shared';
+import {
+  ASK_USER_TOOL_NAME,
+  PROPOSE_WORKOUT_PRESET_TOOL_NAME,
+} from '@workspace/shared';
 
 // Loading the real foodEntryService trips on a deep '@workspace/shared'
 // subpath import; the registry surface test never executes handlers.
@@ -299,9 +302,10 @@ describe('buildChatbotTools', () => {
 });
 
 // buildChatToolSurface backs the chat (not MCP) path: it always composes the
-// full tool map plus the two chat-only tools (sparky_ask_user quick replies and
-// the sparky_enable_tools escalation tool), and callers narrow per-request via
-// the AI SDK's activeTools instead of recomposing.
+// full tool map plus the chat-only tools (the sparky_propose_workout_preset
+// proposal card, sparky_ask_user quick replies, and the sparky_enable_tools
+// escalation tool), and callers narrow per-request via the AI SDK's
+// activeTools instead of recomposing.
 describe('buildChatToolSurface', () => {
   it('includes every domain tool plus the chat-only tools, with the escalation tool last', () => {
     const { tools } = buildChatToolSurface('surface-user', 'UTC');
@@ -310,18 +314,24 @@ describe('buildChatToolSurface', () => {
     // as sets; only the trailing position of the escalation tool is order-
     // sensitive (it's what the Anthropic cache breakpoint anchors to).
     expect(names.slice(0, -1).sort()).toEqual(
-      [...EXPECTED_TOOLS, ASK_USER_TOOL_NAME].sort()
+      [
+        ...EXPECTED_TOOLS,
+        ASK_USER_TOOL_NAME,
+        PROPOSE_WORKOUT_PRESET_TOOL_NAME,
+      ].sort()
     );
     expect(names[names.length - 1]).toBe(ENABLE_TOOLS_TOOL_NAME);
   });
 
-  // sparky_ask_user belongs to no category, so a category selection can never
-  // pull it in — chatService adds it to activeTools explicitly (full profile
-  // only). If it ever leaked into a category, 'core' would start shipping it.
-  it('keeps sparky_ask_user out of the per-category name index', () => {
+  // The chat-only tools belong to no category, so a category selection can
+  // never pull them in — chatService adds them to activeTools explicitly (full
+  // profile only). If one ever leaked into a category, 'core' would start
+  // shipping it (and MCP would inherit UI-only tools it cannot render).
+  it('keeps the chat-only tools out of the per-category name index', () => {
     const { toolNamesByCategory } = buildChatToolSurface('surface-user', 'UTC');
     for (const names of Object.values(toolNamesByCategory)) {
       expect(names).not.toContain(ASK_USER_TOOL_NAME);
+      expect(names).not.toContain(PROPOSE_WORKOUT_PRESET_TOOL_NAME);
     }
   });
 
