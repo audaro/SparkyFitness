@@ -1094,6 +1094,132 @@ describe('chatService', () => {
         'You proposed workout preset \\"Push Day\\" with 2 exercises'
       );
     });
+
+    describe('processQuickLog', () => {
+      it('executes a log in-process with the core tool set and returns text + action summaries, saving no history', async () => {
+        vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+          {
+            ...eggsRow,
+            default_variant: {
+              ...eggsRow.default_variant,
+              serving_size: 1,
+              serving_unit: 'serving',
+            },
+          },
+        ]);
+        vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+        vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+          id: 'entry-1',
+          food_name: 'Eggs',
+        });
+        const model = scriptModel([
+          toolCallStep({
+            action: 'log_food',
+            food_name: 'Eggs',
+            quantity: 2,
+            unit: 'serving',
+            meal_type: 'breakfast',
+            entry_date: '2026-06-10',
+          }),
+          textStep('Logged 2 eggs for breakfast.'),
+        ]);
+
+        const result = await chatService.processQuickLog(
+          'log 2 eggs for breakfast',
+          activeUserId,
+          actorUserId,
+          false,
+          'svc-1'
+        );
+
+        expect(result.text).toBe('Logged 2 eggs for breakfast.');
+        expect(result.actions).toHaveLength(1);
+        expect(result.actions[0].toolName).toBe('sparky_manage_food');
+        expect(result.actions[0].summary).toMatch(/^✅ /);
+        // Quick-log is the compact 'core' surface: reports (full-only) stay off.
+        const toolNames = modelToolNames(model);
+        expect(toolNames).toContain('sparky_manage_food');
+        expect(toolNames).not.toContain('sparky_get_report');
+        // A quick-log is not a conversation — nothing lands in chat history.
+        expect(chatRepository.saveChatHistory).not.toHaveBeenCalled();
+      });
+
+      it('falls back to the active AI service when no service_config_id is given', async () => {
+        vi.mocked(chatRepository.getActiveAiServiceSetting).mockResolvedValue({
+          id: 'svc-9',
+          service_type: 'openai',
+          source: 'user',
+        });
+        scriptModel([textStep('Nothing to log there.')]);
+
+        const result = await chatService.processQuickLog(
+          'hello',
+          activeUserId,
+          actorUserId
+        );
+
+        expect(chatRepository.getActiveAiServiceSetting).toHaveBeenCalledWith(
+          activeUserId
+        );
+        expect(
+          chatRepository.getAiServiceSettingForBackend
+        ).toHaveBeenCalledWith('svc-9', activeUserId);
+        expect(result).toEqual({
+          text: 'Nothing to log there.',
+          actions: [],
+        });
+      });
+
+      it('throws when the user has no usable AI service', async () => {
+        vi.mocked(chatRepository.getActiveAiServiceSetting).mockResolvedValue(
+          null
+        );
+
+        await expect(
+          chatService.processQuickLog('log an apple', activeUserId, actorUserId)
+        ).rejects.toThrow('AI service setting not found for quick-log.');
+      });
+
+      it('substitutes a confirmation when the model returns no text after a successful action', async () => {
+        vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+          {
+            ...eggsRow,
+            default_variant: {
+              ...eggsRow.default_variant,
+              serving_size: 1,
+              serving_unit: 'serving',
+            },
+          },
+        ]);
+        vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+        vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+          id: 'entry-1',
+          food_name: 'Eggs',
+        });
+        scriptModel([
+          toolCallStep({
+            action: 'log_food',
+            food_name: 'Eggs',
+            quantity: 2,
+            unit: 'serving',
+            meal_type: 'breakfast',
+            entry_date: '2026-06-10',
+          }),
+          textStep(''),
+        ]);
+
+        const result = await chatService.processQuickLog(
+          'log 2 eggs',
+          activeUserId,
+          actorUserId,
+          false,
+          'svc-1'
+        );
+
+        expect(result.text).toBe('Logged it for you.');
+        expect(result.actions[0].summary).toMatch(/^✅ /);
+      });
+    });
   });
 
   // The agent loop must halt the moment the model offers chips. Without this the

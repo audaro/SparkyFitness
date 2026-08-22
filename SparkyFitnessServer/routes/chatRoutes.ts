@@ -14,6 +14,7 @@ import {
   testAiServiceConnectionRequestSchema,
   normalizeChatToolCategories,
 } from '@workspace/shared';
+import { quickLogRequestSchema } from '../schemas/chatSchemas.js';
 const router = express.Router();
 /**
  * @swagger
@@ -214,6 +215,70 @@ router.post('/stream', authenticate, async (req, res, next) => {
 
     pipeUIMessageStreamToResponse({ response: res, stream });
   } catch (error) {
+    next(error);
+  }
+});
+/**
+ * @swagger
+ * /chat/quick-log:
+ *   post:
+ *     summary: One-shot quick-log of a short note (food, exercise, water, check-in) via the AI tools
+ *     tags: [AI & Insights]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [message]
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 maxLength: 1000
+ *               service_config_id:
+ *                 type: string
+ *                 format: uuid
+ *     responses:
+ *       200:
+ *         description: Confirmation text plus one {toolName, summary} entry per executed tool.
+ *       400:
+ *         description: Invalid body.
+ *       404:
+ *         description: No usable AI service configuration.
+ *       500:
+ *         description: Server error.
+ */
+router.post('/quick-log', authenticate, async (req, res, next) => {
+  const parsed = quickLogRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid request',
+      details: parsed.error.flatten().fieldErrors,
+    });
+  }
+  try {
+    const isAdmin = await resolveIsAdmin(req.user, req.authenticatedUserId);
+    const result = await chatService.processQuickLog(
+      parsed.data.message,
+      req.userId,
+      req.authenticatedUserId,
+      isAdmin,
+      parsed.data.service_config_id
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (
+      message.startsWith('AI service setting not found') ||
+      message.startsWith('API key missing')
+    ) {
+      return res.status(404).json({ error: message });
+    }
+    if (message.startsWith('Unsupported service type')) {
+      return res.status(400).json({ error: message });
+    }
     next(error);
   }
 });

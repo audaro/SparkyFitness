@@ -2358,6 +2358,117 @@ async function processChatMessageStream(
     throw error;
   }
 }
+// Ceiling for one quick-log request: lookup → log → confirm fits in four
+// steps, and the quick-log bar is for terse single-action logging, not
+// conversation.
+const QUICK_LOG_MAX_STEPS = 4;
+// Much tighter than the chat wall-clock cap: a quick-log is a fire-and-forget
+// bar on the Diary, so a slow provider should fail fast rather than hold the
+// UI for minutes.
+const QUICK_LOG_TIMEOUT_MS = 60_000;
+
+const QUICK_LOG_SYSTEM_PROMPT = `You are Sparky's quick-log assistant. The user typed a short note into a quick-log bar; log it with your tools and reply with one short confirmation sentence.
+
+Rules:
+- Log exactly what the note states. Never invent quantities, foods, or exercises.
+- If the note names no date, log it for today.
+- If the note is not something you can log (a question, chit-chat, or too vague to act on), do not call any tool — reply with one sentence telling the user what to type instead.
+- Never ask follow-up questions; this is a one-shot interaction.`;
+
+export interface QuickLogAction {
+  toolName: string;
+  summary: string;
+}
+
+/**
+ * One-shot quick-log: a single user note, the compact 'core' tool set, a tight
+ * step/timeout budget, and no chat history — the Diary quick-log bar is a
+ * logging shortcut, not a conversation. Returns the model's confirmation text
+ * plus one {toolName, summary} entry per executed tool (the first line of the
+ * tool's own output, so '✅ …' means the action landed and 'Error […]' means
+ * it didn't).
+ */
+async function processQuickLog(
+  message: string,
+  userId: string,
+  authenticatedUserId: string,
+  actorIsAdmin = false,
+  serviceConfigId?: string
+): Promise<{ text: string; actions: QuickLogAction[] }> {
+  let configId = serviceConfigId;
+  if (!configId) {
+    // The active-setting lookup is the frontend-safe projection (no api_key);
+    // it only supplies the id, and the backend row is loaded below.
+    const active = await chatRepository.getActiveAiServiceSetting(userId);
+    configId = active?.id;
+  }
+  if (!configId) {
+    throw new Error('AI service setting not found for quick-log.');
+  }
+  const aiService = await chatRepository.getAiServiceSettingForBackend(
+    configId,
+    userId
+  );
+  if (!aiService) {
+    throw new Error('AI service setting not found for quick-log.');
+  }
+  if (requiresApiKey(aiService.service_type) && !aiService.api_key) {
+    throw new Error('API key missing for selected AI service.');
+  }
+
+  const modelName =
+    aiService.model_name || getDefaultModel(aiService.service_type);
+  const networkPolicy = deriveAiNetworkPolicy(aiService, actorIsAdmin);
+  const modelInstance = createChatModelInstance(
+    aiService,
+    modelName,
+    networkPolicy
+  );
+  const tz = await loadUserTimezone(authenticatedUserId);
+  // Core profile: the compact log/read tool set. Quick-log is tool
+  // orchestration only, so the full surface (and its token cost) buys nothing.
+  const tools = buildChatbotTools(authenticatedUserId, tz, 'core');
+
+  const actions: QuickLogAction[] = [];
+  const result = await generateText({
+    model: modelInstance,
+    system: QUICK_LOG_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: message }],
+    tools,
+    providerOptions: buildChatProviderOptions(
+      aiService.service_type,
+      authenticatedUserId,
+      modelName
+    ),
+    stopWhen: stepCountIs(QUICK_LOG_MAX_STEPS),
+    // A single retry: the bar is interactive, so failing fast beats a 3×
+    // re-send of the full request.
+    maxRetries: CORE_PROFILE_MAX_PROVIDER_RETRIES,
+    abortSignal: AbortSignal.timeout(QUICK_LOG_TIMEOUT_MS),
+    onStepFinish({ toolCalls, toolResults }) {
+      toolCalls?.forEach((call) => {
+        log(
+          'info',
+          `[quick-log] executed tool: ${call.toolName} with args: ${JSON.stringify(call.input)}`
+        );
+      });
+      toolResults?.forEach((r) => {
+        if (typeof r.output !== 'string') return;
+        const summary = r.output.split('\n', 1)[0].slice(0, 200);
+        actions.push({ toolName: r.toolName, summary });
+      });
+    },
+  });
+
+  let text = result.text.trim();
+  if (!text) {
+    text = actions.some((a) => a.summary.startsWith('✅'))
+      ? 'Logged it for you.'
+      : EMPTY_RESPONSE_ERROR_TEXT;
+  }
+  return { text, actions };
+}
+
 export { handleAiServiceSettings };
 export { getAiServiceSettings };
 export { getActiveAiServiceSetting };
@@ -2370,6 +2481,7 @@ export { deleteSparkyChatHistoryEntry };
 export { clearAllSparkyChatHistory };
 export { saveSparkyChatHistory };
 export { processChatMessage };
+export { processQuickLog };
 export { processFoodOptionsRequest };
 export { testAiServiceConnection };
 export { processChatMessageStream };
@@ -2386,6 +2498,7 @@ export default {
   clearAllSparkyChatHistory,
   saveSparkyChatHistory,
   processChatMessage,
+  processQuickLog,
   processFoodOptionsRequest,
   testAiServiceConnection,
   processChatMessageStream,
