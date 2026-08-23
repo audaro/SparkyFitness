@@ -60,23 +60,34 @@ describe('reconcileEntryUnitToVariant', () => {
   });
 
   it('converts a same-dimension mass unit into the variant unit', () => {
-    // 0.25 lb of brie against a 100 g variant -> 113.4 g, so the diary math
+    // 0.25 lb of brie against a 100 g variant -> 113.398 g, so the diary math
     // shows ~337 kcal instead of dividing 0.25 "pound" by a 100 g serving.
     expect(
       reconcileEntryUnitToVariant(0.25, 'pound', {
         serving_size: 100,
         serving_unit: 'g',
       })
-    ).toEqual({ quantity: 113.4, unit: 'g' });
+    ).toEqual({ quantity: 113.398, unit: 'g' });
   });
 
   it('converts a same-dimension volume unit into the variant unit', () => {
+    // Factors come from @workspace/shared servingSizeConversions
+    // (US-customary cup = 236.588 ml), matching the web/mobile clients.
     expect(
       reconcileEntryUnitToVariant(2, 'cup', {
         serving_size: 250,
         serving_unit: 'ml',
       })
-    ).toEqual({ quantity: 480, unit: 'ml' });
+    ).toEqual({ quantity: 473.176, unit: 'ml' });
+  });
+
+  it('preserves tiny converted amounts instead of rounding them to zero', () => {
+    expect(
+      reconcileEntryUnitToVariant(1, 'mg', {
+        serving_size: 100,
+        serving_unit: 'g',
+      })
+    ).toEqual({ quantity: 0.001, unit: 'g' });
   });
 
   it('never converts across dimensions (volume vs mass)', () => {

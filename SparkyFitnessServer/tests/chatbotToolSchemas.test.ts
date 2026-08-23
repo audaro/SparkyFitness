@@ -115,6 +115,7 @@ describe('published (flat) chatbot tool schemas', () => {
         'calcium',
         'iron',
         'gi',
+        'confirmed_zero',
         'entry_id',
         'entry_type',
         'description',

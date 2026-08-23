@@ -2,6 +2,7 @@ import { log } from '../config/logging.js';
 import {
   normalizeNutrientName,
   convertNutrientAmount,
+  getConversionFactor,
 } from '@workspace/shared';
 
 export interface FoodVariantWithProviderNutrients {
@@ -213,29 +214,16 @@ function normalizeServingUnit(unit: any) {
   if (SERVING_UNIT_ALIASES[firstWord]) return SERVING_UNIT_ALIASES[firstWord];
   return clean;
 }
-// Deterministic same-dimension unit conversion. Mass and volume units convert
-// within their own dimension only (no density guessing across g↔ml). Keys are
-// the canonical forms normalizeServingUnit emits.
-const MASS_UNIT_GRAMS: Record<string, number> = {
-  g: 1,
-  kg: 1000,
-  mg: 0.001,
-  oz: 28.3495,
-  lb: 453.592,
-};
-const VOLUME_UNIT_ML: Record<string, number> = {
-  ml: 1,
-  l: 1000,
-  tsp: 4.92892,
-  tbsp: 14.7868,
-  cup: 240,
-};
-
 /**
  * Convert an amount between two food units of the same dimension
- * (mass→mass or volume→volume). Returns null when the units are not both
- * measurable in the same dimension — count units ("piece", "slice") never
- * convert.
+ * (mass→mass or volume→volume) using the canonical factors in
+ * @workspace/shared servingSizeConversions (the same table the web/mobile
+ * clients and the AI conversion gate use). normalizeServingUnit widens the
+ * accepted spellings ("pound" → lb, "ounces" → oz) before the shared lookup.
+ * Returns null when the units are not both measurable in the same dimension —
+ * count units ("piece", "slice") never convert. The result keeps full float
+ * precision except that near-integer noise is trimmed to 6 decimals, and a
+ * positive amount is never rounded down to zero (1 mg → 0.001 g, not 0).
  */
 function convertFoodUnitAmount(
   quantity: number,
@@ -244,12 +232,15 @@ function convertFoodUnitAmount(
 ): number | null {
   const from = normalizeServingUnit(fromUnit);
   const to = normalizeServingUnit(toUnit);
-  for (const table of [MASS_UNIT_GRAMS, VOLUME_UNIT_ML]) {
-    if (table[from] !== undefined && table[to] !== undefined) {
-      return (quantity * table[from]) / table[to];
-    }
+  // getConversionFactor(base, target) returns X where 1 target = X base, so
+  // converting from → to scales by getConversionFactor(to, from).
+  const factor = getConversionFactor(to, from);
+  if (factor === null) {
+    return null;
   }
-  return null;
+  const converted = quantity * factor;
+  const rounded = Math.round(converted * 1e6) / 1e6;
+  return rounded > 0 || converted <= 0 ? rounded : converted;
 }
 
 // Reconcile a caller-supplied (quantity, unit) with the variant an entry will be
@@ -295,7 +286,7 @@ function reconcileEntryUnitToVariant(
   // as 1 kcal).
   const converted = convertFoodUnitAmount(quantity, requested, variantUnit);
   if (converted !== null) {
-    return { quantity: Math.round(converted * 100) / 100, unit: variantUnit };
+    return { quantity: converted, unit: variantUnit };
   }
 
   // Not convertible (count unit vs measurable unit). Flag it so callers can

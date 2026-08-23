@@ -1008,12 +1008,14 @@ describe('log_food', () => {
       opts
     );
 
-    expect(result).toBe('✅ Logged "Eggs" (113.4 g) for Dinner on 2026-06-10.');
+    expect(result).toBe(
+      '✅ Logged "Eggs" (113.398 g) for Dinner on 2026-06-10.'
+    );
     expect(foodEntryService.createFoodEntry).toHaveBeenCalledWith(
       'user-1',
       'user-1',
       expect.objectContaining({
-        quantity: 113.4,
+        quantity: 113.398,
         unit: 'g',
         variant_id: VARIANT_ID,
       })
@@ -2203,9 +2205,42 @@ describe('create_food', () => {
     );
 
     expect(result).toBe(
-      'Error [VALIDATION]: create_food received all-zero nutrition for "mystery crackers" — estimate the nutrition before saving. Retry with your best estimated values per serving (calories, protein, carbs, fat at minimum). For plain water use log_water; a genuinely zero-calorie item must still include a non-zero nutrient such as sodium.'
+      'Error [VALIDATION]: create_food received all-zero nutrition for "mystery crackers" — estimate the nutrition before saving. Retry with your best estimated values per serving (calories, protein, carbs, fat at minimum). For plain water use log_water. Only if the label is genuinely all zeros, retry with confirmed_zero: true.'
     );
     expect(foodCoreService.createFood).not.toHaveBeenCalled();
+  });
+
+  it('allows an all-zero create_food when confirmed_zero attests the label', async () => {
+    vi.mocked(foodCoreService.createFood).mockResolvedValue({
+      id: FOOD_ID,
+      name: 'Sparkling Water',
+      brand: null,
+      default_variant: {
+        id: VARIANT_ID,
+        serving_size: 355,
+        serving_unit: 'ml',
+        calories: 0,
+      },
+    });
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_food',
+        food_name: 'Sparkling Water',
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        confirmed_zero: true,
+        quantity: 355,
+        unit: 'ml',
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Food "Sparkling Water" created with 0 kcal per 355ml.'
+    );
   });
 
   it('allows a zero-calorie create_food that carries a non-zero nutrient', async () => {

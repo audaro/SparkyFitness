@@ -296,6 +296,7 @@ function resolveQuantityForVariantUnit(args: {
   requestedUnit: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   variant: any;
+  allowConversion?: boolean;
 }): { quantity: number; unit: string } | null {
   if (!args.variant) {
     return null;
@@ -310,6 +311,10 @@ function resolveQuantityForVariantUnit(args: {
     };
   }
 
+  if (args.allowConversion === false) {
+    return null;
+  }
+
   // A measurable unit of the same dimension ("0.5 lb" against a gram variant)
   // converts deterministically instead of failing the log.
   const converted = convertFoodUnitAmount(
@@ -319,7 +324,7 @@ function resolveQuantityForVariantUnit(args: {
   );
   if (converted !== null) {
     return {
-      quantity: Math.round(converted * 100) / 100,
+      quantity: converted,
       unit: args.variant.serving_unit,
     };
   }
@@ -364,13 +369,19 @@ async function resolveFoodLogVariantAndQuantity(args: {
   const requestedUnit = args.unit;
   let matchingVariant: any | undefined;
   if (requestedUnit) {
-    matchingVariant = candidates.find((variant) =>
-      resolveQuantityForVariantUnit({
-        requestedQuantity: args.quantity,
-        requestedUnit,
-        variant,
-      })
-    );
+    // Exact-unit variants win over convertible ones: a food with both a gram
+    // default and an "oz" variant must log an oz request against the oz
+    // variant, not convert it onto the earlier-listed gram default.
+    const findMatch = (allowConversion: boolean) =>
+      candidates.find((variant) =>
+        resolveQuantityForVariantUnit({
+          requestedQuantity: args.quantity,
+          requestedUnit,
+          variant,
+          allowConversion,
+        })
+      );
+    matchingVariant = findMatch(false) ?? findMatch(true);
   }
 
   const variant = explicitVariant ?? matchingVariant ?? defaultVariant;
@@ -1277,7 +1288,7 @@ Actions:
 - list_meal_types() — lists the user's built-in and custom meal types with IDs, names, and sort order.
 - log_food(quantity, meal_type_id?|meal_type?, food_name?|food_id?, unit?, entry_date?, variant_id?) — use meal_type_id for custom meal types; the legacy meal_type fallback accepts "breakfast"|"lunch"|"dinner"|"snacks". meal_type_id takes precedence when both are supplied. Provide food_name or food_id (an internal food UUID, never a lookup result's External ID); unit defaults to the food's serving unit, entry_date defaults to today. Works only for foods already in the database (source='internal').
 - log_external_food(food_name, meal_type_id?|meal_type?, quantity?, unit?, entry_date?, external_id?, provider_type?) — PREFERRED way to log an external lookup_food_nutrition match (usda/openfoodfacts/...): the server re-fetches the provider result, saves it with full nutrition, and logs it in one call. quantity is in servings and defaults to 1.
-- create_food(food_name, calories, protein, carbs, fat, brand?, quantity?, unit?, meal_type_id?, meal_type?, entry_date?, saturated_fat?, fiber?, sugar?, sodium?, ...) — MANDATORY: You must run lookup_food_nutrition first. Call only when lookup returns source='ai_estimate' (no match anywhere) or for custom/homemade foods, using AI-estimated values; for external lookup matches use log_external_food instead. Include meal_type_id (or legacy meal_type) + entry_date to also log the food in the same call. Populate as many micro-nutrients, GI classification, and brand ('Homemade' or 'Traditional' if generic) as possible rather than just core macros.
+- create_food(food_name, calories, protein, carbs, fat, brand?, quantity?, unit?, meal_type_id?, meal_type?, entry_date?, saturated_fat?, fiber?, sugar?, sodium?, ...) — MANDATORY: You must run lookup_food_nutrition first. Call only when lookup returns source='ai_estimate' (no match anywhere) or for custom/homemade foods, using AI-estimated values; for external lookup matches use log_external_food instead. Include meal_type_id (or legacy meal_type) + entry_date to also log the food in the same call. Populate as many micro-nutrients, GI classification, and brand ('Homemade' or 'Traditional' if generic) as possible rather than just core macros. All-zero nutrition is rejected unless confirmed_zero:true attests the label is genuinely all zeros (sparkling water, black coffee).
 - search_meal(meal_name)
 - create_meal(meal_name, foods:[{food_id (from search_food) OR child_meal_id (from search_meal), item_type?, variant_id?, quantity, unit}], description?, total_servings?, serving_unit?) — creates a reusable meal template from scratch; nutrition is snapshotted from the ingredients
 - update_meal(meal_id?|meal_name?, new_name?, description?, total_servings?, serving_unit?, foods?) — only provided fields change, but foods REPLACES the entire ingredient list, so send the complete desired list
@@ -2135,13 +2146,12 @@ Actions:
             }
 
             case 'create_food': {
-              // All-zero nutrition means the estimation step was skipped
-              // (observed live: a food saved with 0 kcal / 0 macros, which
-              // then silently logs 0-calorie entries forever). Bounce the
-              // call until the model provides an actual estimate. Genuinely
-              // zero-calorie items still pass by carrying any non-zero
-              // nutrient (e.g. diet soda's sodium); plain water has its own
-              // log_water action.
+              // All-zero nutrition usually means the estimation step was
+              // skipped (observed live: a food saved with 0 kcal / 0 macros,
+              // which then silently logs 0-calorie entries forever). Bounce
+              // the call until the model either provides an actual estimate
+              // or explicitly attests the label is all zeros via
+              // confirmed_zero (sparkling water, black coffee).
               const nutrientValues = [
                 args.calories,
                 args.protein,
@@ -2161,9 +2171,12 @@ Actions:
                 args.calcium,
                 args.iron,
               ];
-              if (!nutrientValues.some((v) => typeof v === 'number' && v > 0)) {
+              if (
+                !nutrientValues.some((v) => typeof v === 'number' && v > 0) &&
+                args.confirmed_zero !== true
+              ) {
                 return ERRORS.VALIDATION(
-                  `create_food received all-zero nutrition for "${args.food_name}" — estimate the nutrition before saving. Retry with your best estimated values per serving (calories, protein, carbs, fat at minimum). For plain water use log_water; a genuinely zero-calorie item must still include a non-zero nutrient such as sodium.`
+                  `create_food received all-zero nutrition for "${args.food_name}" — estimate the nutrition before saving. Retry with your best estimated values per serving (calories, protein, carbs, fat at minimum). For plain water use log_water. Only if the label is genuinely all zeros, retry with confirmed_zero: true.`
                 );
               }
               const rawUnit = args.unit || 'serving';

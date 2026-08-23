@@ -249,6 +249,12 @@ const createFoodSchema = z
       .describe(
         'Glycemic Index classification. MANDATORY: Classify as low, medium, or high based on carb composition.'
       ),
+    confirmed_zero: z.coerce
+      .boolean()
+      .optional()
+      .describe(
+        'Set true ONLY when the food label is genuinely all zeros (e.g. sparkling water, black coffee) to allow saving with zero nutrition'
+      ),
     quantity: z.coerce
       .number()
       .min(0)
@@ -1133,6 +1139,12 @@ export const manageFoodInput = z.object({
   calcium: z.coerce.number().min(0).optional().describe('Calcium (% DV)'),
   iron: z.coerce.number().min(0).optional().describe('Iron (% DV)'),
   gi: giIndexEnum.optional().describe('Glycemic index classification'),
+  confirmed_zero: z.coerce
+    .boolean()
+    .optional()
+    .describe(
+      'create_food only: set true ONLY when the food label is genuinely all zeros (e.g. sparkling water, black coffee)'
+    ),
   // entry / diary management
   entry_id: uuidSchema.optional().describe('Diary entry UUID'),
   entry_type: entryTypeEnum.optional().describe('food_entry | food_entry_meal'),
