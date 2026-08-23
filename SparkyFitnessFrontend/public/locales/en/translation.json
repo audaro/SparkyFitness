@@ -1081,6 +1081,10 @@
     "startWorkout": "Start Workout",
     "stats": "Stats"
   },
+  "foodConfirm": {
+    "servingLine": "{{calories}} Cal per {{size}} {{unit}}",
+    "noneOfThese": "None of these"
+  },
   "workoutProposal": {
     "proposalBadge": "Proposed routine",
     "createdBadge": "Created ✓",

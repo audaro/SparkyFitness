@@ -7,9 +7,11 @@ import { MarkdownText } from '@/components/markdown-text';
 import { Reasoning } from '@/components/reasoning';
 import {
   ASK_USER_TOOL_NAME,
+  CONFIRM_FOOD_TOOL_NAME,
   PROPOSE_WORKOUT_PRESET_TOOL_NAME,
 } from '@workspace/shared';
 import { AskUserToolUI } from '@/components/ai/AskUserToolUI';
+import { FoodConfirmToolUI } from '@/components/ai/FoodConfirmToolUI';
 import { WorkoutPresetProposalToolUI } from '@/components/ai/WorkoutPresetProposalToolUI';
 import { ToolFallback } from '@/components/tool-fallback';
 import { TooltipIconButton } from '@/components/tooltip-icon-button';
@@ -495,6 +497,7 @@ const AssistantMessage: FC = () => {
             tools: {
               by_name: {
                 [ASK_USER_TOOL_NAME]: AskUserToolUI,
+                [CONFIRM_FOOD_TOOL_NAME]: FoodConfirmToolUI,
                 [PROPOSE_WORKOUT_PRESET_TOOL_NAME]: WorkoutPresetProposalToolUI,
               },
               Fallback: ToolFallback,

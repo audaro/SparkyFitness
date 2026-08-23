@@ -1,4 +1,5 @@
 import type { useChatRuntime } from '@assistant-ui/react-ai-sdk';
+import { ASK_USER_TOOL_NAME, CONFIRM_FOOD_PART_TYPE } from '@workspace/shared';
 import { apiFetch } from './apiClient';
 
 /**
@@ -50,34 +51,49 @@ export const clearAllChatHistory = (): Promise<void> =>
     body: {},
   });
 
-/** True when `parts` is a non-empty array of `{ type: 'text', text: string }`. */
-function isTextOnlyParts(parts: unknown): parts is { type: 'text'; text: string }[] {
+/**
+ * Chat-only interactive tool parts mobile can re-render after a reload: the
+ * quick-reply chips and the food-confirmation cards. The workout proposal
+ * part is NOT here — mobile has no proposal card, so those rows fall back to
+ * their `content` summary ("Proposed workout preset …") instead of a dead
+ * generic tool card.
+ */
+const SEEDABLE_TOOL_PART_TYPES: readonly string[] = [
+  `tool-${ASK_USER_TOOL_NAME}`,
+  CONFIRM_FOOD_PART_TYPE,
+];
+
+/** True when `parts` only contains parts mobile can seed: text parts and the
+ * chat-only interactive tool parts (which are stored in the AI-SDK UIMessage
+ * shape the runtime already consumes from the live stream). */
+function isSeedableParts(parts: unknown): parts is { type: string }[] {
   return (
     Array.isArray(parts) &&
     parts.length > 0 &&
-    parts.every(
-      (part) =>
-        !!part &&
-        typeof part === 'object' &&
-        (part as { type?: unknown }).type === 'text' &&
-        typeof (part as { text?: unknown }).text === 'string'
-    )
+    parts.every((part) => {
+      if (!part || typeof part !== 'object') return false;
+      const type = (part as { type?: unknown }).type;
+      if (type === 'text') {
+        return typeof (part as { text?: unknown }).text === 'string';
+      }
+      return typeof type === 'string' && SEEDABLE_TOOL_PART_TYPES.includes(type);
+    })
   );
 }
 
 /**
  * Maps server history rows to the AI-SDK initial-message shape consumed by
- * `useChatRuntime`. Text-only: assistant rows are stored as a single text part
- * and image-bearing user turns are already flattened to `content` server-side,
- * so normal history maps cleanly. If a row's `parts` contains a non-text part
- * (e.g. a web image attachment) it isn't text-only, so we fall back to the
- * `content` string — the surrounding text is preserved, the image is dropped
- * (mobile can neither render nor send images). The `id` fallback guards a
- * missing key colliding in the AI-SDK store.
+ * `useChatRuntime`. Assistant rows are stored as text parts plus, when the
+ * turn ended on chips or food-confirmation cards, the recorded tool-call part
+ * those re-render from — both pass through as-is. If a row's `parts` contains
+ * anything else (e.g. a web image attachment) we fall back to the `content`
+ * string — the surrounding text is preserved, the unrenderable part is
+ * dropped (mobile can neither render nor send images). The `id` fallback
+ * guards a missing key colliding in the AI-SDK store.
  */
 export function mapHistoryToInitialMessages(entries: ChatHistoryEntry[]): InitialMessages {
   return entries.map((entry, i) => {
-    const parts = isTextOnlyParts(entry.parts)
+    const parts = isSeedableParts(entry.parts)
       ? entry.parts
       : [{ type: 'text' as const, text: entry.content }];
 

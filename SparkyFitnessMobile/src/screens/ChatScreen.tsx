@@ -31,8 +31,11 @@ import {
   type MessageRole,
 } from '@assistant-ui/react-native';
 import { useChatRuntime, AssistantChatTransport } from '@assistant-ui/react-ai-sdk';
+import { ASK_USER_TOOL_NAME, CONFIRM_FOOD_TOOL_NAME } from '@workspace/shared';
 import Icon from '../components/Icon';
 import ToolCallCard from '../components/chat/ToolCallCard';
+import AskUserChips from '../components/chat/AskUserChips';
+import FoodConfirmCards from '../components/chat/FoodConfirmCards';
 import TypingIndicator from '../components/chat/TypingIndicator';
 import MarkdownMessage from '../components/chat/MarkdownMessage';
 import { CHAT_SUGGESTIONS } from '../constants/chat';
@@ -190,7 +193,17 @@ function MessageBubble({ role }: { role: MessageRole }) {
                 <MarkdownMessage text={part.text} streaming={isStreaming} />
               )
             }
-            renderToolCall={({ part }) => <ToolCallCard part={part} />}
+            // The chat-only interactive tools get their own renderers (chips /
+            // candidate cards); every other tool call keeps the generic card.
+            renderToolCall={({ part }) => {
+              if (part.toolName === ASK_USER_TOOL_NAME) {
+                return <AskUserChips part={part} />;
+              }
+              if (part.toolName === CONFIRM_FOOD_TOOL_NAME) {
+                return <FoodConfirmCards part={part} />;
+              }
+              return <ToolCallCard part={part} />;
+            }}
           />
         )}
       </View>

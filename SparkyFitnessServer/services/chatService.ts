@@ -36,11 +36,14 @@ import {
   CHAT_TOOL_CATEGORY_SLUGS,
   isChatToolCategorySlug,
   PROPOSE_WORKOUT_PRESET_TOOL_NAME,
+  CONFIRM_FOOD_TOOL_NAME,
 } from '@workspace/shared';
 
 interface ChatMessagePart {
-  // AI SDK tool parts arrive as `tool-<toolName>`; only sparky_ask_user is
-  // interpreted (see mapMessagePart), the rest fall through to text.
+  // AI SDK tool parts arrive as `tool-<toolName>`; the chat-only tools
+  // (sparky_ask_user, sparky_propose_workout_preset, sparky_confirm_food) get
+  // dedicated replay text (see mapMessagePart), the rest fall through to the
+  // generic tool-part flattener.
   type: 'text' | 'image' | 'image_url' | 'file' | string;
   text?: string;
   content?: string;
@@ -452,6 +455,9 @@ async function saveSparkyChatHistory(
 //   of the user; the turn is over for the same reason — without this the
 //   echoed result would come back and the model could "accept" its own
 //   proposal by calling create_workout_preset.
+// - sparky_confirm_food: same shape as the ask tool — the model has put
+//   candidate cards in front of the user, and without the halt it would log
+//   a candidate nobody confirmed.
 export function buildChatStopConditions(toolProfile: ChatToolProfile) {
   return [
     stepCountIs(
@@ -461,6 +467,7 @@ export function buildChatStopConditions(toolProfile: ChatToolProfile) {
     ),
     hasToolCall(ASK_USER_TOOL_NAME),
     hasToolCall(PROPOSE_WORKOUT_PRESET_TOOL_NAME),
+    hasToolCall(CONFIRM_FOOD_TOOL_NAME),
   ];
 }
 
@@ -644,7 +651,11 @@ async function prepareChatContext(
       // they are never pulled in by the classifier — they have to be added
       // here. (Core-profile models get neither chips nor proposal cards.)
       ...(toolProfile === 'full'
-        ? [ASK_USER_TOOL_NAME, PROPOSE_WORKOUT_PRESET_TOOL_NAME]
+        ? [
+            ASK_USER_TOOL_NAME,
+            PROPOSE_WORKOUT_PRESET_TOOL_NAME,
+            CONFIRM_FOOD_TOOL_NAME,
+          ]
         : []),
     ];
     prepareStep = buildEscalationPrepareStep(
@@ -1139,6 +1150,91 @@ const ASK_USER_PART_TYPE = `tool-${ASK_USER_TOOL_NAME}`;
 // persistence and replay like the ask-user part does.
 const PROPOSAL_PART_TYPE = `tool-${PROPOSE_WORKOUT_PRESET_TOOL_NAME}`;
 
+// The part type for a sparky_confirm_food tool call — the candidate cards
+// render client-side from this part's input, so it must survive persistence
+// and replay like the other chat-only parts.
+const CONFIRM_FOOD_PART_TYPE = `tool-${CONFIRM_FOOD_TOOL_NAME}`;
+
+// The shape of one stored sparky_confirm_food candidate, as loosely as replay
+// must tolerate (history rows are untyped JSON).
+interface StoredFoodCandidate {
+  label?: unknown;
+  brand?: unknown;
+  serving_size?: unknown;
+  serving_unit?: unknown;
+  calories?: unknown;
+  source?: unknown;
+  food_id?: unknown;
+  external_id?: unknown;
+  provider_type?: unknown;
+}
+
+// Replays a stored food-confirmation call as plain text. Unlike the ask-user
+// chips, the option labels alone are NOT enough context: when the user
+// answers "I confirm option 2", the model must log THAT candidate, and the
+// ids it needs (food_id / external_id + provider_type) lived only in this
+// tool call's input — tool parts themselves are stripped from the LLM window.
+// So the flattened text carries the numbered candidates WITH their ids,
+// letting the follow-up turn log the pick without a fresh lookup.
+function confirmFoodPartToText(part: ChatMessagePart): string | null {
+  const input = part.input as
+    | {
+        question?: unknown;
+        quantity?: unknown;
+        unit?: unknown;
+        meal_type?: unknown;
+        candidates?: unknown;
+      }
+    | undefined;
+  const candidates = Array.isArray(input?.candidates)
+    ? (input.candidates as StoredFoodCandidate[])
+    : [];
+  if (candidates.length === 0) return null;
+
+  const question =
+    typeof input?.question === 'string' && input.question
+      ? input.question
+      : 'Which food is it?';
+  const context = [
+    typeof input?.quantity === 'number' ? `quantity ${input.quantity}` : null,
+    typeof input?.unit === 'string' && input.unit ? input.unit : null,
+    typeof input?.meal_type === 'string' && input.meal_type
+      ? `for ${input.meal_type}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const lines = candidates.map((c, i) => {
+    const brand = typeof c.brand === 'string' && c.brand ? ` (${c.brand})` : '';
+    const serving =
+      typeof c.serving_size === 'number' && typeof c.serving_unit === 'string'
+        ? ` per ${c.serving_size} ${c.serving_unit}`
+        : '';
+    const kcal = typeof c.calories === 'number' ? `${c.calories} kcal` : '';
+    const ids = [
+      typeof c.source === 'string' && c.source ? `source ${c.source}` : null,
+      typeof c.food_id === 'string' && c.food_id
+        ? `food_id=${c.food_id}`
+        : null,
+      typeof c.external_id === 'string' && c.external_id
+        ? `external_id=${c.external_id}`
+        : null,
+      typeof c.provider_type === 'string' && c.provider_type
+        ? `provider_type=${c.provider_type}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    const label = typeof c.label === 'string' ? c.label : 'unknown';
+    return `${i + 1}. "${label}"${brand} — ${kcal}${serving}${ids ? ` [${ids}]` : ''}`;
+  });
+
+  return `[You showed the user food confirmation cards${
+    context ? ` (logging ${context})` : ''
+  }: "${question}" Candidates: ${lines.join(' | ')}]`;
+}
+
 // Replays a stored proposal part as plain text so the model remembers what it
 // proposed in earlier turns (name and size are enough context — the card and
 // the user's accept/undo replies carry the rest) without any tool_use block
@@ -1224,6 +1320,9 @@ function mapMessagePart(part: ChatMessagePart): ProcessedMessagePart {
   }
   if (part.type === PROPOSAL_PART_TYPE) {
     return { type: 'text' as const, text: proposalPartToText(part) ?? '' };
+  }
+  if (part.type === CONFIRM_FOOD_PART_TYPE) {
+    return { type: 'text' as const, text: confirmFoodPartToText(part) ?? '' };
   }
   if (part.type.startsWith('tool-')) {
     return { type: 'text' as const, text: toolPartToText(part) ?? '' };
@@ -2446,6 +2545,13 @@ async function processChatMessageStream(
           (call) => call.toolName === PROPOSE_WORKOUT_PRESET_TOOL_NAME
         );
 
+        // And for a turn that ends on food-confirmation cards: the candidates
+        // (with the ids the follow-up log needs) live in the tool call's
+        // input, and the cards re-render from the persisted part on reload.
+        const confirmFoodCall = toolCalls?.find(
+          (call) => call.toolName === CONFIRM_FOOD_TOOL_NAME
+        );
+
         // Persist the same correction block the stream guard appends, so the
         // reloaded transcript matches what the user saw live.
         const unrecoveredErrors = toolErrorTracker.unrecovered();
@@ -2454,7 +2560,7 @@ async function processChatMessageStream(
             ? `${text.trim()}${formatUnrecoveredToolErrorNote(unrecoveredErrors)}`.trim()
             : text.trim();
 
-        if (!persistedText && !askCall && !proposeCall) {
+        if (!persistedText && !askCall && !proposeCall && !confirmFoodCall) {
           log(
             'warn',
             `Skipping empty assistant chat history for user ${userId} (finishReason: ${finishReason})`
@@ -2483,6 +2589,15 @@ async function processChatMessageStream(
             output: '',
           });
         }
+        if (confirmFoodCall) {
+          assistantParts.push({
+            type: CONFIRM_FOOD_PART_TYPE,
+            toolCallId: confirmFoodCall.toolCallId,
+            state: 'output-available',
+            input: confirmFoodCall.input,
+            output: '',
+          });
+        }
 
         const proposeInput = proposeCall?.input as
           | { name?: unknown }
@@ -2500,6 +2615,13 @@ async function processChatMessageStream(
               }) ||
               (proposeCall && typeof proposeInput?.name === 'string'
                 ? `Proposed workout preset "${proposeInput.name}".`
+                : '') ||
+              (confirmFoodCall &&
+              typeof (confirmFoodCall.input as { question?: unknown })
+                ?.question === 'string'
+                ? String(
+                    (confirmFoodCall.input as { question?: unknown }).question
+                  )
                 : '') ||
               '',
             messageType: 'assistant',

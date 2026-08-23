@@ -10,6 +10,7 @@ import chatService, {
 import {
   ASK_USER_TOOL_NAME,
   PROPOSE_WORKOUT_PRESET_TOOL_NAME,
+  CONFIRM_FOOD_TOOL_NAME,
 } from '@workspace/shared';
 import chatRepository from '../models/chatRepository.js';
 import {
@@ -656,7 +657,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 21\/40 active tools for chatbot \(profile=core/
+          /Loaded 21\/41 active tools for chatbot \(profile=core/
         )
       );
       // The core profile is the mitigation, so no context-window warning.
@@ -738,7 +739,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 40\/40 active tools for chatbot \(profile=full/
+          /Loaded 41\/41 active tools for chatbot \(profile=full/
         )
       );
       // Ollama + full profile is the risky combo, so warn about the 4096 default.
@@ -771,7 +772,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 40\/40 active tools for chatbot \(profile=full/
+          /Loaded 41\/41 active tools for chatbot \(profile=full/
         )
       );
     });
@@ -799,7 +800,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 40\/40 active tools for chatbot \(profile=full/
+          /Loaded 41\/41 active tools for chatbot \(profile=full/
         )
       );
       // The context-window warning is Ollama-only; cloud providers never see it.
@@ -916,6 +917,8 @@ describe('chatService', () => {
       // ...but quick replies survive: they belong to no category, so a manual
       // selection must not strip the model's ability to offer chips.
       expect(sentTools).toContain(ASK_USER_TOOL_NAME);
+      // Same for the food-confirmation cards, which ride the same flag.
+      expect(sentTools).toContain(CONFIRM_FOOD_TOOL_NAME);
     });
 
     // Quick replies are full-profile only: the small local models the 'core'
@@ -1093,6 +1096,107 @@ describe('chatService', () => {
       expect(sent).toContain(
         'You proposed workout preset \\"Push Day\\" with 2 exercises'
       );
+    });
+
+    it('offers the food-confirmation tool on the full profile', async () => {
+      const model = scriptModel([textStep('Sure.')]);
+
+      await chatService.processChatMessage(
+        [{ role: 'user', content: 'log my lunch' }],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+
+      expect(modelToolNames(model)).toContain(CONFIRM_FOOD_TOOL_NAME);
+    });
+
+    it('withholds the food-confirmation tool from the core profile', async () => {
+      vi.mocked(chatRepository.getAiServiceSettingForBackend).mockResolvedValue(
+        {
+          ...aiServiceSetting,
+          service_type: 'ollama',
+          custom_url: 'http://localhost:11434',
+          chat_tool_profile: 'core',
+        }
+      );
+      const model = scriptModel([textStep('Hi there!')]);
+
+      await chatService.processChatMessage(
+        [{ role: 'user', content: 'log my lunch' }],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+
+      expect(modelToolNames(model)).not.toContain(CONFIRM_FOOD_TOOL_NAME);
+    });
+
+    // The user's tap arrives as "I confirm option 2: …", so the model must be
+    // able to resolve that number back to a candidate — including the ids the
+    // log call needs, which lived only in the tool call's input. The stored
+    // part has to replay as text carrying those ids, or the follow-up turn
+    // re-asks or invents an id.
+    it('replays a previous food-confirmation call as text with the candidate ids', async () => {
+      const model = scriptModel([textStep('Logging it now.')]);
+
+      await chatService.processChatMessage(
+        [
+          { role: 'user', content: 'i had some crackers' },
+          {
+            role: 'assistant',
+            content: '',
+            parts: [
+              {
+                type: `tool-${CONFIRM_FOOD_TOOL_NAME}`,
+                input: {
+                  question: 'Which crackers are these?',
+                  quantity: 15,
+                  unit: 'cracker',
+                  meal_type: 'snacks',
+                  candidates: [
+                    {
+                      label: 'Savory Thins Crackers',
+                      brand: "Trader Joe's",
+                      serving_size: 30,
+                      serving_unit: 'g',
+                      calories: 130,
+                      source: 'openfoodfacts',
+                      external_id: '00511',
+                      provider_type: 'openfoodfacts',
+                    },
+                    {
+                      label: 'Water Crackers',
+                      serving_size: 100,
+                      serving_unit: 'g',
+                      calories: 420,
+                      source: 'internal',
+                      food_id: 'f1d2c3b4-0000-0000-0000-000000000001',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            role: 'user',
+            content:
+              'I confirm option 1: "Savory Thins Crackers" (Trader Joe\'s) — log that one.',
+          },
+        ] as unknown as Parameters<typeof chatService.processChatMessage>[0],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+
+      const sent = JSON.stringify(model.doGenerateCalls[0].prompt);
+      expect(sent).toContain('Which crackers are these?');
+      // The identifiers the follow-up log call needs must survive the replay.
+      expect(sent).toContain('external_id=00511');
+      expect(sent).toContain('provider_type=openfoodfacts');
+      expect(sent).toContain('food_id=f1d2c3b4-0000-0000-0000-000000000001');
+      // Numbering must match the pick message's "option 1".
+      expect(sent).toContain('1. \\"Savory Thins Crackers\\"');
     });
 
     describe('processQuickLog', () => {
@@ -1510,6 +1614,33 @@ describe('chatService', () => {
       expect(
         stopOnPropose(
           loggingStep as unknown as Parameters<typeof stopOnPropose>[0]
+        )
+      ).toBe(false);
+    });
+
+    // Same halt for the food-confirmation cards: without it the echoed tool
+    // result feeds straight back and the model would log a candidate nobody
+    // confirmed.
+    it('stops the loop as soon as sparky_confirm_food is called', () => {
+      const [, , , stopOnConfirm] = buildChatStopConditions('full');
+      const confirmCallStep = {
+        steps: [{ toolCalls: [{ toolName: CONFIRM_FOOD_TOOL_NAME }] }],
+      };
+      expect(
+        stopOnConfirm(
+          confirmCallStep as unknown as Parameters<typeof stopOnConfirm>[0]
+        )
+      ).toBe(true);
+    });
+
+    it('does not stop the confirm-food condition for an ordinary tool call', () => {
+      const [, , , stopOnConfirm] = buildChatStopConditions('full');
+      const loggingStep = {
+        steps: [{ toolCalls: [{ toolName: 'sparky_manage_food' }] }],
+      };
+      expect(
+        stopOnConfirm(
+          loggingStep as unknown as Parameters<typeof stopOnConfirm>[0]
         )
       ).toBe(false);
     });

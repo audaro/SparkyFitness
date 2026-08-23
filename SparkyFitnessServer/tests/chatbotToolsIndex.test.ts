@@ -3,6 +3,7 @@ import { buildChatbotTools, buildChatToolSurface } from '../ai/tools/index.js';
 import { ENABLE_TOOLS_TOOL_NAME } from '../ai/tools/metaTools.js';
 import {
   ASK_USER_TOOL_NAME,
+  CONFIRM_FOOD_TOOL_NAME,
   PROPOSE_WORKOUT_PRESET_TOOL_NAME,
 } from '@workspace/shared';
 
@@ -304,8 +305,8 @@ describe('buildChatbotTools', () => {
 
 // buildChatToolSurface backs the chat (not MCP) path: it always composes the
 // full tool map plus the chat-only tools (the sparky_propose_workout_preset
-// proposal card, sparky_ask_user quick replies, and the sparky_enable_tools
-// escalation tool), and callers narrow per-request via the AI SDK's
+// proposal card, sparky_confirm_food candidate cards, sparky_ask_user quick
+// replies, and the sparky_enable_tools escalation tool), and callers narrow per-request via the AI SDK's
 // activeTools instead of recomposing.
 describe('buildChatToolSurface', () => {
   it('includes every domain tool plus the chat-only tools, with the escalation tool last', () => {
@@ -318,6 +319,7 @@ describe('buildChatToolSurface', () => {
       [
         ...EXPECTED_TOOLS,
         ASK_USER_TOOL_NAME,
+        CONFIRM_FOOD_TOOL_NAME,
         PROPOSE_WORKOUT_PRESET_TOOL_NAME,
       ].sort()
     );
@@ -332,6 +334,7 @@ describe('buildChatToolSurface', () => {
     const { toolNamesByCategory } = buildChatToolSurface('surface-user', 'UTC');
     for (const names of Object.values(toolNamesByCategory)) {
       expect(names).not.toContain(ASK_USER_TOOL_NAME);
+      expect(names).not.toContain(CONFIRM_FOOD_TOOL_NAME);
       expect(names).not.toContain(PROPOSE_WORKOUT_PRESET_TOOL_NAME);
     }
   });

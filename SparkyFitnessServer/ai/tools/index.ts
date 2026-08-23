@@ -8,6 +8,7 @@ import {
 } from '@workspace/shared';
 import { ASK_USER_TOOL_NAME } from '@workspace/shared';
 import { buildAskTools } from './askTools.js';
+import { buildConfirmFoodTools } from './confirmFoodTools.js';
 import { buildCheckinTools } from './checkinTools.js';
 import { buildCoachProfileTools } from './coachProfileTools.js';
 import { buildCoachTools } from './coachTools.js';
@@ -271,6 +272,7 @@ export function buildChatbotTools(
   // position stays stable no matter which categories were selected.
   if (includeAskTool) {
     Object.assign(tools, buildProposalTools());
+    Object.assign(tools, buildConfirmFoodTools());
     Object.assign(tools, buildAskTools());
   }
   if (providerTuning) {
@@ -318,11 +320,13 @@ export function buildChatToolSurface(
   }
 
   const { tools, toolNamesByCategory } = composeAllToolsWithIndex(userId, tz);
-  // The chat-only tools (quick replies and the workout proposal card) are
+  // The chat-only tools (quick replies, the workout proposal card, and the
+  // food-confirmation cards) are
   // composed for every surface but only made active for the 'full' profile
   // (see activeToolNames in chatService.ts); they belong to no category, so
   // they are not in toolNamesByCategory.
   Object.assign(tools, buildProposalTools());
+  Object.assign(tools, buildConfirmFoodTools());
   Object.assign(tools, buildAskTools());
   // The escalation tool must be composed last so applyChatProviderTuning's
   // Anthropic cache breakpoint lands on it — it is always present and always
