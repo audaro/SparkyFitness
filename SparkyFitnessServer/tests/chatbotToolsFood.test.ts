@@ -1915,6 +1915,31 @@ describe('create_food', () => {
     );
   });
 
+  it('rejects a call carrying conflicting quantity and serving_size values', async () => {
+    // quantity: 1 plus serving_size: 227 is ambiguous — remapping either half
+    // would store corrupt serving math (1 g of ground beef) — so the model
+    // must restate the serving cleanly.
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_food',
+        food_name: 'Ground Beef',
+        calories: 250,
+        protein: 23,
+        carbs: 0,
+        fat: 17,
+        quantity: 1,
+        serving_size: 227,
+        serving_unit: 'g',
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: create_food received conflicting serving fields (quantity/unit vs serving_size/serving_unit). Retry with ONLY quantity and unit describing one serving, for example: {"action":"create_food","food_name":"Ground Beef","calories":100,"protein":1,"carbs":23,"fat":0,"quantity":118,"unit":"g"}'
+    );
+    expect(foodCoreService.createFood).not.toHaveBeenCalled();
+  });
+
   it.each([
     { unit: '250 ml', serving_size: 250, serving_unit: 'ml' },
     { unit: '0.5 cup', serving_size: 0.5, serving_unit: 'cup' },

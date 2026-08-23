@@ -1482,8 +1482,21 @@ Actions:
         // serving_size/serving_unit, so models bleed those names across.
         // Dropping serving_unit as an unrecognized key silently falls back
         // to the 100-'serving' base and stores ~100x-off serving math;
-        // remap instead.
+        // remap instead. A call carrying BOTH names with different values
+        // (quantity: 1 plus serving_size: 227) is ambiguous — remapping
+        // either half would store corrupt serving math (1 g), so reject it
+        // and make the model restate the serving cleanly.
         if (normalized.action === 'create_food') {
+          const conflicts = (a: unknown, b: unknown) =>
+            a !== undefined && b !== undefined && String(a) !== String(b);
+          if (
+            conflicts(normalized.serving_size, normalized.quantity) ||
+            conflicts(normalized.serving_unit, normalized.unit)
+          ) {
+            return ERRORS.VALIDATION(
+              `create_food received conflicting serving fields (quantity/unit vs serving_size/serving_unit). Retry with ONLY quantity and unit describing one serving, for example: {"action":"create_food","food_name":"${String(normalized.food_name ?? 'banana')}","calories":100,"protein":1,"carbs":23,"fat":0,"quantity":118,"unit":"g"}`
+            );
+          }
           if (
             normalized.serving_size !== undefined &&
             normalized.quantity === undefined

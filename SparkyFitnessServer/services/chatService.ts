@@ -2065,13 +2065,105 @@ function formatUnrecoveredToolErrorNote(errors: readonly string[]): string {
     .join('\n')}`;
 }
 
-// A write tool can fail in the run's final tool step — after which the model
-// only produces prose, so nothing ever recovers the failure — while the prose
-// happily claims everything was logged (observed live: three dinner items
-// claimed as logged, one actually written). Mirror quick-log's honest-failure
-// rule on the streaming path: append the unrecovered error lines as a visible
-// correction block. Errors in EARLIER steps don't fire this — the model saw
-// them and had further steps to recover (the lookup → create_food dance).
+// Read-style actions (and the interaction tools) can fail without anything
+// going unsaved, so their errors never belong in a "did NOT get saved" note.
+const READONLY_TOOL_ACTION =
+  /^(get|search|lookup|list|find|ask|enable|propose)/;
+
+// The keys tool inputs use to name the thing being written. The first present
+// key is the write's target, used to pair a failure with a later retry.
+const TOOL_TARGET_KEYS = [
+  'food_name',
+  'meal_name',
+  'exercise_name',
+  'habit_name',
+  'medication_name',
+  'name',
+] as const;
+
+interface StepToolCall {
+  toolCallId: string;
+  toolName: string;
+  input?: unknown;
+}
+interface StepToolResult {
+  toolCallId: string;
+  toolName: string;
+  output?: unknown;
+}
+
+function extractToolTarget(input: unknown): string | undefined {
+  if (typeof input !== 'object' || input === null) return undefined;
+  const rec = input as Record<string, unknown>;
+  for (const key of TOOL_TARGET_KEYS) {
+    const value = rec[key];
+    if (typeof value === 'string' && value) return value.toLowerCase();
+  }
+  return undefined;
+}
+
+// Tracks write-tool failures that were never recovered. A failure is keyed by
+// the call input's target name (food_name, meal_name, ...) and is cleared only
+// when a later write call for the SAME target succeeds — a success on a
+// different item must not silently absolve an earlier failed write. Failures
+// with no extractable target can't be correlated with a retry, so they count
+// only when they happen in the run's final tool-bearing step (nothing but
+// prose follows, so they are unrecovered by definition).
+function createUnrecoveredWriteErrorTracker() {
+  const named = new Map<string, string>();
+  let unnamed: string[] = [];
+  const onStepFinish = (
+    toolCalls: readonly StepToolCall[] | undefined,
+    toolResults: readonly StepToolResult[] | undefined
+  ): void => {
+    if (!toolResults || toolResults.length === 0) return;
+    unnamed = [];
+    const callById = new Map(toolCalls?.map((c) => [c.toolCallId, c]) ?? []);
+    const stepSuccessTargets = new Set<string>();
+    const stepErrors: Array<{ target?: string; line: string }> = [];
+    for (const r of toolResults) {
+      if (typeof r.output !== 'string') continue;
+      const input = callById.get(r.toolCallId)?.input;
+      const inputAction =
+        typeof input === 'object' &&
+        input !== null &&
+        typeof (input as Record<string, unknown>).action === 'string'
+          ? ((input as Record<string, unknown>).action as string)
+          : undefined;
+      const action = inputAction ?? r.toolName.replace(/^sparky_/, '');
+      if (READONLY_TOOL_ACTION.test(action)) continue;
+      const target = extractToolTarget(input);
+      if (r.output.startsWith('Error [')) {
+        stepErrors.push({
+          target,
+          line: r.output.split('\n', 1)[0].slice(0, 200),
+        });
+      } else if (target) {
+        stepSuccessTargets.add(target);
+        named.delete(target);
+      }
+    }
+    for (const e of stepErrors) {
+      if (e.target) {
+        // A parallel same-target call may have succeeded in this very step
+        // (result order is not meaningful) — the item IS saved, skip.
+        if (!stepSuccessTargets.has(e.target)) named.set(e.target, e.line);
+      } else {
+        unnamed.push(e.line);
+      }
+    }
+  };
+  const unrecovered = (): string[] => [...named.values(), ...unnamed];
+  return { onStepFinish, unrecovered };
+}
+
+// A write tool can fail and never be retried — while the model's prose still
+// claims everything was logged (observed live: three dinner items claimed as
+// logged, one actually written). Mirror quick-log's honest-failure rule on the
+// streaming path: append the unrecovered write-error lines (tracked per
+// target by createUnrecoveredWriteErrorTracker) as a visible correction
+// block. A failure followed by a successful same-target retry (the
+// lookup → create_food dance) stays silent.
 function withUnrecoveredToolErrorGuard(
   stream: ReadableStream<UIMessageChunk>,
   getUnrecoveredErrors: () => readonly string[]
@@ -2215,10 +2307,9 @@ async function processChatMessageStream(
       llmMessages[llmMessages.length - 1]
     );
 
-    // Error lines from the most recent tool-bearing step. If the run ends with
-    // these non-empty, those failures were never recovered — see
+    // Write failures never recovered by a same-target retry — see
     // withUnrecoveredToolErrorGuard.
-    let lastToolStepErrors: string[] = [];
+    const toolErrorTracker = createUnrecoveredWriteErrorTracker();
 
     const result = streamText({
       model: modelInstance,
@@ -2265,19 +2356,14 @@ async function processChatMessageStream(
           ? CORE_PROFILE_MAX_PROVIDER_RETRIES
           : MAX_PROVIDER_RETRIES,
       abortSignal: AbortSignal.timeout(CHAT_REQUEST_TIMEOUT_MS),
-      onStepFinish({ toolResults }) {
+      onStepFinish({ toolCalls, toolResults }) {
         if (toolResults && toolResults.length > 0) {
           const sizes = toolResults
             .map((r) => `${r.toolName}=${String(r.output ?? '').length}c`)
             .join(' ');
           log('info', `[chat] tool result sizes: ${sizes}`);
-          lastToolStepErrors = toolResults
-            .filter(
-              (r) =>
-                typeof r.output === 'string' && r.output.startsWith('Error [')
-            )
-            .map((r) => String(r.output).split('\n', 1)[0].slice(0, 200));
         }
+        toolErrorTracker.onStepFinish(toolCalls, toolResults);
       },
       onFinish: async ({
         text,
@@ -2335,9 +2421,10 @@ async function processChatMessageStream(
 
         // Persist the same correction block the stream guard appends, so the
         // reloaded transcript matches what the user saw live.
+        const unrecoveredErrors = toolErrorTracker.unrecovered();
         const persistedText =
-          lastToolStepErrors.length > 0
-            ? `${text.trim()}${formatUnrecoveredToolErrorNote(lastToolStepErrors)}`.trim()
+          unrecoveredErrors.length > 0
+            ? `${text.trim()}${formatUnrecoveredToolErrorNote(unrecoveredErrors)}`.trim()
             : text.trim();
 
         if (!persistedText && !askCall && !proposeCall) {
@@ -2406,7 +2493,7 @@ async function processChatMessageStream(
                 ? mapUsageToMetadata(part.totalUsage)
                 : undefined,
           }),
-          () => lastToolStepErrors
+          () => toolErrorTracker.unrecovered()
         )
       ),
     };
@@ -2494,6 +2581,7 @@ async function processQuickLog(
   const tools = buildChatbotTools(authenticatedUserId, tz, 'core');
 
   const actions: QuickLogAction[] = [];
+  const toolErrorTracker = createUnrecoveredWriteErrorTracker();
   let generated;
   try {
     generated = await generateText({
@@ -2522,6 +2610,7 @@ async function processQuickLog(
           const summary = r.output.split('\n', 1)[0].slice(0, 200);
           actions.push({ toolName: r.toolName, summary });
         });
+        toolErrorTracker.onStepFinish(toolCalls, toolResults);
       },
     });
   } catch (error) {
@@ -2541,21 +2630,22 @@ async function processQuickLog(
   }
 
   let text = generated.text.trim();
-  // Never let model prose claim success when a write actually failed — if the
-  // run ended on a tool error, the response is built from the tool outputs
-  // instead of the model's wording: the error line alone when nothing was
-  // confirmed ('✅ '), or every confirmation plus the error line for a partial
-  // run (a two-item note where the second write died must not read as "logged
-  // both"). A successful read before the failed write doesn't count as success.
-  const lastAction = actions[actions.length - 1];
+  // Never let model prose claim success when a write actually failed — if any
+  // write ended unrecovered (no successful same-target retry; parallel calls
+  // mean the failure is NOT always the last result), the response is built
+  // from the tool outputs instead of the model's wording: the error lines
+  // alone when nothing was confirmed ('✅ '), or every confirmation plus the
+  // error lines for a partial run (a two-item note where the second write died
+  // must not read as "logged both").
+  const unrecoveredErrors = toolErrorTracker.unrecovered();
   const confirmedSummaries = actions
     .filter((a) => a.summary.startsWith('✅'))
     .map((a) => a.summary);
-  if (lastAction?.summary.startsWith('Error [')) {
+  if (unrecoveredErrors.length > 0) {
     text =
       confirmedSummaries.length > 0
-        ? [...confirmedSummaries, lastAction.summary].join('\n')
-        : lastAction.summary;
+        ? [...confirmedSummaries, ...unrecoveredErrors].join('\n')
+        : unrecoveredErrors.join('\n');
   } else if (!text) {
     text =
       confirmedSummaries.length > 0

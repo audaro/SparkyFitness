@@ -1268,6 +1268,82 @@ describe('chatService', () => {
         );
       });
 
+      // Parallel tool calls make result order meaningless: a failed write can
+      // land BEFORE a successful one in the same step, so checking only the
+      // last result would let the model's all-success prose through.
+      it('surfaces a failed write even when a parallel write in the same step succeeds after it', async () => {
+        vi.mocked(foodRepository.getFoodsWithPagination)
+          .mockResolvedValueOnce([]) // Ghost Burger: not found
+          .mockResolvedValueOnce([
+            {
+              ...eggsRow,
+              default_variant: {
+                ...eggsRow.default_variant,
+                serving_size: 1,
+                serving_unit: 'serving',
+              },
+            },
+          ]);
+        vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+        vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+          id: 'entry-1',
+          food_name: 'Eggs',
+        });
+        scriptModel([
+          {
+            finishReason: { unified: 'tool-calls' as const, raw: undefined },
+            usage,
+            content: [
+              {
+                type: 'tool-call' as const,
+                toolCallId: 'call-a',
+                toolName: 'sparky_manage_food',
+                input: JSON.stringify({
+                  action: 'log_food',
+                  food_name: 'Ghost Burger',
+                  quantity: 1,
+                  unit: 'serving',
+                  meal_type: 'dinner',
+                  entry_date: '2026-06-10',
+                }),
+              },
+              {
+                type: 'tool-call' as const,
+                toolCallId: 'call-b',
+                toolName: 'sparky_manage_food',
+                input: JSON.stringify({
+                  action: 'log_food',
+                  food_name: 'Eggs',
+                  quantity: 2,
+                  unit: 'serving',
+                  meal_type: 'breakfast',
+                  entry_date: '2026-06-10',
+                }),
+              },
+            ],
+            warnings: [],
+          },
+          // The model hallucinates success; the response must not repeat it.
+          textStep('Logged both for you!'),
+        ]);
+
+        const result = await chatService.processQuickLog(
+          'log a ghost burger and 2 eggs',
+          activeUserId,
+          actorUserId,
+          false,
+          'svc-1'
+        );
+
+        expect(result.actions).toHaveLength(2);
+        const success = result.actions.find((a) => a.summary.startsWith('✅'))!;
+        const failure = result.actions.find((a) =>
+          a.summary.startsWith('Error [')
+        )!;
+        expect(failure.summary).toContain('Ghost Burger');
+        expect(result.text).toBe(`${success.summary}\n${failure.summary}`);
+      });
+
       it('returns the committed confirmation when the provider dies after a successful write', async () => {
         vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
           {
@@ -1812,6 +1888,193 @@ describe('chatService', () => {
           })
         )
       );
+    });
+
+    const streamToolCallChunks = (
+      toolCallId: string,
+      input: Record<string, unknown>
+    ) => [
+      { type: 'stream-start', warnings: [] },
+      {
+        type: 'tool-call',
+        toolCallId,
+        toolName: 'sparky_manage_food',
+        input: JSON.stringify(input),
+      },
+      {
+        type: 'finish',
+        finishReason: { unified: 'tool-calls', raw: undefined },
+        usage,
+      },
+    ];
+
+    const streamTextChunks = (text: string) => [
+      { type: 'stream-start', warnings: [] },
+      { type: 'text-start', id: 't1' },
+      { type: 'text-delta', id: 't1', delta: text },
+      { type: 'text-end', id: 't1' },
+      {
+        type: 'finish',
+        finishReason: { unified: 'stop', raw: undefined },
+        usage,
+      },
+    ];
+
+    const scriptStreamModel = (steps: unknown[][]) => {
+      const queue = [...steps];
+      const model = new MockLanguageModelV3({
+        doStream: async () => ({
+          stream: simulateReadableStream({
+            chunks: (queue.shift() ?? []) as never[],
+          }),
+        }),
+      });
+      mockModelHolder.current = model;
+      return model;
+    };
+
+    const eggsFood = {
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Eggs',
+      brand: null,
+      user_id: actorUserId,
+      default_variant: {
+        id: '88888888-8888-4888-8888-888888888888',
+        serving_size: 1,
+        serving_unit: 'serving',
+        calories: 155,
+        protein: 13,
+        carbs: 1.1,
+        fat: 11,
+      },
+    };
+
+    const noteDeltas = (chunks: UIMessageChunk[]) =>
+      chunks
+        .filter(
+          (c): c is Extract<UIMessageChunk, { type: 'text-delta' }> =>
+            c.type === 'text-delta'
+        )
+        .filter((c) => c.delta.includes('did NOT get saved'));
+
+    // A success on a DIFFERENT item must not absolve an earlier failed write
+    // that was never retried.
+    it('keeps an earlier write failure in the note when only a different item later succeeds', async () => {
+      vi.mocked(mealTypeRepository.getAllMealTypes).mockResolvedValue([
+        { id: 'dinner-id', name: 'Dinner', sort_order: 3, user_id: null },
+      ]);
+      vi.mocked(foodRepository.getFoodsWithPagination)
+        .mockResolvedValueOnce([]) // Ghost Burger: not found
+        .mockResolvedValueOnce([eggsFood]); // Eggs: found
+      vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+      vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+        id: 'entry-1',
+        food_name: 'Eggs',
+      });
+      scriptStreamModel([
+        streamToolCallChunks('call-1', {
+          action: 'log_food',
+          food_name: 'Ghost Burger',
+          quantity: 1,
+          unit: 'serving',
+          meal_type: 'dinner',
+          entry_date: '2026-08-22',
+        }),
+        streamToolCallChunks('call-2', {
+          action: 'log_food',
+          food_name: 'Eggs',
+          quantity: 2,
+          unit: 'serving',
+          meal_type: 'dinner',
+          entry_date: '2026-08-22',
+        }),
+        streamTextChunks('Logged both for dinner!'),
+      ]);
+
+      const { stream } = await chatService.processChatMessageStream(
+        [{ role: 'user', content: 'I had a ghost burger and eggs for dinner' }],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+      const chunks = await drainStream(stream);
+
+      const notes = noteDeltas(chunks);
+      expect(notes).toHaveLength(1);
+      expect(notes[0].delta).toContain('Ghost Burger');
+      expect(notes[0].delta).not.toContain('Eggs');
+    });
+
+    // The lookup → retry dance: a failure followed by a successful write for
+    // the SAME item is recovered and must stay silent.
+    it('omits the note when a failed write is later retried successfully for the same item', async () => {
+      vi.mocked(mealTypeRepository.getAllMealTypes).mockResolvedValue([
+        { id: 'dinner-id', name: 'Dinner', sort_order: 3, user_id: null },
+      ]);
+      vi.mocked(foodRepository.getFoodsWithPagination)
+        .mockResolvedValueOnce([]) // first attempt: not found
+        .mockResolvedValueOnce([{ ...eggsFood, name: 'Ghost Burger' }]);
+      vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+      vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+        id: 'entry-1',
+        food_name: 'Ghost Burger',
+      });
+      const logGhost = {
+        action: 'log_food',
+        food_name: 'Ghost Burger',
+        quantity: 1,
+        unit: 'serving',
+        meal_type: 'dinner',
+        entry_date: '2026-08-22',
+      };
+      scriptStreamModel([
+        streamToolCallChunks('call-1', logGhost),
+        streamToolCallChunks('call-2', logGhost),
+        streamTextChunks('Logged your ghost burger!'),
+      ]);
+
+      const { stream } = await chatService.processChatMessageStream(
+        [{ role: 'user', content: 'I had a ghost burger for dinner' }],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+      const chunks = await drainStream(stream);
+
+      expect(noteDeltas(chunks)).toHaveLength(0);
+      await vi.waitFor(() =>
+        expect(chatRepository.saveChatHistory).toHaveBeenCalledWith(
+          expect.objectContaining({
+            messageType: 'assistant',
+            content: 'Logged your ghost burger!',
+          })
+        )
+      );
+    });
+
+    // A failed READ leaves nothing unsaved; it must never trigger the
+    // "did NOT get saved" correction.
+    it('omits the note when only a read action fails in the final tool step', async () => {
+      vi.mocked(foodRepository.getFoodsWithPagination).mockRejectedValue(
+        new Error('boom')
+      );
+      scriptStreamModel([
+        streamToolCallChunks('call-1', {
+          action: 'search_food',
+          food_name: 'Eggs',
+        }),
+        streamTextChunks('I could not search for that food right now.'),
+      ]);
+
+      const { stream } = await chatService.processChatMessageStream(
+        [{ role: 'user', content: 'search my foods for eggs' }],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+      const chunks = await drainStream(stream);
+
+      expect(noteDeltas(chunks)).toHaveLength(0);
     });
 
     // A turn that ends on a proposal card with no accompanying text must still
