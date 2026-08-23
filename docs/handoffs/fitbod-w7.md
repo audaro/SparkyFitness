@@ -185,6 +185,24 @@ The literal button click and the card's pixels are the only things not exercised
   ten-exercise session runs around 2 KB; if the engine's ceiling ever rises materially, cap the
   exercise count in the engine rather than cutting the string here.
 
+## Post-review fixes (`b4d3655f`)
+
+An independent review of the milestone found two ways a new action could answer confidently and
+wrongly; both are fixed and pinned by tests.
+
+- **A bare `{duration_minutes: 45}` logged a workout instead of generating one.** `action` is
+  optional, and the inference fell through to `log_exercise`, which defaults `exercise_name` to
+  "General Exercise" and writes a diary entry — for the exact phrasing ("I've got 45 minutes") the
+  coaching prompt names as a generation request. A duration arriving with nothing else now infers
+  `generate_workout`; any other field still settles it as a log.
+- **Gym-profile name resolution took the first substring hit.** "gym" against "Home Gym" and
+  "Commercial Gym" activated whichever the repository listed first, and the wrong equipment set then
+  shaped every generated workout with nothing in the conversation showing it. A substring match must
+  now be unique; ambiguity returns VALIDATION naming the candidates. An exact name still wins.
+
+The review also flagged the account identifiers this file originally carried in the gate section;
+they were redacted and the commit amended before anything was pushed.
+
 ## Exact next step
 
 **W8 backlog** (blueprint §W8) — no ordering constraint; pick what adjacent work makes cheap. The
