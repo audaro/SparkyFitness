@@ -391,12 +391,25 @@ async function upsertWorkoutRecommendation(
  * suggestion newly generated, and it must not un-start a workout the user has
  * already begun.
  *
- * Returns null when the user has no recommendation, so the route answers 404
- * rather than reporting a successful no-op.
+ * Compare-and-set on `expectedPayload`, because the caller reads the payload,
+ * splices one exercise into it, and writes it back — on a different connection
+ * and several queries later. A regenerate landing inside that window would be
+ * silently undone by the spliced copy of the workout it replaced. No row
+ * matches then, and the caller reports the conflict rather than resurrecting a
+ * stale workout.
+ *
+ * The guard is the payload itself rather than `updated_at`: Postgres keeps
+ * microseconds, `pg` hands back a JS `Date` truncated to milliseconds, so a
+ * timestamp round-tripped through the caller would rarely compare equal and
+ * every replace would look like a conflict. `jsonb = jsonb` is semantic, so
+ * key order does not matter either.
+ *
+ * Returns null when nothing matched — no recommendation, or one that moved.
  */
 async function updateWorkoutRecommendationPayload(
   userId: string,
-  payload: WorkoutRecommendationPayload
+  payload: WorkoutRecommendationPayload,
+  expectedPayload: unknown
 ): Promise<WorkoutRecommendationRow | null> {
   const client = await getClient(userId);
   try {
@@ -404,8 +417,9 @@ async function updateWorkoutRecommendationPayload(
       `UPDATE workout_recommendations
           SET payload = $2::jsonb, updated_at = now()
         WHERE user_id = $1
+          AND payload = $3::jsonb
         RETURNING ${RECOMMENDATION_COLS}`,
-      [userId, JSON.stringify(payload)]
+      [userId, JSON.stringify(payload), JSON.stringify(expectedPayload)]
     );
     return result.rows[0] ?? null;
   } finally {

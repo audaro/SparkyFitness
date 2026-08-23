@@ -632,6 +632,27 @@ describe('ExerciseSearchScreen', () => {
       await waitFor(() => expect(mockNavigation.goBack).toHaveBeenCalled());
     });
 
+    it('stops a library row being selected while a suggestion is still resolving', async () => {
+      mockUseExerciseAlternatives.mockReturnValue({
+        alternatives: [localAlternative],
+        isLoading: false,
+        isError: false,
+      });
+      // Never settles: the tap below lands mid-resolve, which is the whole
+      // point. Suggested rows sit directly above the library ones, so this is
+      // an ordinary mis-tap, and selecting is synchronous — an un-guarded row
+      // would dispatch a second exercise for the same slot.
+      mockFetchExerciseById.mockReturnValue(new Promise<never>(() => {}));
+
+      const screen = renderScreen({ suggestForExerciseId: SOURCE_ID });
+      fireEvent.press(screen.getByText('Cable Fly'));
+      await act(async () => {});
+      fireEvent.press(screen.getByText('Bench Press'));
+
+      expect(mockNavigation.dispatch).not.toHaveBeenCalled();
+      expect(mockNavigation.goBack).not.toHaveBeenCalled();
+    });
+
     it('keeps the shortlist on screen when the library has nothing to show', () => {
       mockUseSuggestedExercises.mockReturnValue({
         recentExercises: [],

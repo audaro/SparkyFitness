@@ -291,6 +291,11 @@ useEffect(() => {
         <TouchableOpacity
           className="flex-1 flex-row items-center pl-3 py-3"
           activeOpacity={0.7}
+          // Selecting is synchronous and pops the screen, so an un-guarded row
+          // would let a tap here land on top of a suggestion still resolving —
+          // two selections racing for one slot. Suggested rows sit directly
+          // above these in the same list, which makes that a normal mis-tap.
+          disabled={resolvingExerciseId !== null}
           onPress={() => handleSelectExercise(item)}
         >
           <View className="flex-1">

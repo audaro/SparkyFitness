@@ -185,8 +185,17 @@ let currentRow: any = null;
  * payload rewrite leaves them alone, so the response still carries whatever the
  * stored row had.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function echoPayloadUpdate(_userId: string, payload: any) {
+function echoPayloadUpdate(
+  _userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
+  expectedPayload: unknown
+) {
+  // Models the compare-and-set: the real UPDATE carries `AND payload = $3`, so
+  // it matches nothing once the stored payload has moved. Reference equality is
+  // enough here because the service hands back the very object the mocked read
+  // returned.
+  if (expectedPayload !== currentRow?.payload) return Promise.resolve(null);
   return Promise.resolve({
     ...currentRow,
     payload,
@@ -1138,6 +1147,40 @@ describe('replaceRecommendationExercise', () => {
       result?.payload.exercises.map((exercise) => exercise.exercise_id)
     ).toContain(PULLDOWN_ID);
     expect(gymRepo.getGymProfile).toHaveBeenCalledWith(USER_ID, REC_ID);
+  });
+
+  it('guards the write on the payload it read', async () => {
+    const stored = await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    await workoutRecommendationService.replaceRecommendationExercise(
+      USER_ID,
+      BENCH_ID,
+      DIP_ID
+    );
+
+    expect(repo.updateWorkoutRecommendationPayload).toHaveBeenCalledWith(
+      USER_ID,
+      expect.anything(),
+      stored
+    );
+  });
+
+  it('refuses rather than clobbering a workout regenerated underneath it', async () => {
+    await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+    // What a concurrent regenerate looks like from here: the guarded write
+    // matches no row. Writing anyway would restore the workout it replaced,
+    // minus one exercise.
+    repo.updateWorkoutRecommendationPayload.mockResolvedValue(null);
+
+    await expect(
+      workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        DIP_ID
+      )
+    ).rejects.toThrow(/changed while/);
   });
 });
 

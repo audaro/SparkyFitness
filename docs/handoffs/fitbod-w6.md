@@ -56,6 +56,12 @@ Branch `feat/ai-coach`, unpushed. Plan: `~/fitness/FITBOD-BLUEPRINT.md` (W6 at :
    than the ranked row being reshaped client-side. Skipping this lands an exercise in a live workout
    with no modality and a zero calorie rate.
 
+The rationale muscle (`replacementTargetMuscle`) is always a **primary** mover of the incoming
+exercise, matching what the planner guarantees for a generated row. The alternatives ranker admits
+candidates that match the anchor muscle only as a *secondary* mover, so a suggestion picked for "lats"
+whose primary is "middle back" is explained against middle back on purpose — naming lats would put a
+muscle in the rationale that the card's own `primary_muscles` do not list.
+
 `muscle_groups` on the payload deliberately does **not** move when an exercise is replaced: it is the
 "5 Muscles" header describing what the workout was *built around*, not a derived index of its current
 contents. `estimated_duration_minutes` **is** recomputed.
@@ -91,10 +97,12 @@ gym profile, ranked with familiar ones first; picking one swaps it in place. W5'
 
 ## Open risks
 
-- **`updateWorkoutRecommendationPayload` matches on `user_id` only.** A `generate` landing between
-  the service's read and its write would be clobbered by the spliced older payload. Judged not worth
-  guarding: the UI is single-user and sequential, and a `generated_at` guard would surface as a 404
-  with a misleading message. If W7 ever regenerates in the background, this needs a real compare-and-set.
+- **The payload write is a compare-and-set on the payload itself** (`AND payload = $3::jsonb`), not a
+  blind `WHERE user_id`. A regenerate landing between the service's read and its write matches no row,
+  and Replace answers 422 rather than resurrecting the workout it replaced minus one exercise. The
+  guard is the payload and not `updated_at` because Postgres keeps microseconds and `pg` truncates to
+  milliseconds, so a round-tripped timestamp would rarely compare equal — every replace would look
+  like a conflict. Do not "simplify" it to a timestamp.
 - **The mutation writes the server response straight into the cache** (`setQueryData`, no invalidate),
   matching the rest of the recommendation hooks. Correct only while `/replace` returns the complete
   row — if it is ever narrowed to a delta, this silently truncates the cached workout.

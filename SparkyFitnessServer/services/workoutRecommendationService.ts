@@ -516,12 +516,19 @@ async function updateRecommendationStatus(
  * The muscle the replacement should be programmed and explained against.
  *
  * Normally the slot's own muscle — the outgoing exercise's first primary mover,
- * which is also what the alternatives ranker anchors on, so anything picked
- * from the suggested list lands here. A user who ignores the suggestions and
- * searches freely can pick something that trains a different muscle entirely;
- * then the slot's muscle is a lie, and the incoming exercise's own primary
- * mover is the honest answer. Getting this wrong is not cosmetic: it is the
+ * which is also what the alternatives ranker anchors on. Otherwise the incoming
+ * exercise's own primary mover. Getting this wrong is not cosmetic: it is the
  * word in "fresh quads · +2.5% from last session".
+ *
+ * The invariant being held is that the muscle named always is one the incoming
+ * exercise actually moves primarily, which is what the planner guarantees for a
+ * generated row (it queries candidates by primary muscle only). Two things land
+ * in the fallback: a freely searched exercise that trains something else
+ * entirely, and — less obviously — a *suggested* one, because the ranker admits
+ * candidates matching the anchor as a secondary mover. A row picked for "lats"
+ * whose primary is "middle back" is explained against middle back on purpose;
+ * naming lats would put a muscle in the rationale that the card's own
+ * `primary_muscles` do not list.
  */
 function replacementTargetMuscle(
   outgoingPrimaryMuscles: readonly string[],
@@ -655,9 +662,18 @@ async function replaceRecommendationExercise(
   const updated =
     await workoutRecommendationRepository.updateWorkoutRecommendationPayload(
       userId,
-      next
+      next,
+      row.payload
     );
-  return updated ? toResponse(updated) : null;
+  if (!updated) {
+    // The row existed when this started — nothing deletes it — so the only way
+    // the guarded write matches nothing is a regenerate landing while the
+    // replacement was being programmed. Writing anyway would silently undo it.
+    throw new WorkoutGenerationError(
+      'Your workout changed while that was being swapped. Open it again and retry.'
+    );
+  }
+  return toResponse(updated);
 }
 
 // ---------------------------------------------------------------------------
