@@ -12,6 +12,7 @@ import { usePreferences } from '../../src/hooks';
 import { useGymProfiles, useGymProfileMutations } from '../../src/hooks/useGymProfiles';
 import { useStartLiveWorkout } from '../../src/hooks/useStartLiveWorkout';
 import {
+  useReplaceRecommendationExercise,
   useUpdateRecommendationStatus,
   useWorkoutRecommendation,
 } from '../../src/hooks/useWorkoutRecommendation';
@@ -25,6 +26,7 @@ jest.mock('../../src/hooks', () => ({
 jest.mock('../../src/hooks/useWorkoutRecommendation', () => ({
   useWorkoutRecommendation: jest.fn(),
   useUpdateRecommendationStatus: jest.fn(),
+  useReplaceRecommendationExercise: jest.fn(),
 }));
 
 jest.mock('../../src/hooks/useGymProfiles', () => ({
@@ -91,6 +93,10 @@ const mockUseWorkoutRecommendation = useWorkoutRecommendation as jest.MockedFunc
 >;
 const mockUseUpdateRecommendationStatus =
   useUpdateRecommendationStatus as jest.MockedFunction<typeof useUpdateRecommendationStatus>;
+const mockUseReplaceRecommendationExercise =
+  useReplaceRecommendationExercise as jest.MockedFunction<
+    typeof useReplaceRecommendationExercise
+  >;
 const mockUseGymProfiles = useGymProfiles as jest.MockedFunction<typeof useGymProfiles>;
 const mockUseGymProfileMutations = useGymProfileMutations as jest.MockedFunction<
   typeof useGymProfileMutations
@@ -103,6 +109,7 @@ const insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const frame = { x: 0, y: 0, width: 390, height: 844 };
 
 const EX_A = '11111111-1111-4111-8111-111111111111';
+const EX_B = '22222222-2222-4222-8222-222222222222';
 const GYM_A = '33333333-3333-4333-8333-333333333333';
 const GYM_B = '55555555-5555-4555-8555-555555555555';
 
@@ -163,12 +170,12 @@ const navigation = {
   setOptions: jest.fn(),
 } as never;
 
-function renderScreen() {
+function renderScreen(params: Record<string, unknown> | undefined = undefined) {
   return render(
     <SafeAreaProvider initialMetrics={{ insets, frame }}>
       <UpNextScreen
         navigation={navigation}
-        route={{ key: 'UpNext-key', name: 'UpNext', params: undefined } as never}
+        route={{ key: 'UpNext-key', name: 'UpNext', params } as never}
       />
     </SafeAreaProvider>,
   );
@@ -179,6 +186,7 @@ describe('UpNextScreen', () => {
   const startLiveWorkout = jest.fn();
   const updateStatus = jest.fn();
   const activateProfileAsync = jest.fn();
+  const replaceExercise = jest.fn();
 
   function setRecommendation(
     recommendation: WorkoutRecommendation | null,
@@ -214,6 +222,11 @@ describe('UpNextScreen', () => {
     mockUseGymProfileMutations.mockReturnValue({ activateProfileAsync } as never);
     mockUseStartLiveWorkout.mockReturnValue({ startLiveWorkout, isStarting: false });
     mockUseUpdateRecommendationStatus.mockReturnValue({ mutate: updateStatus } as never);
+    mockUseReplaceRecommendationExercise.mockReturnValue({
+      mutate: replaceExercise,
+      isPending: false,
+      variables: undefined,
+    } as never);
   });
 
   it('summarizes the payload and prescribes each exercise', () => {
@@ -328,5 +341,85 @@ describe('UpNextScreen', () => {
         item: expect.objectContaining({ id: EX_A, name: 'Bench Press' }),
       }),
     );
+  });
+
+  describe('replace', () => {
+    it('opens the search screen naming the exercise to suggest against', () => {
+      const screen = renderScreen();
+      fireEvent.press(screen.getByTestId('up-next-exercise-menu'));
+      fireEvent.press(screen.getByText('Replace exercise'));
+
+      // Without `suggestForExerciseId` the user lands on a blank search box —
+      // which is exactly what W6 exists to replace.
+      expect(navigation.navigate).toHaveBeenCalledWith('ExerciseSearch', {
+        returnKey: 'UpNext-key',
+        suggestForExerciseId: EX_A,
+      });
+    });
+
+    it('sends the picked replacement to the server rather than splicing it in', () => {
+      const screen = renderScreen();
+      fireEvent.press(screen.getByTestId('up-next-exercise-menu'));
+      fireEvent.press(screen.getByText('Replace exercise'));
+
+      screen.rerender(
+        <SafeAreaProvider initialMetrics={{ insets, frame }}>
+          <UpNextScreen
+            navigation={navigation}
+            route={
+              {
+                key: 'UpNext-key',
+                name: 'UpNext',
+                params: {
+                  selectedExercise: { id: EX_B, name: 'Cable Fly' },
+                  selectionNonce: 1,
+                },
+              } as never
+            }
+          />
+        </SafeAreaProvider>,
+      );
+
+      expect(replaceExercise).toHaveBeenCalledWith({
+        exercise_id_out: EX_A,
+        exercise_id_in: EX_B,
+      });
+    });
+
+    it('ignores a selection that arrives without a Replace behind it', () => {
+      // A stale param from some other flow must not silently swap an exercise.
+      renderScreen({
+        selectedExercise: { id: EX_B, name: 'Cable Fly' },
+        selectionNonce: 1,
+      });
+
+      expect(replaceExercise).not.toHaveBeenCalled();
+    });
+
+    it('does not ask the server to replace an exercise with itself', () => {
+      const screen = renderScreen();
+      fireEvent.press(screen.getByTestId('up-next-exercise-menu'));
+      fireEvent.press(screen.getByText('Replace exercise'));
+
+      screen.rerender(
+        <SafeAreaProvider initialMetrics={{ insets, frame }}>
+          <UpNextScreen
+            navigation={navigation}
+            route={
+              {
+                key: 'UpNext-key',
+                name: 'UpNext',
+                params: {
+                  selectedExercise: { id: EX_A, name: 'Bench Press' },
+                  selectionNonce: 1,
+                },
+              } as never
+            }
+          />
+        </SafeAreaProvider>,
+      );
+
+      expect(replaceExercise).not.toHaveBeenCalled();
+    });
   });
 });

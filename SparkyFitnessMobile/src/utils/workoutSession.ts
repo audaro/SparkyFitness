@@ -689,6 +689,17 @@ export function formatRecommendedSets(
   return parts.join(' · ');
 }
 
+/**
+ * Capitalize a canonical lowercase catalog value for display — muscle and
+ * equipment names are stored lowercase because the catalog filter
+ * (`equipment::jsonb ?|`) is exact and case-sensitive, so capitalizing is a
+ * render-time concern only. Leaves the rest of each word alone, which is what
+ * keeps `ez-bar` and `v-bar` intact.
+ */
+export function titleCaseCanonical(value: string): string {
+  return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+
 /** `2:00 rest` chip text for a recommended exercise. */
 export function formatRestChip(restSeconds: number): string {
   const minutes = Math.floor(restSeconds / 60);

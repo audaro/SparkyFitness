@@ -180,9 +180,16 @@ export type RootStackParamList = {
         ingredientIndex?: number;
       }
     | undefined;
-  ExerciseSearch: { returnKey: string };
+  ExerciseSearch: {
+    returnKey: string;
+    // Set when the screen was opened to REPLACE this exercise rather than add
+    // one: a "Suggested" section of ranked alternatives renders above the
+    // results, so Replace is a shortlist instead of a blank search box.
+    suggestForExerciseId?: string;
+  };
   PresetSearch: { selectedExercise?: Exercise; selectionNonce?: number } | undefined;
-  UpNext: undefined;
+  // Carries a selection back from ExerciseSearch when a row's Replace was used.
+  UpNext: { selectedExercise?: Exercise; selectionNonce?: number } | undefined;
   WorkoutAdd: {
     session?: PresetSessionResponse;
     preset?: WorkoutPreset;

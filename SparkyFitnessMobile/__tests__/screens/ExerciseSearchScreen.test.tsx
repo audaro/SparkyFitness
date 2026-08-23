@@ -12,6 +12,8 @@ import {
   useSuggestedExercises,
 } from '../../src/hooks';
 import { useExternalExerciseSearch } from '../../src/hooks/useExternalExerciseSearch';
+import { useExerciseAlternatives } from '../../src/hooks/useWorkoutRecommendation';
+import { fetchExerciseById } from '../../src/services/api/exerciseApi';
 import { useNavigationActionGuard } from '../../src/hooks/useNavigationActionGuard';
 import { importExercise } from '../../src/services/api/externalExerciseSearchApi';
 import {
@@ -36,6 +38,16 @@ jest.mock('../../src/hooks/useExternalExerciseSearch', () => ({
 
 jest.mock('../../src/hooks/useNavigationActionGuard', () => ({
   useNavigationActionGuard: jest.fn(),
+}));
+
+jest.mock('../../src/hooks/useWorkoutRecommendation', () => ({
+  useExerciseAlternatives: jest.fn(),
+}));
+
+// Keep transformExerciseRow real — the external import path below depends on it.
+jest.mock('../../src/services/api/exerciseApi', () => ({
+  ...jest.requireActual('../../src/services/api/exerciseApi'),
+  fetchExerciseById: jest.fn(),
 }));
 
 // Keep the real isImportableExerciseSource so the nutritionix exclusion is
@@ -122,6 +134,12 @@ const mockUseNavigationActionGuard =
 const mockImportExercise = importExercise as jest.MockedFunction<
   typeof importExercise
 >;
+const mockUseExerciseAlternatives = useExerciseAlternatives as jest.MockedFunction<
+  typeof useExerciseAlternatives
+>;
+const mockFetchExerciseById = fetchExerciseById as jest.MockedFunction<
+  typeof fetchExerciseById
+>;
 
 const insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const frame = { x: 0, y: 0, width: 390, height: 844 };
@@ -163,12 +181,12 @@ const nutritionixItem: ExternalExerciseItem = {
 
 let queryClient: QueryClient;
 
-const renderScreen = () => {
+const renderScreen = (extraParams: Record<string, unknown> = {}) => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const route = {
     key: 'ExerciseSearch-key',
     name: 'ExerciseSearch' as const,
-    params: { returnKey: 'workout-form-key' },
+    params: { returnKey: 'workout-form-key', ...extraParams },
   };
   return render(
     <QueryClientProvider client={queryClient}>
@@ -226,6 +244,11 @@ describe('ExerciseSearchScreen', () => {
       isFetchingNextPage: false,
       isFetchNextPageError: false,
     } as any);
+    mockUseExerciseAlternatives.mockReturnValue({
+      alternatives: [],
+      isLoading: false,
+      isError: false,
+    });
     mockUseNavigationActionGuard.mockReturnValue({
       isNavigationLocked: false,
       runNavigationAction: jest.fn((action: () => void) => {
@@ -501,6 +524,167 @@ describe('ExerciseSearchScreen', () => {
 
       await waitFor(() => expect(mockNavigation.goBack).toHaveBeenCalled());
       expect(mockImportExercise).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('suggested replacements', () => {
+    const SOURCE_ID = '99999999-9999-4999-8999-999999999999';
+    const localAlternative = {
+      exercise_id: '22222222-2222-4222-8222-222222222222',
+      exercise_name: 'Cable Fly',
+      source: 'local' as const,
+      primary_muscles: ['chest'],
+      secondary_muscles: [],
+      equipment: ['cable'],
+      images: [],
+      mechanic: 'isolation',
+      level: 'beginner',
+      score: 5,
+    };
+    const externalAlternative = {
+      ...localAlternative,
+      exercise_id: 'Chest_Dip',
+      exercise_name: 'Chest Dip',
+      source: 'external' as const,
+      equipment: ['body only'],
+    };
+
+    const fullCableFly: Exercise = {
+      ...localExercise,
+      id: localAlternative.exercise_id,
+      name: 'Cable Fly',
+    };
+
+    it('asks for nothing when the screen was opened to add, not replace', () => {
+      const screen = renderScreen();
+
+      expect(mockUseExerciseAlternatives).toHaveBeenCalledWith(undefined);
+      expect(screen.queryByTestId('suggested-section')).toBeNull();
+    });
+
+    it('lists the ranked alternatives above the library', () => {
+      mockUseExerciseAlternatives.mockReturnValue({
+        alternatives: [localAlternative, externalAlternative],
+        isLoading: false,
+        isError: false,
+      });
+
+      const screen = renderScreen({ suggestForExerciseId: SOURCE_ID });
+
+      expect(mockUseExerciseAlternatives).toHaveBeenCalledWith(SOURCE_ID);
+      expect(screen.getByTestId('suggested-section')).toBeTruthy();
+      expect(screen.getByText('Suggested')).toBeTruthy();
+      expect(screen.getByText('Cable Fly')).toBeTruthy();
+      // Equipment for a row already in the library, and a plain hint for one
+      // that still has to be imported.
+      expect(screen.getByText('Cable')).toBeTruthy();
+      expect(screen.getByText('Not in your library yet')).toBeTruthy();
+    });
+
+    it('fetches a local suggestion in full before returning it', async () => {
+      mockUseExerciseAlternatives.mockReturnValue({
+        alternatives: [localAlternative],
+        isLoading: false,
+        isError: false,
+      });
+      mockFetchExerciseById.mockResolvedValue(fullCableFly);
+
+      const screen = renderScreen({ suggestForExerciseId: SOURCE_ID });
+      await act(async () => {
+        fireEvent.press(screen.getByText('Cable Fly'));
+      });
+
+      // The ranked row carries no category, modality or calorie rate, and the
+      // caller snapshots whatever it is handed — so it is fetched, not rebuilt.
+      expect(mockFetchExerciseById).toHaveBeenCalledWith(localAlternative.exercise_id);
+      expect(mockNavigation.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            params: expect.objectContaining({
+              selectedExercise: expect.objectContaining({
+                id: fullCableFly.id,
+                calories_per_hour: 300,
+              }),
+            }),
+          }),
+        }),
+      );
+      await waitFor(() => expect(mockNavigation.goBack).toHaveBeenCalled());
+    });
+
+    it('imports an external suggestion from free-exercise-db first', async () => {
+      mockUseExerciseAlternatives.mockReturnValue({
+        alternatives: [externalAlternative],
+        isLoading: false,
+        isError: false,
+      });
+      mockImportExercise.mockResolvedValue(fullCableFly);
+
+      const screen = renderScreen({ suggestForExerciseId: SOURCE_ID });
+      await act(async () => {
+        fireEvent.press(screen.getByText('Chest Dip'));
+      });
+
+      // The server only ever reaches free-exercise-db for these, so the source
+      // is fixed rather than carried on the row.
+      expect(mockImportExercise).toHaveBeenCalledWith('free-exercise-db', 'Chest_Dip');
+      expect(mockFetchExerciseById).not.toHaveBeenCalled();
+      await waitFor(() => expect(mockNavigation.goBack).toHaveBeenCalled());
+    });
+
+    it('keeps the shortlist on screen when the library has nothing to show', () => {
+      mockUseSuggestedExercises.mockReturnValue({
+        recentExercises: [],
+        topExercises: [],
+        isLoading: false,
+        isError: true,
+        refetch: jest.fn(),
+      } as any);
+      mockUseExerciseAlternatives.mockReturnValue({
+        alternatives: [localAlternative],
+        isLoading: false,
+        isError: false,
+      });
+
+      const screen = renderScreen({ suggestForExerciseId: SOURCE_ID });
+
+      // A failed library read used to take the whole tab; the suggestions are
+      // fetched separately and are the reason the user is here.
+      expect(screen.getByTestId('suggested-section')).toBeTruthy();
+      expect(screen.queryByText('Failed to load exercises')).toBeNull();
+    });
+
+    it('keeps the shortlist reachable when a typed search finds nothing', () => {
+      mockUseExerciseSearch.mockReturnValue({
+        searchResults: [],
+        isSearching: false,
+        isSearchActive: true,
+        isSearchError: false,
+      } as any);
+      mockUseExerciseAlternatives.mockReturnValue({
+        alternatives: [localAlternative],
+        isLoading: false,
+        isError: false,
+      });
+
+      const screen = renderScreen({ suggestForExerciseId: SOURCE_ID });
+
+      expect(screen.getByTestId('suggested-section')).toBeTruthy();
+      // The empty state moves inside the list rather than replacing it.
+      expect(screen.getByText('No matching exercises found')).toBeTruthy();
+    });
+
+    it('falls back to a plain search when the lookup fails', () => {
+      mockUseExerciseAlternatives.mockReturnValue({
+        alternatives: [],
+        isLoading: false,
+        isError: true,
+      });
+
+      const screen = renderScreen({ suggestForExerciseId: SOURCE_ID });
+
+      expect(screen.queryByTestId('suggested-section')).toBeNull();
+      expect(screen.getByText('Bench Press')).toBeTruthy();
     });
   });
 });

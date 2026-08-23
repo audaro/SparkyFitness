@@ -20,8 +20,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import Icon from '../components/Icon';
 import SafeImage from '../components/SafeImage';
 import SegmentedControl from '../components/SegmentedControl';
-import { CATEGORY_ICON_MAP, exerciseFromExternalItem } from '../utils/workoutSession';
+import {
+  CATEGORY_ICON_MAP,
+  exerciseFromExternalItem,
+  titleCaseCanonical,
+} from '../utils/workoutSession';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
+import { useExerciseAlternatives } from '../hooks/useWorkoutRecommendation';
 import { useServerConnection, useExternalProviders, useSuggestedExercises, useExerciseSearch, useProfile } from '../hooks';
 import {
   deriveShareStatus,
@@ -39,7 +44,9 @@ import {
   importExercise,
   isImportableExerciseSource,
 } from '../services/api/externalExerciseSearchApi';
+import { fetchExerciseById } from '../services/api/exerciseApi';
 import { getApiErrorMessage } from '../services/api/errors';
+import type { AlternativeExercise } from '@workspace/shared';
 import type { Exercise } from '../types/exercise';
 import type { ExternalExerciseItem } from '../types/externalExercises';
 import type { RootStackScreenProps } from '../types/navigation';
@@ -59,7 +66,7 @@ const TABS: { key: TabKey; label: string }[] = [
 ] as const;
 
 const ExerciseSearchScreen: React.FC<ExerciseSearchScreenProps> = ({ navigation, route }) => {
-  const { returnKey } = route.params;
+  const { returnKey, suggestForExerciseId } = route.params;
 
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -79,10 +86,20 @@ const ExerciseSearchScreen: React.FC<ExerciseSearchScreenProps> = ({ navigation,
   const setOwnershipFilter = useAppPreferencesStore((s) => s.setExerciseSearchOwnershipFilter);
   const [searchText, setSearchText] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [importingExerciseId, setImportingExerciseId] = useState<string | null>(null);
+  // The row currently being resolved into a full local Exercise — an online
+  // import, or a suggested local row being fetched in full. Both block the list
+  // the same way, so they share one piece of state.
+  const [resolvingExerciseId, setResolvingExerciseId] = useState<string | null>(null);
 
   const { recentExercises, topExercises, isLoading: isSuggestedLoading, isError: isSuggestedError, refetch: refetchSuggested } = useSuggestedExercises();
   const { searchResults, isSearching, isSearchActive, isSearchError } = useExerciseSearch(searchText);
+  // Only fetched when the screen was opened to replace something; from Add it
+  // is disabled and costs nothing.
+  const {
+    alternatives,
+    isLoading: isAlternativesLoading,
+    isError: isAlternativesError,
+  } = useExerciseAlternatives(suggestForExerciseId);
 
   const {
     providers,
@@ -140,13 +157,13 @@ useEffect(() => {
     navigation.goBack();
   }, [returnKey, navigation]);
 
-  const importInFlightRef = useRef(false);
+  const selectionInFlightRef = useRef(false);
   const handleImportExercise = useCallback(async (item: ExternalExerciseItem) => {
-    // `importingExerciseId` only disables the rows after a re-render; the ref
+    // `resolvingExerciseId` only disables the rows after a re-render; the ref
     // blocks a second tap landing before that.
-    if (importInFlightRef.current) return;
-    importInFlightRef.current = true;
-    setImportingExerciseId(item.id);
+    if (selectionInFlightRef.current) return;
+    selectionInFlightRef.current = true;
+    setResolvingExerciseId(item.id);
     try {
       const exercise = await importExercise(item.source, item.id);
       // The import succeeded server-side, so the library cache must reflect
@@ -167,8 +184,49 @@ useEffect(() => {
     }
     // No `finally`: the react compiler can't lower it and would bail on the
     // whole component. Every path above falls through to this cleanup.
-    importInFlightRef.current = false;
-    setImportingExerciseId(null);
+    selectionInFlightRef.current = false;
+    setResolvingExerciseId(null);
+  }, [queryClient, handleSelectExercise, navigation]);
+
+  /**
+   * Pick a suggested replacement.
+   *
+   * A local row is FETCHED rather than rebuilt from the ranked candidate: the
+   * alternatives contract carries no category, modality or calories_per_hour,
+   * and the caller snapshots whatever it is handed — a sparse exercise would
+   * land in the live workout with no modality and a zero calorie rate.
+   *
+   * An external row is imported first, which is what gives it a local uuid.
+   * The source is free-exercise-db by construction: it is the only catalog the
+   * server reaches for when the local one is too thin.
+   */
+  const handleSelectSuggested = useCallback(async (item: AlternativeExercise) => {
+    if (selectionInFlightRef.current) return;
+    selectionInFlightRef.current = true;
+    setResolvingExerciseId(item.exercise_id);
+    try {
+      const exercise =
+        item.source === 'local'
+          ? await fetchExerciseById(item.exercise_id)
+          : await importExercise('free-exercise-db', item.exercise_id);
+      if (item.source === 'external') {
+        // Same reasoning as the online tab: the import landed server-side, so
+        // the library cache must reflect it even if the selection is abandoned.
+        queryClient.invalidateQueries({ queryKey: suggestedExercisesQueryKey });
+      }
+      if (navigation.isFocused()) {
+        handleSelectExercise(exercise);
+      }
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to add exercise',
+        text2: getApiErrorMessage(error) ?? undefined,
+      });
+    }
+    // No `finally` — see the note in handleImportExercise.
+    selectionInFlightRef.current = false;
+    setResolvingExerciseId(null);
   }, [queryClient, handleSelectExercise, navigation]);
 
   const handlePreviewExercise = useCallback((item: Exercise) => {
@@ -214,7 +272,7 @@ useEffect(() => {
           activeOpacity={0.7}
           accessible={false}
           testID="exercise-thumbnail"
-          disabled={isNavigationLocked || importingExerciseId !== null}
+          disabled={isNavigationLocked || resolvingExerciseId !== null}
           onPress={() => handlePreviewExercise(item)}
         >
           <SafeImage
@@ -253,7 +311,7 @@ useEffect(() => {
           className="px-4 py-3"
           activeOpacity={0.7}
           hitSlop={8}
-          disabled={isNavigationLocked || importingExerciseId !== null}
+          disabled={isNavigationLocked || resolvingExerciseId !== null}
           accessibilityLabel="View exercise details"
           onPress={() => handlePreviewExercise(item)}
         >
@@ -265,7 +323,7 @@ useEffect(() => {
     handleSelectExercise,
     handlePreviewExercise,
     isNavigationLocked,
-    importingExerciseId,
+    resolvingExerciseId,
     accentColor,
     textSecondary,
     textMuted,
@@ -292,6 +350,99 @@ useEffect(() => {
       </Text>
     </View>
   );
+
+  // --- Suggested replacements ---
+
+  // Same row anatomy as the library rows, minus the ⓘ preview: a suggestion is
+  // resolved (fetched, or imported) on tap, and there is nothing local to
+  // preview until that lands.
+  const renderSuggestedRow = useCallback((item: AlternativeExercise) => {
+    const image = item.images[0] ?? null;
+    const subtitle =
+      item.source === 'external'
+        ? 'Not in your library yet'
+        : (item.equipment.map(titleCaseCanonical).join(', ') ||
+           item.primary_muscles.map(titleCaseCanonical).join(', '));
+    return (
+      <TouchableOpacity
+        key={`${item.source}-${item.exercise_id}`}
+        className="flex-row items-center border-b border-border-subtle pl-4 pr-4 py-3"
+        activeOpacity={0.7}
+        disabled={resolvingExerciseId !== null}
+        testID="suggested-exercise-row"
+        onPress={() => void handleSelectSuggested(item)}
+      >
+        <SafeImage
+          source={image ? getImageSource(image) : null}
+          style={{ width: 44, height: 44, borderRadius: 8 }}
+          fallback={
+            <View
+              className="bg-raised items-center justify-center"
+              style={{ width: 44, height: 44, borderRadius: 8 }}
+            >
+              <Icon name="exercise-weights" size={22} color={textMuted} />
+            </View>
+          }
+        />
+        <View className="flex-1 ml-3">
+          <Text className="text-text-primary text-base font-medium" numberOfLines={1}>
+            {item.exercise_name}
+          </Text>
+          {subtitle.length > 0 && (
+            <Text className="text-sm mt-0.5" style={{ color: textSecondary }} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          )}
+        </View>
+        {resolvingExerciseId === item.exercise_id && (
+          <ActivityIndicator size="small" color={accentColor} />
+        )}
+      </TouchableOpacity>
+    );
+  }, [
+    handleSelectSuggested,
+    resolvingExerciseId,
+    accentColor,
+    textSecondary,
+    textMuted,
+    getImageSource,
+  ]);
+
+  /**
+   * The "Suggested" block, rendered as a list header above both the idle
+   * library sections and the search results — so a user who starts typing
+   * scrolls past the shortlist rather than losing it.
+   *
+   * A failed or empty lookup renders nothing: the fallback for "no suggestions"
+   * is the plain search this screen already is, not an error in place of it.
+   */
+  const suggestedSection = useMemo(() => {
+    if (!suggestForExerciseId || isAlternativesError) return null;
+    if (!isAlternativesLoading && alternatives.length === 0) return null;
+    return (
+      <View testID="suggested-section">
+        <View className="px-4 py-2 bg-background">
+          <Text className="text-text-secondary text-sm font-semibold uppercase tracking-wider">
+            Suggested
+          </Text>
+        </View>
+        {isAlternativesLoading ? (
+          <View className="py-4 items-center">
+            <ActivityIndicator size="small" color={accentColor} />
+          </View>
+        ) : (
+          alternatives.map(renderSuggestedRow)
+        )}
+      </View>
+    );
+  }, [
+    suggestForExerciseId,
+    alternatives,
+    isAlternativesLoading,
+    isAlternativesError,
+    renderSuggestedRow,
+    accentColor,
+  ]);
 
   const renderSearchBar = () => (
     <View className="px-4 py-2">
@@ -326,28 +477,42 @@ useEffect(() => {
 
   // --- Search tab ---
 
-  const renderSearchResults = () => {
-    if (isSearching && filteredSearchResults.length === 0) {
-      return <StatusView loading />;
+  /**
+   * Why the results list is empty — loading, failed, filtered out, or no match.
+   *
+   * `inline` matters: StatusView's default container is `flex-1`, which
+   * collapses to nothing inside a list's content container. As a whole-screen
+   * return it needs the default; as a ListEmptyComponent it needs inline.
+   */
+  const renderSearchEmptyState = (inline = false) => {
+    if (isSearching) {
+      return <StatusView loading inline={inline} />;
     }
-
     if (isSearchError) {
-      return <StatusView icon="alert-circle" title="Failed to search exercises" />;
+      return <StatusView icon="alert-circle" title="Failed to search exercises" inline={inline} />;
     }
+    if (ownershipFilter !== 'all' && searchResults.length > 0) {
+      return (
+        <StatusView
+          {...ownershipFilterEmptyState({
+            noun: 'exercises',
+            filter: ownershipFilter,
+            onReset: () => setOwnershipFilter('all'),
+          })}
+          inline={inline}
+        />
+      );
+    }
+    return <StatusView title="No matching exercises found" inline={inline} />;
+  };
 
-    if (filteredSearchResults.length === 0) {
-      if (ownershipFilter !== 'all' && searchResults.length > 0) {
-        return (
-          <StatusView
-            {...ownershipFilterEmptyState({
-              noun: 'exercises',
-              filter: ownershipFilter,
-              onReset: () => setOwnershipFilter('all'),
-            })}
-          />
-        );
-      }
-      return <StatusView title="No matching exercises found" />;
+  const renderSearchResults = () => {
+    // With no Suggested block there is nothing worth keeping on screen, so an
+    // empty or failed search stays a full-screen status view. With one, the
+    // list renders regardless and the status moves inside it — a search that
+    // found nothing must not take the shortlist down with it.
+    if (!suggestedSection && filteredSearchResults.length === 0) {
+      return renderSearchEmptyState();
     }
 
     return (
@@ -356,6 +521,8 @@ useEffect(() => {
           data={filteredSearchResults}
           keyExtractor={(item) => item.id}
           renderItem={renderExerciseRow}
+          ListHeaderComponent={suggestedSection}
+          ListEmptyComponent={renderSearchEmptyState(true)}
           keyboardShouldPersistTaps="handled"
           contentContainerClassName="pb-safe-or-4"
         />
@@ -372,38 +539,44 @@ useEffect(() => {
       return renderSearchResults();
     }
 
-    if (isSuggestedLoading) {
-      return <StatusView loading />;
-    }
+    // Each of these describes the local library only. The Suggested shortlist
+    // is fetched independently and is what the user came here for when it
+    // exists, so it keeps the list mounted through all three.
+    if (!suggestedSection) {
+      if (isSuggestedLoading) {
+        return <StatusView loading />;
+      }
 
-    if (isSuggestedError) {
-      return (
-        <StatusView
-          icon="alert-circle"
-          title="Failed to load exercises"
-          action={{ label: 'Retry', onPress: () => refetchSuggested() }}
-        />
-      );
-    }
-
-    if (sections.length === 0) {
-      if (ownershipFilter !== 'all' && (recentExercises.length > 0 || topExercises.length > 0)) {
+      if (isSuggestedError) {
         return (
           <StatusView
-            {...ownershipFilterEmptyState({
-              noun: 'exercises',
-              filter: ownershipFilter,
-              onReset: () => setOwnershipFilter('all'),
-            })}
+            icon="alert-circle"
+            title="Failed to load exercises"
+            action={{ label: 'Retry', onPress: () => refetchSuggested() }}
           />
         );
       }
-      return <StatusView title="Search for an exercise to get started" />;
+
+      if (sections.length === 0) {
+        if (ownershipFilter !== 'all' && (recentExercises.length > 0 || topExercises.length > 0)) {
+          return (
+            <StatusView
+              {...ownershipFilterEmptyState({
+                noun: 'exercises',
+                filter: ownershipFilter,
+                onReset: () => setOwnershipFilter('all'),
+              })}
+            />
+          );
+        }
+        return <StatusView title="Search for an exercise to get started" />;
+      }
     }
 
     return (
       <View className="flex-1 bg-surface">
         <SectionList
+          ListHeaderComponent={suggestedSection}
           sections={sections}
           keyExtractor={(item, index) => `${index}-${item.id}`}
           renderItem={renderExerciseRow}
@@ -425,7 +598,7 @@ useEffect(() => {
     const image = item.images?.[0] ?? null;
     const fallbackIcon =
       (item.category && CATEGORY_ICON_MAP[item.category]) || 'exercise-weights';
-    const isImportInFlight = importingExerciseId !== null;
+    const isImportInFlight = resolvingExerciseId !== null;
     return (
       <View className="flex-row items-center border-b border-border-subtle">
         <TouchableOpacity
@@ -470,7 +643,7 @@ useEffect(() => {
           accessibilityLabel="View exercise details"
           onPress={() => handlePreviewExternalExercise(item)}
         >
-          {importingExerciseId === item.id ? (
+          {resolvingExerciseId === item.id ? (
             <ActivityIndicator size="small" color={accentColor} />
           ) : (
             <Icon name="info-circle" size={22} color={accentColor} />

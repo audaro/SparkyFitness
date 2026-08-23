@@ -1,7 +1,9 @@
 import {
+  fetchAlternatives,
   fetchRecommendation,
   generateRecommendation,
   patchRecommendationStatus,
+  replaceRecommendationExercise,
 } from '../../src/services/api/workoutRecommendationsApi';
 import { getActiveServerConfig, ServerConfig } from '../../src/services/storage';
 
@@ -96,6 +98,56 @@ describe('workoutRecommendationsApi', () => {
     expect(mockFetch).toHaveBeenCalledWith(
       'https://example.com/api/workout-recommendations/generate',
       expect.objectContaining({ method: 'POST', body: '{}' }),
+    );
+  });
+
+  describe('fetchAlternatives', () => {
+    it('unwraps the ranked list and carries the limit', async () => {
+      const alternatives = [
+        { exercise_id: 'ex-2', exercise_name: 'Cable Fly', source: 'local' },
+      ];
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ alternatives }),
+      });
+
+      await expect(fetchAlternatives('ex-1', 5)).resolves.toEqual(alternatives);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://example.com/api/workout-recommendations/alternatives/ex-1?limit=5',
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+
+    it('defaults the limit so callers need not know it', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ alternatives: [] }),
+      });
+
+      await expect(fetchAlternatives('ex-1')).resolves.toEqual([]);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://example.com/api/workout-recommendations/alternatives/ex-1?limit=10',
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+  });
+
+  it('POSTs both ids to replace, and nothing else', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'rec-1' }) });
+
+    await replaceRecommendationExercise({
+      exercise_id_out: 'ex-1',
+      exercise_id_in: 'ex-2',
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://example.com/api/workout-recommendations/replace',
+      expect.objectContaining({
+        method: 'POST',
+        // The request schema is `.strict()`; an extra key is a 400, not an
+        // ignored field.
+        body: JSON.stringify({ exercise_id_out: 'ex-1', exercise_id_in: 'ex-2' }),
+      }),
     );
   });
 

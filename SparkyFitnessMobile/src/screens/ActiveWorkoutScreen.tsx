@@ -462,8 +462,17 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
   const handleReplaceExercise = useCallback(
     (entryId: string) => {
       replaceTargetEntryIdRef.current = entryId;
+      // Naming the outgoing exercise turns the search screen's blank box into a
+      // ranked shortlist of movements that train the same muscle. Read from the
+      // store rather than a render-time lookup so the id is the one live now.
+      const outgoing = useActiveWorkoutStore
+        .getState()
+        .session?.exercises.find((exercise) => exercise.id === entryId);
       runNavigationAction(() => {
-        navigation.navigate('ExerciseSearch', { returnKey: route.key });
+        navigation.navigate('ExerciseSearch', {
+          returnKey: route.key,
+          suggestForExerciseId: outgoing?.exercise_id ?? undefined,
+        });
       });
     },
     [navigation, route.key, runNavigationAction],

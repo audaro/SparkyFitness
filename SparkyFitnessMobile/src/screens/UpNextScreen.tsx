@@ -4,6 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { isCardioModality, type RecommendedExercise } from '@workspace/shared';
 
+import AnchoredMenu, {
+  measureAnchoredMenuTrigger,
+  type AnchorRect,
+} from '../components/AnchoredMenu';
 import BottomSheetPicker from '../components/BottomSheetPicker';
 import Button from '../components/ui/Button';
 import Icon from '../components/Icon';
@@ -15,9 +19,11 @@ import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
 import { useGymProfiles, useGymProfileMutations } from '../hooks/useGymProfiles';
 import { useStartLiveWorkout } from '../hooks/useStartLiveWorkout';
 import {
+  useReplaceRecommendationExercise,
   useUpdateRecommendationStatus,
   useWorkoutRecommendation,
 } from '../hooks/useWorkoutRecommendation';
+import { useSelectedExercise } from '../hooks/useSelectedExercise';
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import {
@@ -27,6 +33,7 @@ import {
   formatRestChip,
   makeSparseExercise,
   normalizeWeightUnit,
+  titleCaseCanonical,
 } from '../utils/workoutSession';
 import type { RootStackScreenProps } from '../types/navigation';
 
@@ -37,12 +44,7 @@ const ANY_GYM = 'any';
 
 const DURATION_OPTIONS = [30, 45, 60, 75, 90, 120];
 
-/** Canonical muscle/equipment values are stored lowercase; capitalize to show. */
-function titleCase(value: string): string {
-  return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
-}
-
-const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation }) => {
+const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
@@ -62,6 +64,16 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation }) => {
   const { activateProfileAsync } = useGymProfileMutations();
   const { startLiveWorkout, isStarting } = useStartLiveWorkout(navigation);
   const { mutate: updateStatus } = useUpdateRecommendationStatus();
+  const {
+    mutate: replaceExercise,
+    isPending: isReplacing,
+    variables: replaceVariables,
+  } = useReplaceRecommendationExercise();
+  // The row being swapped out, so its ⋯ slot can show the wait instead of
+  // leaving a network round trip unmarked.
+  const replacingExerciseId = isReplacing
+    ? (replaceVariables?.exercise_id_out ?? null)
+    : null;
   const { getImageSource } = useExerciseImageSource();
 
   // Distinguishes "Swap is working" from "the duration chip is working" so only
@@ -69,9 +81,50 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation }) => {
   const [pendingAction, setPendingAction] = useState<'swap' | 'settings' | null>(null);
   const inFlightRef = useRef(false);
 
+  // Which row's ⋯ menu is open, and where to hang it.
+  const [rowMenu, setRowMenu] = useState<{
+    exerciseId: string;
+    anchor: AnchorRect;
+  } | null>(null);
+  // The exercise the user chose to replace, held across the trip to the search
+  // screen — the selection comes back as a route param with no memory of why.
+  const replaceTargetIdRef = useRef<string | null>(null);
+  // Per-row ⋯ trigger nodes, so the menu can be measured against the one tapped.
+  const rowMenuTriggerRefs = useRef(
+    new Map<string, React.ComponentRef<typeof TouchableOpacity> | null>(),
+  );
+
   const header = useScreenHeader({ title: 'Up Next', left: { kind: 'back' } });
 
   const payload = recommendation?.payload ?? null;
+
+  const handleOpenRowMenu = useCallback((exerciseId: string) => {
+    measureAnchoredMenuTrigger(
+      rowMenuTriggerRefs.current.get(exerciseId) ?? null,
+      (anchor) => setRowMenu({ exerciseId, anchor }),
+    );
+  }, []);
+
+  const handleReplaceExercise = useCallback(
+    (exerciseId: string) => {
+      replaceTargetIdRef.current = exerciseId;
+      navigation.navigate('ExerciseSearch', {
+        returnKey: route.key,
+        suggestForExerciseId: exerciseId,
+      });
+    },
+    [navigation, route.key],
+  );
+
+  // The picked replacement comes back here. The server re-prescribes the
+  // incoming exercise and returns the whole workout, so nothing is spliced
+  // client-side — see `replaceRecommendationExercise`.
+  useSelectedExercise(route.params, (exercise) => {
+    const outgoing = replaceTargetIdRef.current;
+    replaceTargetIdRef.current = null;
+    if (!outgoing || outgoing === exercise.id) return;
+    replaceExercise({ exercise_id_out: outgoing, exercise_id_in: exercise.id });
+  });
 
   const runGenerate = useCallback(
     async (
@@ -191,12 +244,17 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation }) => {
     </TouchableOpacity>
   );
 
+  // The row body opens the exercise; the trailing ⋯ is a sibling pressable, not
+  // a nested one, so the two cannot mis-fire into each other.
   const renderExerciseRow = (exercise: RecommendedExercise) => {
     const image = exercise.images[0] ?? null;
     return (
-      <TouchableOpacity
+      <View
         key={exercise.exercise_id}
-        className="flex-row items-center px-4 py-3 border-b border-border-subtle"
+        className="flex-row items-center border-b border-border-subtle"
+      >
+      <TouchableOpacity
+        className="flex-1 flex-row items-center pl-4 py-3"
         activeOpacity={0.7}
         onPress={() => handleOpenExercise(exercise)}
         testID="up-next-exercise-row"
@@ -228,8 +286,27 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation }) => {
               : `${exercise.rationale} · ${formatRestChip(exercise.rest_seconds)}`}
           </Text>
         </View>
-        <Icon name="chevron-forward" size={18} color={textMuted} />
       </TouchableOpacity>
+        <TouchableOpacity
+          className="px-4 py-3"
+          activeOpacity={0.7}
+          hitSlop={8}
+          disabled={isGenerating || isStarting || isReplacing}
+          accessibilityRole="button"
+          accessibilityLabel={`More options for ${exercise.exercise_name}`}
+          testID="up-next-exercise-menu"
+          ref={(node) => {
+            rowMenuTriggerRefs.current.set(exercise.exercise_id, node);
+          }}
+          onPress={() => handleOpenRowMenu(exercise.exercise_id)}
+        >
+          {replacingExerciseId === exercise.exercise_id ? (
+            <ActivityIndicator size="small" color={accentPrimary} />
+          ) : (
+            <Icon name="ellipsis-horizontal" size={20} color={textMuted} />
+          )}
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -280,7 +357,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation }) => {
               {formatDuration(payload.estimated_duration_minutes)}
             </Text>
             <Text className="text-xs mt-1" style={{ color: textMuted }}>
-              {payload.muscle_groups.map(titleCase).join(', ')}
+              {payload.muscle_groups.map(titleCaseCanonical).join(', ')}
             </Text>
 
             <View className="flex-row items-center mt-3">
@@ -338,13 +415,31 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation }) => {
           <Button
             variant="primary"
             onPress={handleStart}
-            disabled={isGenerating}
+            disabled={isGenerating || isReplacing}
             loading={isStarting}
             testID="up-next-start"
           >
             Start Workout
           </Button>
         </View>
+
+        <AnchoredMenu
+          visible={rowMenu !== null}
+          anchor={rowMenu?.anchor ?? null}
+          onClose={() => setRowMenu(null)}
+          items={[
+            {
+              key: 'replace',
+              label: 'Replace exercise',
+              icon: 'swap-vertical',
+              onPress: () => {
+                const exerciseId = rowMenu?.exerciseId;
+                setRowMenu(null);
+                if (exerciseId) handleReplaceExercise(exerciseId);
+              },
+            },
+          ]}
+        />
       </>
     );
   };

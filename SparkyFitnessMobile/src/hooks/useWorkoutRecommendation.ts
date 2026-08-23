@@ -1,15 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import type { WorkoutRecommendationStatus } from '@workspace/shared';
+import type {
+  AlternativeExercise,
+  ReplaceRecommendationExerciseRequest,
+  WorkoutRecommendationStatus,
+} from '@workspace/shared';
 import {
+  fetchAlternatives,
   fetchRecommendation,
   generateRecommendation,
   patchRecommendationStatus,
+  replaceRecommendationExercise,
   type GenerateRecommendationPayload,
   type WorkoutRecommendation,
 } from '../services/api/workoutRecommendationsApi';
-import { ApiError } from '../services/api/errors';
-import { workoutRecommendationQueryKey } from './queryKeys';
+import { ApiError, getApiErrorMessage } from '../services/api/errors';
+import {
+  exerciseAlternativesQueryKey,
+  workoutRecommendationQueryKey,
+} from './queryKeys';
 
 interface UseWorkoutRecommendationOptions {
   enabled?: boolean;
@@ -82,5 +91,59 @@ export function useUpdateRecommendationStatus() {
     },
     // Deliberately silent: see the note above.
     onError: () => {},
+  });
+}
+
+/**
+ * Ranked replacements for one exercise — the Suggested section on the exercise
+ * search screen when it was opened to replace something.
+ *
+ * Disabled until an exercise is named, so the same screen reached from Add
+ * costs nothing. Never `throwOnError`: a failed lookup should leave the user
+ * with a plain search, not an error screen in place of one.
+ */
+export function useExerciseAlternatives(exerciseId: string | undefined) {
+  const query = useQuery<AlternativeExercise[]>({
+    queryKey: exerciseAlternativesQueryKey(exerciseId ?? ''),
+    queryFn: () => fetchAlternatives(exerciseId as string),
+    enabled: Boolean(exerciseId),
+  });
+
+  return {
+    alternatives: query.data ?? [],
+    isLoading: query.isLoading && Boolean(exerciseId),
+    isError: query.isError,
+  };
+}
+
+/**
+ * Swap one exercise in the stored workout for another.
+ *
+ * The response is the whole re-prescribed recommendation, so it goes straight
+ * into the cache — same reasoning as generate: the server just handed back the
+ * new state, and a refetch would only ask for it again.
+ */
+export function useReplaceRecommendationExercise() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: ReplaceRecommendationExerciseRequest) =>
+      replaceRecommendationExercise(body),
+    onSuccess: (recommendation) => {
+      queryClient.setQueryData(workoutRecommendationQueryKey, recommendation);
+    },
+    onError: (error) => {
+      Toast.show({
+        type: 'error',
+        text1: 'Could not replace that exercise',
+        // 422 is the server refusing a swap it cannot make — the exercise is
+        // already in the workout, or is not in the catalog. Its message says
+        // which, and it is the user's to act on, so surface it verbatim.
+        text2:
+          (error instanceof ApiError && error.statusCode === 422
+            ? getApiErrorMessage(error)
+            : null) ?? 'Please try again.',
+      });
+    },
   });
 }

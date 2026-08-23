@@ -338,6 +338,20 @@ describe('ActiveWorkoutScreen overflow menu wiring', () => {
     expect(remove?.destructive).toBe(true);
   });
 
+  it('names the outgoing exercise when Replace opens the search screen', () => {
+    const { getByTestId } = renderScreen();
+
+    fireEvent.press(getByTestId('card-ex-a-overflow'));
+    mockSheet.props?.items.find((i) => i.key === 'replace')?.onPress?.();
+
+    // The catalog id, not the entry id — without it the search screen has
+    // nothing to rank suggestions against and falls back to a blank box.
+    expect(navigation.navigate).toHaveBeenCalledWith('ExerciseSearch', {
+      returnKey: expect.any(String),
+      suggestForExerciseId: 'x-ex-a',
+    });
+  });
+
   it('offers Clear logged sets only for exercises with a completed set', () => {
     const { getByTestId } = renderScreen();
 

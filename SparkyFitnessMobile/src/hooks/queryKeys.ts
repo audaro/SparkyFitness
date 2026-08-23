@@ -113,6 +113,10 @@ export const gymProfilesQueryKey = ['gymProfiles'] as const;
 /** The one stored "Up Next" workout; the server keeps at most one per user. */
 export const workoutRecommendationQueryKey = ['workoutRecommendation'] as const;
 
+/** Ranked replacements for one exercise, feeding Replace's Suggested section. */
+export const exerciseAlternativesQueryKey = (exerciseId: string) =>
+  ['exerciseAlternatives', exerciseId] as const;
+
 export const activeAiServiceSettingQueryKey = ['ai-service-settings', 'active'] as const;
 export const userAiConfigAllowedQueryKey = ['ai-service-settings', 'allow-user-ai-config'] as const;
 
