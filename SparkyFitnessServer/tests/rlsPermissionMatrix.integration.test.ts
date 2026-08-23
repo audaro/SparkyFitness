@@ -167,6 +167,9 @@ describe.runIf(RUN)('RLS permission matrix', () => {
     // Gym profiles name the real places the user trains and ride the same
     // coaching context as coach_profiles — owner-only, never delegated.
     gym_equipment_profiles: 'owner',
+    // The generated Up Next workout is derived from the user's own recovery
+    // and history; it carries the same coaching context. Owner-only.
+    workout_recommendations: 'owner',
     sparky_chat_history: 'owner',
     user_ignored_updates: 'owner',
     user_oidc_links: 'owner',

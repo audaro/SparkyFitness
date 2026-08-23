@@ -66,6 +66,7 @@ BEGIN
     'water_intake_entries',
     'weekly_goal_plans',
     'workout_plan_assignment_sets',
+    'workout_recommendations',
     'workout_plan_template_assignments',
     'workout_plan_templates',
     'workout_preset_exercise_sets',
@@ -563,6 +564,10 @@ SELECT create_owner_policy('coach_profiles');
 -- Gym equipment profiles ride the same coaching context: they describe where
 -- the user trains and are named after real places. Owner-only, not shareable.
 SELECT create_owner_policy('gym_equipment_profiles');
+-- The generated "Up Next" workout. Built from the user's own recovery and
+-- history and tied to a named gym, so it carries the same coaching context as
+-- the two above. Owner-only, not shareable.
+SELECT create_owner_policy('workout_recommendations');
 
 -- Profiles: delegates can read (with any meaningful permission) but only owner can write.
 -- Delegates do not need to modify another user's profile to manage their diary.

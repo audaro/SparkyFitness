@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { CANONICAL_SET_TYPES } from "../../constants/setTypes.ts";
+import { exerciseModalitySchema } from "./Exercises.api.zod.ts";
+import { workoutRecommendationStatusSchema } from "../database/WorkoutRecommendations.zod.ts";
 
 /**
  * Wire contracts for the workout recommendation engine.
@@ -7,6 +10,11 @@ import { z } from "zod";
  * strip-mode because web spreads a response object back into a request. Nothing
  * round-trips a recommendation payload, so an unknown key here is a caller bug
  * worth surfacing.
+ *
+ * Units, restated because this payload is what clients render: weight in
+ * **kilograms**, duration and rest in whole **seconds**, distance in
+ * **kilometers**. Same contract as every other stored workout value; the UI
+ * converts for display only.
  */
 
 /**
@@ -56,4 +64,170 @@ export const muscleRecoveryResponseSchema = z
 export type MuscleFreshnessResponse = z.infer<typeof muscleFreshnessSchema>;
 export type MuscleRecoveryResponse = z.infer<
   typeof muscleRecoveryResponseSchema
+>;
+
+// ---------------------------------------------------------------------------
+// The generated workout payload
+// ---------------------------------------------------------------------------
+
+/**
+ * One programmed set.
+ *
+ * Every measure is nullable because modality decides which ones mean anything:
+ * a `reps_only` set has no weight, a `duration` set has no reps. The engine
+ * fills exactly the fields its modality gate allows and leaves the rest null,
+ * rather than writing 0 — which a client would render as "0 kg" instead of
+ * omitting the column.
+ */
+export const recommendationSetSchema = z
+  .object({
+    set_number: z.number().int().positive(),
+    set_type: z.enum(CANONICAL_SET_TYPES),
+    reps: z.number().int().nullable(),
+    /** Kilograms. */
+    weight: z.number().nullable(),
+    /** Whole seconds — never minutes. */
+    duration: z.number().int().nullable(),
+    /** Kilometers. */
+    distance: z.number().nullable(),
+    /** Whole seconds of rest after this set. */
+    rest_time: z.number().int().nullable(),
+  })
+  .strict();
+
+/**
+ * One exercise in the generated workout, carrying enough denormalized catalog
+ * detail for a client to render the card without a second round trip.
+ *
+ * `exercise_id` is always a LOCAL uuid. If the engine had to reach
+ * free-exercise-db to fill a muscle slot, it imported the exercise before
+ * persisting, so nothing downstream ever has to resolve an external id.
+ */
+export const recommendedExerciseSchema = z
+  .object({
+    exercise_id: z.string().uuid(),
+    exercise_name: z.string(),
+    modality: exerciseModalitySchema,
+    primary_muscles: z.array(z.string()),
+    secondary_muscles: z.array(z.string()),
+    equipment: z.array(z.string()),
+    images: z.array(z.string()),
+    sort_order: z.number().int().min(0),
+    /** The "2:00 rest" chip. Also stamped on each set's `rest_time`. */
+    rest_seconds: z.number().int().min(0),
+    /** Display only: "fresh quads · +2.5% from last session". */
+    rationale: z.string(),
+    sets: z.array(recommendationSetSchema).min(1),
+  })
+  .strict();
+
+export const workoutRecommendationPayloadSchema = z
+  .object({
+    /** The "5 Muscles" header — the muscles this workout was built around. */
+    muscle_groups: z.array(z.string()),
+    estimated_duration_minutes: z.number().int(),
+    exercises: z.array(recommendedExerciseSchema).min(1),
+  })
+  .strict();
+
+// ---------------------------------------------------------------------------
+// Row contract
+// ---------------------------------------------------------------------------
+
+export const workoutRecommendationResponseSchema = z
+  .object({
+    id: z.string().uuid(),
+    status: workoutRecommendationStatusSchema,
+    target_duration_minutes: z.number().int(),
+    gym_profile_id: z.string().uuid().nullable(),
+    generated_at: z.string(),
+    payload: workoutRecommendationPayloadSchema,
+  })
+  .strict();
+
+// ---------------------------------------------------------------------------
+// Request contracts
+// ---------------------------------------------------------------------------
+
+/**
+ * `POST /generate`.
+ *
+ * All three fields are optional because the common case — the app opening for
+ * the first time that day — has nothing to say: duration falls back to the
+ * coach profile's `session_minutes` and then to 60, and the gym falls back to
+ * whichever profile is active.
+ */
+export const generateWorkoutRecommendationRequestSchema = z
+  .object({
+    duration_minutes: z.number().int().min(15).max(180).optional(),
+    gym_profile_id: z.string().uuid().nullable().optional(),
+    /**
+     * Fitbod's whole-workout Swap. The engine is deterministic, so a plain
+     * regenerate would hand back the identical workout — the point of Swap is
+     * that it does not. Setting this passes the current payload's exercise ids
+     * to the planner as a scoring penalty, so it prefers different movements
+     * for the same muscles but can still repeat one if nothing else fits.
+     */
+    swap: z.boolean().optional(),
+  })
+  .strict();
+
+/** `PATCH /:id` — lifecycle only; the payload is never client-edited. */
+export const updateWorkoutRecommendationRequestSchema = z
+  .object({
+    status: workoutRecommendationStatusSchema,
+  })
+  .strict();
+
+// ---------------------------------------------------------------------------
+// Alternatives (feeds Replace)
+// ---------------------------------------------------------------------------
+
+/**
+ * A replacement candidate.
+ *
+ * `source` distinguishes a local catalog row, which Replace can select
+ * immediately, from a free-exercise-db result the client must import first.
+ * `exercise_id` is a uuid only for local rows; an external carries its
+ * upstream id, which is not a uuid — hence the plain string.
+ */
+export const alternativeExerciseSchema = z
+  .object({
+    exercise_id: z.string(),
+    exercise_name: z.string(),
+    source: z.enum(["local", "external"]),
+    primary_muscles: z.array(z.string()),
+    secondary_muscles: z.array(z.string()),
+    equipment: z.array(z.string()),
+    images: z.array(z.string()),
+    mechanic: z.string().nullable(),
+    level: z.string().nullable(),
+    /** Ranking score; exposed so a client can show why an order was chosen. */
+    score: z.number(),
+  })
+  .strict();
+
+export const alternativeExercisesResponseSchema = z
+  .object({
+    alternatives: z.array(alternativeExerciseSchema),
+  })
+  .strict();
+
+export type RecommendationSet = z.infer<typeof recommendationSetSchema>;
+export type RecommendedExercise = z.infer<typeof recommendedExerciseSchema>;
+export type WorkoutRecommendationPayload = z.infer<
+  typeof workoutRecommendationPayloadSchema
+>;
+export type WorkoutRecommendationResponse = z.infer<
+  typeof workoutRecommendationResponseSchema
+>;
+export type GenerateWorkoutRecommendationRequest = z.infer<
+  typeof generateWorkoutRecommendationRequestSchema
+>;
+export type UpdateWorkoutRecommendationRequest = z.infer<
+  typeof updateWorkoutRecommendationRequestSchema
+>;
+export type AlternativeExercise = z.infer<typeof alternativeExerciseSchema>;
+export type AlternativeExercisesResponse = z.infer<
+  typeof alternativeExercisesResponseSchema
 >;

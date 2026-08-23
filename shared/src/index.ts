@@ -94,6 +94,7 @@ export * from "./schemas/database/WorkoutPlanTemplates.zod.ts";
 export * from "./schemas/database/WorkoutPresetExerciseSets.zod.ts";
 export * from "./schemas/database/WorkoutPresetExercises.zod.ts";
 export * from "./schemas/database/WorkoutPresets.zod.ts";
+export * from "./schemas/database/WorkoutRecommendations.zod.ts";
 export * from "./constants/measurements.ts";
 export * from "./constants/calorieConstants.ts";
 export * from "./constants/foodVariantNutrients.ts";
