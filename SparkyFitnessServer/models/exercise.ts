@@ -14,6 +14,42 @@ import {
   parseJsonArrayField,
   normalizeToStringArray,
 } from '../utils/exerciseJsonFields.js';
+
+/**
+ * SQL predicate for "this exercise can actually be performed with the given
+ * equipment set" — every piece of gear the exercise names must be in the set.
+ *
+ * Deliberately NOT the `equipment::jsonb ?| ARRAY[...]` overlap used by the
+ * catalog's `equipmentFilter`. Overlap answers "does it involve any of this
+ * gear", which is the right question for a browse filter and the wrong one for
+ * availability: an exercise stored as `["dumbbell","barbell"]` overlaps a
+ * dumbbell-only home profile and would be offered to someone who owns no
+ * barbell.
+ *
+ * Rows with no equipment (NULL, empty string, or `[]`) are available
+ * everywhere — that is what "needs no equipment" means, and it covers the
+ * catalog's 77 null-equipment entries plus every user-created custom exercise,
+ * all of which the overlap filter silently dropped.
+ */
+function buildEquipmentSubsetClause(paramIndex: number): string {
+  // The CASE keeps a legacy scalar value (`"dumbbell"` rather than
+  // `["dumbbell"]`) from raising "cannot extract elements from a scalar";
+  // it is treated as a one-item list, not as "no equipment".
+  return `(
+    equipment IS NULL
+    OR equipment = ''
+    OR NOT EXISTS (
+      SELECT 1
+        FROM jsonb_array_elements_text(
+               CASE WHEN jsonb_typeof(equipment::jsonb) = 'array'
+                    THEN equipment::jsonb
+                    ELSE jsonb_build_array(equipment::jsonb)
+               END
+             ) AS needed(item)
+       WHERE needed.item <> ALL($${paramIndex}::text[])
+    )
+  )`;
+}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getExerciseById(id: any, userId: any) {
   const client = await getClient(userId);
@@ -356,7 +392,13 @@ async function searchExercises(
   name: string | null | undefined,
   userId: string | null | undefined,
   equipmentFilter: string[] | null | undefined,
-  muscleGroupFilter: string[] | null | undefined
+  muscleGroupFilter: string[] | null | undefined,
+  /**
+   * Gym-profile availability: keep only exercises whose equipment is fully
+   * covered by this set. Distinct from `equipmentFilter` (an "any of these"
+   * browse filter) — see `buildEquipmentSubsetClause`.
+   */
+  availableEquipment?: string[] | null
 ) {
   const client = await getClient(userId);
   try {
@@ -376,6 +418,14 @@ async function searchExercises(
       );
       queryParams.push(...equipmentFilter);
       paramIndex += equipmentFilter.length;
+    }
+    if (availableEquipment) {
+      // Passed (even empty) means a gym profile is active. An empty set is a
+      // real answer — "I own nothing" — and correctly leaves only the
+      // equipment-free exercises, so it must not collapse to "no filter".
+      whereClauses.push(buildEquipmentSubsetClause(paramIndex));
+      queryParams.push(availableEquipment);
+      paramIndex += 1;
     }
     if (muscleGroupFilter && muscleGroupFilter.length > 0) {
       const primaryMusclesPlaceholders = muscleGroupFilter

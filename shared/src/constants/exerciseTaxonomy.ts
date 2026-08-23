@@ -86,15 +86,17 @@ export const EXERCISE_CATEGORIES = [
 export type ExerciseCategory = (typeof EXERCISE_CATEGORIES)[number];
 
 /**
- * Equipment that is always "available" regardless of the active gym profile:
- * bodyweight movements need nothing, and `other` is the catalog's escape hatch
- * for unclassified equipment — excluding it would silently hide exercises a
- * user can perform anywhere.
+ * Equipment that is always "available" regardless of the active gym profile.
+ *
+ * `body only` is the whole list, and deliberately so. `other` looks like a
+ * reasonable second entry — it reads as "unclassified" — but in
+ * free-exercise-db it is a grab-bag of 122 exercises that need very specific
+ * gear: Atlas Stones, Car Deadlift, Battling Ropes, sled drags, Circus Bell.
+ * Auto-admitting it would offer someone with dumbbells and a band at home a
+ * car deadlift, which is exactly the recommendation gym profiles exist to
+ * prevent. A user who owns that gear can add `other` to their profile.
  */
-export const ALWAYS_AVAILABLE_EQUIPMENT: readonly Equipment[] = [
-  "body only",
-  "other",
-];
+export const ALWAYS_AVAILABLE_EQUIPMENT: readonly Equipment[] = ["body only"];
 
 /**
  * Lower-body muscles. Drives the 5% (vs 2.5% upper-body) progression increment

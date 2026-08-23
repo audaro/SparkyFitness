@@ -124,14 +124,21 @@ async function searchExercises(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   equipmentFilter: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  muscleGroupFilter: any
+  muscleGroupFilter: any,
+  /**
+   * Active gym profile's equipment, when the caller opted in. Keeps only
+   * exercises fully covered by it — not the same question as
+   * `equipmentFilter`. An empty array is meaningful and is passed through.
+   */
+  availableEquipment?: string[] | null
 ) {
   try {
     const exercises = await exerciseDb.searchExercises(
       name,
       targetUserId,
       equipmentFilter,
-      muscleGroupFilter
+      muscleGroupFilter,
+      availableEquipment
     );
     const taggedExercises = await Promise.all(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

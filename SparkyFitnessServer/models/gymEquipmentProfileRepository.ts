@@ -91,6 +91,31 @@ async function getActiveGymProfile(
 }
 
 /**
+ * Serializes every write that can leave a row active, per user.
+ *
+ * The deactivate-then-activate pair is not enough on its own. Under READ
+ * COMMITTED, two concurrent activations of *different* profiles both clear the
+ * one currently-active row, then each set their own target active: the second
+ * statement's snapshot was taken before the first committed, so it never sees
+ * the row the other transaction just activated. Both commit an active row, the
+ * partial unique index rejects one, and a legitimate double-tap surfaces as a
+ * 500. Taking this lock first makes the loser wait and then win cleanly
+ * (last-writer-wins), which is what a user tapping two profiles expects.
+ *
+ * An advisory lock rather than `SELECT ... FOR UPDATE`: the first profile a
+ * user creates has no row to lock. Mirrors `genericHealthRepository`'s
+ * `pg_advisory_xact_lock(hashtext($1))`; it releases with the transaction.
+ */
+async function lockUserProfiles(
+  client: Awaited<ReturnType<typeof getClient>>,
+  userId: string
+): Promise<void> {
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+    `gym_equipment_profiles:${userId}`,
+  ]);
+}
+
+/**
  * Creating a profile as active clears the previous active row in the same
  * transaction: the partial unique index permits only one active row per user,
  * so the two writes cannot be separated.
@@ -104,6 +129,7 @@ async function createGymProfile(
   try {
     await client.query('BEGIN');
     if (isActive) {
+      await lockUserProfiles(client, userId);
       await client.query(
         `UPDATE gym_equipment_profiles
             SET is_active = FALSE, updated_at = now()
@@ -189,6 +215,7 @@ async function setActiveGymProfile(
   const client = await getClient(userId);
   try {
     await client.query('BEGIN');
+    await lockUserProfiles(client, userId);
     await client.query(
       `UPDATE gym_equipment_profiles
           SET is_active = FALSE, updated_at = now()

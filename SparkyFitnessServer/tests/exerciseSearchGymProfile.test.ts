@@ -43,9 +43,19 @@ const service = exerciseService as any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const repo = gymEquipmentProfileRepository as any;
 
-/** The equipment array the route handed to the search. */
+/** The browse-filter equipment array the route handed to the search. */
 function equipmentFilterArg(): string[] {
   return service.searchExercises.mock.calls[0][3];
+}
+
+/**
+ * The gym-profile availability set. Null means no profile is in play; an empty
+ * array means an active profile that lists no equipment — a real, different
+ * state, which is why this is a separate argument rather than an overloaded
+ * `equipmentFilter`.
+ */
+function availableEquipmentArg(): string[] | null {
+  return service.searchExercises.mock.calls[0][5];
 }
 
 describe('GET /exercises/search — useActiveGymProfile', () => {
@@ -60,6 +70,7 @@ describe('GET /exercises/search — useActiveGymProfile', () => {
     expect(res.statusCode).toBe(200);
     expect(repo.getActiveGymProfile).not.toHaveBeenCalled();
     expect(equipmentFilterArg()).toEqual([]);
+    expect(availableEquipmentArg()).toBeNull();
   });
 
   it('still honours an explicit equipmentFilter on its own', async () => {
@@ -69,6 +80,7 @@ describe('GET /exercises/search — useActiveGymProfile', () => {
 
     expect(res.statusCode).toBe(200);
     expect(equipmentFilterArg()).toEqual(['dumbbell', 'cable']);
+    expect(availableEquipmentArg()).toBeNull();
   });
 
   it("unions the active profile's equipment with the always-available set", async () => {
@@ -82,13 +94,30 @@ describe('GET /exercises/search — useActiveGymProfile', () => {
     );
 
     expect(res.statusCode).toBe(200);
-    // Bodyweight work is doable anywhere, so it survives every profile.
-    expect(equipmentFilterArg().sort()).toEqual([
+    // Bodyweight work is doable anywhere, so it survives every profile. The
+    // profile set travels as availability, not as a browse filter.
+    expect(availableEquipmentArg()!.sort()).toEqual([
       'bands',
       'body only',
       'dumbbell',
-      'other',
     ]);
+    expect(equipmentFilterArg()).toEqual([]);
+  });
+
+  it("does not smuggle in 'other', which is a grab-bag of real gear", async () => {
+    repo.getActiveGymProfile.mockResolvedValue({
+      id: 'profile-1',
+      equipment: ['dumbbell', 'bands'],
+    });
+
+    await request(app).get(
+      '/exercises/search?searchTerm=press&useActiveGymProfile=true'
+    );
+
+    // free-exercise-db files Atlas Stones, Car Deadlift and Battling Ropes
+    // under 'other'; auto-admitting it would offer a home lifter a car
+    // deadlift. A user who owns that gear lists it on the profile.
+    expect(availableEquipmentArg()).not.toContain('other');
   });
 
   it('does not duplicate equipment the profile already lists', async () => {
@@ -101,9 +130,24 @@ describe('GET /exercises/search — useActiveGymProfile', () => {
       '/exercises/search?searchTerm=press&useActiveGymProfile=true'
     );
 
-    const filter = equipmentFilterArg();
-    expect(filter).toEqual([...new Set(filter)]);
-    expect(filter.sort()).toEqual(['barbell', 'body only', 'other']);
+    const available = availableEquipmentArg()!;
+    expect(available).toEqual([...new Set(available)]);
+    expect(available.sort()).toEqual(['barbell', 'body only']);
+  });
+
+  it('passes an empty availability set for a profile that lists no equipment', async () => {
+    repo.getActiveGymProfile.mockResolvedValue({
+      id: 'profile-1',
+      equipment: [],
+    });
+
+    await request(app).get(
+      '/exercises/search?searchTerm=press&useActiveGymProfile=true'
+    );
+
+    // "I own nothing" is a real answer and must not collapse to "no filter":
+    // it leaves the equipment-free exercises, not the whole catalog.
+    expect(availableEquipmentArg()).toEqual(['body only']);
   });
 
   it('stays broad when the user has no active profile', async () => {
@@ -116,6 +160,7 @@ describe('GET /exercises/search — useActiveGymProfile', () => {
     // No profile means no constraint — not an empty result set.
     expect(res.statusCode).toBe(200);
     expect(equipmentFilterArg()).toEqual([]);
+    expect(availableEquipmentArg()).toBeNull();
   });
 
   it('rejects combining the flag with an explicit equipmentFilter', async () => {

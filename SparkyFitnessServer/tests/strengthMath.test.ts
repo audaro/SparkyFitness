@@ -81,6 +81,10 @@ describe('exercise taxonomy — pinned vocabulary', () => {
       expect(EQUIPMENT).toContain(item);
     }
     expect(ALWAYS_AVAILABLE_EQUIPMENT).toContain('body only');
+    // 'other' is NOT always available: free-exercise-db files Atlas Stones,
+    // Car Deadlift and Battling Ropes under it, so auto-admitting it would
+    // recommend a car deadlift to someone with dumbbells at home.
+    expect(ALWAYS_AVAILABLE_EQUIPMENT).not.toContain('other');
   });
 });
 

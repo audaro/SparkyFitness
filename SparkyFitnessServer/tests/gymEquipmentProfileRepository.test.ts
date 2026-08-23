@@ -258,4 +258,70 @@ describe('gymEquipmentProfileRepository', () => {
       expect(mockClient.release).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('serialization of activity-changing writes', () => {
+    /**
+     * Without a lock, two concurrent activations of DIFFERENT profiles both
+     * clear the one currently-active row from their own pre-commit snapshot,
+     * then each activate their target. Neither sees the other's new active
+     * row, both commit, and the partial unique index turns a user's double-tap
+     * into a 500. The lock must be taken BEFORE the first write in the
+     * transaction, or the same interleaving is still reachable.
+     */
+    const lockCall = (): [string, unknown[]] | undefined =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockClient.query.mock.calls.find((call: any[]) =>
+        String(call[0]).includes('pg_advisory_xact_lock')
+      ) as [string, unknown[]] | undefined;
+
+    it('locks the user before flipping the active profile', async () => {
+      mockClient.query.mockImplementation((text: string) =>
+        text.includes('SET is_active = TRUE')
+          ? Promise.resolve({ rows: [ROW], rowCount: 1 })
+          : Promise.resolve({ rows: [], rowCount: 1 })
+      );
+
+      await gymEquipmentProfileRepository.setActiveGymProfile('user-1', ROW.id);
+
+      const texts = queryTexts();
+      const lockIndex = texts.findIndex((text) =>
+        text.includes('pg_advisory_xact_lock')
+      );
+      expect(texts[0]).toBe('BEGIN');
+      expect(lockIndex).toBe(1);
+      expect(lockIndex).toBeLessThan(
+        texts.findIndex((text) => text.includes('SET is_active = FALSE'))
+      );
+      // Namespaced and per-user: the key must not collide with another
+      // feature's advisory lock, and must not serialize unrelated users.
+      expect(lockCall()?.[1]).toEqual(['gym_equipment_profiles:user-1']);
+    });
+
+    it('locks the user when creating a profile that starts active', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW], rowCount: 1 });
+
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Home',
+        equipment: ['dumbbell'],
+        is_active: true,
+      });
+
+      const texts = queryTexts();
+      expect(texts[1]).toContain('pg_advisory_xact_lock');
+      expect(lockCall()?.[1]).toEqual(['gym_equipment_profiles:user-1']);
+    });
+
+    it('does not lock when creating an inactive profile', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW], rowCount: 1 });
+
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Gym',
+        equipment: ['barbell'],
+      });
+
+      // An inactive insert cannot contend for the one active slot, so it must
+      // not queue behind an unrelated activation.
+      expect(lockCall()).toBeUndefined();
+    });
+  });
 });
