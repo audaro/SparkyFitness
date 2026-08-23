@@ -1163,6 +1163,9 @@ interface StoredFoodCandidate {
   serving_size?: unknown;
   serving_unit?: unknown;
   calories?: unknown;
+  protein?: unknown;
+  carbs?: unknown;
+  fat?: unknown;
   source?: unknown;
   food_id?: unknown;
   external_id?: unknown;
@@ -1212,6 +1215,16 @@ function confirmFoodPartToText(part: ChatMessagePart): string | null {
         ? ` per ${c.serving_size} ${c.serving_unit}`
         : '';
     const kcal = typeof c.calories === 'number' ? `${c.calories} kcal` : '';
+    // Macros must survive the replay too: for an ai_estimate pick the
+    // follow-up create_food call has no other source for them — re-estimating
+    // could silently save different numbers than the card the user confirmed.
+    const macros = [
+      typeof c.protein === 'number' ? `P${c.protein}` : null,
+      typeof c.carbs === 'number' ? `C${c.carbs}` : null,
+      typeof c.fat === 'number' ? `F${c.fat}` : null,
+    ]
+      .filter(Boolean)
+      .join('/');
     const ids = [
       typeof c.source === 'string' && c.source ? `source ${c.source}` : null,
       typeof c.food_id === 'string' && c.food_id
@@ -1227,7 +1240,9 @@ function confirmFoodPartToText(part: ChatMessagePart): string | null {
       .filter(Boolean)
       .join(', ');
     const label = typeof c.label === 'string' ? c.label : 'unknown';
-    return `${i + 1}. "${label}"${brand} — ${kcal}${serving}${ids ? ` [${ids}]` : ''}`;
+    return `${i + 1}. "${label}"${brand} — ${kcal}${serving}${
+      macros ? `, ${macros} g` : ''
+    }${ids ? ` [${ids}]` : ''}`;
   });
 
   return `[You showed the user food confirmation cards${

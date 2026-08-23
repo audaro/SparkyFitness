@@ -133,6 +133,61 @@ describe('sparky_confirm_food', () => {
     ).resolves.toContain('Presented 1 food candidate card');
   });
 
+  // Source-dependent id requirements: a card the user can confirm is useless
+  // if the follow-up log call has no id to log with.
+  it('rejects an internal candidate without a food_id', async () => {
+    const { food_id: _dropped, ...noId } = internalCandidate;
+    await expect(run({ ...validInput, candidates: [noId] })).resolves.toContain(
+      'food_id'
+    );
+  });
+
+  it('rejects an external candidate without its external_id/provider_type', async () => {
+    const { external_id: _e, provider_type: _p, ...noIds } = externalCandidate;
+    await expect(
+      run({ ...validInput, candidates: [noIds] })
+    ).resolves.toContain('external_id');
+  });
+
+  // create_food refuses all-zero nutrition and the card shows the user
+  // specific numbers, so an estimate must carry its macros explicitly.
+  it('rejects an ai_estimate candidate missing its macros', async () => {
+    await expect(
+      run({
+        ...validInput,
+        candidates: [
+          {
+            label: 'Homemade smoothie',
+            serving_size: 1,
+            serving_unit: 'glass',
+            calories: 180,
+            source: 'ai_estimate',
+          },
+        ],
+      })
+    ).resolves.toMatch(/protein/i);
+  });
+
+  it('accepts an ai_estimate candidate with explicit zero macros', async () => {
+    await expect(
+      run({
+        ...validInput,
+        candidates: [
+          {
+            label: 'Black coffee',
+            serving_size: 1,
+            serving_unit: 'cup',
+            calories: 2,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            source: 'ai_estimate',
+          },
+        ],
+      })
+    ).resolves.toContain('Presented 1 food candidate card');
+  });
+
   // Handlers never throw — a bad call comes back as a corrective string the
   // model can retry against (the ai/tools contract).
   it('returns a corrective string rather than throwing on junk input', async () => {

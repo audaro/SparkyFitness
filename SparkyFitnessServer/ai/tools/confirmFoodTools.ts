@@ -52,7 +52,47 @@ const FoodCandidateSchema = z
       .optional()
       .describe('External matches only: the provider the id belongs to'),
   })
-  .strict();
+  .strict()
+  // Source-dependent id requirements: a card the user can confirm is useless
+  // if the follow-up log call has no id to log with. Provider types stay a
+  // free string (the provider set is per-user configuration, not a fixed
+  // enum), and id formats aren't constrained — external ids are provider-
+  // shaped, and over-tight checks would bounce legitimate lookups.
+  .superRefine((c, ctx) => {
+    if (c.source === 'internal') {
+      if (!c.food_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['food_id'],
+          message:
+            "an 'internal' candidate needs the food_id from the lookup result — copy it verbatim",
+        });
+      }
+    } else if (c.source === 'ai_estimate') {
+      // create_food refuses all-zero nutrition and the card showed the user
+      // specific numbers, so the estimate must carry its macros (zeros are
+      // fine — absence is not).
+      for (const field of ['protein', 'carbs', 'fat'] as const) {
+        if (c[field] === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: `an 'ai_estimate' candidate must include ${field} (0 is allowed) — these are the numbers the follow-up create_food call saves`,
+          });
+        }
+      }
+    } else {
+      // Any other source is an external provider match.
+      if (!c.external_id || !c.provider_type) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['external_id'],
+          message:
+            'an external candidate needs both external_id and provider_type from the lookup result — copy them verbatim',
+        });
+      }
+    }
+  });
 
 const ConfirmFoodSchema = z.object({
   question: z

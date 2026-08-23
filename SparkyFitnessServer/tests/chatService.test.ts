@@ -1161,6 +1161,9 @@ describe('chatService', () => {
                       serving_size: 30,
                       serving_unit: 'g',
                       calories: 130,
+                      protein: 2,
+                      carbs: 24,
+                      fat: 3,
                       source: 'openfoodfacts',
                       external_id: '00511',
                       provider_type: 'openfoodfacts',
@@ -1195,6 +1198,9 @@ describe('chatService', () => {
       expect(sent).toContain('external_id=00511');
       expect(sent).toContain('provider_type=openfoodfacts');
       expect(sent).toContain('food_id=f1d2c3b4-0000-0000-0000-000000000001');
+      // Macros must survive too: an ai_estimate follow-up saves them via
+      // create_food, and re-estimating could differ from the confirmed card.
+      expect(sent).toContain('P2/C24/F3 g');
       // Numbering must match the pick message's "option 1".
       expect(sent).toContain('1. \\"Savory Thins Crackers\\"');
     });
