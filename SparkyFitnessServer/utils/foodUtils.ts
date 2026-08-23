@@ -213,6 +213,45 @@ function normalizeServingUnit(unit: any) {
   if (SERVING_UNIT_ALIASES[firstWord]) return SERVING_UNIT_ALIASES[firstWord];
   return clean;
 }
+// Deterministic same-dimension unit conversion. Mass and volume units convert
+// within their own dimension only (no density guessing across g↔ml). Keys are
+// the canonical forms normalizeServingUnit emits.
+const MASS_UNIT_GRAMS: Record<string, number> = {
+  g: 1,
+  kg: 1000,
+  mg: 0.001,
+  oz: 28.3495,
+  lb: 453.592,
+};
+const VOLUME_UNIT_ML: Record<string, number> = {
+  ml: 1,
+  l: 1000,
+  tsp: 4.92892,
+  tbsp: 14.7868,
+  cup: 240,
+};
+
+/**
+ * Convert an amount between two food units of the same dimension
+ * (mass→mass or volume→volume). Returns null when the units are not both
+ * measurable in the same dimension — count units ("piece", "slice") never
+ * convert.
+ */
+function convertFoodUnitAmount(
+  quantity: number,
+  fromUnit: string | null | undefined,
+  toUnit: string | null | undefined
+): number | null {
+  const from = normalizeServingUnit(fromUnit);
+  const to = normalizeServingUnit(toUnit);
+  for (const table of [MASS_UNIT_GRAMS, VOLUME_UNIT_ML]) {
+    if (table[from] !== undefined && table[to] !== undefined) {
+      return (quantity * table[from]) / table[to];
+    }
+  }
+  return null;
+}
+
 // Reconcile a caller-supplied (quantity, unit) with the variant an entry will be
 // logged against, so the stored entry's unit always matches the variant's own
 // serving_unit.
@@ -232,7 +271,7 @@ function reconcileEntryUnitToVariant(
     | { serving_size?: number | null; serving_unit?: string | null }
     | null
     | undefined
-): { quantity: number; unit: string } {
+): { quantity: number; unit: string; unresolved?: true } {
   const variantUnit = variant?.serving_unit || 'serving';
   const requested = requestedUnit || 'serving';
 
@@ -250,9 +289,18 @@ function reconcileEntryUnitToVariant(
     return { quantity: quantity * factor, unit: variantUnit };
   }
 
-  // Some other explicit unit that does not match the variant; leave the caller's
-  // values untouched rather than guessing a conversion.
-  return { quantity, unit: requested };
+  // A different measurable unit of the same dimension ("0.25 lb" against a
+  // gram variant) converts deterministically instead of storing a unit the
+  // diary math can't scale (0.25 "pound" against a 100 g serving displayed
+  // as 1 kcal).
+  const converted = convertFoodUnitAmount(quantity, requested, variantUnit);
+  if (converted !== null) {
+    return { quantity: Math.round(converted * 100) / 100, unit: variantUnit };
+  }
+
+  // Not convertible (count unit vs measurable unit). Flag it so callers can
+  // refuse the log instead of persisting entry math that displays garbage.
+  return { quantity, unit: requested, unresolved: true };
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeBarcode(barcode: any) {
@@ -275,6 +323,7 @@ function altBarcode(barcode: string): string | null {
 }
 export { sanitizeCustomNutrients };
 export { normalizeServingUnit };
+export { convertFoodUnitAmount };
 export { reconcileEntryUnitToVariant };
 export { normalizeBarcode };
 export { altBarcode };
@@ -283,6 +332,7 @@ export { applyCustomNutrientMatches };
 export default {
   sanitizeCustomNutrients,
   normalizeServingUnit,
+  convertFoodUnitAmount,
   reconcileEntryUnitToVariant,
   normalizeBarcode,
   altBarcode,

@@ -984,6 +984,42 @@ describe('log_food', () => {
     );
   });
 
+  // Live failure: "0.25 pound" of brie logged against a 100 g variant stored
+  // unit "pound" verbatim, so the diary math (quantity / serving_size) showed
+  // 1 kcal. Same-dimension units must convert into the variant's own unit.
+  it('converts a pound quantity into grams against a gram-denominated variant', async () => {
+    vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+      eggsRow,
+    ]);
+    vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+      id: ENTRY_ID,
+      food_name: 'Eggs',
+    });
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'log_food',
+        food_name: 'Eggs',
+        quantity: 0.25,
+        unit: 'pound',
+        meal_type: 'dinner',
+        entry_date: '2026-06-10',
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Logged "Eggs" (113.4 g) for Dinner on 2026-06-10.');
+    expect(foodEntryService.createFoodEntry).toHaveBeenCalledWith(
+      'user-1',
+      'user-1',
+      expect.objectContaining({
+        quantity: 113.4,
+        unit: 'g',
+        variant_id: VARIANT_ID,
+      })
+    );
+  });
+
   it('points to lookup + log_external_food when no food matches the name', async () => {
     vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([]);
 
@@ -2146,6 +2182,61 @@ describe('create_food', () => {
         entry_date: today,
       })
     );
+  });
+
+  // Live failure: a food was saved with 0 kcal and all-zero macros (the model
+  // skipped its estimation step), then sat in the library silently logging
+  // 0-calorie entries. All-zero nutrition must bounce back for an estimate.
+  it('rejects create_food when every nutrient is zero', async () => {
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_food',
+        food_name: 'mystery crackers',
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        quantity: 1,
+        unit: 'serving',
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: create_food received all-zero nutrition for "mystery crackers" — estimate the nutrition before saving. Retry with your best estimated values per serving (calories, protein, carbs, fat at minimum). For plain water use log_water; a genuinely zero-calorie item must still include a non-zero nutrient such as sodium.'
+    );
+    expect(foodCoreService.createFood).not.toHaveBeenCalled();
+  });
+
+  it('allows a zero-calorie create_food that carries a non-zero nutrient', async () => {
+    vi.mocked(foodCoreService.createFood).mockResolvedValue({
+      id: FOOD_ID,
+      name: 'Diet Cola',
+      brand: null,
+      default_variant: {
+        id: VARIANT_ID,
+        serving_size: 355,
+        serving_unit: 'ml',
+        calories: 0,
+      },
+    });
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_food',
+        food_name: 'Diet Cola',
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        sodium: 40,
+        quantity: 355,
+        unit: 'ml',
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Food "Diet Cola" created with 0 kcal per 355ml.');
   });
 });
 

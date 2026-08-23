@@ -44,6 +44,7 @@ import {
 import { optionalDateSchema, uuidSchema } from './schemas/common.js';
 import { normalizeActionArgs, normalizeDayKeywords } from './dates.js';
 import {
+  convertFoodUnitAmount,
   normalizeServingUnit,
   reconcileEntryUnitToVariant,
 } from '../../utils/foodUtils.js';
@@ -305,6 +306,20 @@ function resolveQuantityForVariantUnit(args: {
   if (requestedUnit && requestedUnit === variantUnit) {
     return {
       quantity: args.requestedQuantity,
+      unit: args.variant.serving_unit,
+    };
+  }
+
+  // A measurable unit of the same dimension ("0.5 lb" against a gram variant)
+  // converts deterministically instead of failing the log.
+  const converted = convertFoodUnitAmount(
+    args.requestedQuantity,
+    args.requestedUnit,
+    args.variant.serving_unit
+  );
+  if (converted !== null) {
+    return {
+      quantity: Math.round(converted * 100) / 100,
       unit: args.variant.serving_unit,
     };
   }
@@ -1936,6 +1951,11 @@ Actions:
                   args.unit,
                   chosenVariant
                 );
+                if (logged.unresolved) {
+                  return ERRORS.VALIDATION(
+                    `Cannot log ${quantity} ${args.unit} of "${match.name}" — its serving is measured as ${chosenVariant?.serving_size ?? 1}${chosenVariant?.serving_unit ?? 'serving'} and '${args.unit}' has no automatic conversion. Retry with quantity in ${chosenVariant?.serving_unit ?? 'serving'} or in whole servings (unit: "serving").`
+                  );
+                }
                 const entry = await foodEntryService.createFoodEntry(
                   userId,
                   userId,
@@ -2093,6 +2113,11 @@ Actions:
                 args.unit,
                 chosenVariant
               );
+              if (logged.unresolved) {
+                return ERRORS.VALIDATION(
+                  `Saved "${food.name}" to the food database, but cannot log ${quantity} ${args.unit} of it — its serving is measured as ${chosenVariant?.serving_size ?? 1}${chosenVariant?.serving_unit ?? 'serving'} and '${args.unit}' has no automatic conversion. Retry log_food with food_name "${food.name}" and quantity in ${chosenVariant?.serving_unit ?? 'serving'} or in whole servings (unit: "serving").`
+                );
+              }
 
               await foodEntryService.createFoodEntry(userId, userId, {
                 user_id: userId,
@@ -2110,6 +2135,37 @@ Actions:
             }
 
             case 'create_food': {
+              // All-zero nutrition means the estimation step was skipped
+              // (observed live: a food saved with 0 kcal / 0 macros, which
+              // then silently logs 0-calorie entries forever). Bounce the
+              // call until the model provides an actual estimate. Genuinely
+              // zero-calorie items still pass by carrying any non-zero
+              // nutrient (e.g. diet soda's sodium); plain water has its own
+              // log_water action.
+              const nutrientValues = [
+                args.calories,
+                args.protein,
+                args.carbs,
+                args.fat,
+                args.saturated_fat,
+                args.polyunsaturated_fat,
+                args.monounsaturated_fat,
+                args.trans_fat,
+                args.cholesterol,
+                args.sodium,
+                args.potassium,
+                args.fiber,
+                args.sugar,
+                args.vitamin_a,
+                args.vitamin_c,
+                args.calcium,
+                args.iron,
+              ];
+              if (!nutrientValues.some((v) => typeof v === 'number' && v > 0)) {
+                return ERRORS.VALIDATION(
+                  `create_food received all-zero nutrition for "${args.food_name}" — estimate the nutrition before saving. Retry with your best estimated values per serving (calories, protein, carbs, fat at minimum). For plain water use log_water; a genuinely zero-calorie item must still include a non-zero nutrient such as sodium.`
+                );
+              }
               const rawUnit = args.unit || 'serving';
               // A unit that already encodes a count ("4 pieces", "2 cups") must be
               // split into a numeric serving_size and a bare unit. Stored verbatim it

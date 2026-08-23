@@ -59,12 +59,43 @@ describe('reconcileEntryUnitToVariant', () => {
     ).toEqual({ quantity: 2, unit: 'ml' });
   });
 
-  it('passes a non-matching explicit unit through unchanged', () => {
+  it('converts a same-dimension mass unit into the variant unit', () => {
+    // 0.25 lb of brie against a 100 g variant -> 113.4 g, so the diary math
+    // shows ~337 kcal instead of dividing 0.25 "pound" by a 100 g serving.
+    expect(
+      reconcileEntryUnitToVariant(0.25, 'pound', {
+        serving_size: 100,
+        serving_unit: 'g',
+      })
+    ).toEqual({ quantity: 113.4, unit: 'g' });
+  });
+
+  it('converts a same-dimension volume unit into the variant unit', () => {
+    expect(
+      reconcileEntryUnitToVariant(2, 'cup', {
+        serving_size: 250,
+        serving_unit: 'ml',
+      })
+    ).toEqual({ quantity: 480, unit: 'ml' });
+  });
+
+  it('never converts across dimensions (volume vs mass)', () => {
+    expect(
+      reconcileEntryUnitToVariant(1, 'cup', {
+        serving_size: 100,
+        serving_unit: 'g',
+      })
+    ).toEqual({ quantity: 1, unit: 'cup', unresolved: true });
+  });
+
+  it('flags a non-convertible explicit unit as unresolved', () => {
+    // A count unit against a gram variant has no deterministic conversion;
+    // callers must refuse the log instead of persisting broken entry math.
     expect(
       reconcileEntryUnitToVariant(2, 'piece', {
         serving_size: 30,
         serving_unit: 'g',
       })
-    ).toEqual({ quantity: 2, unit: 'piece' });
+    ).toEqual({ quantity: 2, unit: 'piece', unresolved: true });
   });
 });
