@@ -16,6 +16,9 @@ import {
   todayInZone,
   CALORIE_CALCULATION_CONSTANTS,
   computeCalorieTarget,
+  isAdaptiveTdeeMature,
+  resolveCalorieSafetyFloor,
+  DEFAULT_CUSTOM_CALORIE_SAFETY_FLOOR,
   ACTIVITY_MULTIPLIERS,
 } from '@workspace/shared';
 import customNutrientService from './customNutrientService.js';
@@ -207,6 +210,7 @@ async function getUserGoalsForRange(
         userPreferences?.goal_mode_custom_percentage ?? 0;
       const activityLevel = userPreferences?.activity_level || 'not_much';
       const bmrAlgorithm = userPreferences?.bmr_algorithm || 'Mifflin-St Jeor';
+      const gender = (userProfile?.gender || 'male') as 'male' | 'female';
 
       const weightKg =
         getMeasurementFieldForDate(dateStr, 'weight') ||
@@ -221,7 +225,6 @@ async function getUserGoalsForRange(
       if (userProfile && userPreferences) {
         const tz = userPreferences.timezone || 'UTC';
         const age = userAge(userProfile.date_of_birth ?? '', tz) ?? 30;
-        const gender = userProfile.gender || 'male';
         try {
           bmr = bmrService.calculateBmr(
             bmrAlgorithm,
@@ -273,12 +276,29 @@ async function getUserGoalsForRange(
         }
       }
 
-      // Apply adaptive TDEE base adjustment — mirrors DashboardService
+      // Apply adaptive TDEE base adjustment.
       if (adjustmentMode === 'adaptive' && adaptiveTdeeData && bmr > 0) {
-        goalCalories = Math.max(
-          1200,
-          Math.round(adaptiveTdeeData.tdee + calorieGoalOffset)
+        // Hold the estimated baseline until the measured estimate is settled, the
+        // same test computeCalorieTarget applies below. Without it this path
+        // budgeted against a raw 7-day estimate that the settings preview was
+        // still rejecting, so the goal and the preview disagreed.
+        const adaptiveBaseline = isAdaptiveTdeeMature(
+          adaptiveTdeeData.tdee,
+          adaptiveTdeeData.isFallback,
+          adaptiveTdeeData.daysOfData
+        )
+          ? adaptiveTdeeData.tdee
+          : Math.round(bmr * activityMultiplier);
+        const adaptiveGoal = Math.round(adaptiveBaseline + calorieGoalOffset);
+        const adaptiveGoalFloor = resolveCalorieSafetyFloor(
+          userPreferences?.calorie_safety_floor_mode,
+          userPreferences?.calorie_safety_floor_value,
+          DEFAULT_CUSTOM_CALORIE_SAFETY_FLOOR
         );
+        goalCalories =
+          adaptiveGoalFloor === null
+            ? adaptiveGoal
+            : Math.max(adaptiveGoalFloor, adaptiveGoal);
       }
 
       // Apply goal mode deficit AND baseline replacement.
@@ -290,8 +310,6 @@ async function getUserGoalsForRange(
         const age = userProfile
           ? (userAge(userProfile.date_of_birth ?? '', tz) ?? 30)
           : 30;
-        const gender = (userProfile?.gender || 'male') as 'male' | 'female';
-
         const targetResult = computeCalorieTarget({
           goalMode,
           calculationMethod: goalModeCalculationMethod,
@@ -313,6 +331,11 @@ async function getUserGoalsForRange(
           bmrAlgorithm,
           currentGoalCalories: goalCalories,
           calculateBmrFn: bmrService.calculateBmr,
+          calorieSafetyFloorMode:
+            userPreferences?.calorie_safety_floor_mode || 'standard',
+          calorieSafetyFloorValue:
+            userPreferences?.calorie_safety_floor_value ||
+            DEFAULT_CUSTOM_CALORIE_SAFETY_FLOOR,
         });
         goalCalories = targetResult.finalTarget;
       }

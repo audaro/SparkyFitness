@@ -8,6 +8,10 @@ import {
   computeExerciseCredited,
   computeCalorieProgress,
   normalizeCalorieGoalAdjustmentMode,
+  shouldShowCalorieSafetyWarning,
+  isAdaptiveTdeeMature,
+  ADAPTIVE_TDEE_GOAL_MIN_DAYS,
+  convertEnergyValue,
 } from '@workspace/shared';
 import {
   computeCalorieTarget,
@@ -25,6 +29,13 @@ describe('ACTIVITY_MULTIPLIERS', () => {
     expect(ACTIVITY_MULTIPLIERS['light']).toBe(1.375);
     expect(ACTIVITY_MULTIPLIERS['moderate']).toBe(1.55);
     expect(ACTIVITY_MULTIPLIERS['heavy']).toBe(1.725);
+  });
+});
+
+describe('convertEnergyValue', () => {
+  it('converts energy in both directions without rounding away precision', () => {
+    expect(convertEnergyValue(100, 'kcal', 'kJ')).toBeCloseTo(418.4, 5);
+    expect(convertEnergyValue(418.4, 'kJ', 'kcal')).toBeCloseTo(100, 5);
   });
 });
 
@@ -467,10 +478,13 @@ describe('computeCalorieTarget with gain goals', () => {
     expect(result.safetyZone).toBe('red');
   });
 
-  it('never trips the safety floor for a surplus', () => {
+  it('never trips the safety floor for a surplus above the floor', () => {
     const result = computeCalorieTarget({ ...gainBase, goalMode: 'bulk' });
     expect(result.wasClampedToFloor).toBe(false);
-    expect(result.maxFeasibleDeficitPercent).toBeNull();
+    expect(result.clampedFloorSource).toBeNull();
+    // The ceiling is reported regardless of the selected mode — it describes the
+    // floor, not this goal — so a gain goal still carries the deficit headroom.
+    expect(result.maxFeasibleDeficitPercent).not.toBeNull();
   });
 
   it('accepts a positive custom percentage as a manual surplus', () => {
@@ -557,6 +571,250 @@ describe('computeCalorieTarget safety floor reporting', () => {
     expect(result.wasClampedToFloor).toBe(false);
     expect(result.finalTarget).toBe(1190); // the user gets what they asked for
     expect(result.isBelowAbsoluteFloor).toBe(true);
+  });
+
+  it('uses a custom floor instead of forcing the higher calculated RMR (issue #2124)', () => {
+    const result = computeCalorieTarget({
+      ...smallBase,
+      weightKg: 88,
+      heightCm: 175,
+      age: 30,
+      adaptiveTdee: 1606,
+      currentGoalCalories: 1606,
+      goalMode: 'maintain',
+      calculationMethod: 'adaptive',
+      calorieSafetyFloorMode: 'custom',
+      calorieSafetyFloorValue: 1200,
+    });
+
+    expect(result.rmr).toBeGreaterThan(1606);
+    expect(result.finalTarget).toBe(1606);
+    expect(result.effectiveSafetyFloor).toBe(1200);
+    expect(result.wasClampedToFloor).toBe(false);
+  });
+
+  it('clamps to the configured custom floor and identifies it as the source', () => {
+    const result = computeCalorieTarget({
+      ...smallBase,
+      adaptiveTdee: 1300,
+      currentGoalCalories: 1300,
+      goalMode: 'high_cut',
+      calculationMethod: 'adaptive',
+      calorieSafetyFloorMode: 'custom',
+      calorieSafetyFloorValue: 1100,
+    });
+
+    expect(result.target).toBe(1040);
+    expect(result.finalTarget).toBe(1100);
+    expect(result.effectiveSafetyFloor).toBe(1100);
+    expect(result.clampedFloorSource).toBe('custom');
+  });
+
+  it('does not clamp an adaptive target when the floor is disabled', () => {
+    const result = computeCalorieTarget({
+      ...smallBase,
+      goalMode: 'cut',
+      calculationMethod: 'adaptive',
+      calorieSafetyFloorMode: 'disabled',
+      calorieSafetyFloorValue: 1200,
+    });
+
+    expect(result.finalTarget).toBe(1190);
+    expect(result.effectiveSafetyFloor).toBeNull();
+    expect(result.wasClampedToFloor).toBe(false);
+    expect(result.clampedFloorSource).toBeNull();
+  });
+});
+
+describe('deficit ceiling is available before the clamp (issue #2205)', () => {
+  // Same body throughout; only the activity multiplier moves. The ceiling is
+  // 1 - 1/multiplier, so it is a property of activity, not body size.
+  const at = (multiplier: number, goalMode = 'maintain') => {
+    const bmr = 1633;
+    const tdee = Math.round(bmr * multiplier);
+    return computeCalorieTarget({
+      goalMode,
+      calculationMethod: 'adaptive',
+      customPercentage: 0,
+      bmr,
+      activityLevelMultiplier: multiplier,
+      adaptiveTdee: tdee,
+      adaptiveTdeeFallback: false,
+      adaptiveTdeeDaysOfData: 60,
+      weightKg: 100,
+      heightCm: 155,
+      age: 35,
+      gender: 'female',
+      currentGoalCalories: tdee,
+    });
+  };
+
+  it('reports the ceiling even when the current mode does not trip the floor', () => {
+    const result = at(1.2, 'maintain');
+
+    expect(result.wasClampedToFloor).toBe(false);
+    expect(result.maxFeasibleDeficitPercent).toBeCloseTo(16.7, 1);
+  });
+
+  it('is effectively zero at the None activity level, where every deficit mode is clamped', () => {
+    // TDEE equals RMR there, so no deficit clears the floor at all.
+    expect(at(1.0).maxFeasibleDeficitPercent).toBeLessThan(0.1);
+  });
+
+  it('does not depend on which goal mode is selected', () => {
+    const ceilings = ['maintain', 'recomp', 'cut', 'high_cut'].map(
+      (mode) => at(1.2, mode).maxFeasibleDeficitPercent
+    );
+
+    expect(new Set(ceilings.map((c) => c!.toFixed(6))).size).toBe(1);
+  });
+
+  it('rises with activity level', () => {
+    expect(at(1.375).maxFeasibleDeficitPercent).toBeCloseTo(27.3, 1);
+    expect(at(1.55).maxFeasibleDeficitPercent).toBeCloseTo(35.5, 1);
+  });
+
+  it('is null under the manual method, which never clamps', () => {
+    const result = computeCalorieTarget({
+      goalMode: 'high_cut',
+      calculationMethod: 'manual',
+      customPercentage: 0,
+      bmr: 1633,
+      activityLevelMultiplier: 1.2,
+      adaptiveTdee: 1959,
+      adaptiveTdeeFallback: false,
+      adaptiveTdeeDaysOfData: 60,
+      weightKg: 100,
+      heightCm: 155,
+      age: 35,
+      gender: 'female',
+      currentGoalCalories: 1959,
+    });
+
+    expect(result.maxFeasibleDeficitPercent).toBeNull();
+  });
+});
+
+describe('isAdaptiveTdeeMature', () => {
+  // AdaptiveTdeeService releases a raw estimate at 7 days; goals wait for the
+  // stabler window. The gap between those two numbers is where the saved goal and
+  // the settings preview used to disagree.
+  it.each([0, 6, 7, 13])('rejects a measured estimate at %i days', (days) => {
+    expect(isAdaptiveTdeeMature(1800, false, days)).toBe(false);
+  });
+
+  it.each([14, 30])('accepts a measured estimate at %i days', (days) => {
+    expect(isAdaptiveTdeeMature(1800, false, days)).toBe(true);
+  });
+
+  it('rejects a fallback estimate no matter how much history backs it', () => {
+    expect(isAdaptiveTdeeMature(1800, true, 365)).toBe(false);
+  });
+
+  // The service always sets the flag, but the web types it optional and forwards
+  // it unmodified, so an unknown provenance must not be read as "measured".
+  it.each([null, undefined])(
+    'rejects an estimate whose fallback status is %p',
+    (isFallback) => {
+      expect(isAdaptiveTdeeMature(1800, isFallback, 365)).toBe(false);
+    }
+  );
+
+  it('rejects a missing or unusable estimate', () => {
+    expect(isAdaptiveTdeeMature(null, false, 30)).toBe(false);
+    expect(isAdaptiveTdeeMature(undefined, false, 30)).toBe(false);
+    expect(isAdaptiveTdeeMature(0, false, 30)).toBe(false);
+    expect(isAdaptiveTdeeMature(NaN, false, 30)).toBe(false);
+  });
+
+  it('treats a missing day count as no history', () => {
+    expect(isAdaptiveTdeeMature(1800, false, null)).toBe(false);
+    expect(isAdaptiveTdeeMature(1800, false, undefined)).toBe(false);
+  });
+
+  it('is the threshold computeCalorieTarget actually applies', () => {
+    const base = {
+      goalMode: 'maintain',
+      calculationMethod: 'adaptive' as const,
+      customPercentage: 0,
+      bmr: 1600,
+      activityLevelMultiplier: 1.2,
+      adaptiveTdee: 1420,
+      adaptiveTdeeFallback: false,
+      weightKg: 80,
+      heightCm: 178,
+      age: 36,
+      gender: 'male' as const,
+      currentGoalCalories: 1900,
+    };
+
+    const immature = computeCalorieTarget({
+      ...base,
+      adaptiveTdeeDaysOfData: ADAPTIVE_TDEE_GOAL_MIN_DAYS - 1,
+    });
+    const mature = computeCalorieTarget({
+      ...base,
+      adaptiveTdeeDaysOfData: ADAPTIVE_TDEE_GOAL_MIN_DAYS,
+    });
+
+    expect(immature.insufficientHistory).toBe(true);
+    expect(immature.baselineTdee).toBe(1920);
+    expect(mature.insufficientHistory).toBe(false);
+    expect(mature.baselineTdee).toBe(1420);
+  });
+});
+
+describe('shouldShowCalorieSafetyWarning', () => {
+  it('does not warn while maintaining weight', () => {
+    expect(shouldShowCalorieSafetyWarning('maintain')).toBe(false);
+  });
+
+  it.each(['recomp', 'cut', 'high_cut', 'lean_bulk', 'bulk', 'manual'])(
+    'warns for a non-maintenance %s goal regardless of method',
+    (goalMode) => {
+      expect(shouldShowCalorieSafetyWarning(goalMode)).toBe(true);
+    }
+  );
+});
+
+describe('safety warnings reach a relaxed adaptive floor', () => {
+  // A custom or disabled floor lets an adaptive target land below RMR. Gating the
+  // warning on the manual method used to silence it there, which is precisely
+  // where it matters: the floor never clamps under manual in the first place.
+  const base = {
+    goalMode: 'high_cut',
+    calculationMethod: 'adaptive' as const,
+    customPercentage: 0,
+    bmr: 1633,
+    activityLevelMultiplier: 1.2,
+    adaptiveTdee: 1959,
+    adaptiveTdeeFallback: false,
+    adaptiveTdeeDaysOfData: 60,
+    weightKg: 100,
+    heightCm: 155,
+    age: 35,
+    gender: 'female' as const,
+    currentGoalCalories: 1959,
+  };
+
+  it('produces a below-RMR target the warning must cover', () => {
+    const result = computeCalorieTarget({
+      ...base,
+      calorieSafetyFloorMode: 'disabled',
+    });
+
+    expect(result.finalTarget).toBeLessThan(result.rmr);
+    expect(shouldShowCalorieSafetyWarning(base.goalMode)).toBe(true);
+  });
+
+  it('stays quiet when the standard floor already clamped the target', () => {
+    const result = computeCalorieTarget({
+      ...base,
+      calorieSafetyFloorMode: 'standard',
+    });
+
+    // The helper is permissive; the outcome comparison is what silences it.
+    expect(result.finalTarget).toBeGreaterThanOrEqual(result.rmr);
   });
 });
 

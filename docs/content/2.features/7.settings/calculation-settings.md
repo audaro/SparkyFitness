@@ -96,21 +96,25 @@ Gain is deliberately much slower than loss. Muscle growth is limited by training
 
 ## 5. Metabolic Safety Floors
 
-To protect long-term metabolic health and avoid muscle wasting, SparkyFitness checks all calorie goals against safety limits:
+SparkyFitness shows two recommended safety limits for calorie goals:
 
 1.  **Resting Metabolism (RMR) Floor:** Your target should not fall below your resting metabolic rate.
 2.  **Absolute Clinical Floor:** $1,200$ kcal for biological females; $1,500$ kcal for biological males.
 
 > [!IMPORTANT]
-> **Enforcement Behavior:**
+> **Adaptive Safety Floor:**
 >
-> - Under the **Adaptive** method, if your calculated target falls below the safety floor, the system **automatically raises** your target to the effective floor. When this happens the app tells you which floor bound (your RMR or the absolute clinical minimum) and offers the largest deficit that still clears it.
+> - **Standard (default):** The higher of your estimated RMR and the sex-specific clinical minimum is enforced. If an Adaptive target falls below it, SparkyFitness raises the target and explains which limit bound.
+> - **Custom minimum:** Replaces the Standard floor with a calorie value you choose. This can be below or above the recommended limits; those recommendations and health warnings remain visible.
+> - **Disabled:** Does not automatically raise Adaptive targets. The calculated target is used as-is, while recommended limits and health warnings remain visible.
 > - Under the **Manual** method, the target is **not automatically raised**, but a prominent warning banner is displayed warning you that your budget is in an unsafe range.
 
-Safety floors only ever apply to deficits. A surplus can never trip them.
+Under the Adaptive method the floor applies whenever the calculated target falls below it. That is almost always a deficit, but a surplus can trip it too: if your entire maintenance sits below the clinical minimum, even a gain goal is raised to that minimum.
 
 > [!TIP]
-> If you are small-bodied, the floor can bind before you reach your chosen deficit — for example, a measured TDEE of $1{,}400$ kcal with a $15\%$ cut computes to $1{,}190$ kcal, below the $1{,}200$ floor. This is arithmetic, not a bug: there is simply less room to cut. The lever is raising expenditure through activity rather than cutting intake further. First, though, check that your **Activity Level** is accurate — an understated activity level lowers your estimated expenditure and makes the floor bind sooner than it should.
+> If a goal mode appears to have no effect, the Standard floor is binding. That is usually about your **activity level**, not your body size. With the fallback estimate (TDEE = RMR × activity multiplier) and RMR as the binding half, the floor bites once your deficit exceeds roughly $1 - 1/\text{activityMultiplier}$ — about $17\%$ at **Sedentary** ($\times 1.2$), and $0\%$ at **None** ($\times 1.0$), where every deficit mode returns the same target. Once Adaptive has enough history it uses your *measured* TDEE, so the real limit is how far your expenditure sits above your RMR. A sedentary man and a sedentary woman of very different sizes hit the same ceiling.
+>
+> If you are still on the fallback estimate, check your **Activity Level** and profile data first, since they set the ceiling there and are the most common things to have understated. Once Adaptive is using measured TDEE the setting no longer feeds the calculation, and the ceiling reflects your real expenditure instead. If your target has been agreed with a qualified clinician and still falls below the Standard floor, choose a **Custom minimum** or **Disabled**. Very small adults may find the clinical minimum sits above their own maintenance, in which case those two options are the only way to set a deficit at all. Very low calorie targets can carry health risks and may require medical supervision.
 
 ---
 

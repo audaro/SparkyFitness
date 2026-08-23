@@ -1,8 +1,22 @@
 import {
   ACTIVITY_MULTIPLIERS,
+  ADAPTIVE_TDEE_GOAL_MIN_DAYS,
   CALORIE_CALCULATION_CONSTANTS,
+  DEFAULT_CUSTOM_CALORIE_SAFETY_FLOOR,
   ENERGY_DENSITY_KCAL_PER_KG,
+  MAX_CALORIE_SAFETY_FLOOR,
+  MIN_CALORIE_SAFETY_FLOOR,
+  type CalorieSafetyFloorMode,
 } from "../constants/calorieConstants.ts";
+
+export function convertEnergyValue(
+  value: number,
+  fromUnit: "kcal" | "kJ",
+  toUnit: "kcal" | "kJ",
+): number {
+  if (fromUnit === toUnit) return value;
+  return fromUnit === "kcal" ? value * 4.184 : value / 4.184;
+}
 
 export type CalorieGoalAdjustmentMode =
   | "dynamic"
@@ -513,13 +527,96 @@ export interface CalorieTargetResult {
    * Only ever true for `calculationMethod === "adaptive"`.
    */
   wasClampedToFloor: boolean;
-  /** Which floor bound: the user's own RMR, or the flat absolute minimum. */
-  clampedFloorSource: "rmr" | "absolute" | null;
+  /** Which floor bound: RMR, the flat absolute minimum, or a user override. */
+  clampedFloorSource: "rmr" | "absolute" | "custom" | null;
+  /** Recommended default (the higher of RMR and the sex-specific absolute floor). */
+  recommendedSafetyFloor: number;
+  /** Floor that is actually enforced, or null when automatic clamping is disabled. */
+  effectiveSafetyFloor: number | null;
   /**
    * Largest deficit, in percent, that still clears the safety floor.
-   * Null when the goal is not a deficit or the floor never binds.
+   *
+   * Always present under the adaptive method, whether or not the current goal
+   * mode trips the floor, so the UI can mark unreachable modes *before* one is
+   * chosen rather than explaining the override afterwards. Null under manual,
+   * which never clamps, and when the baseline is unknown.
    */
   maxFeasibleDeficitPercent: number | null;
+}
+
+/**
+ * Whether a measured adaptive TDEE is settled enough to drive a calorie goal.
+ *
+ * `AdaptiveTdeeService` hands back a raw estimate at 7 qualifying days, but a goal
+ * budget wants a stabler number than that. Every consumer that turns adaptive TDEE
+ * into a target must ask this same question, so it lives here rather than being
+ * re-expressed at each call site — they had already drifted apart once, with the
+ * settings preview holding out for a mature estimate while the saved goal took the
+ * raw one.
+ *
+ * Fails closed on an unknown fallback status. The service always populates the
+ * flag, but the web types it as optional and pass it through unmodified, so a
+ * partial or stale payload could otherwise let an estimate of unknown provenance
+ * set someone's calorie target. Requiring an explicit `false` costs nothing when
+ * the field is present and degrades to the estimated baseline when it is not.
+ */
+export function isAdaptiveTdeeMature(
+  tdee: number | null | undefined,
+  isFallback: boolean | null | undefined,
+  daysOfData: number | null | undefined,
+): tdee is number {
+  return (
+    typeof tdee === "number" &&
+    Number.isFinite(tdee) &&
+    tdee > 0 &&
+    isFallback === false &&
+    (daysOfData ?? 0) >= ADAPTIVE_TDEE_GOAL_MIN_DAYS
+  );
+}
+
+export function resolveCalorieSafetyFloor(
+  mode: CalorieSafetyFloorMode | string | null | undefined,
+  customValue: number | null | undefined,
+  standardFloor: number,
+): number | null {
+  if (mode === "disabled") return null;
+  if (
+    mode === "custom" &&
+    Number.isInteger(customValue) &&
+    Number(customValue) >= MIN_CALORIE_SAFETY_FLOOR &&
+    Number(customValue) <= MAX_CALORIE_SAFETY_FLOOR
+  ) {
+    return Number(customValue);
+  }
+  return standardFloor;
+}
+
+export function getRecommendedCalorieSafetyFloor(
+  rmr: number,
+  gender: "male" | "female",
+): number {
+  return Math.max(rmr, getClinicalCalorieMinimum(gender));
+}
+
+export function getClinicalCalorieMinimum(gender: "male" | "female"): number {
+  return gender === "female" ? 1200 : 1500;
+}
+
+/**
+ * Whether a low-target warning is worth showing at all.
+ *
+ * Deliberately not gated on the calculation method. The floor only ever clamps
+ * under `adaptive`, so gating on `manual` silenced the warning in exactly the
+ * configurations that can land below RMR: a custom floor, or a disabled one.
+ * Those are also the settings the smallest users depend on, because a clinical
+ * minimum of 1200/1500 can sit above their entire maintenance.
+ *
+ * Callers pair this with the outcome (`finalTarget < rmr` and friends), which is
+ * self-limiting: an unclamped adaptive target sits at or above its floor, so the
+ * comparison is false and nothing renders.
+ */
+export function shouldShowCalorieSafetyWarning(goalMode: string): boolean {
+  return goalMode !== "maintain";
 }
 
 export function computeCalorieTarget({
@@ -539,6 +636,8 @@ export function computeCalorieTarget({
   bmrAlgorithm,
   currentGoalCalories,
   calculateBmrFn,
+  calorieSafetyFloorMode = "standard",
+  calorieSafetyFloorValue = DEFAULT_CUSTOM_CALORIE_SAFETY_FLOOR,
 }: {
   goalMode: string;
   calculationMethod: string;
@@ -556,6 +655,8 @@ export function computeCalorieTarget({
   bmrAlgorithm?: string;
   currentGoalCalories: number;
   calculateBmrFn?: BmrCalculatorFn;
+  calorieSafetyFloorMode?: CalorieSafetyFloorMode;
+  calorieSafetyFloorValue?: number;
 }): CalorieTargetResult {
   const rmr = calculateMinimumMetabolism(
     weightKg,
@@ -573,7 +674,13 @@ export function computeCalorieTarget({
   let insufficientHistory = false;
 
   if (calculationMethod === "adaptive") {
-    if (adaptiveTdeeFallback || !adaptiveTdee || adaptiveTdeeDaysOfData < 14) {
+    if (
+      !isAdaptiveTdeeMature(
+        adaptiveTdee,
+        adaptiveTdeeFallback,
+        adaptiveTdeeDaysOfData,
+      )
+    ) {
       baselineTdee = Math.round(bmr * activityLevelMultiplier);
       insufficientHistory = true;
     } else {
@@ -585,31 +692,50 @@ export function computeCalorieTarget({
   const isGainGoal = deficitPercent < 0;
   const isBelowRmr = calculatedTarget < rmr;
 
-  const absoluteFloorValue = gender === "female" ? 1200 : 1500;
+  const absoluteFloorValue = getClinicalCalorieMinimum(gender);
   const isBelowAbsoluteFloor = calculatedTarget < absoluteFloorValue;
 
   // The floor is whichever is higher: the user's own resting metabolism, or the
   // flat minimum below which hitting protein and micronutrient targets is
   // impractical. A surplus can never trip it.
-  const safetyFloor = Math.max(rmr, absoluteFloorValue);
+  const recommendedSafetyFloor = getRecommendedCalorieSafetyFloor(rmr, gender);
+  const effectiveSafetyFloor = resolveCalorieSafetyFloor(
+    calorieSafetyFloorMode,
+    calorieSafetyFloorValue,
+    recommendedSafetyFloor,
+  );
   const wasClampedToFloor =
-    calculationMethod === "adaptive" && calculatedTarget < safetyFloor;
+    calculationMethod === "adaptive" &&
+    effectiveSafetyFloor !== null &&
+    calculatedTarget < effectiveSafetyFloor;
   const finalTarget = wasClampedToFloor
-    ? Math.round(safetyFloor)
+    ? Math.round(effectiveSafetyFloor)
     : Math.round(calculatedTarget);
 
   // Name which floor actually bound, so the UI can explain rather than just clamp.
-  const clampedFloorSource: "rmr" | "absolute" | null = wasClampedToFloor
-    ? rmr >= absoluteFloorValue
-      ? "rmr"
-      : "absolute"
-    : null;
+  const usesValidCustomFloor =
+    calorieSafetyFloorMode === "custom" &&
+    Number.isInteger(calorieSafetyFloorValue) &&
+    calorieSafetyFloorValue >= MIN_CALORIE_SAFETY_FLOOR &&
+    calorieSafetyFloorValue <= MAX_CALORIE_SAFETY_FLOOR;
+  const clampedFloorSource: "rmr" | "absolute" | "custom" | null =
+    wasClampedToFloor
+      ? usesValidCustomFloor
+        ? "custom"
+        : rmr >= absoluteFloorValue
+          ? "rmr"
+          : "absolute"
+      : null;
 
-  // The largest deficit that still clears the floor. Surfaced so a user who asked
-  // for more than is feasible gets an actionable number instead of a silent override.
+  // The largest deficit that still clears the floor. Computed whenever the floor
+  // could bind — not only once it has — so a goal-mode picker can say which modes
+  // are out of reach up front. Depends on the baseline and the floor, both of
+  // which are independent of the goal mode, so it is the same for every mode.
   const maxFeasibleDeficitPercent =
-    wasClampedToFloor && baselineTdee > 0
-      ? Math.max(0, (1 - safetyFloor / baselineTdee) * 100)
+    calculationMethod === "adaptive" &&
+    baselineTdee > 0 &&
+    effectiveSafetyFloor !== null
+      ? Math.max(0, (1 - effectiveSafetyFloor / baselineTdee) * 100)
       : null;
 
   // Signed: negative is loss, positive is gain, matching how weight deltas read
@@ -648,6 +774,9 @@ export function computeCalorieTarget({
     safetyZone,
     wasClampedToFloor,
     clampedFloorSource,
+    recommendedSafetyFloor: Math.round(recommendedSafetyFloor),
+    effectiveSafetyFloor:
+      effectiveSafetyFloor === null ? null : Math.round(effectiveSafetyFloor),
     maxFeasibleDeficitPercent,
   };
 }
