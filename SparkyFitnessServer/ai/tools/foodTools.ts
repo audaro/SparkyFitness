@@ -1477,6 +1477,36 @@ Actions:
           delete normalized.source_date;
           delete normalized.target_date;
         }
+        // Small-model salvage: create_food names its serving fields
+        // quantity/unit, but update_food_variant (and the DB) call them
+        // serving_size/serving_unit, so models bleed those names across.
+        // Dropping serving_unit as an unrecognized key silently falls back
+        // to the 100-'serving' base and stores ~100x-off serving math;
+        // remap instead.
+        if (normalized.action === 'create_food') {
+          if (
+            normalized.serving_size !== undefined &&
+            normalized.quantity === undefined
+          ) {
+            normalized.quantity = normalized.serving_size;
+            log(
+              'info',
+              `[foodTools] Remapped misfiled serving_size '${normalized.serving_size}' to quantity for create_food`
+            );
+          }
+          if (
+            normalized.serving_unit !== undefined &&
+            normalized.unit === undefined
+          ) {
+            normalized.unit = normalized.serving_unit;
+            log(
+              'info',
+              `[foodTools] Remapped misfiled serving_unit '${normalized.serving_unit}' to unit for create_food`
+            );
+          }
+          delete normalized.serving_size;
+          delete normalized.serving_unit;
+        }
         // Default missing entry_date to today's date string for logging actions
         if (
           normalized.entry_date === undefined &&

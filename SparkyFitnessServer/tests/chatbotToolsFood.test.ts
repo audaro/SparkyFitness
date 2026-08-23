@@ -1875,6 +1875,46 @@ describe('create_food', () => {
     );
   });
 
+  it('remaps misfiled serving_size/serving_unit onto quantity/unit', async () => {
+    // Regression for an observed live failure: models bleed
+    // update_food_variant's field names into create_food. Dropping
+    // serving_unit as an unrecognized key fell back to the 100-'serving'
+    // base, storing "227 serving" for half a pound of ground beef — which the
+    // diary then rendered as ~1 kcal (quantity 1 / serving_size 227 × 250).
+    vi.mocked(foodCoreService.createFood).mockResolvedValue({
+      id: FOOD_ID,
+      name: 'Ground Beef',
+      default_variant: {
+        id: VARIANT_ID,
+        serving_size: 227,
+        serving_unit: 'g',
+        calories: 250,
+      },
+    });
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_food',
+        food_name: 'Ground Beef',
+        calories: 250,
+        protein: 23,
+        carbs: 0,
+        fat: 17,
+        serving_size: 227,
+        serving_unit: 'g',
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Food "Ground Beef" created with 250 kcal per 227g.'
+    );
+    expect(foodCoreService.createFood).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ serving_size: 227, serving_unit: 'g' })
+    );
+  });
+
   it.each([
     { unit: '250 ml', serving_size: 250, serving_unit: 'ml' },
     { unit: '0.5 cup', serving_size: 0.5, serving_unit: 'cup' },

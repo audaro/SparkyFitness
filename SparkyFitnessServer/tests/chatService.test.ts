@@ -1729,6 +1729,91 @@ describe('chatService', () => {
       );
     });
 
+    // Regression for an observed live failure: the model's prose claimed three
+    // dinner items were logged when the final tool step errored on two of
+    // them. An error in the run's LAST tool-bearing step is unrecovered by
+    // definition — nothing but prose follows — so the stream must append the
+    // error lines as a correction and persist the same text.
+    it('appends unrecovered final-step tool errors to the stream and the saved history', async () => {
+      vi.mocked(mealTypeRepository.getAllMealTypes).mockResolvedValue([
+        { id: 'dinner-id', name: 'Dinner', sort_order: 3, user_id: null },
+      ]);
+      vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([]);
+      const steps = [
+        [
+          { type: 'stream-start', warnings: [] },
+          {
+            type: 'tool-call',
+            toolCallId: 'call-log-1',
+            toolName: 'sparky_manage_food',
+            input: JSON.stringify({
+              action: 'log_food',
+              food_name: 'Ghost Burger',
+              quantity: 1,
+              unit: 'serving',
+              meal_type: 'dinner',
+              entry_date: '2026-08-22',
+            }),
+          },
+          {
+            type: 'finish',
+            finishReason: { unified: 'tool-calls', raw: undefined },
+            usage,
+          },
+        ],
+        [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 't1' },
+          {
+            type: 'text-delta',
+            id: 't1',
+            delta: "I've logged your dinner!",
+          },
+          { type: 'text-end', id: 't1' },
+          {
+            type: 'finish',
+            finishReason: { unified: 'stop', raw: undefined },
+            usage,
+          },
+        ],
+      ];
+      const queue = [...steps];
+      const model = new MockLanguageModelV3({
+        doStream: async () => ({
+          stream: simulateReadableStream({
+            chunks: (queue.shift() ?? []) as never[],
+          }),
+        }),
+      });
+      mockModelHolder.current = model;
+
+      const { stream } = await chatService.processChatMessageStream(
+        [{ role: 'user', content: 'I had a ghost burger for dinner' }],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+      const chunks = await drainStream(stream);
+
+      const noteDelta = chunks
+        .filter(
+          (c): c is Extract<UIMessageChunk, { type: 'text-delta' }> =>
+            c.type === 'text-delta'
+        )
+        .find((c) => c.delta.includes('did NOT get saved'));
+      expect(noteDelta).toBeDefined();
+      expect(noteDelta!.delta).toContain('Error [VALIDATION]');
+
+      await vi.waitFor(() =>
+        expect(chatRepository.saveChatHistory).toHaveBeenCalledWith(
+          expect.objectContaining({
+            messageType: 'assistant',
+            content: expect.stringContaining('did NOT get saved'),
+          })
+        )
+      );
+    });
+
     // A turn that ends on a proposal card with no accompanying text must still
     // persist: the whole routine lives in the tool call's input, and the card
     // re-renders from the saved part after a reload.

@@ -2059,6 +2059,45 @@ function withEmptyCompletionGuard(
   );
 }
 
+function formatUnrecoveredToolErrorNote(errors: readonly string[]): string {
+  return `\n\n⚠️ Note: the following action${errors.length === 1 ? '' : 's'} failed and did NOT get saved:\n${errors
+    .map((e) => `- ${e}`)
+    .join('\n')}`;
+}
+
+// A write tool can fail in the run's final tool step — after which the model
+// only produces prose, so nothing ever recovers the failure — while the prose
+// happily claims everything was logged (observed live: three dinner items
+// claimed as logged, one actually written). Mirror quick-log's honest-failure
+// rule on the streaming path: append the unrecovered error lines as a visible
+// correction block. Errors in EARLIER steps don't fire this — the model saw
+// them and had further steps to recover (the lookup → create_food dance).
+function withUnrecoveredToolErrorGuard(
+  stream: ReadableStream<UIMessageChunk>,
+  getUnrecoveredErrors: () => readonly string[]
+): ReadableStream<UIMessageChunk> {
+  const NOTE_ID = 'unrecovered-tool-errors';
+  return stream.pipeThrough(
+    new TransformStream<UIMessageChunk, UIMessageChunk>({
+      transform(chunk, controller) {
+        if (chunk.type === 'finish') {
+          const errors = getUnrecoveredErrors();
+          if (errors.length > 0) {
+            controller.enqueue({ type: 'text-start', id: NOTE_ID });
+            controller.enqueue({
+              type: 'text-delta',
+              id: NOTE_ID,
+              delta: formatUnrecoveredToolErrorNote(errors),
+            });
+            controller.enqueue({ type: 'text-end', id: NOTE_ID });
+          }
+        }
+        controller.enqueue(chunk);
+      },
+    })
+  );
+}
+
 // Shape provider usage into the keys @assistant-ui/react-ai-sdk's
 // getThreadMessageTokenUsage reads off the streamed message metadata, so the
 // chat UI can surface per-message token counts. cacheReadTokens is the
@@ -2176,6 +2215,11 @@ async function processChatMessageStream(
       llmMessages[llmMessages.length - 1]
     );
 
+    // Error lines from the most recent tool-bearing step. If the run ends with
+    // these non-empty, those failures were never recovered — see
+    // withUnrecoveredToolErrorGuard.
+    let lastToolStepErrors: string[] = [];
+
     const result = streamText({
       model: modelInstance,
       system: systemPromptContent,
@@ -2227,6 +2271,12 @@ async function processChatMessageStream(
             .map((r) => `${r.toolName}=${String(r.output ?? '').length}c`)
             .join(' ');
           log('info', `[chat] tool result sizes: ${sizes}`);
+          lastToolStepErrors = toolResults
+            .filter(
+              (r) =>
+                typeof r.output === 'string' && r.output.startsWith('Error [')
+            )
+            .map((r) => String(r.output).split('\n', 1)[0].slice(0, 200));
         }
       },
       onFinish: async ({
@@ -2283,7 +2333,14 @@ async function processChatMessageStream(
           (call) => call.toolName === PROPOSE_WORKOUT_PRESET_TOOL_NAME
         );
 
-        if (!text.trim() && !askCall && !proposeCall) {
+        // Persist the same correction block the stream guard appends, so the
+        // reloaded transcript matches what the user saw live.
+        const persistedText =
+          lastToolStepErrors.length > 0
+            ? `${text.trim()}${formatUnrecoveredToolErrorNote(lastToolStepErrors)}`.trim()
+            : text.trim();
+
+        if (!persistedText && !askCall && !proposeCall) {
           log(
             'warn',
             `Skipping empty assistant chat history for user ${userId} (finishReason: ${finishReason})`
@@ -2292,7 +2349,8 @@ async function processChatMessageStream(
         }
 
         const assistantParts: Record<string, unknown>[] = [];
-        if (text.trim()) assistantParts.push({ type: 'text', text });
+        if (persistedText)
+          assistantParts.push({ type: 'text', text: persistedText });
         if (askCall) {
           assistantParts.push({
             type: ASK_USER_PART_TYPE,
@@ -2321,7 +2379,7 @@ async function processChatMessageStream(
             // The question (or the proposal) is the user-visible content when
             // the model let the card speak for it.
             content:
-              text.trim() ||
+              persistedText ||
               askUserPartToText({
                 type: ASK_USER_PART_TYPE,
                 input: askCall?.input,
@@ -2341,12 +2399,15 @@ async function processChatMessageStream(
 
     return {
       stream: withEmptyCompletionGuard(
-        result.toUIMessageStream({
-          messageMetadata: ({ part }) =>
-            part.type === 'finish'
-              ? mapUsageToMetadata(part.totalUsage)
-              : undefined,
-        })
+        withUnrecoveredToolErrorGuard(
+          result.toUIMessageStream({
+            messageMetadata: ({ part }) =>
+              part.type === 'finish'
+                ? mapUsageToMetadata(part.totalUsage)
+                : undefined,
+          }),
+          () => lastToolStepErrors
+        )
       ),
     };
   } catch (error) {
