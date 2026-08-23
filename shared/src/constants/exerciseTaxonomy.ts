@@ -95,6 +95,21 @@ export type ExerciseCategory = (typeof EXERCISE_CATEGORIES)[number];
  * Auto-admitting it would offer someone with dumbbells and a band at home a
  * car deadlift, which is exactly the recommendation gym profiles exist to
  * prevent. A user who owns that gear can add `other` to their profile.
+ *
+ * KNOWN LIMITATION, deliberately accepted: `body only` is not perfectly
+ * equipment-free either. 12 of its 111 entries need a bar or a bench —
+ * Pullups, Chin-Up, V-Bar Pullup, Hanging Leg Raise, Bench Dips and friends.
+ * It stays on the list anyway because the alternative is worse: drop it and a
+ * "dumbbells and a band at home" profile returns no push-up, squat, lunge or
+ * plank at all, trading ~12 wrong suggestions for ~99 missing correct ones.
+ *
+ * This is not fixable by filter logic. The pinned vocabulary has no
+ * `pull-up bar` or `bench` value, so "needs a bar" is simply not expressible
+ * — the fix is richer equipment metadata than free-exercise-db ships, which
+ * means diverging from the upstream enum. That is a blueprint-level call and
+ * belongs with the generation engine (W4), where suggesting an unperformable
+ * exercise actually costs the user something; here it only means an
+ * occasional unusable row in a search list.
  */
 export const ALWAYS_AVAILABLE_EQUIPMENT: readonly Equipment[] = ["body only"];
 

@@ -30,6 +30,14 @@ import {
  * everywhere — that is what "needs no equipment" means, and it covers the
  * catalog's 77 null-equipment entries plus every user-created custom exercise,
  * all of which the overlap filter silently dropped.
+ *
+ * The comparison is case- and whitespace-insensitive, mirroring shared's
+ * `normalizeEquipmentName`. Nothing validates the casing a custom exercise is
+ * stored with — the column is free TEXT, and this route family's own Swagger
+ * example long advertised `"equipment": ["None"]` — so a user's `"Dumbbell"`
+ * would otherwise be invisible to their own `dumbbell` profile. Availability
+ * is the wrong place to be strict: dropping a row the user owns is silent and
+ * looks like data loss.
  */
 function buildEquipmentSubsetClause(paramIndex: number): string {
   // The CASE keeps a legacy scalar value (`"dumbbell"` rather than
@@ -46,7 +54,7 @@ function buildEquipmentSubsetClause(paramIndex: number): string {
                     ELSE jsonb_build_array(equipment::jsonb)
                END
              ) AS needed(item)
-       WHERE needed.item <> ALL($${paramIndex}::text[])
+       WHERE lower(btrim(needed.item)) <> ALL($${paramIndex}::text[])
     )
   )`;
 }
@@ -424,7 +432,12 @@ async function searchExercises(
       // real answer — "I own nothing" — and correctly leaves only the
       // equipment-free exercises, so it must not collapse to "no filter".
       whereClauses.push(buildEquipmentSubsetClause(paramIndex));
-      queryParams.push(availableEquipment);
+      // Normalized to match the clause's `lower(btrim(...))` on the stored
+      // side. Profile values arrive canonical (Zod enum), so this is belt and
+      // braces — but it keeps both operands normalized in one place.
+      queryParams.push(
+        availableEquipment.map((item) => item.trim().toLowerCase())
+      );
       paramIndex += 1;
     }
     if (muscleGroupFilter && muscleGroupFilter.length > 0) {

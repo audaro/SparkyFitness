@@ -14,7 +14,10 @@
  *   - equipment-free exercises (NULL / '' / `[]`) being dropped entirely, which
  *     hid every user-created custom exercise the moment a profile was active,
  *   - a legacy scalar value (`"dumbbell"` rather than `["dumbbell"]`) raising
- *     "cannot extract elements from a scalar".
+ *     "cannot extract elements from a scalar",
+ *   - a user's own `["Dumbbell"]` being invisible to their `dumbbell` profile,
+ *     because nothing canonicalizes the casing a custom exercise is stored
+ *     with.
  *
  * HOW TO RUN
  * ----------
@@ -72,6 +75,12 @@ const SEED: ReadonlyArray<readonly [string, string | null]> = [
   [`${PREFIX} Empty String Equipment`, ''],
   [`${PREFIX} Empty Array Equipment`, '[]'],
   [`${PREFIX} Legacy Scalar`, '"dumbbell"'],
+  // Nothing validates the casing a custom exercise is stored with — the
+  // column is free TEXT, and this route family's own Swagger example
+  // advertised `"equipment": ["None"]` with title-cased muscles until it was
+  // corrected. Real rows look like this.
+  [`${PREFIX} Title Case`, '["Dumbbell"]'],
+  [`${PREFIX} Padded Case`, '["  BARBELL "]'],
 ];
 
 async function namesFor(
@@ -181,5 +190,21 @@ describe.runIf(RUN)('gym-profile equipment availability', () => {
     const names = await namesFor(['dumbbell', 'barbell']);
     expect(names).toContain(`${PREFIX} Dumbbell And Barbell`);
     expect(names).not.toContain(`${PREFIX} Bands Only`);
+  });
+
+  it('matches stored equipment regardless of case or padding', async () => {
+    // A user's own `["Dumbbell"]` must be visible to their `dumbbell`
+    // profile. Being strict here drops a row the user owns, silently, and it
+    // reads as data loss rather than as a filter.
+    expect(await namesFor(['dumbbell'])).toContain(`${PREFIX} Title Case`);
+    expect(await namesFor(['barbell'])).toContain(`${PREFIX} Padded Case`);
+  });
+
+  it('still excludes a mis-cased requirement the profile lacks', async () => {
+    // Normalization must not degrade into "matches anything": `["Dumbbell"]`
+    // is still a dumbbell requirement.
+    expect(await namesFor(['bands', 'body only'])).not.toContain(
+      `${PREFIX} Title Case`
+    );
   });
 });
