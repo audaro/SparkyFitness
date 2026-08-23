@@ -79,6 +79,16 @@ const VALID_ACTIONS = [
 // providers are excluded). Derived from VALID_PROVIDER_TYPES.
 const FOOD_PROVIDER_TYPES = [...VALID_PROVIDER_TYPES];
 
+// Meal-type synonyms models reach for (observed live: 'dessert'); the
+// per-action enum only knows the four built-ins. Applied case-insensitively
+// before the strict parse; meal_type_id always wins over meal_type.
+const MEAL_TYPE_ALIASES: Record<string, string> = {
+  snack: 'snacks',
+  dessert: 'snacks',
+  supper: 'dinner',
+  brunch: 'breakfast',
+};
+
 // Units where an omitted create_food quantity defaults to 1 instead of 100.
 const COUNT_BASED_UNITS = [
   'serving',
@@ -1526,6 +1536,22 @@ Actions:
           loggingActions.includes(normalized.action)
         ) {
           normalized.entry_date = todayInZone(tz);
+        }
+        // Case-fold and alias meal_type ('Dinner' → 'dinner', 'dessert' →
+        // 'snacks') so a natural synonym succeeds on the first call instead
+        // of failing the enum.
+        if (typeof normalized.meal_type === 'string') {
+          const folded = normalized.meal_type.trim().toLowerCase();
+          const aliased = MEAL_TYPE_ALIASES[folded] ?? folded;
+          if (aliased !== normalized.meal_type) {
+            if (aliased !== folded) {
+              log(
+                'info',
+                `[foodTools] Aliased meal_type '${normalized.meal_type}' to '${aliased}'`
+              );
+            }
+            normalized.meal_type = aliased;
+          }
         }
 
         let parsed = manageFoodSchema.safeParse(normalized);

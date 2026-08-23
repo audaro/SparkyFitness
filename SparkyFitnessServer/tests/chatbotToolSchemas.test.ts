@@ -457,6 +457,27 @@ describe('published (flat) chatbot tool schemas', () => {
       }
     }
   );
+
+  // Live failure ("I had a root beer float"): meal_type 'dessert' and
+  // entry_date 'today' were rejected by the SDK before the handler's alias
+  // and day-keyword salvage could run. The published schema must stay loose
+  // on both fields — the per-action union enforces the strict forms after
+  // normalization.
+  it('manageFoodInput accepts meal_type synonyms and day keywords at the SDK layer', () => {
+    const parsed = manageFoodInput.safeParse({
+      action: 'create_food',
+      food_name: 'root beer float',
+      calories: 400,
+      protein: 3,
+      carbs: 80,
+      fat: 5,
+      quantity: 1,
+      unit: 'serving',
+      meal_type: 'dessert',
+      entry_date: 'today',
+    });
+    expect(parsed.success).toBe(true);
+  });
 });
 
 describe('strict discriminated-union validation schemas', () => {

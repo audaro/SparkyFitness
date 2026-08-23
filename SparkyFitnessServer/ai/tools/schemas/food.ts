@@ -966,7 +966,14 @@ export const manageFoodInput = z.object({
     .optional()
     .describe("Unit of measurement ('g', 'serving', 'piece', etc.)"),
   // meal / diary
-  meal_type: mealTypeEnum
+  // Published as a plain string (the per-action union enforces the enum) so a
+  // model passing a synonym like 'dessert' reaches the handler's alias
+  // normalization — or a chat-visible correction — instead of an SDK-level
+  // type error it never sees.
+  meal_type: z
+    .string()
+    .min(1)
+    .max(100)
     .optional()
     .describe(
       'Built-in fallback: breakfast | lunch | dinner | snacks. Ignored when meal_type_id is provided.'
@@ -976,7 +983,15 @@ export const manageFoodInput = z.object({
     .describe(
       'Meal type UUID for logging or moving entries, including custom meal types'
     ),
-  entry_date: dateSchema.optional().describe('Date for the entry (YYYY-MM-DD)'),
+  // Plain string for the same reason: "today"/"yesterday" are normalized in
+  // the handler, and a strict SDK-level date regex would reject the call
+  // before that salvage can run.
+  entry_date: z
+    .string()
+    .min(1)
+    .max(40)
+    .optional()
+    .describe("Date for the entry (YYYY-MM-DD; 'today'/'yesterday' also work)"),
   entry_time: optionalEntryTimeSchema,
   meal_id: uuidSchema.optional().describe('Meal template UUID'),
   meal_name: z

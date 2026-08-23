@@ -2094,6 +2094,56 @@ describe('create_food', () => {
       }
     );
   });
+
+  // Live failure ("I had a root beer float"): the model naturally reaches for
+  // meal_type 'dessert' and entry_date 'today'; both must succeed on the
+  // first call instead of failing enum/date validation.
+  it("aliases meal_type 'dessert' to snacks and resolves entry_date 'today'", async () => {
+    vi.mocked(foodCoreService.createFood).mockResolvedValue({
+      id: FOOD_ID,
+      name: 'root beer float',
+      brand: 'Homemade',
+      default_variant: {
+        id: VARIANT_ID,
+        serving_size: 1,
+        serving_unit: 'serving',
+        calories: 400,
+      },
+    });
+    vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+      id: ENTRY_ID,
+    });
+    const today = todayInZone('UTC');
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_food',
+        food_name: 'root beer float',
+        brand: 'Homemade',
+        calories: 400,
+        protein: 3,
+        carbs: 80,
+        fat: 5,
+        quantity: 1,
+        unit: 'serving',
+        meal_type: 'dessert',
+        entry_date: 'today',
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      `✅ Food "root beer float" created with 400 kcal per 1serving. Also logged to Snacks for ${today}.`
+    );
+    expect(foodEntryService.createFoodEntry).toHaveBeenCalledWith(
+      'user-1',
+      'user-1',
+      expect.objectContaining({
+        meal_type_id: 'snacks-id',
+        entry_date: today,
+      })
+    );
+  });
 });
 
 describe('search_meal', () => {
