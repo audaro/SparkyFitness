@@ -2005,6 +2005,52 @@ describe('chatService', () => {
       expect(notes[0].delta).not.toContain('Eggs');
     });
 
+    // An id-only write failure has no name to correlate on, but the id itself
+    // is the retry key — it must survive an unrelated later success instead of
+    // being dropped as targetless.
+    it('keeps an id-only write failure in the note across a later unrelated success', async () => {
+      vi.mocked(mealTypeRepository.getAllMealTypes).mockResolvedValue([
+        { id: 'dinner-id', name: 'Dinner', sort_order: 3, user_id: null },
+      ]);
+      vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+        eggsFood,
+      ]);
+      vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+      vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+        id: 'entry-1',
+        food_name: 'Eggs',
+      });
+      scriptStreamModel([
+        streamToolCallChunks('call-1', {
+          // Invalid update: an id but nothing to change → Error [VALIDATION].
+          action: 'update_entry',
+          entry_id: '99999999-9999-4999-8999-999999999999',
+        }),
+        streamToolCallChunks('call-2', {
+          action: 'log_food',
+          food_name: 'Eggs',
+          quantity: 2,
+          unit: 'serving',
+          meal_type: 'dinner',
+          entry_date: '2026-08-22',
+        }),
+        streamTextChunks('All updated and logged!'),
+      ]);
+
+      const { stream } = await chatService.processChatMessageStream(
+        [{ role: 'user', content: 'fix my dinner entry and log eggs' }],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+      const chunks = await drainStream(stream);
+
+      const notes = noteDeltas(chunks);
+      expect(notes).toHaveLength(1);
+      expect(notes[0].delta).toContain('Error [');
+      expect(notes[0].delta).not.toContain('Eggs');
+    });
+
     // The lookup → retry dance: a failure followed by a successful write for
     // the SAME item is recovered and must stay silent.
     it('omits the note when a failed write is later retried successfully for the same item', async () => {

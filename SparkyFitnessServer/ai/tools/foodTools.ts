@@ -1494,7 +1494,7 @@ Actions:
             conflicts(normalized.serving_unit, normalized.unit)
           ) {
             return ERRORS.VALIDATION(
-              `create_food received conflicting serving fields (quantity/unit vs serving_size/serving_unit). Retry with ONLY quantity and unit describing one serving, for example: {"action":"create_food","food_name":"${String(normalized.food_name ?? 'banana')}","calories":100,"protein":1,"carbs":23,"fat":0,"quantity":118,"unit":"g"}`
+              `create_food received conflicting serving fields (quantity/unit vs serving_size/serving_unit). Retry with ONLY quantity and unit describing one serving, for example: {"action":"create_food","food_name":${JSON.stringify(String(normalized.food_name ?? 'banana'))},"calories":100,"protein":1,"carbs":23,"fat":0,"quantity":118,"unit":"g"}`
             );
           }
           if (

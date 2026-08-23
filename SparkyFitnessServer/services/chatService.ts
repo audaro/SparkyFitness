@@ -2065,20 +2065,42 @@ function formatUnrecoveredToolErrorNote(errors: readonly string[]): string {
     .join('\n')}`;
 }
 
-// Read-style actions (and the interaction tools) can fail without anything
-// going unsaved, so their errors never belong in a "did NOT get saved" note.
-const READONLY_TOOL_ACTION =
-  /^(get|search|lookup|list|find|ask|enable|propose)/;
+// Only write actions belong in a "did NOT get saved" note — a failed read,
+// analysis, or vision call leaves nothing unsaved. Allowlist the write verbs
+// (every persisting action across the tool schemas starts with one, plus the
+// exact action daily_checkin) rather than blocklisting read verbs: an
+// unlisted compute-style action (analyze_trends, scan_label, query_table)
+// then defaults to staying out of the note.
+const WRITE_TOOL_ACTION =
+  /^(add|copy|create|delete|log|save|set|update)(_|$)|^daily_checkin$/;
 
 // The keys tool inputs use to name the thing being written. The first present
 // key is the write's target, used to pair a failure with a later retry.
-const TOOL_TARGET_KEYS = [
+// Name keys come first: recovery flows (log_food → lookup → log_external_food
+// or create_food) keep the item name but not necessarily the same ids.
+const TOOL_TARGET_NAME_KEYS = [
   'food_name',
   'meal_name',
   'exercise_name',
   'habit_name',
   'medication_name',
   'name',
+] as const;
+
+// ID keys let an id-only write failure (update_entry, delete_food) survive
+// until a same-id retry succeeds instead of being dropped as targetless.
+const TOOL_TARGET_ID_KEYS = [
+  'entry_id',
+  'food_id',
+  'meal_id',
+  'exercise_id',
+  'variant_id',
+  'medication_id',
+  'habit_id',
+  'schedule_id',
+  'preset_id',
+  'plan_id',
+  'id',
 ] as const;
 
 interface StepToolCall {
@@ -2095,9 +2117,14 @@ interface StepToolResult {
 function extractToolTarget(input: unknown): string | undefined {
   if (typeof input !== 'object' || input === null) return undefined;
   const rec = input as Record<string, unknown>;
-  for (const key of TOOL_TARGET_KEYS) {
+  for (const key of TOOL_TARGET_NAME_KEYS) {
     const value = rec[key];
     if (typeof value === 'string' && value) return value.toLowerCase();
+  }
+  for (const key of TOOL_TARGET_ID_KEYS) {
+    const value = rec[key];
+    // Prefix so an id can never collide with a food named like one.
+    if (typeof value === 'string' && value) return `id:${value.toLowerCase()}`;
   }
   return undefined;
 }
@@ -2131,7 +2158,7 @@ function createUnrecoveredWriteErrorTracker() {
           ? ((input as Record<string, unknown>).action as string)
           : undefined;
       const action = inputAction ?? r.toolName.replace(/^sparky_/, '');
-      if (READONLY_TOOL_ACTION.test(action)) continue;
+      if (!WRITE_TOOL_ACTION.test(action)) continue;
       const target = extractToolTarget(input);
       if (r.output.startsWith('Error [')) {
         stepErrors.push({
