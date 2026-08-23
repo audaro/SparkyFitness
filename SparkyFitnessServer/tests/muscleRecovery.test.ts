@@ -346,16 +346,22 @@ describe('workoutRecommendationRepository.getMuscleFatigueInputs', () => {
 
     const result = await workoutRecommendationRepository.getMuscleFatigueInputs(
       'user-1',
-      '2026-08-09'
+      '2026-08-09',
+      '2026-08-23'
     );
 
     expect(result).toEqual([]);
     expect(mockClient.query).toHaveBeenCalledWith(expect.any(String), [
       'user-1',
       '2026-08-09',
+      '2026-08-23',
     ]);
     expect(queryText()).toContain('ee.user_id = $1');
     expect(queryText()).toContain('ee.entry_date >= $2::date');
+    // Upper bound at today: without it a plan session prescribed for a future
+    // day counts against today's freshness at full weight (the scorer clamps
+    // future ages to zero, it does not exclude them).
+    expect(queryText()).toContain('ee.entry_date <= $3::date');
     // The column is nullable and the scoring function throws on a date it
     // cannot place, so this guard is what keeps one bad row from taking the
     // whole endpoint down. The window bound happens to exclude NULLs too;
@@ -369,7 +375,8 @@ describe('workoutRecommendationRepository.getMuscleFatigueInputs', () => {
 
     await workoutRecommendationRepository.getMuscleFatigueInputs(
       'user-1',
-      '2026-08-09'
+      '2026-08-09',
+      '2026-08-23'
     );
 
     // Copied verbatim from models/exerciseEntry.ts:1380. If this assertion
@@ -381,12 +388,30 @@ describe('workoutRecommendationRepository.getMuscleFatigueInputs', () => {
     expect(queryText()).toContain('COUNT(ees.id) FILTER');
   });
 
+  it('counts plan-linked sets only once they are stamped performed', async () => {
+    mockClient.query.mockResolvedValue({ rows: [] });
+
+    await workoutRecommendationRepository.getMuscleFatigueInputs(
+      'user-1',
+      '2026-08-09',
+      '2026-08-23'
+    );
+
+    // Same "performed" rule as models/exerciseEntry.ts:1523 — plan-generated
+    // entries insert their prescribed sets up front, and a prescription is
+    // not fatigue.
+    expect(queryText()).toContain(
+      'ee.workout_plan_assignment_id IS NULL\n                   OR ees.completed_at IS NOT NULL'
+    );
+  });
+
   it('reads the entry snapshot columns, never joining the exercises catalog', async () => {
     mockClient.query.mockResolvedValue({ rows: [] });
 
     await workoutRecommendationRepository.getMuscleFatigueInputs(
       'user-1',
-      '2026-08-09'
+      '2026-08-09',
+      '2026-08-23'
     );
 
     expect(queryText()).toContain('ee.primary_muscles');
@@ -401,7 +426,8 @@ describe('workoutRecommendationRepository.getMuscleFatigueInputs', () => {
 
     await workoutRecommendationRepository.getMuscleFatigueInputs(
       'user-1',
-      '2026-08-09'
+      '2026-08-09',
+      '2026-08-23'
     );
 
     expect(queryText()).toContain('LEFT JOIN exercise_entry_sets');
@@ -424,7 +450,8 @@ describe('workoutRecommendationRepository.getMuscleFatigueInputs', () => {
 
     const result = await workoutRecommendationRepository.getMuscleFatigueInputs(
       'user-1',
-      '2026-08-09'
+      '2026-08-09',
+      '2026-08-23'
     );
 
     expect(result).toEqual([
@@ -452,7 +479,8 @@ describe('workoutRecommendationRepository.getMuscleFatigueInputs', () => {
 
     const result = await workoutRecommendationRepository.getMuscleFatigueInputs(
       'user-1',
-      '2026-08-09'
+      '2026-08-09',
+      '2026-08-23'
     );
 
     // The columns are TEXT today. If they are ever migrated to jsonb, this
@@ -485,7 +513,8 @@ describe('workoutRecommendationRepository.getMuscleFatigueInputs', () => {
 
     const result = await workoutRecommendationRepository.getMuscleFatigueInputs(
       'user-1',
-      '2026-08-09'
+      '2026-08-09',
+      '2026-08-23'
     );
 
     expect(result).toEqual([
@@ -510,7 +539,8 @@ describe('workoutRecommendationRepository.getMuscleFatigueInputs', () => {
     await expect(
       workoutRecommendationRepository.getMuscleFatigueInputs(
         'user-1',
-        '2026-08-09'
+        '2026-08-09',
+        '2026-08-23'
       )
     ).rejects.toThrow('boom');
     expect(mockClient.release).toHaveBeenCalledTimes(1);

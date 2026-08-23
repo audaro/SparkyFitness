@@ -68,7 +68,8 @@ describe('workoutRecommendationService.getMuscleRecovery', () => {
     expect(result.date).toBe('2026-08-22');
     expect(repo.getMuscleFatigueInputs).toHaveBeenCalledWith(
       'user-1',
-      '2026-08-08' // 2026-08-22 minus windowDays (14)
+      '2026-08-08', // 2026-08-22 minus windowDays (14)
+      '2026-08-22' // bounded above at today: future plan sessions stay out
     );
   });
 
@@ -207,6 +208,7 @@ describe('GET /api/workout-recommendations/recovery', () => {
 
     expect(repo.getMuscleFatigueInputs).toHaveBeenCalledWith(
       'test-user-id',
+      expect.any(String),
       expect.any(String)
     );
   });

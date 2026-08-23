@@ -54,8 +54,8 @@ export interface MuscleFreshness {
  *
  * `halfLifeDays: 2` against `fullFatigueSets: 10` is what makes the numbers
  * behave like a training week: 10 hard primary sets today reads as fully
- * fatigued, ~70% recovered two days later, and effectively clear inside a
- * week. `windowDays: 14` is then generous rather than load-bearing — at seven
+ * fatigued, 50% recovered two days later, ~75% after four, and effectively
+ * clear inside a week. `windowDays: 14` is then generous rather than load-bearing — at seven
  * half-lives an entry retains 0.8% of its fatigue — so the window exists to
  * bound the query, not to shape the score.
  */

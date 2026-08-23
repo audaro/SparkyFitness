@@ -53,8 +53,13 @@ function parseMuscleColumn(raw: unknown): string[] {
 }
 
 /**
- * Every logged entry from `sinceDate` onward, reduced to the muscles it trained
- * and how many working sets it carried.
+ * Every logged entry from `sinceDate` through `untilDate` (both inclusive),
+ * reduced to the muscles it trained and how many working sets it carried.
+ *
+ * `untilDate` is the user's today. Without the upper bound, a workout-plan
+ * session prescribed for next week would count against today's freshness at
+ * full weight (the scorer clamps future ages to zero rather than extrapolating
+ * them) — the same reason `getFrequentSets` bounds at today.
  *
  * Reads the entry **snapshot** columns rather than joining `exercises`: the
  * snapshot is the record of what was actually trained, and it survives the
@@ -62,9 +67,13 @@ function parseMuscleColumn(raw: unknown): string[] {
  *
  * `COUNT(...) FILTER (...)` excludes warm-ups with the same predicate the rest
  * of the server uses (`models/exerciseEntry.ts:1380`) — kept byte-identical so
- * the two cannot drift. A `LEFT JOIN` keeps set-less entries (cardio, imports)
- * in the result at `working_set_count: 0`; they still establish `lastTrained`
- * without adding fatigue.
+ * the two cannot drift. It also requires plan-linked sets to carry a
+ * `completed_at` stamp, matching the server-wide "performed" rule
+ * (`models/exerciseEntry.ts:1523`): plan-generated entries insert their
+ * prescribed sets up front, and a prescription is not fatigue. A `LEFT JOIN`
+ * keeps set-less entries (cardio, imports) in the result at
+ * `working_set_count: 0`; they still establish `lastTrained` without adding
+ * fatigue.
  *
  * The `ORDER BY` is not cosmetic. Fatigue is a float sum, so the accumulation
  * order decides the last bits of the result; an unordered `GROUP BY` may hand
@@ -81,7 +90,8 @@ function parseMuscleColumn(raw: unknown): string[] {
  */
 async function getMuscleFatigueInputs(
   userId: string,
-  sinceDate: string
+  sinceDate: string,
+  untilDate: string
 ): Promise<MuscleFatigueInput[]> {
   const client = await getClient(userId);
   try {
@@ -90,17 +100,20 @@ async function getMuscleFatigueInputs(
               ee.primary_muscles,
               ee.secondary_muscles,
               COUNT(ees.id) FILTER (
-                WHERE ees.set_type IS NULL
-                   OR regexp_replace(LOWER(ees.set_type), '[^a-z0-9]', '', 'g') NOT LIKE 'warmup%'
+                WHERE (ees.set_type IS NULL
+                   OR regexp_replace(LOWER(ees.set_type), '[^a-z0-9]', '', 'g') NOT LIKE 'warmup%')
+                  AND (ee.workout_plan_assignment_id IS NULL
+                   OR ees.completed_at IS NOT NULL)
               ) AS working_set_count
          FROM exercise_entries ee
          LEFT JOIN exercise_entry_sets ees ON ees.exercise_entry_id = ee.id
         WHERE ee.user_id = $1
           AND ee.entry_date IS NOT NULL
           AND ee.entry_date >= $2::date
+          AND ee.entry_date <= $3::date
         GROUP BY ee.id, ee.entry_date, ee.primary_muscles, ee.secondary_muscles
         ORDER BY ee.entry_date, ee.id`,
-      [userId, sinceDate]
+      [userId, sinceDate, untilDate]
     );
     return result.rows.map((row: FatigueRow) => ({
       entryDate: row.entry_date,
@@ -113,6 +126,5 @@ async function getMuscleFatigueInputs(
     client.release();
   }
 }
-
 export { getMuscleFatigueInputs };
 export default { getMuscleFatigueInputs };

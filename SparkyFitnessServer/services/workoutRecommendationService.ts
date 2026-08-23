@@ -42,9 +42,12 @@ async function getMuscleRecovery(
   // bounded, not to shape the score.
   const since = addDays(today, -RECOVERY_TUNABLES.windowDays);
 
+  // Bounded above at today so a plan session prescribed for a future day
+  // cannot count against today's freshness before it happens.
   const inputs = await workoutRecommendationRepository.getMuscleFatigueInputs(
     userId,
-    since
+    since,
+    today
   );
   // Plain string comparison, not `localeCompare`: the ordering has to be the
   // same on every machine, and collation is an ICU/locale-dependent thing.
