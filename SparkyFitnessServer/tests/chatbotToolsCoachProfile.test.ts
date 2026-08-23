@@ -1,12 +1,27 @@
 import { vi, beforeEach, describe, expect, it } from 'vitest';
-import { buildCoachProfileTools } from '../ai/tools/coachProfileTools.js';
+import {
+  buildCoachProfileTools,
+  VALID_ACTIONS,
+} from '../ai/tools/coachProfileTools.js';
+import {
+  manageCoachProfileInput,
+  manageCoachProfileSchema,
+} from '../ai/tools/schemas/coachProfile.js';
 import coachProfileRepository from '../models/coachProfileRepository.js';
+import gymEquipmentProfileRepository from '../models/gymEquipmentProfileRepository.js';
+import type { GymEquipmentProfileRow } from '../models/gymEquipmentProfileRepository.js';
 import { invalidateChatContextInputs } from '../services/chatContextCache.js';
 
 vi.mock('../models/coachProfileRepository', () => ({
   default: {
     getCoachProfile: vi.fn(),
     upsertCoachProfile: vi.fn(),
+  },
+}));
+vi.mock('../models/gymEquipmentProfileRepository', () => ({
+  default: {
+    listGymProfiles: vi.fn(),
+    setActiveGymProfile: vi.fn(),
   },
 }));
 vi.mock('../services/chatContextCache', () => ({
@@ -203,5 +218,184 @@ describe('coach profile', () => {
     );
     expect(hugePrefs).toContain('Error [VALIDATION]');
     expect(coachProfileRepository.upsertCoachProfile).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W7.3 — gym profiles, so "I'm at home today" works conversationally
+// ---------------------------------------------------------------------------
+
+const HOME_ID = '77777777-7777-4777-8777-777777777777';
+const GYM_ID = '88888888-8888-4888-8888-888888888888';
+
+const homeProfile: GymEquipmentProfileRow = {
+  id: HOME_ID,
+  user_id: 'user-1',
+  name: 'Home',
+  equipment: ['dumbbell', 'bands'],
+  is_active: false,
+  created_at: new Date('2026-08-01T00:00:00Z'),
+  updated_at: new Date('2026-08-01T00:00:00Z'),
+};
+const gymProfile: GymEquipmentProfileRow = {
+  ...homeProfile,
+  id: GYM_ID,
+  name: 'Commercial Gym',
+  equipment: ['barbell', 'cable'],
+  is_active: true,
+};
+
+describe('gym profiles', () => {
+  it('lists the profiles and marks the active one', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      homeProfile,
+      gymProfile,
+    ]);
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'get_gym_profiles' },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Gym Profiles\n\n' +
+        `- **Home** — dumbbell, bands — ID: ${HOME_ID}\n` +
+        `- **Commercial Gym** (active) — barbell, cable — ID: ${GYM_ID}`
+    );
+  });
+
+  // No profile is the default state, not a missing feature — the model has to
+  // be told that, or it reports the app as broken.
+  it('explains that no profile means no equipment constraint', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue(
+      []
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'get_gym_profiles' },
+      opts
+    );
+
+    expect(result).toBe(
+      'No gym equipment profiles yet. Without one, every exercise in the catalog counts as available. The user can create profiles in the app under Workout Settings → Gym Profiles.'
+    );
+  });
+
+  it('activates a profile by name, case-insensitively', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      homeProfile,
+      gymProfile,
+    ]);
+    vi.mocked(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).mockResolvedValue({ ...homeProfile, is_active: true });
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'set_active_gym_profile', gym_profile_name: 'home' },
+      opts
+    );
+
+    expect(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).toHaveBeenCalledWith('user-1', HOME_ID);
+    expect(result).toBe(
+      '✅ Active gym profile is now "Home" (dumbbell, bands). Generated workouts will only use this equipment — regenerate to apply it.'
+    );
+  });
+
+  it('activates a profile by id without listing first', async () => {
+    vi.mocked(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).mockResolvedValue(gymProfile);
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'set_active_gym_profile', gym_profile_id: GYM_ID },
+      opts
+    );
+
+    expect(
+      gymEquipmentProfileRepository.listGymProfiles
+    ).not.toHaveBeenCalled();
+    expect(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).toHaveBeenCalledWith('user-1', GYM_ID);
+    expect(result).toContain('"Commercial Gym" (barbell, cable)');
+  });
+
+  it('infers the action from a bare profile name', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      homeProfile,
+    ]);
+    vi.mocked(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).mockResolvedValue({ ...homeProfile, is_active: true });
+
+    await tools.sparky_manage_coach_profile.execute!(
+      { gym_profile_name: 'Home' },
+      opts
+    );
+
+    expect(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).toHaveBeenCalledWith('user-1', HOME_ID);
+  });
+
+  it('maps an unknown profile name to NOT_FOUND without writing', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      homeProfile,
+    ]);
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'set_active_gym_profile', gym_profile_name: 'Garage' },
+      opts
+    );
+
+    expect(result).toBe(
+      "Error [NOT_FOUND]: Gym profile with ID 'Garage' not found.\n\nSuggestion: Check the ID and try again."
+    );
+    expect(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).not.toHaveBeenCalled();
+  });
+
+  // The repository returns null when the row is not the caller's; it is the
+  // only signal that a syntactically valid uuid names someone else's profile.
+  it('maps a foreign or stale uuid to NOT_FOUND', async () => {
+    vi.mocked(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).mockResolvedValue(null);
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'set_active_gym_profile', gym_profile_id: GYM_ID },
+      opts
+    );
+
+    expect(result).toBe(
+      `Error [NOT_FOUND]: Gym profile with ID '${GYM_ID}' not found.\n\nSuggestion: Check the ID and try again.`
+    );
+  });
+
+  it('asks for a selector when given neither', async () => {
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'set_active_gym_profile' },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [MISSING_PARAMS]: Missing required parameters: gym_profile_id or gym_profile_name\n\nSuggestion: Provide all required parameters and try again.'
+    );
+    expect(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).not.toHaveBeenCalled();
+  });
+
+  it('keeps VALID_ACTIONS, the published enum and the strict union in sync', () => {
+    const published = manageCoachProfileInput.shape.action.unwrap().options;
+    const union = manageCoachProfileSchema.options.map(
+      (option) => (option.shape.action as { value: string }).value
+    );
+
+    expect(VALID_ACTIONS).toEqual(published);
+    expect(VALID_ACTIONS).toEqual(union);
   });
 });

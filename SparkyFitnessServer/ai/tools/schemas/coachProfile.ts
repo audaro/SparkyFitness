@@ -72,9 +72,40 @@ const profileEditFields = {
     ),
 };
 
+// A gym profile is named equipment ("Home", "Hotel gym"); switching the active
+// one is what makes "I'm at home today" change the next suggested workout.
+// Both selectors are optional because the model normally has neither on the
+// first turn — get_gym_profiles hands it the names, and a name is what the
+// user actually said.
+const gymProfileSelectorFields = {
+  gym_profile_id: uuidSchema
+    .optional()
+    .describe('UUID of the gym equipment profile, from get_gym_profiles'),
+  gym_profile_name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe('Name of the gym equipment profile (alternative to the UUID)'),
+};
+
 const getCoachProfileSchema = z
   .object({
     action: z.literal('get_coach_profile'),
+  })
+  .strict();
+
+const getGymProfilesSchema = z
+  .object({
+    action: z.literal('get_gym_profiles'),
+  })
+  .strict();
+
+const setActiveGymProfileSchema = z
+  .object({
+    action: z.literal('set_active_gym_profile'),
+    ...gymProfileSelectorFields,
   })
   .strict();
 
@@ -88,6 +119,8 @@ const updateCoachProfileSchema = z
 export const manageCoachProfileSchema = z.discriminatedUnion('action', [
   getCoachProfileSchema,
   updateCoachProfileSchema,
+  getGymProfilesSchema,
+  setActiveGymProfileSchema,
 ]);
 
 export type ManageCoachProfileInput = z.infer<typeof manageCoachProfileSchema>;
@@ -97,8 +130,14 @@ export type ManageCoachProfileInput = z.infer<typeof manageCoachProfileSchema>;
 // uses manageCoachProfileSchema in the tool handler via safeParse.
 export const manageCoachProfileInput = z.object({
   action: z
-    .enum(['get_coach_profile', 'update_coach_profile'])
+    .enum([
+      'get_coach_profile',
+      'update_coach_profile',
+      'get_gym_profiles',
+      'set_active_gym_profile',
+    ])
     .optional()
     .describe('Action to perform; see tool description for per-action fields.'),
   ...profileEditFields,
+  ...gymProfileSelectorFields,
 });

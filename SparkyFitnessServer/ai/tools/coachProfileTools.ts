@@ -5,6 +5,8 @@ import type {
   CoachProfilePatch,
   CoachProfileRow,
 } from '../../models/coachProfileRepository.js';
+import gymEquipmentProfileRepository from '../../models/gymEquipmentProfileRepository.js';
+import type { GymEquipmentProfileRow } from '../../models/gymEquipmentProfileRepository.js';
 import { invalidateChatContextInputs } from '../../services/chatContextCache.js';
 import { ERRORS, formatZodError } from './errors.js';
 import { normalizeActionArgs } from './dates.js';
@@ -15,7 +17,13 @@ import {
   type ManageCoachProfileInput,
 } from './schemas/coachProfile.js';
 
-const VALID_ACTIONS = ['get_coach_profile', 'update_coach_profile'];
+// Exported for the same sync pin as exerciseTools' VALID_ACTIONS.
+export const VALID_ACTIONS = [
+  'get_coach_profile',
+  'update_coach_profile',
+  'get_gym_profiles',
+  'set_active_gym_profile',
+];
 
 const PROFILE_FIELDS = [
   'goals',
@@ -57,6 +65,28 @@ export function renderCoachProfile(profile: CoachProfileRow): string {
   return text.trimEnd();
 }
 
+function describeGymProfile(profile: GymEquipmentProfileRow): string {
+  return profile.equipment.length
+    ? profile.equipment.join(', ')
+    : 'no equipment listed';
+}
+
+export function renderGymProfiles(profiles: GymEquipmentProfileRow[]): string {
+  if (profiles.length === 0) {
+    // Not an error: no profile means no equipment constraint at all, which is
+    // the default every account starts in. Saying so stops the model from
+    // reporting a missing feature.
+    return 'No gym equipment profiles yet. Without one, every exercise in the catalog counts as available. The user can create profiles in the app under Workout Settings → Gym Profiles.';
+  }
+  let text = '# Gym Profiles\n\n';
+  for (const profile of profiles) {
+    text += `- **${profile.name}**${profile.is_active ? ' (active)' : ''} — ${describeGymProfile(
+      profile
+    )} — ID: ${profile.id}\n`;
+  }
+  return text.trimEnd();
+}
+
 export function buildCoachProfileTools(userId: string, tz: string) {
   return {
     sparky_manage_coach_profile: tool({
@@ -64,17 +94,26 @@ export function buildCoachProfileTools(userId: string, tz: string) {
 
 Actions:
 - get_coach_profile() — read it before proposing programming; a missing profile means the user has not been interviewed yet
-- update_coach_profile(goals?, training_days_per_week?, session_minutes?, equipment?, limitations?, food_preferences?, aliases?) — saves only the provided fields; list/object fields REPLACE the stored value, so send the full updated list when adding one item`,
+- update_coach_profile(goals?, training_days_per_week?, session_minutes?, equipment?, limitations?, food_preferences?, aliases?) — saves only the provided fields; list/object fields REPLACE the stored value, so send the full updated list when adding one item
+- get_gym_profiles() — the user's named equipment sets ("Home", "Commercial gym") and which one is active; the active one is what constrains generated workouts
+- set_active_gym_profile(gym_profile_name?|gym_profile_id?) — switch where the user is training today ("I'm at home"), then regenerate; only one profile is active at a time`,
       inputSchema: manageCoachProfileInput,
       execute: async (rawArgs) => {
         const normalized = normalizeActionArgs(
           rawArgs,
           tz,
           VALID_ACTIONS,
-          (args) =>
-            PROFILE_FIELDS.some((field) => args[field] !== undefined)
+          (args) => {
+            if (
+              args.gym_profile_id !== undefined ||
+              args.gym_profile_name !== undefined
+            ) {
+              return 'set_active_gym_profile';
+            }
+            return PROFILE_FIELDS.some((field) => args[field] !== undefined)
               ? 'update_coach_profile'
-              : 'get_coach_profile'
+              : 'get_coach_profile';
+          }
         );
         const parsed = manageCoachProfileSchema.safeParse(normalized);
         if (!parsed.success) return formatZodError(parsed.error);
@@ -112,6 +151,50 @@ Actions:
               invalidateChatContextInputs(userId);
               return formatConfirmation(
                 `Coach profile updated (${patchFields.join(', ')}).`
+              );
+            }
+            case 'get_gym_profiles': {
+              const profiles =
+                await gymEquipmentProfileRepository.listGymProfiles(userId);
+              return renderGymProfiles(profiles);
+            }
+            case 'set_active_gym_profile': {
+              if (!args.gym_profile_id && !args.gym_profile_name) {
+                return ERRORS.MISSING_PARAMS([
+                  'gym_profile_id or gym_profile_name',
+                ]);
+              }
+              let profileId = args.gym_profile_id;
+              if (!profileId && args.gym_profile_name) {
+                // Resolve names here rather than making the model round-trip
+                // through get_gym_profiles: "I'm at home today" names a
+                // profile, and the ids are never in the conversation.
+                const wanted = args.gym_profile_name.toLowerCase();
+                const profiles =
+                  await gymEquipmentProfileRepository.listGymProfiles(userId);
+                const match =
+                  profiles.find((p) => p.name.toLowerCase() === wanted) ??
+                  profiles.find((p) => p.name.toLowerCase().includes(wanted));
+                if (!match) {
+                  return ERRORS.NOT_FOUND('Gym profile', args.gym_profile_name);
+                }
+                profileId = match.id;
+              }
+              const activated =
+                await gymEquipmentProfileRepository.setActiveGymProfile(
+                  userId,
+                  profileId as string
+                );
+              if (!activated) {
+                return ERRORS.NOT_FOUND(
+                  'Gym profile',
+                  args.gym_profile_id ?? (args.gym_profile_name as string)
+                );
+              }
+              return formatConfirmation(
+                `Active gym profile is now "${activated.name}" (${describeGymProfile(
+                  activated
+                )}). Generated workouts will only use this equipment — regenerate to apply it.`
               );
             }
             default:
