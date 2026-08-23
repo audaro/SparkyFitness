@@ -1537,6 +1537,16 @@ Actions:
         ) {
           normalized.entry_date = todayInZone(tz);
         }
+        // meal_type_id always wins over meal_type (the published schema says
+        // so), so drop meal_type when both arrive — otherwise a non-enum
+        // value like 'midnight snack' fails the strict parse even though the
+        // ID alone fully identifies the meal.
+        if (
+          normalized.meal_type_id !== undefined &&
+          normalized.meal_type !== undefined
+        ) {
+          delete normalized.meal_type;
+        }
         // Case-fold and alias meal_type ('Dinner' → 'dinner', 'dessert' →
         // 'snacks') so a natural synonym succeeds on the first call instead
         // of failing the enum.

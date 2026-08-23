@@ -906,12 +906,15 @@ describe('log_food', () => {
       food_name: 'Eggs',
     });
 
+    // meal_type is deliberately NOT a built-in enum value: when a valid
+    // meal_type_id is supplied, the name must be dropped before the strict
+    // parse instead of failing the enum ("meal_type_id always wins").
     const result = await tools.sparky_manage_food.execute!(
       {
         food_id: FOOD_ID,
         quantity: 1,
         meal_type_id: MEAL_TYPE_ID,
-        meal_type: 'snacks',
+        meal_type: 'midnight snack',
         entry_date: '2026-06-10',
       },
       opts
