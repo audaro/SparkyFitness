@@ -49,10 +49,12 @@ dataTransformation.test.ts`, a sleep-session `entry_date` expecting `2024-01-16`
 `2024-01-15`. Confirmed by `git stash -u` — it fails identically at HEAD without any W5 change.
 It is timezone-dependent and will presumably pass in CI; worth fixing separately.
 
-**W5 exit gate (the milestone demo) has NOT been run** — it needs a device/simulator build:
+**W5 exit gate: run and passed on 2026-08-23** (iPhone 17 Pro simulator against a local server and a
+seeded account) — see `docs/handoffs/fitbod-w6.md` for what was observed. The steps were:
 open app → Dashboard shows Up Next → tap through → swap → start → complete a set → rest timer
 fires with the prescribed rest → finish → `WorkoutCompleteScreen`, then confirm the next
-`generate` drops the freshly-trained muscles. Do this before treating W5 as closed.
+`generate` drops the freshly-trained muscles. The whole-workout Swap was the one step not exercised
+on the device; everything else was.
 
 ## Deliberate deviations from the blueprint
 

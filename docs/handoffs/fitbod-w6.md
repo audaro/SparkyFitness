@@ -77,10 +77,35 @@ The single mobile failure is the known pre-existing timezone flake the blueprint
 `__tests__/services/healthconnect/dataTransformation.test.ts`, a sleep-session `entry_date` expecting
 `2024-01-16` and getting `2024-01-15`. Identical at HEAD without any W6 change.
 
-**Neither the W5 nor the W6 exit gate has been run** — both need a device/simulator build. W6's:
-in a live workout, ⋯ → Replace on "Lat Pulldown" suggests other back exercises doable with the active
-gym profile, ranked with familiar ones first; picking one swaps it in place. W5's is still listed in
-`docs/handoffs/fitbod-w5.md:52`. Do both before treating either milestone as closed.
+## Exit gates — both run, 2026-08-23
+
+Run on an iPhone 17 Pro simulator against the local server (`localhost:3010`) and Docker Postgres,
+using a seeded throwaway account (`w6gate@example.test`) with a 16-exercise free-exercise-db catalog
+and four logged sessions — back work two weeks out, chest and legs recent.
+
+**W6 passed, both entry points.**
+
+- Up Next row ⋯ → Replace on "Close-Grip Front Lat Pulldown" → the search screen opened with a
+  SUGGESTED section above the library: Chin-Up, One Arm Lat Pulldown, Pullups, Wide-Grip Lat Pulldown,
+  Bent Over Barbell Row, Seated Cable Rows, Full ROM Lat Pulldown, Rope Straight-Arm Pulldown —
+  familiar ones first, each with its equipment. Picking Seated Cable Rows swapped it in place at the
+  same position, prescribed **47.7 kg from its own history** (logged at 47.5), and the stored row kept
+  `status: active` and its original `generated_at`.
+- Live workout ⋯ → Replace on "Bent Over Barbell Row" → same shortlist anchored on middle back;
+  picking the Lat Pulldown swapped the live entry in place with PREV 52.5 × 8 from history.
+- Server half separately verified by hand: `alternatives` ranked the trained Lat Pulldown top at 10.00,
+  `replace` re-prescribed 4 × 10 @ 52.21 kg with a 31.78 kg warm-up (the Chin-Up it replaced had 3
+  sets), and the three refusals answered 422/422/400.
+
+**W5 passed too**, closing the gate `docs/handoffs/fitbod-w5.md` left open: dashboard card ("Middle
+Back · Lats · Forearms · Glutes · Hamstrings · 6 exercises · 56 min") → Up Next → Start → Complete Set
+→ rest timer counted down from the prescribed 1:30 → End workout → `WorkoutCompleteScreen` (1 of 17
+sets, 420 kg volume). The logged set moved lats 98% → 43% and middle back → 63%, and the next
+`generate` dropped both, returning lower back, triceps, abdominals, abductors, neck.
+
+One thing the live path confirmed, already known as W8 item 6: a live replace seeds **one placeholder
+set** with history as PREV rather than fetching the server's full prescription. The Up Next path does
+not have this gap — it is server-owned.
 
 ## Deliberate deviations from the blueprint
 
