@@ -22,6 +22,10 @@ import {
   type MuscleFreshness,
   type RecommendationSet,
   type RecommendedExercise,
+  type Muscle,
+  isLowerBodyMuscle,
+  MUSCLES,
+  MUSCLE_SIZE_RANK,
 } from '@workspace/shared';
 
 // --- fixtures ---------------------------------------------------------------
@@ -134,7 +138,7 @@ describe('selectTargetMuscles', () => {
     expect(result).toEqual(['chest', 'lats']);
   });
 
-  it('breaks freshness ties alphabetically so the pick is reproducible', () => {
+  it('breaks freshness ties deterministically, whatever order they arrive in', () => {
     const allFresh = ['triceps', 'chest', 'lats', 'biceps', 'calves'].map((m) =>
       fresh(m, 1)
     );
@@ -142,6 +146,36 @@ describe('selectTargetMuscles', () => {
     expect(selectTargetMuscles(allFresh)).toEqual(
       selectTargetMuscles([...allFresh].reverse())
     );
+  });
+
+  it('breaks ties by muscle size, not by spelling', () => {
+    // A brand-new user has every muscle at exactly 1.0, so the tiebreak alone
+    // picks the workout. Ordering those by name is stable, reproducible, and
+    // absurd: the canonical list is alphabetical, so the first workout came
+    // back as abdominals/abductors/adductors/calves/glutes — five muscles
+    // chosen for how they are spelled.
+    const untrained = MUSCLES.map((muscle) => fresh(muscle, 1));
+    const result = selectTargetMuscles(untrained);
+
+    // Every pick is a large muscle, and the day spans both halves of the body.
+    expect(
+      result.every((muscle) => MUSCLE_SIZE_RANK[muscle as Muscle] === 0)
+    ).toBe(true);
+    expect(result.some(isLowerBodyMuscle)).toBe(true);
+    expect(result.some((muscle) => !isLowerBodyMuscle(muscle))).toBe(true);
+    for (const spelled of ['abdominals', 'abductors', 'adductors', 'calves']) {
+      expect(result).not.toContain(spelled);
+    }
+  });
+
+  it('still prefers a fresher small muscle over a fatigued large one', () => {
+    // Size is only a tiebreak. It must not outrank the actual evidence.
+    const result = selectTargetMuscles([
+      fresh('biceps', 1),
+      fresh('chest', 0.6),
+    ]);
+
+    expect(result[0]).toBe('biceps');
   });
 
   it('gives the last slot to the other half of the body when the picks are all upper', () => {
@@ -652,6 +686,27 @@ describe('prescribeSets', () => {
     );
 
     expect(result.workingWeightKg).toBe(COLD_START_LOAD_KG.barbell);
+  });
+
+  it('leaves the weight blank for equipment that has no kilogram', () => {
+    // A band has no plate to pick and no honest cold-start load. The catalog
+    // still calls it weight_reps, because the modality comes from the category,
+    // so the prescription has to say "no number" rather than invent one — the
+    // first live band exercise the engine ever slotted was a skull crusher and
+    // any weight it printed would have been fiction.
+    for (const equipment of ['bands', 'body only', 'exercise ball']) {
+      const result = prescribeSets(
+        candidate({ id: 'a', equipment: [equipment] }),
+        null,
+        options()
+      );
+
+      expect(result.workingWeightKg).toBeNull();
+      expect(result.sets.every((set) => set.weight === null)).toBe(true);
+      // Still a usable prescription: the reps and the rest are real.
+      expect(result.sets.length).toBeGreaterThan(0);
+      expect(result.sets.every((set) => (set.reps ?? 0) > 0)).toBe(true);
+    }
   });
 
   it('quantizes to a load that exists on the gym floor', () => {

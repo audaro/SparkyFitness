@@ -108,6 +108,23 @@ export const GENERATION_TUNABLES = {
   underBudgetSlackMinutes: 15,
   /** How many bench candidates the service should pre-program for extension. */
   maxAlternatesPrescribed: 3,
+  /**
+   * Ceiling on free-exercise-db imports in one generation. A fresh install can
+   * have an empty catalog, and each import is a network round trip plus image
+   * downloads; without a cap the first generation is unbounded.
+   */
+  maxCatalogImports: 10,
+  /**
+   * How deep to page a free-exercise-db muscle search before picking an import.
+   *
+   * Upstream matches a muscle in either the primary or the secondary list and
+   * returns the page in name order, so the first few hits for a small muscle are
+   * usually exercises that merely involve it. Asking for five and then filtering
+   * for a primary mover found nothing at all for triceps or forearms — the first
+   * primary match for triceps is the 20th row. Fifty is a slice of an already
+   * fetched, hour-cached payload, so the extra depth is free.
+   */
+  catalogImportSearchLimit: 50,
 } as const;
 
 /**
@@ -255,18 +272,28 @@ function muscleSizeRank(muscle: string): number {
 }
 
 /**
- * Freshest muscles first, ties broken by name.
+ * Freshest muscles first, ties broken by muscle size, then by name.
  *
- * The tiebreak is not cosmetic: every muscle the user has not trained sits at
- * exactly 1.0, so on a rested week most of the vector is tied and the
- * comparator alone decides the workout. Leaving that to sort stability would
- * make the "deterministic engine" claim false in exactly the case it matters.
+ * The tiebreak is not cosmetic, and it is not arbitrary either. Every muscle
+ * the user has never trained sits at exactly 1.0, so for a new or rested user
+ * most of the vector is tied and the comparator alone decides the workout.
+ *
+ * Breaking those ties by name looks harmless and is not: the canonical muscle
+ * list is alphabetical, so a fresh user's first workout came back as
+ * abdominals, abductors, adductors, calves and glutes — five muscles chosen for
+ * how they are spelled. It is stable and reproducible and nobody would call it
+ * a full-body day.
+ *
+ * Size first gives chest, lats and quadriceps instead: when there is no
+ * evidence to separate two muscles, train the bigger one. Name remains the
+ * final term so the order is still total and still machine-independent.
  */
 function rankByFreshness(freshness: readonly MuscleFreshness[]): string[] {
   return [...freshness]
     .sort(
       (a, b) =>
         b.freshness - a.freshness ||
+        muscleSizeRank(a.muscle) - muscleSizeRank(b.muscle) ||
         (a.muscle < b.muscle ? -1 : a.muscle > b.muscle ? 1 : 0),
     )
     .map((entry) => entry.muscle);

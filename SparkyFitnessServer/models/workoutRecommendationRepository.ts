@@ -1,8 +1,13 @@
 import { getClient } from '../db/poolManager.js';
 import {
   normalizeMuscleName,
+  resolveExerciseModality,
+  type CandidateExercise,
   type MuscleFatigueInput,
+  type WorkoutRecommendationPayload,
+  type WorkoutRecommendationStatus,
 } from '@workspace/shared';
+import { parseJsonArrayField } from '../utils/exerciseJsonFields.js';
 
 /**
  * Reads for the workout recommendation engine.
@@ -126,5 +131,296 @@ async function getMuscleFatigueInputs(
     client.release();
   }
 }
-export { getMuscleFatigueInputs };
-export default { getMuscleFatigueInputs };
+
+// ---------------------------------------------------------------------------
+// Candidate catalog
+// ---------------------------------------------------------------------------
+
+interface CandidateRow {
+  id: string;
+  name: string;
+  modality: string | null;
+  category: string | null;
+  primary_muscles: string | null;
+  secondary_muscles: string | null;
+  equipment: string | null;
+  mechanic: string | null;
+  level: string | null;
+  images: string | null;
+  times_performed: string | number | null;
+}
+
+function toStringArray(raw: string | null, context: string): string[] {
+  return parseJsonArrayField(raw, context).filter(
+    (value): value is string => typeof value === 'string'
+  );
+}
+
+function mapCandidateRow(row: CandidateRow): CandidateExercise {
+  return {
+    id: row.id,
+    name: row.name,
+    modality: resolveExerciseModality(row.modality, row.category),
+    primaryMuscles: toStringArray(
+      row.primary_muscles,
+      `primary_muscles for exercise ${row.id}`
+    ),
+    secondaryMuscles: toStringArray(
+      row.secondary_muscles,
+      `secondary_muscles for exercise ${row.id}`
+    ),
+    equipment: toStringArray(row.equipment, `equipment for exercise ${row.id}`),
+    mechanic: row.mechanic,
+    level: row.level,
+    images: toStringArray(row.images, `images for exercise ${row.id}`),
+    // COUNT is bigint, which node-postgres hands back as a string.
+    timesPerformed: Number(row.times_performed ?? 0),
+  };
+}
+
+const CANDIDATE_COLS = `e.id,
+              e.name,
+              e.modality,
+              e.category,
+              e.primary_muscles,
+              e.secondary_muscles,
+              e.equipment,
+              e.mechanic,
+              e.level,
+              e.images,
+              COALESCE(h.times_performed, 0) AS times_performed`;
+
+const CANDIDATE_HISTORY_JOIN = `LEFT JOIN (
+                SELECT exercise_id, COUNT(*) AS times_performed
+                  FROM exercise_entries
+                 WHERE user_id = $1
+                 GROUP BY exercise_id
+              ) h ON h.exercise_id = e.id`;
+
+/**
+ * "Does this muscle column name any of `$n`", case-insensitively.
+ *
+ * Same `jsonb_array_elements_text` shape as `buildEquipmentSubsetClause` in
+ * `models/exercise.ts`, including its scalar guard — a legacy row may hold
+ * `"chest"` rather than `["chest"]`, and extracting elements from a scalar
+ * raises rather than returning nothing. `NULLIF(btrim(...), '')` covers the
+ * empty-string case, which would otherwise fail the `::jsonb` cast outright.
+ */
+function muscleMatchClause(column: string, paramIndex: number): string {
+  const json = `NULLIF(btrim(${column}), '')::jsonb`;
+  return `EXISTS (
+                SELECT 1
+                  FROM jsonb_array_elements_text(
+                         CASE WHEN jsonb_typeof(${json}) = 'array'
+                              THEN ${json}
+                              ELSE jsonb_build_array(${json})
+                         END
+                       ) AS m(item)
+                 WHERE lower(btrim(m.item)) = ANY($${paramIndex}::text[])
+              )`;
+}
+
+/**
+ * Every exercise that primarily trains one of `muscles`, with how many times
+ * the user has logged it.
+ *
+ * Matching is case-insensitive, unlike the catalog browse filter's
+ * `primary_muscles::jsonb ?| ARRAY[...]`, which is exact. That operator is
+ * right for a browse filter fed canonical values from a picker and wrong here:
+ * nothing canonicalizes the column on write, so a user's own `"Chest"` would be
+ * invisible to their own chest workout.
+ *
+ * `includeSecondary` widens the match to exercises that merely assist the
+ * muscle. The planner does not want those — it slots on the primary mover — but
+ * the alternatives endpoint does, because a replacement that hits the muscle
+ * secondarily is a real if weaker option, and its scoring needs both kinds
+ * present to rank between them.
+ *
+ * Equipment and limitations are deliberately NOT filtered here even though the
+ * SQL to do it exists. The planner filters both in JavaScript
+ * (`isEquipmentAvailable`, `isExcludedByLimitations`) where the rules are unit
+ * tested; a second copy in SQL would be a second thing to keep in step, and
+ * the muscle predicate already bounds the result to something small enough to
+ * filter in memory.
+ *
+ * `is_quick_exercise` rows are excluded: they are the "logged 30 minutes of
+ * something" placeholders, not programmable movements.
+ */
+async function getCandidateExercises(
+  userId: string,
+  muscles: readonly string[],
+  includeSecondary = false
+): Promise<CandidateExercise[]> {
+  if (muscles.length === 0) return [];
+  const matchClause = includeSecondary
+    ? `(${muscleMatchClause('e.primary_muscles', 2)} OR ${muscleMatchClause('e.secondary_muscles', 2)})`
+    : muscleMatchClause('e.primary_muscles', 2);
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `SELECT ${CANDIDATE_COLS}
+         FROM exercises e
+         ${CANDIDATE_HISTORY_JOIN}
+        WHERE e.is_quick_exercise = FALSE
+          AND ${matchClause}
+        -- Total order. The planner breaks score ties on id, so this is not
+        -- what makes the pick deterministic; it makes the *input* stable,
+        -- which is what makes a failing run reproducible.
+        ORDER BY e.id`,
+      [userId, muscles.map((muscle) => muscle.trim().toLowerCase())]
+    );
+    return result.rows.map(mapCandidateRow);
+  } finally {
+    client.release();
+  }
+}
+
+/** One catalog row in the same shape the planner and the ranker consume. */
+async function getCandidateExerciseById(
+  userId: string,
+  exerciseId: string
+): Promise<CandidateExercise | null> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `SELECT ${CANDIDATE_COLS}
+         FROM exercises e
+         ${CANDIDATE_HISTORY_JOIN}
+        WHERE e.id = $2`,
+      [userId, exerciseId]
+    );
+    const row = result.rows[0];
+    return row ? mapCandidateRow(row) : null;
+  } finally {
+    client.release();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The stored recommendation
+// ---------------------------------------------------------------------------
+
+export interface WorkoutRecommendationRow {
+  id: string;
+  user_id: string;
+  gym_profile_id: string | null;
+  target_duration_minutes: number;
+  payload: unknown;
+  status: WorkoutRecommendationStatus;
+  generated_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+const RECOMMENDATION_COLS =
+  'id, user_id, gym_profile_id, target_duration_minutes, payload, status, generated_at, created_at, updated_at';
+
+async function getWorkoutRecommendation(
+  userId: string
+): Promise<WorkoutRecommendationRow | null> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `SELECT ${RECOMMENDATION_COLS} FROM workout_recommendations WHERE user_id = $1`,
+      [userId]
+    );
+    return result.rows[0] ?? null;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Write the user's one recommendation, replacing whatever was there.
+ *
+ * An upsert on the `UNIQUE(user_id)` index rather than a delete-then-insert:
+ * one statement, so two concurrent generations cannot interleave into a
+ * unique-violation 500. Same shape as
+ * `coachProfileRepository.upsertCoachProfile`.
+ *
+ * `status` resets to `'active'` and `generated_at` to now on every write. A
+ * regenerated workout is a new suggestion — carrying `'completed'` forward
+ * would tell the client the fresh workout had already been done.
+ *
+ * `payload` is serialized explicitly and cast: node-postgres renders a JS
+ * object parameter for a jsonb column correctly, but an *array* parameter
+ * would go out as a Postgres array literal, and the column would reject it.
+ * Stringifying makes the shape irrelevant.
+ */
+async function upsertWorkoutRecommendation(
+  userId: string,
+  input: {
+    gymProfileId: string | null;
+    targetDurationMinutes: number;
+    payload: WorkoutRecommendationPayload;
+  }
+): Promise<WorkoutRecommendationRow> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `INSERT INTO workout_recommendations
+         (user_id, gym_profile_id, target_duration_minutes, payload, status, generated_at)
+       VALUES ($1, $2, $3, $4::jsonb, 'active', now())
+       ON CONFLICT (user_id) DO UPDATE
+          SET gym_profile_id = EXCLUDED.gym_profile_id,
+              target_duration_minutes = EXCLUDED.target_duration_minutes,
+              payload = EXCLUDED.payload,
+              status = 'active',
+              generated_at = now(),
+              updated_at = now()
+       RETURNING ${RECOMMENDATION_COLS}`,
+      [
+        userId,
+        input.gymProfileId,
+        input.targetDurationMinutes,
+        JSON.stringify(input.payload),
+      ]
+    );
+    return result.rows[0];
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Lifecycle only — the payload is never client-edited.
+ *
+ * Returns null when the id does not name a row this user can see, so the route
+ * answers 404 rather than reporting a successful no-op.
+ */
+async function updateWorkoutRecommendationStatus(
+  userId: string,
+  id: string,
+  status: WorkoutRecommendationStatus
+): Promise<WorkoutRecommendationRow | null> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `UPDATE workout_recommendations
+          SET status = $3, updated_at = now()
+        WHERE id = $2 AND user_id = $1
+        RETURNING ${RECOMMENDATION_COLS}`,
+      [userId, id, status]
+    );
+    return result.rows[0] ?? null;
+  } finally {
+    client.release();
+  }
+}
+
+export {
+  getMuscleFatigueInputs,
+  getCandidateExercises,
+  getCandidateExerciseById,
+  getWorkoutRecommendation,
+  upsertWorkoutRecommendation,
+  updateWorkoutRecommendationStatus,
+};
+export default {
+  getMuscleFatigueInputs,
+  getCandidateExercises,
+  getCandidateExerciseById,
+  getWorkoutRecommendation,
+  upsertWorkoutRecommendation,
+  updateWorkoutRecommendationStatus,
+};
