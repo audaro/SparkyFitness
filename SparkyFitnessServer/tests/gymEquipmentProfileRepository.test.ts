@@ -1,0 +1,261 @@
+import { vi, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import gymEquipmentProfileRepository from '../models/gymEquipmentProfileRepository.js';
+import { getClient } from '../db/poolManager.js';
+
+vi.mock('../db/poolManager', () => ({
+  getClient: vi.fn(),
+}));
+
+const ROW = {
+  id: '11111111-1111-4111-8111-111111111111',
+  user_id: 'user-1',
+  name: 'Home',
+  equipment: ['dumbbell', 'bands'],
+  is_active: true,
+  created_at: new Date('2026-08-23T10:00:00.000Z'),
+  updated_at: new Date('2026-08-23T10:00:00.000Z'),
+};
+
+describe('gymEquipmentProfileRepository', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockClient: any;
+
+  beforeEach(() => {
+    mockClient = { query: vi.fn(), release: vi.fn() };
+    // @ts-expect-error mock typing
+    getClient.mockResolvedValue(mockClient);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const queryTexts = (): string[] =>
+    mockClient.query.mock.calls.map((call: any[]) => call[0]);
+
+  describe('listGymProfiles', () => {
+    it('scopes to the user and returns the active profile first', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      const result =
+        await gymEquipmentProfileRepository.listGymProfiles('user-1');
+
+      expect(result).toEqual([ROW]);
+      expect(mockClient.query).toHaveBeenCalledWith(expect.any(String), [
+        'user-1',
+      ]);
+      expect(queryTexts()[0]).toContain('ORDER BY is_active DESC');
+      expect(mockClient.release).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getActiveGymProfile', () => {
+    it('returns the active row', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      const result =
+        await gymEquipmentProfileRepository.getActiveGymProfile('user-1');
+
+      expect(result).toEqual(ROW);
+      expect(queryTexts()[0]).toContain('is_active');
+    });
+
+    it('returns null when the user has no active profile', async () => {
+      mockClient.query.mockResolvedValue({ rows: [] });
+
+      const result =
+        await gymEquipmentProfileRepository.getActiveGymProfile('user-1');
+
+      expect(result).toBeNull();
+      expect(mockClient.release).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('createGymProfile', () => {
+    it('serializes the equipment array as jsonb', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Home',
+        equipment: ['dumbbell', 'bands'],
+      });
+
+      const insert = mockClient.query.mock.calls.find((call: string[]) =>
+        call[0].includes('INSERT INTO gym_equipment_profiles')
+      );
+      expect(insert[0]).toContain('$3::jsonb');
+      expect(insert[1]).toEqual([
+        'user-1',
+        'Home',
+        JSON.stringify(['dumbbell', 'bands']),
+        false,
+      ]);
+    });
+
+    it('does not touch other rows when the new profile is inactive', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Home',
+        equipment: [],
+        is_active: false,
+      });
+
+      expect(
+        queryTexts().some((text) => text.includes('SET is_active = FALSE'))
+      ).toBe(false);
+    });
+
+    it('clears the previous active row before inserting an active one', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Home',
+        equipment: ['dumbbell'],
+        is_active: true,
+      });
+
+      const texts = queryTexts();
+      const clearIndex = texts.findIndex((text) =>
+        text.includes('SET is_active = FALSE')
+      );
+      const insertIndex = texts.findIndex((text) =>
+        text.includes('INSERT INTO gym_equipment_profiles')
+      );
+      // The partial unique index rejects two active rows, so the clear must
+      // land first and both writes must share one transaction.
+      expect(texts[0]).toBe('BEGIN');
+      expect(clearIndex).toBeGreaterThan(0);
+      expect(clearIndex).toBeLessThan(insertIndex);
+      expect(texts[texts.length - 1]).toBe('COMMIT');
+    });
+
+    it('rolls back and rethrows when the insert fails', async () => {
+      const failure = Object.assign(new Error('duplicate key'), {
+        code: '23505',
+      });
+      mockClient.query.mockImplementation((text: string) =>
+        text.includes('INSERT INTO')
+          ? Promise.reject(failure)
+          : Promise.resolve({ rows: [] })
+      );
+
+      await expect(
+        gymEquipmentProfileRepository.createGymProfile('user-1', {
+          name: 'Home',
+          equipment: [],
+        })
+      ).rejects.toThrow('duplicate key');
+      expect(queryTexts()).toContain('ROLLBACK');
+      expect(mockClient.release).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('updateGymProfile', () => {
+    it('writes only the provided keys', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.updateGymProfile('user-1', ROW.id, {
+        name: 'Garage',
+      });
+
+      const [text, params] = mockClient.query.mock.calls[0];
+      // A full-row UPDATE would blank equipment; only `name` may appear.
+      expect(text).toContain('name = $3');
+      expect(text).not.toContain('equipment =');
+      expect(params).toEqual(['user-1', ROW.id, 'Garage']);
+    });
+
+    it('casts equipment to jsonb when it is part of the patch', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.updateGymProfile('user-1', ROW.id, {
+        name: 'Garage',
+        equipment: ['barbell'],
+      });
+
+      const [text, params] = mockClient.query.mock.calls[0];
+      expect(text).toContain('equipment = $4::jsonb');
+      expect(params[3]).toBe(JSON.stringify(['barbell']));
+    });
+
+    it('returns null when the row does not belong to the user', async () => {
+      mockClient.query.mockResolvedValue({ rows: [] });
+
+      const result = await gymEquipmentProfileRepository.updateGymProfile(
+        'user-1',
+        ROW.id,
+        { name: 'Garage' }
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('refuses an empty patch instead of writing nothing silently', async () => {
+      await expect(
+        gymEquipmentProfileRepository.updateGymProfile('user-1', ROW.id, {})
+      ).rejects.toThrow('empty patch');
+      expect(mockClient.query).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteGymProfile', () => {
+    it('reports whether a row was removed', async () => {
+      mockClient.query.mockResolvedValue({ rows: [], rowCount: 1 });
+      await expect(
+        gymEquipmentProfileRepository.deleteGymProfile('user-1', ROW.id)
+      ).resolves.toBe(true);
+
+      mockClient.query.mockResolvedValue({ rows: [], rowCount: 0 });
+      await expect(
+        gymEquipmentProfileRepository.deleteGymProfile('user-1', ROW.id)
+      ).resolves.toBe(false);
+    });
+  });
+
+  describe('setActiveGymProfile', () => {
+    it('deactivates the previous profile before activating the target', async () => {
+      mockClient.query.mockImplementation((text: string) =>
+        text.includes('SET is_active = TRUE')
+          ? Promise.resolve({ rows: [ROW], rowCount: 1 })
+          : Promise.resolve({ rows: [], rowCount: 1 })
+      );
+
+      const result = await gymEquipmentProfileRepository.setActiveGymProfile(
+        'user-1',
+        ROW.id
+      );
+
+      const texts = queryTexts();
+      expect(texts[0]).toBe('BEGIN');
+      const clearIndex = texts.findIndex((text) =>
+        text.includes('SET is_active = FALSE')
+      );
+      const setIndex = texts.findIndex((text) =>
+        text.includes('SET is_active = TRUE')
+      );
+      expect(clearIndex).toBeLessThan(setIndex);
+      expect(texts[texts.length - 1]).toBe('COMMIT');
+      expect(result).toEqual(ROW);
+    });
+
+    it('rolls back and returns null for a profile the user does not own', async () => {
+      mockClient.query.mockImplementation((text: string) =>
+        text.includes('SET is_active = TRUE')
+          ? Promise.resolve({ rows: [], rowCount: 0 })
+          : Promise.resolve({ rows: [], rowCount: 0 })
+      );
+
+      const result = await gymEquipmentProfileRepository.setActiveGymProfile(
+        'user-1',
+        ROW.id
+      );
+
+      expect(result).toBeNull();
+      expect(queryTexts()).toContain('ROLLBACK');
+      expect(queryTexts()).not.toContain('COMMIT');
+      expect(mockClient.release).toHaveBeenCalledTimes(1);
+    });
+  });
+});

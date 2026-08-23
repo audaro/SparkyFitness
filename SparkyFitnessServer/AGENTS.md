@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-08-07_
+_Last updated: 2026-08-23_
 
 SparkyFitness Server is the backend API package for the SparkyFitness monorepo. Use this file as the primary guide for work inside `SparkyFitnessServer/`.
 
@@ -233,6 +233,8 @@ When searching, ignore noisy/generated directories unless you explicitly need th
   inspect `services/chatService.ts`, `ai/tools/`, and the matching domain service and repository
 - Fasting or mood issue:
   inspect `routes/fastingRoutes.ts` / `routes/moodRoutes.ts` and `models/fastingRepository.ts` / `models/moodRepository.ts`
+- Gym equipment profile issue (the named, switchable equipment sets that constrain exercise suggestions):
+  inspect `routes/gymEquipmentProfileRoutes.ts`, `models/gymEquipmentProfileRepository.ts`, and the `useActiveGymProfile` branch of `GET /api/exercises/search` in `routes/exerciseRoutes.ts`. At most one profile per user is active, enforced by a partial unique index; activation is a transaction in `setActiveGymProfile`, never a plain `PUT` field
 - Medications, cycle, or pregnancy issue:
   inspect the matching v2 route (`routes/v2/medicationRoutes.ts`, `routes/v2/cycleRoutes.ts`, `routes/v2/pregnancyRoutes.ts`), its Zod schema in `schemas/`, then `services/cycleService.ts` / `services/pregnancyService.ts` and the `models/medication*Repository.ts` / `models/cycleRepository.ts` / `models/pregnancyRepository.ts` files
 - Sleep or sleep-science issue:

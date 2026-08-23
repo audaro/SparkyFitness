@@ -1,6 +1,6 @@
 # AGENTS.md
 
-*Last updated: 2026-08-06*
+*Last updated: 2026-08-23*
 
 SparkyFitness Mobile is a React Native 0.85 + Expo SDK 56 app for syncing Apple Health / Health Connect data with the SparkyFitness backend, tracking nutrition, hydration, fasting, measurements, exercise, saved foods, meal templates, custom exercises, workout presets, iOS / Android widgets, the active workout HUD, and the Sparky AI chat.
 
@@ -174,6 +174,7 @@ npx expo prebuild --clean
 - Exercise selection returns via `CommonActions.setParams` and a nonce pattern through `useSelectedExercise`.
 - Rest timer state lives in `stores/activeWorkoutStore.ts`; notifications are scheduled through `services/notifications.ts`. The rest-complete ping carries a background "Complete Set" action (`rest-complete` category): responses are routed to `completeActiveSetIfReady` by `initWorkoutNotificationActions` (exported from the store, wired in App startup — the response listener cannot live in `notifications.ts` without a store↔service import cycle), and stale delivered pings are swept when the next rest is scheduled.
 - Set IDs are preserved server-side across workout edits so the active workout cursor stays attached to the right row.
+- Gym equipment profiles (named, switchable equipment sets) live in `GymProfilesScreen`, reached from `WorkoutSettingsScreen`, backed by `services/api/gymProfilesApi.ts` + `hooks/useGymProfiles.ts`. One list screen with an inline editor mode; equipment chips are driven by the shared `EQUIPMENT` constant and store **canonical lowercase** values, because the catalog filter (`equipment::jsonb ?|`) is exact and case-sensitive — capitalize for display only. Activation is a dedicated endpoint (`POST /:id/activate`), never a field on the `PUT`, so switching profiles always refetches rather than patching the cache.
 - Rest duration is configurable per exercise via `RestPeriodChip` / `RestPeriodSheet` and is forwarded through `buildExercisesPayload`. New exercises/sets and null `rest_time` fallbacks seed from the `defaultRestSec` app preference via `getDefaultRestSec()` (Settings → Workout Settings), not a hardcoded constant.
 - Fasting uses `FastingDetailScreen`, `FastingCard`, `FastingProtocolSheet`, `useFasting`, `useFastingTimer`, `utils/fasting.ts`, and `services/api/fastingApi.ts`.
 - `FastingGoalReconciler` is mounted headlessly on `DashboardScreen`; it owns goal-notification reconciliation and app-resume refetch even when the visible fasting card is hidden.

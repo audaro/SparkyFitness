@@ -164,6 +164,9 @@ describe.runIf(RUN)('RLS permission matrix', () => {
     // owner-only (no delegation)
     api_key: 'owner',
     coach_profiles: 'owner',
+    // Gym profiles name the real places the user trains and ride the same
+    // coaching context as coach_profiles — owner-only, never delegated.
+    gym_equipment_profiles: 'owner',
     sparky_chat_history: 'owner',
     user_ignored_updates: 'owner',
     user_oidc_links: 'owner',

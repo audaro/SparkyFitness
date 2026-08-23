@@ -11,11 +11,12 @@ import Switch from '../components/ui/Switch';
 import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
+import { useGymProfiles } from '../hooks/useGymProfiles';
 import type { RootStackScreenProps } from '../types/navigation';
 
 type WorkoutSettingsScreenProps = RootStackScreenProps<'WorkoutSettings'>;
 
-const WorkoutSettingsScreen: React.FC<WorkoutSettingsScreenProps> = () => {
+const WorkoutSettingsScreen: React.FC<WorkoutSettingsScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
@@ -26,6 +27,7 @@ const WorkoutSettingsScreen: React.FC<WorkoutSettingsScreenProps> = () => {
   const setRestTimerSoundEnabled = useAppPreferencesStore((s) => s.setRestTimerSoundEnabled);
   const workoutKeepAwakeEnabled = useAppPreferencesStore((s) => s.workoutKeepAwakeEnabled);
   const setWorkoutKeepAwakeEnabled = useAppPreferencesStore((s) => s.setWorkoutKeepAwakeEnabled);
+  const { activeProfile } = useGymProfiles();
   const restSheetRef = useRef<RestPeriodSheetRef>(null);
   const header = useScreenHeader({ title: 'Workout Settings', left: { kind: 'back' } });
 
@@ -39,6 +41,19 @@ const WorkoutSettingsScreen: React.FC<WorkoutSettingsScreenProps> = () => {
         }}
         contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
       >
+        <SettingsRow
+          title="Gym profiles"
+          subtitle={
+            activeProfile
+              ? `Active: ${activeProfile.name}`
+              : 'No active profile — every exercise is available.'
+          }
+          subtitleNumberOfLines={0}
+          onPress={() => navigation.navigate('GymProfiles')}
+          accessibilityLabel="Gym profiles"
+          testID="workout-settings-gym-profiles"
+        />
+
         <SettingsRow
           title="Default rest period"
           subtitle="Rest between sets for newly added exercises."

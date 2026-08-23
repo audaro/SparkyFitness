@@ -9,9 +9,11 @@ import path from 'path';
 import fs from 'fs';
 import { ExternalProviderType } from 'types/externalProvider.ts';
 import {
+  ALWAYS_AVAILABLE_EQUIPMENT,
   exerciseWriteArrayFieldsSchema,
   type ExerciseWriteArrayFields,
 } from '@workspace/shared';
+import gymEquipmentProfileRepository from '../models/gymEquipmentProfileRepository.js';
 import { log } from '../config/logging.js';
 
 import { fileURLToPath } from 'url';
@@ -399,9 +401,20 @@ router.get('/top', authenticate, async (req, res, next) => {
  *         schema:
  *           type: string
  *         description: Comma-separated list of muscle groups to filter by.
+ *       - in: query
+ *         name: useActiveGymProfile
+ *         schema:
+ *           type: string
+ *           enum: ['true']
+ *         description: |
+ *           When `true`, filter by the caller's active gym equipment profile (its equipment plus the
+ *           always-available set). Mutually exclusive with `equipmentFilter`. Having no active
+ *           profile means no constraint, so the search stays broad.
  *     responses:
  *       200:
  *         description: A list of exercises matching the search criteria.
+ *       400:
+ *         description: Both equipmentFilter and useActiveGymProfile were supplied.
  *         content:
  *           application/json:
  *             schema:
@@ -414,8 +427,13 @@ router.get('/top', authenticate, async (req, res, next) => {
  *         description: Server error.
  */
 router.get('/search', authenticate, async (req, res, next) => {
-  const { searchTerm, equipmentFilter, muscleGroupFilter } = req.query;
-  const equipmentFilterArray = equipmentFilter
+  const {
+    searchTerm,
+    equipmentFilter,
+    muscleGroupFilter,
+    useActiveGymProfile,
+  } = req.query;
+  let equipmentFilterArray = equipmentFilter
     ? // @ts-expect-error TS(2339): Property 'split' does not exist on type 'string | ... Remove this comment to see the full error message
       equipmentFilter.split(',')
     : [];
@@ -423,8 +441,31 @@ router.get('/search', authenticate, async (req, res, next) => {
     ? // @ts-expect-error TS(2339): Property 'split' does not exist on type 'string | ... Remove this comment to see the full error message
       muscleGroupFilter.split(',')
     : [];
+  // Optional: constrain results to the caller's active gym equipment profile.
+  // Two equipment constraints at once are contradictory rather than additive,
+  // so reject the combination instead of silently honouring one of them.
+  const usesActiveGymProfile = useActiveGymProfile === 'true';
+  if (usesActiveGymProfile && equipmentFilterArray.length > 0) {
+    return res.status(400).json({
+      error: 'Pass either equipmentFilter or useActiveGymProfile, not both.',
+    });
+  }
   // Allow broad search for internal exercises even if searchTerm and filters are empty
   try {
+    if (usesActiveGymProfile) {
+      const activeProfile =
+        await gymEquipmentProfileRepository.getActiveGymProfile(req.userId);
+      // No active profile means "no constraint" — the same as omitting the
+      // flag — so the search stays broad rather than returning nothing.
+      if (activeProfile) {
+        equipmentFilterArray = [
+          ...new Set([
+            ...activeProfile.equipment,
+            ...ALWAYS_AVAILABLE_EQUIPMENT,
+          ]),
+        ];
+      }
+    }
     const exercises = await exerciseService.searchExercises(
       req.userId,
       searchTerm,

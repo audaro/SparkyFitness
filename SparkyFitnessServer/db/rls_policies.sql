@@ -41,6 +41,7 @@ BEGIN
     'food_variants',
     'foods',
     'goal_presets',
+    'gym_equipment_profiles',
     'meal_foods',
     'meal_plan_template_assignments',
     'meal_plan_templates',
@@ -559,6 +560,9 @@ SELECT create_owner_policy('sparky_chat_history');
 -- Coaching context (goals, injuries, limitations) is as sensitive as chat
 -- history and is never family-delegated.
 SELECT create_owner_policy('coach_profiles');
+-- Gym equipment profiles ride the same coaching context: they describe where
+-- the user trains and are named after real places. Owner-only, not shareable.
+SELECT create_owner_policy('gym_equipment_profiles');
 
 -- Profiles: delegates can read (with any meaningful permission) but only owner can write.
 -- Delegates do not need to modify another user's profile to manage their diary.
