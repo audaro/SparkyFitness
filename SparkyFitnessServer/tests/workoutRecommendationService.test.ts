@@ -3,6 +3,7 @@ import { vi, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import {
+  estimateDurationMinutes,
   GENERATION_TUNABLES,
   MUSCLES,
   todayInZone,
@@ -27,6 +28,7 @@ vi.mock('../models/workoutRecommendationRepository.js', () => {
     getCandidateExerciseById: vi.fn(),
     getWorkoutRecommendation: vi.fn(),
     upsertWorkoutRecommendation: vi.fn(),
+    updateWorkoutRecommendationPayload: vi.fn(),
     updateWorkoutRecommendationStatus: vi.fn(),
   };
   return { default: mock, ...mock };
@@ -79,6 +81,8 @@ const REC_ID = '22222222-2222-4222-8222-222222222222';
 const BENCH_ID = '33333333-3333-4333-8333-333333333333';
 const FLY_ID = '44444444-4444-4444-8444-444444444444';
 const ROW_ID = '55555555-5555-4555-8555-555555555555';
+const DIP_ID = '66666666-6666-4666-8666-666666666666';
+const PULLDOWN_ID = '77777777-7777-4777-8777-777777777777';
 
 const app = express();
 app.use(express.json());
@@ -137,6 +141,22 @@ const BARBELL_ROW = candidate({
   primaryMuscles: ['lats'],
   mechanic: 'compound',
 });
+// Deliberately absent from the candidate list the planner reads, so they can
+// only ever enter a workout by being replaced in.
+const CHEST_DIP = candidate({
+  id: DIP_ID,
+  name: 'Chest Dip',
+  primaryMuscles: ['chest'],
+  mechanic: 'isolation',
+  equipment: ['body only'],
+});
+const LAT_PULLDOWN = candidate({
+  id: PULLDOWN_ID,
+  name: 'Lat Pulldown',
+  primaryMuscles: ['lats'],
+  mechanic: 'compound',
+  equipment: ['cable'],
+});
 
 /** Echo the payload back the way the real upsert would. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -152,6 +172,53 @@ function echoUpsert(_userId: string, input: any) {
     created_at: new Date('2026-08-23T10:00:00Z'),
     updated_at: new Date('2026-08-23T10:00:00Z'),
   });
+}
+
+/** The row `repo.getWorkoutRecommendation` is currently configured to return. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let currentRow: any = null;
+
+/**
+ * Echo a payload rewrite back the way the real update would.
+ *
+ * `status` and `generated_at` are the point: unlike the upsert, an in-place
+ * payload rewrite leaves them alone, so the response still carries whatever the
+ * stored row had.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function echoPayloadUpdate(_userId: string, payload: any) {
+  return Promise.resolve({
+    ...currentRow,
+    payload,
+    updated_at: new Date('2026-08-23T12:00:00Z'),
+  });
+}
+
+/**
+ * Generate a workout and make it the stored row, so a replace has something to
+ * act on. Returns the payload that was persisted.
+ */
+async function storeGenerated(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  overrides: Record<string, any> = {}
+) {
+  const generated =
+    await workoutRecommendationService.generateRecommendation(USER_ID);
+  currentRow = {
+    id: REC_ID,
+    user_id: USER_ID,
+    gym_profile_id: null,
+    target_duration_minutes: 60,
+    payload: generated.payload,
+    status: 'active',
+    generated_at: new Date('2026-08-23T10:00:00Z'),
+    created_at: new Date('2026-08-23T10:00:00Z'),
+    updated_at: new Date('2026-08-23T10:00:00Z'),
+    ...overrides,
+  };
+  repo.getWorkoutRecommendation.mockResolvedValue(currentRow);
+  repo.upsertWorkoutRecommendation.mockClear();
+  return generated.payload;
 }
 
 /**
@@ -176,6 +243,7 @@ function fatigueEverythingExcept(...fresh: string[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  currentRow = null;
   vi.mocked(loadUserTimezone).mockResolvedValue('UTC');
   repo.getMuscleFatigueInputs.mockResolvedValue(
     fatigueEverythingExcept('chest', 'lats')
@@ -184,6 +252,7 @@ beforeEach(() => {
   repo.getCandidateExerciseById.mockResolvedValue(null);
   repo.getWorkoutRecommendation.mockResolvedValue(null);
   repo.upsertWorkoutRecommendation.mockImplementation(echoUpsert);
+  repo.updateWorkoutRecommendationPayload.mockImplementation(echoPayloadUpdate);
   repo.updateWorkoutRecommendationStatus.mockResolvedValue(null);
   coachRepo.getCoachProfile.mockResolvedValue(null);
   gymRepo.getActiveGymProfile.mockResolvedValue(null);
@@ -835,6 +904,243 @@ describe('getAlternatives', () => {
   });
 });
 
+describe('replaceRecommendationExercise', () => {
+  /** Where the named exercise sits in the stored workout. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function indexOf(payload: any, exerciseId: string): number {
+    const index = payload.exercises.findIndex(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (exercise: any) => exercise.exercise_id === exerciseId
+    );
+    expect(index).toBeGreaterThanOrEqual(0);
+    return index;
+  }
+
+  it('returns null when the user has never generated a workout', async () => {
+    repo.getWorkoutRecommendation.mockResolvedValue(null);
+    await expect(
+      workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        DIP_ID
+      )
+    ).resolves.toBeNull();
+    expect(repo.updateWorkoutRecommendationPayload).not.toHaveBeenCalled();
+  });
+
+  it('swaps the exercise in place, keeping its position', async () => {
+    const before = await storeGenerated();
+    const at = indexOf(before, BENCH_ID);
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    const result =
+      await workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        DIP_ID
+      );
+
+    expect(result?.payload.exercises).toHaveLength(before.exercises.length);
+    expect(result?.payload.exercises[at].exercise_id).toBe(DIP_ID);
+    expect(result?.payload.exercises[at].exercise_name).toBe('Chest Dip');
+    expect(result?.payload.exercises[at].sort_order).toBe(
+      before.exercises[at].sort_order
+    );
+    // Every other row is untouched — this is a substitution, not a regenerate.
+    expect(
+      result?.payload.exercises
+        .filter((_, index) => index !== at)
+        .map((exercise) => exercise.exercise_id)
+    ).toEqual(
+      before.exercises
+        .filter((_, index) => index !== at)
+        .map((exercise) => exercise.exercise_id)
+    );
+  });
+
+  it('prescribes the replacement for its own slot, not the outgoing one’s', async () => {
+    await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    const result =
+      await workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        DIP_ID
+      );
+    const swapped = result?.payload.exercises.find(
+      (exercise) => exercise.exercise_id === DIP_ID
+    );
+
+    // Bench is a compound; the dip is an isolation, and its rest says so.
+    // Carrying the outgoing exercise's programming forward is the whole failure
+    // mode this endpoint exists to avoid.
+    expect(swapped?.rest_seconds).toBe(GENERATION_TUNABLES.restIsolation);
+    expect(entries.getRecentSessionsForExercise).toHaveBeenCalledWith(
+      USER_ID,
+      DIP_ID,
+      null,
+      2
+    );
+  });
+
+  it('rebuilds the duration estimate around the new programming', async () => {
+    const before = await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    const result =
+      await workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        DIP_ID
+      );
+
+    expect(result?.payload.estimated_duration_minutes).toBe(
+      estimateDurationMinutes(result?.payload.exercises ?? [])
+    );
+    // Guard against the assertion above passing on a stale value copied through.
+    expect(estimateDurationMinutes(before.exercises)).toBe(
+      before.estimated_duration_minutes
+    );
+  });
+
+  it('keeps the slot’s muscle when the replacement also trains it', async () => {
+    await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    const result =
+      await workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        DIP_ID
+      );
+
+    expect(
+      result?.payload.exercises.find(
+        (exercise) => exercise.exercise_id === DIP_ID
+      )?.rationale
+    ).toContain('chest');
+  });
+
+  it('explains a replacement against its own muscle when the slot’s no longer applies', async () => {
+    await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(LAT_PULLDOWN);
+
+    const result =
+      await workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        PULLDOWN_ID
+      );
+    const swapped = result?.payload.exercises.find(
+      (exercise) => exercise.exercise_id === PULLDOWN_ID
+    );
+
+    expect(swapped?.rationale).toContain('lats');
+    expect(swapped?.rationale).not.toContain('chest');
+  });
+
+  it('leaves the header muscles alone — one substitution is not a replan', async () => {
+    const before = await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(LAT_PULLDOWN);
+
+    const result =
+      await workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        PULLDOWN_ID
+      );
+
+    expect(result?.payload.muscle_groups).toEqual(before.muscle_groups);
+  });
+
+  it('rewrites the payload in place rather than regenerating the row', async () => {
+    await storeGenerated({ status: 'started' });
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    const result =
+      await workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        DIP_ID
+      );
+
+    expect(repo.upsertWorkoutRecommendation).not.toHaveBeenCalled();
+    expect(repo.updateWorkoutRecommendationPayload).toHaveBeenCalledTimes(1);
+    // The upsert would have reset both of these; swapping a movement does not
+    // make the suggestion newly generated, nor un-start a workout in progress.
+    expect(result?.status).toBe('started');
+    expect(result?.generated_at).toBe(
+      new Date('2026-08-23T10:00:00Z').toISOString()
+    );
+  });
+
+  it('refuses an exercise that is not in the workout', async () => {
+    await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    await expect(
+      workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        PULLDOWN_ID,
+        DIP_ID
+      )
+    ).rejects.toThrow(/not in your current workout/);
+    expect(repo.updateWorkoutRecommendationPayload).not.toHaveBeenCalled();
+  });
+
+  it('refuses to put the same movement in the workout twice', async () => {
+    const before = await storeGenerated();
+    const other = before.exercises.find(
+      (exercise) => exercise.exercise_id !== BENCH_ID
+    );
+    repo.getCandidateExerciseById.mockResolvedValue(FLY);
+
+    await expect(
+      workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        other?.exercise_id ?? FLY_ID
+      )
+    ).rejects.toThrow(/already in this workout/);
+  });
+
+  it('refuses an exercise the user does not have in their catalog', async () => {
+    await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(null);
+
+    await expect(
+      workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        DIP_ID
+      )
+    ).rejects.toThrow(/not in your catalog/);
+  });
+
+  it('does not veto a replacement the active gym profile could not have suggested', async () => {
+    // The workout was built under a barbell-only profile; the user searched past
+    // the suggestions and picked a cable machine anyway. That is a decision, not
+    // a candidate to filter.
+    const profile = { id: REC_ID, name: 'Home', equipment: ['barbell'] };
+    gymRepo.getGymProfile.mockResolvedValue(profile);
+    await storeGenerated({ gym_profile_id: REC_ID });
+    repo.getCandidateExerciseById.mockResolvedValue(LAT_PULLDOWN);
+
+    const result =
+      await workoutRecommendationService.replaceRecommendationExercise(
+        USER_ID,
+        BENCH_ID,
+        PULLDOWN_ID
+      );
+
+    expect(
+      result?.payload.exercises.map((exercise) => exercise.exercise_id)
+    ).toContain(PULLDOWN_ID);
+    expect(gymRepo.getGymProfile).toHaveBeenCalledWith(USER_ID, REC_ID);
+  });
+});
+
 describe('workout recommendation routes', () => {
   it('404s before anything has been generated', async () => {
     const res = await request(app).get('/api/workout-recommendations');
@@ -968,6 +1274,64 @@ describe('workout recommendation routes', () => {
     const res = await request(app).get(
       '/api/workout-recommendations/alternatives/not-a-uuid'
     );
+    expect(res.status).toBe(400);
+  });
+
+  it('replaces an exercise on POST', async () => {
+    await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    const res = await request(app)
+      .post('/api/workout-recommendations/replace')
+      .send({ exercise_id_out: BENCH_ID, exercise_id_in: DIP_ID });
+
+    expect(res.status).toBe(200);
+    expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      res.body.payload.exercises.map((exercise: any) => exercise.exercise_id)
+    ).toContain(DIP_ID);
+  });
+
+  it('404s a replace before anything has been generated', async () => {
+    repo.getWorkoutRecommendation.mockResolvedValue(null);
+
+    const res = await request(app)
+      .post('/api/workout-recommendations/replace')
+      .send({ exercise_id_out: BENCH_ID, exercise_id_in: DIP_ID });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('answers 422, not 500, when the swap cannot be made', async () => {
+    await storeGenerated();
+    repo.getCandidateExerciseById.mockResolvedValue(null);
+
+    const res = await request(app)
+      .post('/api/workout-recommendations/replace')
+      .send({ exercise_id_out: BENCH_ID, exercise_id_in: DIP_ID });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toMatch(/not in your catalog/);
+  });
+
+  it('rejects a replace body with a non-uuid id', async () => {
+    const res = await request(app)
+      .post('/api/workout-recommendations/replace')
+      .send({ exercise_id_out: 'nope', exercise_id_in: DIP_ID });
+
+    expect(res.status).toBe(400);
+    expect(repo.updateWorkoutRecommendationPayload).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown key in the replace body rather than ignoring it', async () => {
+    const res = await request(app)
+      .post('/api/workout-recommendations/replace')
+      .send({
+        exercise_id_out: BENCH_ID,
+        exercise_id_in: DIP_ID,
+        swap: true,
+      });
+
     expect(res.status).toBe(400);
   });
 });

@@ -179,6 +179,26 @@ export const updateWorkoutRecommendationRequestSchema = z
   })
   .strict();
 
+/**
+ * `POST /replace` — swap one exercise in the stored workout for another.
+ *
+ * The one exception to "the payload is never client-edited", and it is still
+ * not the client doing the editing: the client names two exercises and the
+ * server re-runs prescription for the incoming one, so sets, rest and the
+ * warm-up ramp stay engine-owned. A client that spliced the row itself would
+ * have to reimplement progression, and would drift from it.
+ *
+ * Both ids are local uuids. `exercise_id_in` must already be in the user's
+ * catalog — an external candidate is imported first, which is what makes it
+ * one.
+ */
+export const replaceRecommendationExerciseRequestSchema = z
+  .object({
+    exercise_id_out: z.string().uuid(),
+    exercise_id_in: z.string().uuid(),
+  })
+  .strict();
+
 // ---------------------------------------------------------------------------
 // Alternatives (feeds Replace)
 // ---------------------------------------------------------------------------
@@ -226,6 +246,9 @@ export type GenerateWorkoutRecommendationRequest = z.infer<
 >;
 export type UpdateWorkoutRecommendationRequest = z.infer<
   typeof updateWorkoutRecommendationRequestSchema
+>;
+export type ReplaceRecommendationExerciseRequest = z.infer<
+  typeof replaceRecommendationExerciseRequestSchema
 >;
 export type AlternativeExercise = z.infer<typeof alternativeExerciseSchema>;
 export type AlternativeExercisesResponse = z.infer<

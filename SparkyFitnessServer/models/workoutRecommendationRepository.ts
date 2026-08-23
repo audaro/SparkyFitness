@@ -383,6 +383,37 @@ async function upsertWorkoutRecommendation(
 }
 
 /**
+ * Rewrite the payload of the user's existing recommendation in place.
+ *
+ * Deliberately not `upsertWorkoutRecommendation`: that resets `status` to
+ * `'active'` and `generated_at` to now, which is right for a regenerate and
+ * wrong for a one-exercise replace. Swapping a movement does not make the
+ * suggestion newly generated, and it must not un-start a workout the user has
+ * already begun.
+ *
+ * Returns null when the user has no recommendation, so the route answers 404
+ * rather than reporting a successful no-op.
+ */
+async function updateWorkoutRecommendationPayload(
+  userId: string,
+  payload: WorkoutRecommendationPayload
+): Promise<WorkoutRecommendationRow | null> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `UPDATE workout_recommendations
+          SET payload = $2::jsonb, updated_at = now()
+        WHERE user_id = $1
+        RETURNING ${RECOMMENDATION_COLS}`,
+      [userId, JSON.stringify(payload)]
+    );
+    return result.rows[0] ?? null;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Lifecycle only — the payload is never client-edited.
  *
  * Returns null when the id does not name a row this user can see, so the route
@@ -414,6 +445,7 @@ export {
   getCandidateExerciseById,
   getWorkoutRecommendation,
   upsertWorkoutRecommendation,
+  updateWorkoutRecommendationPayload,
   updateWorkoutRecommendationStatus,
 };
 export default {
@@ -422,5 +454,6 @@ export default {
   getCandidateExerciseById,
   getWorkoutRecommendation,
   upsertWorkoutRecommendation,
+  updateWorkoutRecommendationPayload,
   updateWorkoutRecommendationStatus,
 };

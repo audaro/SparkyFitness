@@ -4,6 +4,7 @@ import {
   alternativeExercisesResponseSchema,
   generateWorkoutRecommendationRequestSchema,
   muscleRecoveryResponseSchema,
+  replaceRecommendationExerciseRequestSchema,
   updateWorkoutRecommendationRequestSchema,
   workoutRecommendationResponseSchema,
 } from '@workspace/shared';
@@ -192,6 +193,58 @@ const alternativesHandler: RequestHandler = async (req, res, next) => {
 
 /**
  * @swagger
+ * /workout-recommendations/replace:
+ *   post:
+ *     summary: Swap one exercise in the suggested workout for another
+ *     tags: [Exercise & Workouts]
+ *     description: |
+ *       Replaces `exercise_id_out` with `exercise_id_in` in place, re-running prescription for the
+ *       incoming exercise against its own history so it arrives with its own sets, load, rest and
+ *       warm-up ramp. Both ids are local exercise uuids — an external suggestion must be imported
+ *       first. Programming stays server-owned; the client never edits the stored workout itself.
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: The updated recommendation.
+ *       404:
+ *         description: No workout has been generated for this user yet.
+ *       422:
+ *         description: The outgoing exercise is not in the workout, the incoming one already is, or it is not in the user's catalog.
+ */
+const replaceHandler: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = replaceRecommendationExerciseRequestSchema.safeParse(
+      req.body ?? {}
+    );
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'Invalid request body.', details: parsed.error.issues });
+      return;
+    }
+    const updated =
+      await workoutRecommendationService.replaceRecommendationExercise(
+        req.userId,
+        parsed.data.exercise_id_out,
+        parsed.data.exercise_id_in
+      );
+    if (!updated) {
+      res.status(404).json({ error: 'No workout recommendation yet.' });
+      return;
+    }
+    res.status(200).json(workoutRecommendationResponseSchema.parse(updated));
+  } catch (error: unknown) {
+    if (error instanceof WorkoutGenerationError) {
+      res.status(422).json({ error: error.message });
+      return;
+    }
+    next(error);
+  }
+};
+
+/**
+ * @swagger
  * /workout-recommendations/{id}:
  *   patch:
  *     summary: Mark the suggested workout started, completed or dismissed
@@ -242,6 +295,7 @@ const patchHandler: RequestHandler = async (req, res, next) => {
 router.get('/', getHandler);
 router.post('/generate', generateHandler);
 router.get('/alternatives/:exerciseId', alternativesHandler);
+router.post('/replace', replaceHandler);
 router.patch('/:id', patchHandler);
 
 export default router;

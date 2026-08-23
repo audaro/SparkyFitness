@@ -411,7 +411,14 @@ export function isExcludedByLimitations(
   });
 }
 
-function isCompound(candidate: CandidateExercise): boolean {
+/**
+ * Exported because slot assignment happens in two places now: the planner
+ * builds a whole workout, and Replace re-slots a single incoming exercise
+ * without a plan to read it from. The slot drives set count and rest, so a
+ * second copy of this rule would quietly prescribe a different workout for the
+ * same exercise depending on how it got in.
+ */
+export function isCompound(candidate: CandidateExercise): boolean {
   return candidate.mechanic?.trim().toLowerCase() === "compound";
 }
 

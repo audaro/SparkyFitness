@@ -3,6 +3,7 @@ import {
   computeMuscleFreshness,
   estimateDurationMinutes,
   fitToDuration,
+  isCompound,
   isEquipmentAvailable,
   isExcludedByLimitations,
   normalizeMuscleName,
@@ -508,6 +509,158 @@ async function updateRecommendationStatus(
 }
 
 // ---------------------------------------------------------------------------
+// Replace one exercise
+// ---------------------------------------------------------------------------
+
+/**
+ * The muscle the replacement should be programmed and explained against.
+ *
+ * Normally the slot's own muscle — the outgoing exercise's first primary mover,
+ * which is also what the alternatives ranker anchors on, so anything picked
+ * from the suggested list lands here. A user who ignores the suggestions and
+ * searches freely can pick something that trains a different muscle entirely;
+ * then the slot's muscle is a lie, and the incoming exercise's own primary
+ * mover is the honest answer. Getting this wrong is not cosmetic: it is the
+ * word in "fresh quads · +2.5% from last session".
+ */
+function replacementTargetMuscle(
+  outgoingPrimaryMuscles: readonly string[],
+  candidate: CandidateExercise
+): string {
+  const slotMuscle = outgoingPrimaryMuscles[0]
+    ? normalizeMuscleName(outgoingPrimaryMuscles[0])
+    : null;
+  if (
+    slotMuscle &&
+    candidate.primaryMuscles.some(
+      (value) => normalizeMuscleName(value) === slotMuscle
+    )
+  ) {
+    return slotMuscle;
+  }
+  return candidate.primaryMuscles[0]
+    ? normalizeMuscleName(candidate.primaryMuscles[0])
+    : (slotMuscle ?? '');
+}
+
+/**
+ * Swap one exercise in the stored workout for another, re-prescribing it.
+ *
+ * The point of doing this server-side rather than letting the client splice the
+ * row is that the replacement arrives programmed: its own history, its own
+ * progression, its own set count and rest for its own slot. A client-side swap
+ * would either carry the outgoing exercise's sets — wrong load, wrong rep
+ * scheme — or fall back to placeholders.
+ *
+ * Everything the prescription depends on is re-derived from the **stored** row
+ * (its target duration, the gym profile it was built with) rather than from
+ * what is active now, so the replacement is programmed like the workout it is
+ * joining and not like one generated today.
+ *
+ * Deliberately not filtered by `isEquipmentAvailable`: the user named this
+ * exercise. Suggestions are filtered by the gym profile, but an explicit search
+ * result the user chose is a decision, not a candidate to be vetoed.
+ *
+ * Returns null when the user has no stored recommendation (the route answers
+ * 404). Anything else the request asks for but cannot be given raises
+ * `WorkoutGenerationError` → 422: the request is well-formed, the workout just
+ * cannot answer it.
+ */
+async function replaceRecommendationExercise(
+  userId: string,
+  exerciseIdOut: string,
+  exerciseIdIn: string
+): Promise<WorkoutRecommendationResponse | null> {
+  const row =
+    await workoutRecommendationRepository.getWorkoutRecommendation(userId);
+  if (!row) return null;
+
+  const payload = workoutRecommendationPayloadSchema.parse(row.payload);
+  const index = payload.exercises.findIndex(
+    (exercise) => exercise.exercise_id === exerciseIdOut
+  );
+  if (index === -1) {
+    throw new WorkoutGenerationError(
+      'That exercise is not in your current workout.'
+    );
+  }
+  if (
+    payload.exercises.some((exercise) => exercise.exercise_id === exerciseIdIn)
+  ) {
+    // The same movement twice in one session is never what the user meant, and
+    // the client renders rows keyed by exercise id.
+    throw new WorkoutGenerationError(
+      'That exercise is already in this workout.'
+    );
+  }
+
+  const [candidate, coachProfile, gymProfile] = await Promise.all([
+    workoutRecommendationRepository.getCandidateExerciseById(
+      userId,
+      exerciseIdIn
+    ),
+    coachProfileRepository.getCoachProfile(userId),
+    row.gym_profile_id
+      ? gymEquipmentProfileRepository.getGymProfile(userId, row.gym_profile_id)
+      : Promise.resolve(null),
+  ]);
+  if (!candidate) {
+    // An external suggestion has to be imported before it can be swapped in;
+    // until then it has no local uuid and nothing to prescribe against.
+    throw new WorkoutGenerationError(
+      'That exercise is not in your catalog. Add it first, then replace.'
+    );
+  }
+
+  const options: GenerationOptions = {
+    targetDurationMinutes: row.target_duration_minutes,
+    availableEquipment: gymProfile ? gymProfile.equipment : null,
+    limitations: (coachProfile?.limitations ?? []).map((value) =>
+      String(value).toLowerCase()
+    ),
+    goal: deriveGoal(coachProfile?.goals),
+    experienceLevel: null,
+    excludeIds: [],
+  };
+
+  const outgoing = payload.exercises[index];
+  const programmed = await programExercise(
+    userId,
+    {
+      candidate,
+      targetMuscle: replacementTargetMuscle(
+        outgoing.primary_muscles,
+        candidate
+      ),
+      slot: isCompound(candidate) ? 'compound' : 'isolation',
+    },
+    options
+  );
+
+  const exercises = [...payload.exercises];
+  // The replacement takes the slot's position, not a new one — Replace swaps in
+  // place. `programExercise` returns `sort_order: 0` because generation renumbers
+  // the whole list afterwards; there is no renumber here, so carry it over.
+  exercises[index] = { ...programmed, sort_order: outgoing.sort_order };
+
+  const next: WorkoutRecommendationPayload = {
+    ...payload,
+    exercises,
+    // Set counts and rest differ per exercise, so the header's estimate moves.
+    estimated_duration_minutes: estimateDurationMinutes(exercises),
+    // `muscle_groups` deliberately does not move: it names what the workout was
+    // planned around, which one substitution does not change.
+  };
+
+  const updated =
+    await workoutRecommendationRepository.updateWorkoutRecommendationPayload(
+      userId,
+      next
+    );
+  return updated ? toResponse(updated) : null;
+}
+
+// ---------------------------------------------------------------------------
 // Alternatives (feeds Replace)
 // ---------------------------------------------------------------------------
 
@@ -718,6 +871,7 @@ export {
   getRecommendation,
   updateRecommendationStatus,
   getAlternatives,
+  replaceRecommendationExercise,
 };
 export default {
   getMuscleRecovery,
@@ -725,4 +879,5 @@ export default {
   getRecommendation,
   updateRecommendationStatus,
   getAlternatives,
+  replaceRecommendationExercise,
 };
