@@ -43,6 +43,7 @@ export const PREFERENCE_DEFAULTS = {
   voiceButtonVisible: true,
   voiceRepliesEnabled: true,
   medicationsCardVisible: true,
+  upNextCardVisible: true,
   medicationRemindersEnabled: true,
   medicationReminderRepeats: true,
   medicationReminderHideNames: false,
@@ -79,6 +80,7 @@ export type AppPreferencesData = {
   medicationRemindersEnabled: boolean;
   medicationReminderRepeats: boolean;
   medicationReminderHideNames: boolean;
+  upNextCardVisible: boolean;
   liquidGlassTabBarEnabled: boolean;
   activeWorkoutMetricColumn: ActiveWorkoutMetricColumn;
   diarySummaryVisible: boolean;
@@ -112,6 +114,7 @@ export interface AppPreferencesState extends AppPreferencesData {
   setMedicationRemindersEnabled: (value: boolean) => void;
   setMedicationReminderRepeats: (value: boolean) => void;
   setMedicationReminderHideNames: (value: boolean) => void;
+  setUpNextCardVisible: (value: boolean) => void;
   setLiquidGlassTabBarEnabled: (value: boolean) => void;
   setActiveWorkoutMetricColumn: (value: ActiveWorkoutMetricColumn) => void;
   setDiarySummaryVisible: (value: boolean) => void;
@@ -185,6 +188,7 @@ export const useAppPreferencesStore = create<AppPreferencesState>()(
       setMedicationRemindersEnabled: (value) => set({ medicationRemindersEnabled: value }),
       setMedicationReminderRepeats: (value) => set({ medicationReminderRepeats: value }),
       setMedicationReminderHideNames: (value) => set({ medicationReminderHideNames: value }),
+      setUpNextCardVisible: (value) => set({ upNextCardVisible: value }),
       setLiquidGlassTabBarEnabled: (value) => set({ liquidGlassTabBarEnabled: value }),
       setActiveWorkoutMetricColumn: (value) => set({ activeWorkoutMetricColumn: value }),
       setDiarySummaryVisible: (value) => set({ diarySummaryVisible: value }),
@@ -221,6 +225,7 @@ export const useAppPreferencesStore = create<AppPreferencesState>()(
         medicationRemindersEnabled: state.medicationRemindersEnabled,
         medicationReminderRepeats: state.medicationReminderRepeats,
         medicationReminderHideNames: state.medicationReminderHideNames,
+        upNextCardVisible: state.upNextCardVisible,
         liquidGlassTabBarEnabled: state.liquidGlassTabBarEnabled,
         // Older persisted blobs without these keys backfill via the default
         // shallow merge — no version bump needed.

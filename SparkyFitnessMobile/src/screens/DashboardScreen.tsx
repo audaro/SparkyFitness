@@ -36,6 +36,7 @@ import HydrationGauge from '../components/HydrationGauge';
 import SegmentedControl, { type Segment } from '../components/SegmentedControl';
 import HealthTrendsPager from '../components/HealthTrendsPager';
 import ExerciseProgressCard from '../components/ExerciseProgressCard';
+import UpNextCard from '../components/UpNextCard';
 import StatusView from '../components/StatusView';
 import FastingCard from '../components/FastingCard';
 import CycleCard from '../components/CycleCard';
@@ -173,6 +174,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const hydrationCardVisible = useAppPreferencesStore((s) => s.hydrationCardVisible);
   const askSparkyVisible = useAppPreferencesStore((s) => s.askSparkyVisible);
   const medicationsCardVisible = useAppPreferencesStore((s) => s.medicationsCardVisible);
+  const upNextCardVisible = useAppPreferencesStore((s) => s.upNextCardVisible);
 
   useLayoutEffect(() => {
     syncNativeHeaderDatePicker();
@@ -398,6 +400,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             <Text className="text-text-muted text-sm text-center mb-4">Tap to add food</Text>
           </Pressable>
         )}
+
+        {/* The suggested workout is "now"-based like the fasting card — it is
+            today's recommendation regardless of the date navigator, so it is
+            deliberately not wired to `selectedDate`. Visibility is a local app
+            setting toggled from Dashboard Settings. */}
+        {upNextCardVisible && <UpNextCard navigation={navigation} />}
 
         {(summary.foodEntries.length > 0 || summary.exerciseEntries.length > 0) &&
           (summary.exerciseMinutesGoal > 0 || summary.exerciseCaloriesGoal > 0 || summary.exerciseMinutes > 0 || summary.otherExerciseCalories > 0) && (

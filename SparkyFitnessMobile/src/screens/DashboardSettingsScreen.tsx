@@ -51,6 +51,8 @@ const DashboardSettingsScreen: React.FC<DashboardSettingsScreenProps> = () => {
   const setAskSparkyVisible = useAppPreferencesStore((s) => s.setAskSparkyVisible);
   const medicationsCardVisible = useAppPreferencesStore((s) => s.medicationsCardVisible);
   const setMedicationsCardVisible = useAppPreferencesStore((s) => s.setMedicationsCardVisible);
+  const upNextCardVisible = useAppPreferencesStore((s) => s.upNextCardVisible);
+  const setUpNextCardVisible = useAppPreferencesStore((s) => s.setUpNextCardVisible);
 
   const queryClient = useQueryClient();
   const { isConnected } = useServerConnection();
@@ -219,6 +221,16 @@ const DashboardSettingsScreen: React.FC<DashboardSettingsScreenProps> = () => {
               <Switch
                 value={medicationsCardVisible}
                 onValueChange={setMedicationsCardVisible}
+              />
+            }
+          />
+          <SettingsRow
+            title="Up Next"
+            subtitle="Show your suggested workout on the Dashboard"
+            rightAccessory={
+              <Switch
+                value={upNextCardVisible}
+                onValueChange={setUpNextCardVisible}
               />
             }
           />

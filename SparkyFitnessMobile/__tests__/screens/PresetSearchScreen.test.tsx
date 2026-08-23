@@ -173,6 +173,14 @@ describe('PresetSearchScreen', () => {
     expect(screen.getByText('Pick your first exercise')).toBeTruthy();
   });
 
+  it('pins an Up Next row above the preset list', () => {
+    const screen = renderScreen();
+
+    fireEvent.press(screen.getByTestId('up-next-row'));
+
+    expect(navigation.navigate).toHaveBeenCalledWith('UpNext');
+  });
+
   it('persists an ownership filter chosen from the header menu and filters the list', () => {
     mockUseWorkoutPresets.mockReturnValue({
       presets: [

@@ -182,6 +182,7 @@ export type RootStackParamList = {
     | undefined;
   ExerciseSearch: { returnKey: string };
   PresetSearch: { selectedExercise?: Exercise; selectionNonce?: number } | undefined;
+  UpNext: undefined;
   WorkoutAdd: {
     session?: PresetSessionResponse;
     preset?: WorkoutPreset;

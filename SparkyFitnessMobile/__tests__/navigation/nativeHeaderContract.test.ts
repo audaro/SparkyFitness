@@ -27,6 +27,7 @@ const NATIVE_TABS_ROUTE_EXCLUSIONS = {
   MealAdd: 'Root-stack meal create/edit modal presented above the tab host.',
   ExerciseSearch: 'Root-stack exercise picker modal presented above the tab host.',
   PresetSearch: 'Root-stack preset picker route presented above the tab host.',
+  UpNext: 'Root-stack generated-workout route presented above the tab host.',
   WorkoutAdd: 'Root-stack workout create/edit route presented above the tab host.',
   ActivityAdd: 'Root-stack activity create/edit route presented above the tab host.',
   WorkoutDetail: 'Root-stack workout detail route presented above the tab host.',

@@ -30,6 +30,7 @@ import ActivityDetailScreen from '../screens/ActivityDetailScreen';
 import FastingDetailScreen from '../screens/FastingDetailScreen';
 import ExerciseSearchScreen from '../screens/ExerciseSearchScreen';
 import PresetSearchScreen from '../screens/PresetSearchScreen';
+import UpNextScreen from '../screens/UpNextScreen';
 import CalorieSettingsScreen from '../screens/CalorieSettingsScreen';
 import MealTypeSettingsScreen from '../screens/MealTypeSettingsScreen';
 import FoodSettingsScreen from '../screens/FoodSettingsScreen';
@@ -85,6 +86,7 @@ export const SafeEditLoggedMeal = withErrorBoundary(EditLoggedMealScreen, 'EditL
 export const SafeMealTypeDetail = withErrorBoundary(MealTypeDetailScreen, 'MealTypeDetail', { canGoBack: true });
 export const SafeExerciseSearch = withErrorBoundary(ExerciseSearchScreen, 'ExerciseSearch', { canGoBack: true });
 export const SafePresetSearch = withErrorBoundary(PresetSearchScreen, 'PresetSearch', { canGoBack: true });
+export const SafeUpNext = withErrorBoundary(UpNextScreen, 'UpNext', { canGoBack: true });
 export const SafeWorkoutAdd = withErrorBoundary(WorkoutAddScreen, 'WorkoutAdd', { canGoBack: true });
 export const SafeActivityAdd = withErrorBoundary(ActivityAddScreen, 'ActivityAdd', { canGoBack: true });
 export const SafeWorkoutDetail = withErrorBoundary(WorkoutDetailScreen, 'WorkoutDetail', { canGoBack: true });

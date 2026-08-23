@@ -98,6 +98,12 @@ const PresetSearchScreen: React.FC<PresetSearchScreenProps> = ({ navigation, rou
     navigation.navigate('ExerciseSearch', { returnKey: route.key });
   }, [navigation, route.key]);
 
+  const handleOpenUpNext = useCallback(() => {
+    runNavigationAction(() => {
+      navigation.navigate('UpNext');
+    });
+  }, [runNavigationAction, navigation]);
+
   // The picked first exercise returns here from ExerciseSearch; creating the
   // session with it satisfies the server's ≥1-exercise rule for empty starts.
   const handleFirstExerciseSelected = useCallback((exercise: Exercise) => {
@@ -293,6 +299,23 @@ const PresetSearchScreen: React.FC<PresetSearchScreenProps> = ({ navigation, rou
           )}
         </View>
       </View>
+
+      <TouchableOpacity
+        className="flex-row items-center px-4 py-3 border-b border-border-subtle"
+        activeOpacity={0.7}
+        onPress={handleOpenUpNext}
+        disabled={isNavigationLocked || isStarting}
+        testID="up-next-row"
+      >
+        <Icon name="sparkles" size={22} color={accentColor} />
+        <View className="flex-1 ml-3">
+          <Text className="text-text-primary text-base font-medium">Up Next</Text>
+          <Text className="text-sm mt-0.5" style={{ color: textSecondary }}>
+            A workout built for the muscles you have recovered
+          </Text>
+        </View>
+        <Icon name="chevron-forward" size={18} color={textMuted} />
+      </TouchableOpacity>
 
       <TouchableOpacity
         className="flex-row items-center px-4 py-3 border-b border-border-subtle"
