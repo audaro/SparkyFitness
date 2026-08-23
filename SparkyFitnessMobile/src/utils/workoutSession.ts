@@ -7,6 +7,7 @@ import type {
   ExerciseSnapshotResponse,
   PresetSessionExerciseRequest,
   PresetSessionResponse,
+  WorkoutRecommendationPayload,
 } from '@workspace/shared';
 import {
   epley1RmKg,
@@ -635,6 +636,64 @@ export function formatRecentSessionSet(
   if (set.reps != null) return `${prefix}${set.reps} reps`; // reps-only set in a mixed history
   if (set.duration != null) return `${prefix}${formatDurationSeconds(set.duration)}`;
   return '–';
+}
+
+/**
+ * The programmed-set line on an "Up Next" row — `3 sets · 8 reps · 105 lb`,
+ * `3 sets · 45s`, `30:00 · 5.2 km`.
+ *
+ * Counts WORKING sets only: the warm-up ramp is part of the prescription but
+ * "5 sets" would misread as five hard sets. Weight is stored in kilograms and
+ * converted here for display only, and a null weight (band, bodyweight, or a
+ * lift the engine had no honest number for) drops the segment rather than
+ * printing a zero.
+ */
+export function formatRecommendedSets(
+  exercise: {
+    modality: ExerciseModality;
+    sets: readonly {
+      set_type: string;
+      reps: number | null;
+      weight: number | null;
+      duration: number | null;
+      distance: number | null;
+    }[];
+  },
+  weightUnit: 'kg' | 'lbs',
+  distanceUnit: 'km' | 'miles' = 'km',
+): string {
+  const working = exercise.sets.filter((set) => !isWarmupSetType(set.set_type));
+  const first = working[0];
+  if (!first) return '';
+
+  if (isCardioModality(exercise.modality)) {
+    const parts: string[] = [];
+    if (first.duration != null) parts.push(formatDurationSeconds(first.duration));
+    if (first.distance != null) {
+      const dist = parseFloat(distanceFromKm(first.distance, distanceUnit).toFixed(2));
+      parts.push(`${dist} ${distanceUnit === 'miles' ? 'mi' : 'km'}`);
+    }
+    return parts.join(' · ');
+  }
+
+  const parts = [`${working.length} ${working.length === 1 ? 'set' : 'sets'}`];
+  if (isDurationModality(exercise.modality)) {
+    if (first.duration != null) parts.push(formatDurationSeconds(first.duration));
+    return parts.join(' · ');
+  }
+  if (first.reps != null) parts.push(`${first.reps} reps`);
+  if (first.weight != null) {
+    const weight = parseFloat(weightFromKg(first.weight, weightUnit).toFixed(1));
+    parts.push(`${weight} ${weightUnit}`);
+  }
+  return parts.join(' · ');
+}
+
+/** `2:00 rest` chip text for a recommended exercise. */
+export function formatRestChip(restSeconds: number): string {
+  const minutes = Math.floor(restSeconds / 60);
+  const seconds = restSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')} rest`;
 }
 
 /**
@@ -1423,6 +1482,70 @@ export function buildPresetStartExercisesPayload(
             })),
     };
   });
+}
+
+/**
+ * Canonical write vocabulary (`@workspace/shared` `CANONICAL_SET_TYPES`, what
+ * the recommendation engine emits) → the lowercase strings mobile stores and
+ * renders.
+ *
+ * The two vocabularies are display-level drift the shared constant documents
+ * and deliberately does not migrate. Warm-up *detection* is normalization-based
+ * everywhere, so an unmapped `'Warmup'` would still be excluded from PRs — but
+ * mobile's `setTypeLetter` and `isDropSetType` are exact lowercase matches, so
+ * an unmapped set would render as a numbered working set and a drop set would
+ * take a full rest. Mapping at the payload boundary keeps every stored set_type
+ * in the vocabulary the rest of mobile already writes.
+ */
+const CANONICAL_TO_MOBILE_SET_TYPE: Record<string, (typeof SET_TYPE_OPTIONS)[number]> = {
+  'Working Set': 'normal',
+  Warmup: 'warmup',
+  'Drop Set': 'drop',
+  Failure: 'failure',
+};
+
+/**
+ * Build the `exercises` payload for starting a live session from a generated
+ * "Up Next" workout. Sibling of {@link buildPresetStartExercisesPayload}: the
+ * payload is already metric (kg, whole seconds, km) and already ordered
+ * warm-ups-first with `set_number` renumbered across the whole list, so this
+ * only re-keys the set type and gates the measures the modality allows.
+ *
+ * Band and bodyweight prescriptions legitimately carry a null weight — the
+ * engine declines to invent a kilogram it cannot know — and that null is
+ * passed through so the live row renders an empty cell rather than "0 kg".
+ */
+export function buildRecommendationStartPayload(
+  payload: WorkoutRecommendationPayload,
+): PresetSessionExerciseRequest[] {
+  return [...payload.exercises]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((exercise, index) => {
+      const cardio = isCardioModality(exercise.modality);
+      return {
+        exercise_id: exercise.exercise_id,
+        sort_order: index,
+        duration_minutes: 0,
+        notes: null,
+        // The engine has no superset concept; every exercise stands alone.
+        superset_group: null,
+        sets: exercise.sets.map((set, setIndex) => ({
+          set_number: setIndex + 1,
+          set_type: CANONICAL_TO_MOBILE_SET_TYPE[set.set_type] ?? 'normal',
+          reps: set.reps,
+          weight: set.weight,
+          duration: set.duration,
+          // Distance is only meaningful on cardio sets; elsewhere a value is
+          // junk that must not seed the session.
+          distance: cardio ? set.distance : null,
+          // Cardio takes no between-set rest.
+          rest_time: cardio ? 0 : set.rest_time,
+          notes: null,
+          rpe: null,
+          completed_at: null,
+        })),
+      };
+    });
 }
 
 /**

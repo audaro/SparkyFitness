@@ -58,11 +58,17 @@ import {
   effectiveSetDurationSec,
   formatDurationSeconds,
   buildActivitySetsPayload,
+  buildRecommendationStartPayload,
+  formatRecommendedSets,
+  formatRestChip,
 } from '../../src/utils/workoutSession';
 import type {
   ExerciseEntryResponse,
   ExerciseSessionResponse,
   ExerciseSnapshotResponse,
+  RecommendationSet,
+  RecommendedExercise,
+  WorkoutRecommendationPayload,
 } from '@workspace/shared';
 import {
   presetSessionExerciseRequestSchema,
@@ -4615,6 +4621,285 @@ describe('workoutSession', () => {
         ],
       });
       expect(buildPresetUpdateExercises(session, preset, allCompleted(session))).toBeNull();
+    });
+  });
+});
+
+describe('workout recommendations', () => {
+  const EX_A = '11111111-1111-4111-8111-111111111111';
+  const EX_B = '22222222-2222-4222-8222-222222222222';
+
+  const makeRecommendedSet = (
+    overrides: Partial<RecommendationSet> = {},
+  ): RecommendationSet => ({
+    set_number: 1,
+    set_type: 'Working Set',
+    reps: 8,
+    weight: 80,
+    duration: null,
+    distance: null,
+    rest_time: 120,
+    ...overrides,
+  });
+
+  const makeRecommendedExercise = (
+    overrides: Partial<RecommendedExercise> = {},
+  ): RecommendedExercise => ({
+    exercise_id: EX_A,
+    exercise_name: 'Bench Press',
+    modality: 'weight_reps',
+    primary_muscles: ['chest'],
+    secondary_muscles: ['triceps'],
+    equipment: ['barbell'],
+    images: [],
+    sort_order: 0,
+    rest_seconds: 120,
+    rationale: 'fresh chest · holding last session’s load',
+    sets: [makeRecommendedSet()],
+    ...overrides,
+  });
+
+  const makePayload = (
+    overrides: Partial<WorkoutRecommendationPayload> = {},
+  ): WorkoutRecommendationPayload => ({
+    muscle_groups: ['chest', 'triceps'],
+    estimated_duration_minutes: 45,
+    exercises: [makeRecommendedExercise()],
+    ...overrides,
+  });
+
+  describe('buildRecommendationStartPayload', () => {
+    it('re-keys canonical set types to the lowercase vocabulary mobile stores', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            sets: [
+              makeRecommendedSet({ set_number: 1, set_type: 'Warmup', reps: 8, weight: 37.5 }),
+              makeRecommendedSet({ set_number: 2, set_type: 'Working Set' }),
+              makeRecommendedSet({ set_number: 3, set_type: 'Drop Set' }),
+              makeRecommendedSet({ set_number: 4, set_type: 'Failure' }),
+            ],
+          }),
+        ],
+      });
+
+      expect(
+        buildRecommendationStartPayload(payload)[0].sets.map((set) => set.set_type),
+      ).toEqual(['warmup', 'normal', 'drop', 'failure']);
+    });
+
+    it('falls back to a working set for a set type outside the canonical vocabulary', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            sets: [makeRecommendedSet({ set_type: 'Backoff' as RecommendationSet['set_type'] })],
+          }),
+        ],
+      });
+
+      expect(buildRecommendationStartPayload(payload)[0].sets[0].set_type).toBe('normal');
+    });
+
+    it('keeps warm-ups first and renumbers sets from 1', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            sets: [
+              makeRecommendedSet({ set_number: 1, set_type: 'Warmup', weight: 37.5, reps: 8 }),
+              makeRecommendedSet({ set_number: 2, set_type: 'Warmup', weight: 57.5, reps: 4 }),
+              makeRecommendedSet({ set_number: 3 }),
+              makeRecommendedSet({ set_number: 4 }),
+            ],
+          }),
+        ],
+      });
+
+      const sets = buildRecommendationStartPayload(payload)[0].sets;
+      expect(sets.map((set) => set.set_number)).toEqual([1, 2, 3, 4]);
+      expect(sets.slice(0, 2).map((set) => set.set_type)).toEqual(['warmup', 'warmup']);
+      expect(sets.map((set) => set.weight)).toEqual([37.5, 57.5, 80, 80]);
+    });
+
+    it('passes metric values through without conversion', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            sets: [makeRecommendedSet({ weight: 82.5, reps: 10, rest_time: 150 })],
+          }),
+        ],
+      });
+
+      expect(buildRecommendationStartPayload(payload)[0].sets[0]).toEqual({
+        set_number: 1,
+        set_type: 'normal',
+        reps: 10,
+        weight: 82.5,
+        duration: null,
+        distance: null,
+        rest_time: 150,
+        notes: null,
+        rpe: null,
+        completed_at: null,
+      });
+    });
+
+    it('preserves a null weight rather than seeding a zero', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            equipment: ['bands'],
+            sets: [makeRecommendedSet({ weight: null })],
+          }),
+        ],
+      });
+
+      expect(buildRecommendationStartPayload(payload)[0].sets[0].weight).toBeNull();
+    });
+
+    it('zeroes rest and keeps distance on a cardio prescription', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            modality: 'duration_distance',
+            sets: [
+              makeRecommendedSet({
+                reps: null,
+                weight: null,
+                duration: 1800,
+                distance: 5.2,
+                rest_time: 120,
+              }),
+            ],
+          }),
+        ],
+      });
+
+      expect(buildRecommendationStartPayload(payload)[0].sets[0]).toMatchObject({
+        duration: 1800,
+        distance: 5.2,
+        rest_time: 0,
+      });
+    });
+
+    it('drops a stray distance on a non-cardio prescription', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            modality: 'duration',
+            sets: [makeRecommendedSet({ reps: null, weight: null, duration: 45, distance: 1 })],
+          }),
+        ],
+      });
+
+      expect(buildRecommendationStartPayload(payload)[0].sets[0]).toMatchObject({
+        duration: 45,
+        distance: null,
+        rest_time: 120,
+      });
+    });
+
+    it('orders exercises by sort_order and renumbers them from 0', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({ exercise_id: EX_B, exercise_name: 'Row', sort_order: 1 }),
+          makeRecommendedExercise({ sort_order: 0 }),
+        ],
+      });
+
+      expect(
+        buildRecommendationStartPayload(payload).map((exercise) => [
+          exercise.exercise_id,
+          exercise.sort_order,
+        ]),
+      ).toEqual([
+        [EX_A, 0],
+        [EX_B, 1],
+      ]);
+    });
+
+    it('emits exercises that parse under the request schema', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise(),
+          makeRecommendedExercise({
+            exercise_id: EX_B,
+            modality: 'reps_only',
+            sets: [makeRecommendedSet({ weight: null })],
+          }),
+        ],
+      });
+
+      for (const exercise of buildRecommendationStartPayload(payload)) {
+        expect(() => presetSessionExerciseRequestSchema.parse(exercise)).not.toThrow();
+      }
+    });
+  });
+
+  describe('formatRecommendedSets', () => {
+    it('counts working sets only and converts the load for display', () => {
+      const exercise = makeRecommendedExercise({
+        sets: [
+          makeRecommendedSet({ set_type: 'Warmup', weight: 37.5, reps: 8 }),
+          makeRecommendedSet(),
+          makeRecommendedSet(),
+          makeRecommendedSet(),
+        ],
+      });
+
+      expect(formatRecommendedSets(exercise, 'kg')).toBe('3 sets · 8 reps · 80 kg');
+      expect(formatRecommendedSets(exercise, 'lbs')).toBe(
+        `3 sets · 8 reps · ${parseFloat(weightFromKg(80, 'lbs').toFixed(1))} lbs`,
+      );
+    });
+
+    it('omits the load segment when the prescription carries no weight', () => {
+      const exercise = makeRecommendedExercise({
+        modality: 'reps_only',
+        sets: [makeRecommendedSet({ weight: null, reps: 12 })],
+      });
+
+      expect(formatRecommendedSets(exercise, 'kg')).toBe('1 set · 12 reps');
+    });
+
+    it('renders a duration prescription as sets of time', () => {
+      const exercise = makeRecommendedExercise({
+        modality: 'duration',
+        sets: [
+          makeRecommendedSet({ reps: null, weight: null, duration: 45 }),
+          makeRecommendedSet({ reps: null, weight: null, duration: 45 }),
+        ],
+      });
+
+      expect(formatRecommendedSets(exercise, 'kg')).toBe('2 sets · 45s');
+    });
+
+    it('renders cardio as one duration + distance block in the display unit', () => {
+      const exercise = makeRecommendedExercise({
+        modality: 'duration_distance',
+        sets: [
+          makeRecommendedSet({ reps: null, weight: null, duration: 1800, distance: 5.2 }),
+        ],
+      });
+
+      expect(formatRecommendedSets(exercise, 'kg')).toBe('30:00 · 5.2 km');
+      expect(formatRecommendedSets(exercise, 'kg', 'miles')).toBe('30:00 · 3.23 mi');
+    });
+
+    it('returns an empty string when every set is a warm-up', () => {
+      const exercise = makeRecommendedExercise({
+        sets: [makeRecommendedSet({ set_type: 'Warmup' })],
+      });
+
+      expect(formatRecommendedSets(exercise, 'kg')).toBe('');
+    });
+  });
+
+  describe('formatRestChip', () => {
+    it('renders whole and part minutes', () => {
+      expect(formatRestChip(120)).toBe('2:00 rest');
+      expect(formatRestChip(90)).toBe('1:30 rest');
+      expect(formatRestChip(45)).toBe('0:45 rest');
+      expect(formatRestChip(0)).toBe('0:00 rest');
     });
   });
 });

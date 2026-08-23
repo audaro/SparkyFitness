@@ -11,7 +11,7 @@ interface ApiFetchOptions {
   endpoint: string;
   serviceName: string;
   operation: string;
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   headers?: Record<string, string>;
   timeoutMs?: number;

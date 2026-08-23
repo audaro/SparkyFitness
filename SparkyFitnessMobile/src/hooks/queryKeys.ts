@@ -110,6 +110,9 @@ export const workoutPresetsLibraryQueryKey = (searchTerm: string) =>
 
 export const gymProfilesQueryKey = ['gymProfiles'] as const;
 
+/** The one stored "Up Next" workout; the server keeps at most one per user. */
+export const workoutRecommendationQueryKey = ['workoutRecommendation'] as const;
+
 export const activeAiServiceSettingQueryKey = ['ai-service-settings', 'active'] as const;
 export const userAiConfigAllowedQueryKey = ['ai-service-settings', 'allow-user-ai-config'] as const;
 
