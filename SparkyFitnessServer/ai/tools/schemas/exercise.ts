@@ -56,14 +56,18 @@ const searchExercisesSchema = z
       .min(1)
       .max(200)
       .describe('Name or part of exercise name'),
+    // Both filters match array elements with `::jsonb ?|`, which is exact and
+    // case-sensitive against the lowercase free-exercise-db vocabulary stored
+    // in the catalog — a title-cased example teaches a filter that matches
+    // nothing. Keep these examples lowercase.
     muscleGroup: z
       .string()
       .optional()
-      .describe("Muscle group filter (e.g., 'Chest', 'Biceps')"),
+      .describe("Muscle group filter, lowercase (e.g., 'chest', 'biceps')"),
     equipment: z
       .string()
       .optional()
-      .describe("Equipment filter (e.g., 'Dumbbell', 'None')"),
+      .describe("Equipment filter, lowercase (e.g., 'dumbbell', 'body only')"),
     ...paginationSchema.shape,
   })
   .strict();
@@ -633,14 +637,16 @@ export const manageExerciseInput = z.object({
     .max(200)
     .optional()
     .describe('Search term — required for search_exercises'),
+  // Lowercase for the same reason as the search schema above: `::jsonb ?|` is
+  // an exact, case-sensitive match on the stored free-exercise-db strings.
   muscleGroup: z
     .string()
     .optional()
-    .describe("Muscle group filter (e.g., 'Chest')"),
+    .describe("Muscle group filter, lowercase (e.g., 'chest')"),
   equipment: z
     .string()
     .optional()
-    .describe("Equipment filter (e.g., 'Dumbbell', 'None')"),
+    .describe("Equipment filter, lowercase (e.g., 'dumbbell', 'body only')"),
   limit: z.coerce
     .number()
     .int()

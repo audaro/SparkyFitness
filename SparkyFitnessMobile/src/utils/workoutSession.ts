@@ -9,8 +9,11 @@ import type {
   PresetSessionResponse,
 } from '@workspace/shared';
 import {
+  epley1RmKg,
+  estimateRepMaxKg,
   isCardioModality,
   isExerciseModality,
+  isWarmupSetType,
   resolveExerciseModality,
   setsDurationMinutes,
 } from '@workspace/shared';
@@ -397,23 +400,11 @@ export function quantizeSetWeightKg(kg: number): number {
   return Math.round(kg * 100) / 100;
 }
 
-/** Epley estimated one-rep max. Returns 0 when weight or reps are missing/zero. */
-export function epley1RmKg(weightKg: number | null, reps: number | null): number {
-  if (weightKg == null || reps == null || weightKg <= 0 || reps <= 0) return 0;
-  if (reps === 1) return weightKg;
-  return weightKg * (1 + reps / 30);
-}
-
-/** Estimated weight liftable for `targetReps`, derived from the Epley 1RM. */
-export function estimateRepMaxKg(
-  weightKg: number | null,
-  reps: number | null,
-  targetReps: number,
-): number {
-  const oneRm = epley1RmKg(weightKg, reps);
-  if (oneRm === 0 || targetReps <= 0) return 0;
-  return oneRm / (1 + targetReps / 30);
-}
+// Epley 1RM and its inverse now live in `@workspace/shared`
+// (`utils/strengthMath.ts`) so the server recommendation engine prescribes
+// loads with the same math the set row displays. Re-exported here because the
+// screens and tests import them from this module.
+export { epley1RmKg, estimateRepMaxKg };
 
 export function setVolumeKg(set: Pick<ExerciseEntrySetResponse, 'weight' | 'reps'>): number {
   return (set.weight ?? 0) * (set.reps ?? 0);
@@ -1094,16 +1085,11 @@ export function setTypeLetter(setType: string | null | undefined): 'W' | 'D' | '
 // Detection is pure so it can run in the store (both the screen and the HUD
 // complete-set paths) and be exhaustively tested.
 
-/**
- * True when `set_type` names a warmup, matching the server's SQL filter:
- * lowercase, strip every non-alphanumeric, prefix-match `warmup`. Catches the
- * repo's many variants — `warmup`, `Warm-up`, `Warmup`, `Warm up`,
- * `Warm-up Set`. NULL/undefined counts as a working set.
- */
-export function isWarmupSetType(setType: string | null | undefined): boolean {
-  if (setType == null) return false;
-  return setType.toLowerCase().replace(/[^a-z0-9]/g, '').startsWith('warmup');
-}
+// Warmup detection (lowercase, strip non-alphanumerics, prefix-match `warmup`,
+// mirroring the server's SQL filter) now lives in `@workspace/shared`
+// (`constants/setTypes.ts`). Re-exported because the store, the screens, and
+// the tests import it from this module.
+export { isWarmupSetType };
 
 /** A single historical best used as the PR baseline (all weights kg). */
 export interface PrBaselineEntry {
