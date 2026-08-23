@@ -1,6 +1,16 @@
 import { vi, beforeEach, describe, expect, it } from 'vitest';
 import { addDays, todayInZone } from '@workspace/shared';
-import { buildExerciseTools } from '../ai/tools/exerciseTools.js';
+import {
+  buildExerciseTools,
+  VALID_ACTIONS,
+} from '../ai/tools/exerciseTools.js';
+import {
+  manageExerciseInput,
+  manageExerciseSchema,
+} from '../ai/tools/schemas/exercise.js';
+import workoutRecommendationService, {
+  WorkoutGenerationError,
+} from '../services/workoutRecommendationService.js';
 import exerciseService from '../services/exerciseService.js';
 import workoutPresetService from '../services/workoutPresetService.js';
 import exerciseDb from '../models/exercise.js';
@@ -67,6 +77,24 @@ vi.mock('../services/exerciseCalorieRangeService', () => ({
   getResolvedExerciseCaloriesRange: vi.fn(),
   getResolvedExerciseCaloriesTotal: vi.fn(),
 }));
+// Hand-rolled rather than importOriginal: the real module pulls the pool
+// manager in transitively, and the tool matches this error by `instanceof`, so
+// the class the test throws has to be the same one the tool imported.
+vi.mock('../services/workoutRecommendationService', () => {
+  class WorkoutGenerationError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'WorkoutGenerationError';
+    }
+  }
+  return {
+    WorkoutGenerationError,
+    default: {
+      getMuscleRecovery: vi.fn(),
+      generateRecommendation: vi.fn(),
+    },
+  };
+});
 vi.mock('../config/logging', () => ({
   log: vi.fn(),
 }));
@@ -2483,5 +2511,278 @@ describe('update_workout_plan', () => {
     expect(
       workoutPlanTemplateService.updateWorkoutPlanTemplate
     ).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W7 — the engine read actions
+// ---------------------------------------------------------------------------
+
+const RECOVERY = {
+  date: '2026-08-23',
+  muscles: [
+    {
+      muscle: 'quadriceps',
+      freshness: 1,
+      fatigue_sets: 0,
+      last_trained: null,
+    },
+    {
+      muscle: 'triceps',
+      freshness: 0.682,
+      fatigue_sets: 3.182,
+      last_trained: '2026-08-22',
+    },
+    {
+      muscle: 'chest',
+      freshness: 0.364,
+      fatigue_sets: 6.364,
+      last_trained: '2026-08-22',
+    },
+  ],
+  tunables: {
+    window_days: 14,
+    half_life_days: 2,
+    secondary_weight: 0.5,
+    full_fatigue_sets: 10,
+  },
+};
+
+const RECOMMENDATION = {
+  id: '77777777-7777-4777-8777-777777777777',
+  status: 'active' as const,
+  target_duration_minutes: 60,
+  gym_profile_id: null,
+  generated_at: '2026-08-23T12:00:00.000Z',
+  payload: {
+    muscle_groups: ['middle back', 'lats'],
+    estimated_duration_minutes: 52,
+    exercises: [
+      {
+        exercise_id: EXERCISE_ID,
+        exercise_name: 'Seated Cable Rows',
+        modality: 'weight_reps' as const,
+        primary_muscles: ['middle back'],
+        secondary_muscles: ['biceps'],
+        equipment: ['cable'],
+        images: [],
+        sort_order: 0,
+        rest_seconds: 90,
+        rationale: 'fresh middle back · +2.5% from last session',
+        sets: [
+          {
+            set_number: 1,
+            set_type: 'Warmup' as const,
+            reps: 10,
+            weight: 31.75,
+            duration: null,
+            distance: null,
+            rest_time: 60,
+          },
+          {
+            set_number: 2,
+            set_type: 'Working Set' as const,
+            reps: 10,
+            weight: 52.5,
+            duration: null,
+            distance: null,
+            rest_time: 90,
+          },
+        ],
+      },
+      {
+        exercise_id: EXERCISE_ID_2,
+        exercise_name: 'Pullups',
+        modality: 'reps_only' as const,
+        primary_muscles: ['lats'],
+        secondary_muscles: [],
+        equipment: [],
+        images: [],
+        sort_order: 1,
+        rest_seconds: 120,
+        rationale: 'fresh lats',
+        sets: [
+          {
+            set_number: 1,
+            set_type: 'Working Set' as const,
+            reps: 8,
+            weight: null,
+            duration: null,
+            distance: null,
+            rest_time: 120,
+          },
+        ],
+      },
+    ],
+  },
+};
+
+describe('get_muscle_recovery', () => {
+  it('renders the freshness table with the tunables that explain it', async () => {
+    vi.mocked(workoutRecommendationService.getMuscleRecovery).mockResolvedValue(
+      RECOVERY
+    );
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'get_muscle_recovery' },
+      opts
+    );
+
+    expect(workoutRecommendationService.getMuscleRecovery).toHaveBeenCalledWith(
+      'user-1'
+    );
+    expect(result).toBe(
+      '# Muscle Recovery (2026-08-23)\n\n' +
+        '- quadriceps — 100% fresh — not trained in the last 14 days\n' +
+        '- triceps — 68% fresh — last trained 2026-08-22\n' +
+        '- chest — 36% fresh — last trained 2026-08-22\n\n' +
+        '100% is untrained; 0% is 10 decayed working sets standing against the muscle, and that fatigue halves every 2 days.'
+    );
+  });
+
+  it('says so plainly when there is no history at all', async () => {
+    vi.mocked(workoutRecommendationService.getMuscleRecovery).mockResolvedValue(
+      {
+        ...RECOVERY,
+        muscles: [],
+      }
+    );
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'get_muscle_recovery' },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Muscle Recovery (2026-08-23)\n\n' +
+        'No exercise history yet — every muscle is fully fresh.\n\n' +
+        '100% is untrained; 0% is 10 decayed working sets standing against the muscle, and that fatigue halves every 2 days.'
+    );
+  });
+});
+
+describe('generate_workout', () => {
+  it('renders the engine payload with local ids and the proposal handoff', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockResolvedValue(RECOMMENDATION);
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'generate_workout' },
+      opts
+    );
+
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).toHaveBeenCalledWith('user-1', {
+      durationMinutes: undefined,
+      swap: undefined,
+    });
+    expect(result).toBe(
+      '# Suggested Workout\n\n' +
+        'Built around: middle back, lats\n' +
+        'Estimated 52 min (target 60 min) · 2 exercises\n\n' +
+        `1. **Seated Cable Rows** — ID: ${EXERCISE_ID}\n` +
+        '   modality weight_reps · equipment: cable · why: fresh middle back · +2.5% from last session\n' +
+        '   Set 1 (Warmup): 10 reps @ 31.75 kg, rest 60s\n' +
+        '   Set 2 (Working Set): 10 reps @ 52.5 kg, rest 90s\n\n' +
+        `2. **Pullups** — ID: ${EXERCISE_ID_2}\n` +
+        '   modality reps_only · equipment: none · why: fresh lats\n' +
+        '   Set 1 (Working Set): 8 reps, rest 120s\n\n' +
+        'Now present this to the user by calling sparky_propose_workout_preset with these exercises and sets verbatim — do not alter the programming.'
+    );
+  });
+
+  it('passes the target duration and swap through to the engine', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockResolvedValue(RECOMMENDATION);
+
+    await tools.sparky_manage_exercise.execute!(
+      { action: 'generate_workout', duration_minutes: 45, swap: true },
+      opts
+    );
+
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).toHaveBeenCalledWith('user-1', { durationMinutes: 45, swap: true });
+  });
+
+  it('infers the action from a bare swap', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockResolvedValue(RECOMMENDATION);
+
+    await tools.sparky_manage_exercise.execute!({ swap: true }, opts);
+
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).toHaveBeenCalledWith('user-1', {
+      durationMinutes: undefined,
+      swap: true,
+    });
+  });
+
+  it('rejects a target duration the REST route would also reject', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'generate_workout', duration_minutes: 5 },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: duration_minutes: Too small: expected number to be >=15'
+    );
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).not.toHaveBeenCalled();
+  });
+
+  // An empty catalog is a state of the user's data, not a fault. DB_ERROR tells
+  // the model "do NOT retry", which is exactly the wrong advice here.
+  it('surfaces an unbuildable workout as VALIDATION, not DB_ERROR', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockRejectedValue(
+      new WorkoutGenerationError(
+        'No exercises available to build a workout. Add exercises to your catalog, or relax your gym profile.'
+      )
+    );
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'generate_workout' },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: No exercises available to build a workout. Add exercises to your catalog, or relax your gym profile.'
+    );
+  });
+
+  it('still reports a genuine failure as DB_ERROR', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockRejectedValue(new Error('connection terminated'));
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'generate_workout' },
+      opts
+    );
+
+    expect(result).toBe(DB_ERROR_TEXT);
+  });
+});
+
+describe('action surface', () => {
+  // The handler switch, the enum published to the model, and the strict union
+  // that validates the call are three separate lists. An action in one and not
+  // the others either never reaches the model or is rejected on arrival.
+  it('keeps VALID_ACTIONS, the published enum and the strict union in sync', () => {
+    const published = manageExerciseInput.shape.action.unwrap().options;
+    const union = manageExerciseSchema.options.map(
+      (option) => (option.shape.action as { value: string }).value
+    );
+
+    expect(VALID_ACTIONS).toEqual(published);
+    expect(VALID_ACTIONS).toEqual(union);
   });
 });

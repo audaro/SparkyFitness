@@ -518,6 +518,36 @@ const getFrequentSetsSchema = z
   })
   .strict();
 
+const getMuscleRecoverySchema = z
+  .object({
+    action: z.literal('get_muscle_recovery'),
+  })
+  .strict();
+
+// The bounds mirror generateWorkoutRecommendationRequestSchema in
+// @workspace/shared — the tool reaches the same service the REST route does,
+// so a value this accepts and that rejects would fail deeper and less legibly.
+const generateWorkoutSchema = z
+  .object({
+    action: z.literal('generate_workout'),
+    duration_minutes: z.coerce
+      .number()
+      .int()
+      .min(15)
+      .max(180)
+      .optional()
+      .describe(
+        "Target session length; defaults to the coach profile's session_minutes, then 60"
+      ),
+    swap: z
+      .boolean()
+      .optional()
+      .describe(
+        'Regenerate preferring exercises other than the ones already suggested'
+      ),
+  })
+  .strict();
+
 export const manageExerciseSchema = z.discriminatedUnion('action', [
   searchExercisesSchema,
   createExerciseSchema,
@@ -535,6 +565,8 @@ export const manageExerciseSchema = z.discriminatedUnion('action', [
   getWorkoutPlansSchema,
   createWorkoutPlanSchema,
   updateWorkoutPlanSchema,
+  getMuscleRecoverySchema,
+  generateWorkoutSchema,
 ]);
 
 export type ManageExerciseInput = z.infer<typeof manageExerciseSchema>;
@@ -561,6 +593,8 @@ export const manageExerciseInput = z.object({
       'get_workout_plans',
       'create_workout_plan',
       'update_workout_plan',
+      'get_muscle_recovery',
+      'generate_workout',
     ])
     .optional()
     .describe(
@@ -690,7 +724,9 @@ export const manageExerciseInput = z.object({
     .number()
     .min(0)
     .optional()
-    .describe('Duration in minutes'),
+    .describe(
+      'Duration in minutes — the logged length for log/update, the target session length for generate_workout'
+    ),
   calories_burned: z.coerce
     .number()
     .min(0)
@@ -813,5 +849,12 @@ export const manageExerciseInput = z.object({
     .optional()
     .describe(
       'Weekly schedule for create_workout_plan / update_workout_plan: [{day_of_week 0-6 (0=Sunday), workout_preset_id? OR exercise_id? (exactly one), sort_order?, sets?}] — sets only with exercise_id. On update this REPLACES the whole schedule.'
+    ),
+  // workout generation — duration_minutes above doubles as the target length
+  swap: z
+    .boolean()
+    .optional()
+    .describe(
+      'For generate_workout: prefer exercises other than the ones already suggested'
     ),
 });

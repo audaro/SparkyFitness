@@ -1,6 +1,13 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { addDays, todayInZone } from '@workspace/shared';
+import {
+  addDays,
+  todayInZone,
+  type MuscleRecoveryResponse,
+  type RecommendationSet,
+  type RecommendedExercise,
+  type WorkoutRecommendationResponse,
+} from '@workspace/shared';
 import { log } from '../../config/logging.js';
 import exerciseService from '../../services/exerciseService.js';
 import workoutPresetService from '../../services/workoutPresetService.js';
@@ -9,6 +16,9 @@ import workoutPlanTemplateRepository from '../../models/workoutPlanTemplateRepos
 import exerciseDb from '../../models/exercise.js';
 import exerciseEntryDb from '../../models/exerciseEntry.js';
 import workoutPresetRepository from '../../models/workoutPresetRepository.js';
+import workoutRecommendationService, {
+  WorkoutGenerationError,
+} from '../../services/workoutRecommendationService.js';
 import { ERRORS, formatZodError } from './errors.js';
 import {
   compactRecord,
@@ -32,7 +42,11 @@ import {
 import { optionalDateSchema } from './schemas/common.js';
 import { normalizeActionArgs, normalizeDayKeywords } from './dates.js';
 
-const VALID_ACTIONS = [
+// Exported so a test can pin it against the published enum and the strict
+// union: an action added to one of the three and not the others is a trap this
+// tool has fallen into before — the handler runs but the model is never told
+// the action exists, or it is told and the union rejects the call.
+export const VALID_ACTIONS = [
   'search_exercises',
   'create_exercise',
   'log_exercise',
@@ -49,6 +63,8 @@ const VALID_ACTIONS = [
   'get_workout_plans',
   'create_workout_plan',
   'update_workout_plan',
+  'get_muscle_recovery',
+  'generate_workout',
 ];
 
 // Optional inputs and nullable DB columns are treated alike: absent.
@@ -543,6 +559,97 @@ async function getExerciseProgress(
   );
 }
 
+/**
+ * The recovery vector as a compact table.
+ *
+ * The tunables ride along as one closing sentence because the numbers mean
+ * nothing without them — "36% fresh" is only actionable next to what a full
+ * fatigue load and the decay half-life are — and a hard-coded copy of those
+ * constants in this file would drift from `RECOVERY_TUNABLES` the first time
+ * they are retuned.
+ */
+function renderMuscleRecovery(recovery: MuscleRecoveryResponse): string {
+  const { window_days, half_life_days, full_fatigue_sets } = recovery.tunables;
+  const rows = recovery.muscles.map((entry) => {
+    const percent = Math.round(entry.freshness * 100);
+    const last = entry.last_trained
+      ? `last trained ${entry.last_trained}`
+      : `not trained in the last ${window_days} days`;
+    return `- ${entry.muscle} — ${percent}% fresh — ${last}`;
+  });
+  const body = rows.length
+    ? rows.join('\n')
+    : 'No exercise history yet — every muscle is fully fresh.';
+  return `# Muscle Recovery (${recovery.date})\n\n${body}\n\n100% is untrained; 0% is ${full_fatigue_sets} decayed working sets standing against the muscle, and that fatigue halves every ${half_life_days} days.`;
+}
+
+/**
+ * One programmed set on one line, carrying only the measures its modality
+ * filled.
+ *
+ * Every measure on a recommendation set is nullable on purpose: the engine
+ * writes null rather than 0 for the ones the modality gate does not allow, so
+ * a fixed column layout would tell the model a bodyweight set is "0 kg".
+ */
+function formatRecommendationSet(set: RecommendationSet): string {
+  const parts: string[] = [];
+  if (isSet(set.reps) && isSet(set.weight)) {
+    parts.push(`${set.reps} reps @ ${set.weight} kg`);
+  } else if (isSet(set.reps)) {
+    parts.push(`${set.reps} reps`);
+  } else if (isSet(set.weight)) {
+    parts.push(`${set.weight} kg`);
+  }
+  if (isSet(set.duration)) parts.push(`${set.duration}s`);
+  if (isSet(set.distance)) parts.push(`${set.distance} km`);
+  if (isSet(set.rest_time)) parts.push(`rest ${set.rest_time}s`);
+  return `   Set ${set.set_number} (${set.set_type}): ${parts.join(', ')}`;
+}
+
+function renderRecommendedExercise(
+  exercise: RecommendedExercise,
+  position: number
+): string {
+  const head = `${position}. **${exercise.exercise_name}** — ID: ${exercise.exercise_id}`;
+  const meta = `   modality ${exercise.modality} · equipment: ${
+    exercise.equipment.length ? exercise.equipment.join(', ') : 'none'
+  } · why: ${exercise.rationale}`;
+  const sets = exercise.sets.map(formatRecommendationSet).join('\n');
+  return `${head}\n${meta}\n${sets}`;
+}
+
+/**
+ * The generated workout as text the model can re-propose verbatim.
+ *
+ * The local exercise uuids are in the body because the handoff below is the
+ * only thing that carries them forward: tool results are stripped from later
+ * turns, so a same-turn instruction sentence is the established way to move a
+ * payload into the proposal card (the pattern confirm-food already uses to
+ * replay its ids). Without the ids the model invents them, and the card
+ * commits nothing.
+ */
+function renderGeneratedWorkout(
+  recommendation: WorkoutRecommendationResponse
+): string {
+  const { payload } = recommendation;
+  const header = [
+    `Built around: ${payload.muscle_groups.join(', ')}`,
+    `Estimated ${payload.estimated_duration_minutes} min (target ${recommendation.target_duration_minutes} min) · ${payload.exercises.length} exercises`,
+  ].join('\n');
+  const body = payload.exercises
+    .map((exercise, index) => renderRecommendedExercise(exercise, index + 1))
+    .join('\n\n');
+  return [
+    '# Suggested Workout',
+    '',
+    header,
+    '',
+    body,
+    '',
+    'Now present this to the user by calling sparky_propose_workout_preset with these exercises and sets verbatim — do not alter the programming.',
+  ].join('\n');
+}
+
 // Standalone domain tools.
 const exerciseDateRangeSchema = z.object({
   date: optionalDateSchema,
@@ -608,7 +715,9 @@ Actions:
 - get_frequent_sets(weeks?(default 4)) — the user's usual routine mined from history: per weekday, exercises trained 2+ times with their typical sets/reps/weight; use it to build "a routine from what I usually do"
 - get_workout_plans() — lists the user's weekly workout plans with their day schedules
 - create_workout_plan(name, description?, start_date?(default today), end_date?, is_active?, assignments:[{day_of_week 0-6 (0=Sunday), workout_preset_id? OR exercise_id? (exactly one), sort_order?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), rest_time?(seconds), notes?}]}]) — sets only with exercise_id; active plans auto-generate workout diary entries from today; get preset ids from get_workout_presets
-- update_workout_plan(plan_id?|plan_name?, name?, description?, start_date?, end_date?, is_active?, assignments?) — only provided fields change, but assignments REPLACES the entire weekly schedule, so send the complete desired week`,
+- update_workout_plan(plan_id?|plan_name?, name?, description?, start_date?, end_date?, is_active?, assignments?) — only provided fields change, but assignments REPLACES the entire weekly schedule, so send the complete desired week
+- get_muscle_recovery() — per-muscle freshness derived from logged sets: which muscles are recovered and which are still fatigued, with the day each was last trained
+- generate_workout(duration_minutes?, swap?) — the deterministic engine's session for today: it picks the freshest muscles, chooses exercises the user's active gym profile can do, and prescribes sets/reps/load/rest from their own history. Use it for "what should I train today"; pass swap=true to re-roll onto different exercises. It also becomes the "Up Next" workout in the app, and its output ends with the instruction for handing it to the proposal card`,
       inputSchema: manageExerciseInput,
       execute: async (rawArgs) => {
         const normalized = normalizeActionArgs(
@@ -621,6 +730,12 @@ Actions:
             }
             if (args.weeks !== undefined) {
               return 'get_frequent_sets';
+            }
+            // `swap` belongs to exactly one action; `duration_minutes` does
+            // not, and its older meaning (the length of a logged session) is
+            // the far more common one, so it keeps inferring log_exercise.
+            if (args.swap !== undefined) {
+              return 'generate_workout';
             }
             if (args.sets || args.duration_minutes || args.calories_burned) {
               return 'log_exercise';
@@ -1259,6 +1374,37 @@ Actions:
               return formatConfirmation(
                 `Workout plan "${updated.plan_name}" updated.`
               );
+            }
+
+            case 'get_muscle_recovery': {
+              const recovery =
+                await workoutRecommendationService.getMuscleRecovery(userId);
+              return renderMuscleRecovery(recovery);
+            }
+
+            case 'generate_workout': {
+              try {
+                const recommendation =
+                  await workoutRecommendationService.generateRecommendation(
+                    userId,
+                    {
+                      durationMinutes: args.duration_minutes,
+                      swap: args.swap,
+                    }
+                  );
+                return renderGeneratedWorkout(recommendation);
+              } catch (error) {
+                // "Your catalog cannot answer this" is a state of the user's
+                // data, not a fault — the REST route answers it 422 for the
+                // same reason. Caught here rather than in the outer handler so
+                // it neither logs at error level nor reaches the model as
+                // DB_ERROR, whose suggestion text is "do NOT retry": adding an
+                // exercise and asking again is exactly the right next move.
+                if (error instanceof WorkoutGenerationError) {
+                  return ERRORS.VALIDATION(error.message);
+                }
+                throw error;
+              }
             }
 
             default:

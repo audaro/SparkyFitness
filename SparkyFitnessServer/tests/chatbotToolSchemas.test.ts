@@ -191,6 +191,7 @@ describe('published (flat) chatbot tool schemas', () => {
         'plan_name',
         'is_active',
         'assignments',
+        'swap',
       ],
       actions: [
         'search_exercises',
@@ -209,6 +210,8 @@ describe('published (flat) chatbot tool schemas', () => {
         'get_workout_plans',
         'create_workout_plan',
         'update_workout_plan',
+        'get_muscle_recovery',
+        'generate_workout',
       ],
     },
     {
