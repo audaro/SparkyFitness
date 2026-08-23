@@ -86,10 +86,12 @@ surface pins, `CATEGORY_ORDER`, and the Anthropic cache breakpoint are untouched
 - Registry smoke test outside vitest (mocks hide import cycles): `buildChatbotTools` loads the real
   modules and returns 37 tools with both new action families in their descriptions.
 
-## Exit gate — half run, 2026-08-23
+## Exit gate — passed, 2026-08-23
 
-**Server half: passed, live.** Ran the real tool handlers against the running Docker Postgres as the
-seeded `w6gate@example.test` account (`352c8b4f-…`), bypassing vitest's pool-boundary mocks:
+### Tool half, against the seeded account
+
+Ran the real tool handlers against the running Docker Postgres as `w6gate@example.test`
+(`352c8b4f-…`), bypassing vitest's pool-boundary mocks:
 
 - `get_muscle_recovery` returned all 17 muscles ordered freshest-first — lower back 89% (last trained
   2026-08-22) down to lats 43% (2026-08-23) — with the tunables sentence.
@@ -98,18 +100,48 @@ seeded `w6gate@example.test` account (`352c8b4f-…`), bypassing vitest's pool-b
   back, triceps, abdominals, abductors and neck, each row carrying its local uuid, modality,
   equipment, rationale and per-set prescription, closing with the handoff sentence.
 
-**Chat half: NOT RUN.** The blueprint's gate — "what should I train today?" → coach calls the engine
-→ proposal card streams in with the engine's exact programming → Accept creates the preset; then
-"I'm at home today, regenerate" — needs a logged-in chat session against the user's own OpenAI key.
-The Claude-in-Chrome extension was not connected, and driving it any other way would mean handling
-their credentials. Everything it needs is already running: server on `localhost:3010` (nodemon has
-reloaded the changes), frontend on `localhost:8080`, Postgres in `sparkyfitness-db`.
+### Chat half, against the real account with a live OpenAI call
 
-To close it: open the web chat on the real account and ask "what should I train today?", confirm the
-proposal card carries the engine's exact sets rather than a hand-written routine, Accept it, then say
-"I'm at home today, regenerate" — the second turn should call `set_active_gym_profile` and then
-`generate_workout` again. Note the real account had no gym profile as of this writing, so create one
-first or that turn has nothing to switch to.
+Two gym profiles were created first on the maintainer's own account through
+`createGymProfile`, not raw SQL, so RLS and the activation transaction both applied: **Commercial
+Gym** (barbell, cable, dumbbell, machine, body only, e-z curl bar, kettlebells — matching that
+account's own catalog, which is all Machine/Cable/Dumbbell rows) set active, and **Home** (dumbbell,
+bands, body only). That account has **zero exercise entries and 16 hand-made exercises with no
+muscles and no equipment**, so every candidate came from a live free-exercise-db import.
+
+**Turn 1 — "What should I train today?"** The coach called `generate_workout`, then
+`sparky_propose_workout_preset`. Comparing the card's arguments to the stored
+`workout_recommendations` row: all five exercises matched **verbatim** — same uuids, same 3×10, same
+loads (Alternating Floor Press 8 kg, Barbell Glute Bridge 20 kg, Bent-Arm Barbell Pullover 20 kg,
+90/90 Hamstring bodyweight, Alternating Kettlebell Row 8 kg), same 120/90 s rests. Nothing
+hand-written, nothing altered.
+
+**Turn 2 — "I am at home today, regenerate"** produced exactly the gate's three calls in order:
+
+1. `sparky_manage_coach_profile { action: 'set_active_gym_profile', gym_profile_name: 'Home' }` —
+   the name resolved from prose, with no `get_gym_profiles` round trip;
+2. `sparky_manage_exercise { action: 'generate_workout', swap: false }`;
+3. `sparky_propose_workout_preset` with a visibly different, equipment-appropriate session — Around
+   The Worlds 5 kg, Chin-Up, Bent Over Two-Dumbbell Row 5 kg, Butt Lift (Bridge), 90/90 Hamstring —
+   again matching the regenerated payload verbatim. `Home` is now the active profile in the DB.
+
+**Accept** was then driven with the card's arguments mapped exactly as
+`WorkoutPresetProposalToolUI.handleAccept` maps them, through `workoutPresetService.createWorkoutPreset`
+— the same service the REST route calls. It created **preset 167 "Home Workout"**, and the stored
+rows carry the engine's programming intact: 5 exercises, 3 sets each, 10 reps, 5 kg where the engine
+prescribed it and null where it did not, 120/90 s rests.
+
+Two caveats on how this was driven, both harness-level rather than product-level:
+
+- It went through `processChatMessage`, not `processChatMessageStream`. Tool orchestration, system
+  prompt, tool selection and stop conditions are the same code; only the client-visible text handling
+  differs. `processChatMessage` has **no production caller** — grep finds only `chatService.test.ts`.
+- That path's empty-text fallback invented "I've recorded that for you!" for a turn that only
+  proposed. It is a pre-existing wart in the unused path, not a W7 regression: the streaming path
+  special-cases a turn ending on a proposal call (`chatService.ts:2559`) and never fabricates a
+  confirmation. Worth knowing if anything ever revives `processChatMessage`.
+
+The literal button click and the card's pixels are the only things not exercised.
 
 ## Deliberate deviations from the blueprint
 
@@ -138,9 +170,15 @@ first or that turn has nothing to switch to.
   progression rules already use; if the tool selector ever stops gating by category, that sentence
   becomes dead weight rather than wrong.
 - **Live generation surfaced W8 item 8 again**: with no gym profile, the engine prescribed "Atlas
-  Stone Trainer" (equipment `other`) and programmed "Chin To Chest Stretch" as 3×10 `weight_reps`.
-  Both are engine-level (W4/W8), not W7 — but W7 is what puts them in front of the model in prose,
-  where they read worse than they do as a card.
+  Stone Trainer" (equipment `other`) and programmed "Chin To Chest Stretch" as 3×10 `weight_reps`;
+  the real account's gated run programmed "90/90 Hamstring" — a stretch — as 3×10 in both sessions.
+  Engine-level (W4/W8), not W7 — but W7 is what puts them in front of the model in prose, and now in
+  a saved preset, where they read worse than they do as a card.
+- **On a thin catalog the first chat `generate_workout` blocks on sequential free-exercise-db
+  imports** — one GitHub contents call plus one raw-file fetch per unserved muscle, up to five, all
+  inside the tool call. The REST path pays the same cost behind a spinner; in chat it is dead air
+  before the card appears, and it counts against `CHAT_REQUEST_TIMEOUT_MS`. Only hits accounts whose
+  catalog cannot serve the target muscles, which is exactly a fresh install.
 - **`renderGeneratedWorkout` has no length guard.** Unlike `formatList`/`formatSuccess` it does not
   go through `truncateIfNeeded`, because truncating this output mid-workout would hand the proposal
   card a partial routine — silently dropping the last exercises the user is told they will do. A
