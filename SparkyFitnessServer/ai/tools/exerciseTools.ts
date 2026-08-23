@@ -67,6 +67,11 @@ export const VALID_ACTIONS = [
   'generate_workout',
 ];
 
+// Every key generate_workout accepts. Used only to tell a bare
+// `{duration_minutes: 45}` — a generation request — apart from a partial
+// log_exercise that happens to carry a duration.
+const GENERATION_ONLY_KEYS = new Set(['action', 'duration_minutes', 'swap']);
+
 // Optional inputs and nullable DB columns are treated alike: absent.
 function isSet<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
@@ -731,10 +736,24 @@ Actions:
             if (args.weeks !== undefined) {
               return 'get_frequent_sets';
             }
-            // `swap` belongs to exactly one action; `duration_minutes` does
-            // not, and its older meaning (the length of a logged session) is
-            // the far more common one, so it keeps inferring log_exercise.
+            // `swap` belongs to exactly one action; `duration_minutes` is
+            // shared — the length of a logged session, and the target length
+            // of a generated one. Any other field settles it, so only a call
+            // carrying nothing else reads as generation. That case is the
+            // coaching prompt's own canonical request, "I've got 45 minutes":
+            // routed to log_exercise it would default exercise_name to
+            // "General Exercise" and write a diary entry for a workout that
+            // never happened, which is worse than any wrong read.
             if (args.swap !== undefined) {
+              return 'generate_workout';
+            }
+            if (
+              args.duration_minutes !== undefined &&
+              Object.keys(args).every(
+                (key) =>
+                  GENERATION_ONLY_KEYS.has(key) || args[key] === undefined
+              )
+            ) {
               return 'generate_workout';
             }
             if (args.sets || args.duration_minutes || args.calories_burned) {

@@ -340,6 +340,57 @@ describe('gym profiles', () => {
     ).toHaveBeenCalledWith('user-1', HOME_ID);
   });
 
+  // Picking the first of several substring hits would activate a gym the user
+  // never named, and the wrong equipment then shapes every generated workout
+  // with nothing in the conversation showing that it happened.
+  it('refuses an ambiguous name instead of guessing', async () => {
+    const homeGym: GymEquipmentProfileRow = {
+      ...homeProfile,
+      id: '99999999-9999-4999-8999-999999999999',
+      name: 'Home Gym',
+    };
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      homeGym,
+      gymProfile,
+    ]);
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'set_active_gym_profile', gym_profile_name: 'gym' },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: "gym" matches 2 gym profiles (Home Gym, Commercial Gym). Ask the user which one, then call again with that exact name or its ID.'
+    );
+    expect(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).not.toHaveBeenCalled();
+  });
+
+  it('takes an exact name over an ambiguous substring', async () => {
+    const homeGym: GymEquipmentProfileRow = {
+      ...homeProfile,
+      id: '99999999-9999-4999-8999-999999999999',
+      name: 'Home Gym',
+    };
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      homeGym,
+      homeProfile,
+    ]);
+    vi.mocked(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).mockResolvedValue({ ...homeProfile, is_active: true });
+
+    await tools.sparky_manage_coach_profile.execute!(
+      { action: 'set_active_gym_profile', gym_profile_name: 'Home' },
+      opts
+    );
+
+    expect(
+      gymEquipmentProfileRepository.setActiveGymProfile
+    ).toHaveBeenCalledWith('user-1', HOME_ID);
+  });
+
   it('maps an unknown profile name to NOT_FOUND without writing', async () => {
     vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
       homeProfile,

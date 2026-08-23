@@ -2723,6 +2723,38 @@ describe('generate_workout', () => {
     });
   });
 
+  // "I've got 45 minutes" is the coaching prompt's own canonical request. Read
+  // as a log it would have written a "General Exercise" entry for a session the
+  // user never did — a silent wrong write, not just a wrong read.
+  it('infers the action from a bare duration', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockResolvedValue(RECOMMENDATION);
+
+    await tools.sparky_manage_exercise.execute!({ duration_minutes: 45 }, opts);
+
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).toHaveBeenCalledWith('user-1', { durationMinutes: 45, swap: undefined });
+    expect(exerciseService.createExerciseEntry).not.toHaveBeenCalled();
+  });
+
+  it('leaves a duration that carries any logging field to log_exercise', async () => {
+    vi.mocked(exerciseService.createExerciseEntry).mockResolvedValue({
+      id: 'entry-1',
+    } as never);
+
+    await tools.sparky_manage_exercise.execute!(
+      { exercise_name: 'Running', duration_minutes: 45 },
+      opts
+    );
+
+    expect(exerciseService.createExerciseEntry).toHaveBeenCalled();
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).not.toHaveBeenCalled();
+  });
+
   it('rejects a target duration the REST route would also reject', async () => {
     const result = await tools.sparky_manage_exercise.execute!(
       { action: 'generate_workout', duration_minutes: 5 },

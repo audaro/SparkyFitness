@@ -172,13 +172,32 @@ Actions:
                 const wanted = args.gym_profile_name.toLowerCase();
                 const profiles =
                   await gymEquipmentProfileRepository.listGymProfiles(userId);
-                const match =
-                  profiles.find((p) => p.name.toLowerCase() === wanted) ??
-                  profiles.find((p) => p.name.toLowerCase().includes(wanted));
-                if (!match) {
+                const exact = profiles.filter(
+                  (p) => p.name.toLowerCase() === wanted
+                );
+                // A substring hit must be UNIQUE. "gym" against "Home Gym"
+                // and "Commercial Gym" would otherwise silently activate
+                // whichever the repository listed first, and the wrong
+                // equipment set then shapes every generated workout without
+                // anything in the conversation showing that it happened.
+                const matches = exact.length
+                  ? exact
+                  : profiles.filter((p) =>
+                      p.name.toLowerCase().includes(wanted)
+                    );
+                if (matches.length === 0) {
                   return ERRORS.NOT_FOUND('Gym profile', args.gym_profile_name);
                 }
-                profileId = match.id;
+                if (matches.length > 1) {
+                  return ERRORS.VALIDATION(
+                    `"${args.gym_profile_name}" matches ${matches.length} gym profiles (${matches
+                      .map((p) => p.name)
+                      .join(
+                        ', '
+                      )}). Ask the user which one, then call again with that exact name or its ID.`
+                  );
+                }
+                profileId = matches[0].id;
               }
               const activated =
                 await gymEquipmentProfileRepository.setActiveGymProfile(
