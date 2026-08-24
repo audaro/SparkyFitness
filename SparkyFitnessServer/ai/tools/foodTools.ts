@@ -1061,6 +1061,17 @@ async function resolveFoodEntryByName(
   let matches = rows.filter(
     (row) => (row.food_name ?? '').trim().toLowerCase() === wanted
   );
+  // Substring fallback: the user says "toast" and "banana", the diary says
+  // "Toasted White Bread" and "Banana, raw" — an exact-only resolver fails
+  // both and the model reliably gives up instead of retrying with the names
+  // from the error (observed live). A unique containment match resolves it;
+  // several containment matches fall through to the existing candidates
+  // path. Minimum three characters so "a" cannot match the whole day.
+  if (matches.length === 0 && wanted.length >= 3) {
+    matches = rows.filter((row) =>
+      (row.food_name ?? '').toLowerCase().includes(wanted)
+    );
+  }
   if (narrowByMealType && (mealTypeId || mealType)) {
     const resolvedMealType = await resolveMealType(
       userId,

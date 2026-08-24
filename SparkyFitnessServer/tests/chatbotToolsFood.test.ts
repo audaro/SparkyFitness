@@ -2959,6 +2959,109 @@ describe('delete_entry', () => {
     );
   });
 
+  // Live failure: "remove the toast and banana" against entries named
+  // "Toasted White Bread" and "Banana, raw" — exact-only resolution failed
+  // both and the model gave up rather than retrying with the listed names.
+  // A name matching exactly one entry by containment resolves.
+  it('resolves a food_name that is a unique substring of one entry', async () => {
+    vi.mocked(foodEntryService.getFoodEntriesByDate).mockResolvedValue([
+      {
+        id: ENTRY_ID,
+        food_name: 'Toasted White Bread',
+        quantity: 2,
+        unit: 'slice',
+        meal_type: 'breakfast',
+        meal_type_id: 'default-id',
+      },
+      {
+        id: FOOD_ID_2,
+        food_name: 'Banana, raw',
+        quantity: 1,
+        unit: 'banana',
+        meal_type: 'breakfast',
+        meal_type_id: 'default-id',
+      },
+    ]);
+    vi.mocked(foodEntryService.deleteFoodEntry).mockResolvedValue(true);
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'delete_entry',
+        food_name: 'toast',
+        entry_date: '2026-06-10',
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Entry deleted.');
+    expect(foodEntryService.deleteFoodEntry).toHaveBeenCalledWith(
+      'user-1',
+      ENTRY_ID
+    );
+  });
+
+  it('returns candidates when a substring matches several entries', async () => {
+    vi.mocked(foodEntryService.getFoodEntriesByDate).mockResolvedValue([
+      {
+        id: ENTRY_ID,
+        food_name: 'Banana, raw',
+        quantity: 1,
+        unit: 'banana',
+        meal_type: 'breakfast',
+        meal_type_id: 'default-id',
+      },
+      {
+        id: FOOD_ID_2,
+        food_name: 'Banana, dried',
+        quantity: 40,
+        unit: 'g',
+        meal_type: 'snacks',
+        meal_type_id: 'snacks-id',
+      },
+    ]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'delete_entry',
+        food_name: 'banana',
+        entry_date: '2026-06-10',
+      },
+      opts
+    );
+
+    expect(result).toContain('matches 2 entries');
+    expect(result).toContain(ENTRY_ID);
+    expect(result).toContain(FOOD_ID_2);
+    expect(foodEntryService.deleteFoodEntry).not.toHaveBeenCalled();
+  });
+
+  // Below three characters the containment fallback is off — "to" must not
+  // resolve to whatever entry happens to contain those letters.
+  it('does not substring-match a food_name shorter than three characters', async () => {
+    vi.mocked(foodEntryService.getFoodEntriesByDate).mockResolvedValue([
+      {
+        id: ENTRY_ID,
+        food_name: 'Toasted White Bread',
+        quantity: 2,
+        unit: 'slice',
+        meal_type: 'breakfast',
+        meal_type_id: 'default-id',
+      },
+    ]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'delete_entry',
+        food_name: 'to',
+        entry_date: '2026-06-10',
+      },
+      opts
+    );
+
+    expect(result).toContain('No entry named "to"');
+    expect(foodEntryService.deleteFoodEntry).not.toHaveBeenCalled();
+  });
+
   it('narrows same-named entries by meal_type when deleting by name', async () => {
     vi.mocked(foodEntryService.getFoodEntriesByDate).mockResolvedValue([
       {
