@@ -32,8 +32,11 @@ import type { FoodItem } from '../types/foods';
 import type { Meal } from '../types/meals';
 import type { RootStackParamList, TabParamList } from '../types/navigation';
 
+// No longer a tab of its own: the rename dropped the Library tab and its rows
+// are redistributed to the Exercise and Food tabs in a following step, so the
+// screen is typed against the tab host generally rather than one tab route.
 type LibraryScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<TabParamList, 'Library'>,
+  BottomTabScreenProps<TabParamList>,
   NativeStackScreenProps<RootStackParamList>
 >;
 

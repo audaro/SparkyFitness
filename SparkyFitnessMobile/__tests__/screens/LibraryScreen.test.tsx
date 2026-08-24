@@ -106,7 +106,7 @@ describe('LibraryScreen', () => {
 
   const route = {
     key: 'Library-key',
-    name: 'Library' as const,
+    name: 'Exercise' as const,
     params: undefined,
   };
 

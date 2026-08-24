@@ -26,10 +26,10 @@ import type { AssumedSetValues } from '../utils/workoutSession';
 export type FoodPickerMode = 'log-entry' | 'meal-builder' | 'library';
 
 export type TabParamList = {
-  Dashboard: undefined;
-  Diary: { selectedDate?: string } | undefined;
+  Home: undefined;
+  Exercise: undefined;
   Add: undefined;
-  Library: undefined;
+  Food: { selectedDate?: string } | undefined;
   Settings: undefined;
 };
 

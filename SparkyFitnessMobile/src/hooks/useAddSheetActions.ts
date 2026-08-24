@@ -79,7 +79,7 @@ interface AddSheetActionsArgs {
  * user to their last content tab after a dismissal without an action.
  */
 export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
-  const lastActiveTabRef = useRef<NonAddTabName>('Dashboard');
+  const lastActiveTabRef = useRef<NonAddTabName>('Home');
   const addSheetDismissNavigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rememberActiveTab = useCallback((routeName: string) => {
@@ -106,10 +106,10 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
       rootOrTabState?.routes?.some((route) => route.name === 'Tabs')
         ? findRouteState(rootOrTabState, 'Tabs')
         : rootOrTabState;
-    const diaryState = findRouteState(tabState, 'Diary');
+    const diaryState = findRouteState(tabState, 'Food');
     const diaryParams =
-      findRouteParams<{ selectedDate?: string }>(diaryState, 'DiaryRoot') ??
-      findRouteParams<{ selectedDate?: string }>(tabState, 'Diary');
+      findRouteParams<{ selectedDate?: string }>(diaryState, 'FoodRoot') ??
+      findRouteParams<{ selectedDate?: string }>(tabState, 'Food');
 
     return diaryParams?.selectedDate;
   }, []);

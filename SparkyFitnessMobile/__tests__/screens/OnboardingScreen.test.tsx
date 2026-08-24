@@ -291,7 +291,7 @@ describe('OnboardingScreen', () => {
             authType: 'apiKey',
           }),
         );
-        expect(mockReplace).toHaveBeenCalledWith('Tabs', { screen: 'Dashboard' });
+        expect(mockReplace).toHaveBeenCalledWith('Tabs', { screen: 'Home' });
       });
     });
 
@@ -332,7 +332,7 @@ describe('OnboardingScreen', () => {
             sessionToken: 'tok-123',
           }),
         );
-        expect(mockReplace).toHaveBeenCalledWith('Tabs', { screen: 'Dashboard' });
+        expect(mockReplace).toHaveBeenCalledWith('Tabs', { screen: 'Home' });
       });
     });
 

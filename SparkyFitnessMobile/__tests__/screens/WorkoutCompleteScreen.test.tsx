@@ -343,7 +343,7 @@ describe('WorkoutCompleteScreen', () => {
 
     fireEvent.press(getByText('Done'));
 
-    expect(navigation.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Diary' });
+    expect(navigation.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Food' });
   });
 
   it('Save as Preset opens the prefilled preset create form', () => {

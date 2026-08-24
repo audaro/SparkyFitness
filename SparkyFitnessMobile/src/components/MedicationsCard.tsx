@@ -16,7 +16,7 @@ import { MEDICATION_TYPES } from '../types/medications';
 import { doseSlotStatus } from '../utils/medications';
 
 type MedicationsCardNavigation = CompositeNavigationProp<
-  BottomTabNavigationProp<TabParamList, 'Dashboard'>,
+  BottomTabNavigationProp<TabParamList, 'Home'>,
   NativeStackNavigationProp<RootStackParamList>
 >;
 

@@ -58,7 +58,7 @@ const RANGE_SEGMENTS: Segment<StepsRange>[] = [
 ];
 
 type DashboardScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<TabParamList, 'Dashboard'>,
+  BottomTabScreenProps<TabParamList, 'Home'>,
   NativeStackScreenProps<RootStackParamList>
 >;
 
@@ -81,7 +81,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     }, [syncTodayRollover])
   );
 
-  // Re-tapping the active Dashboard tab acts as a quick return to
+  // Re-tapping the active Home tab acts as a quick return to
   // today's summary and the top of the screen.
   useEffect(() => {
     return navigation.addListener('tabPress', () => {
@@ -211,7 +211,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         <View className="flex-1">
           {!usesNativeTabs && (
             <View className="px-4 pb-5" style={{ paddingTop: insets.top + 16 }}>
-              <Text className="text-2xl font-bold text-text-primary">Dashboard</Text>
+              <Text className="text-2xl font-bold text-text-primary">Home</Text>
             </View>
           )}
           <StatusView
@@ -478,7 +478,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     <View className="flex-1 bg-background">
       {!isConnectionLoading && isConnected ? (
         <DateNavigator
-          title="Dashboard"
+          title="Home"
           selectedDate={selectedDate}
           onPreviousDay={goToPreviousDay}
           onNextDay={goToNextDay}

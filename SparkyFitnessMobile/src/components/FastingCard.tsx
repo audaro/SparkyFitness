@@ -21,7 +21,7 @@ import {
 import type { RootStackParamList, TabParamList } from '../types/navigation';
 
 type FastingCardNavigation = CompositeNavigationProp<
-  BottomTabNavigationProp<TabParamList, 'Dashboard'>,
+  BottomTabNavigationProp<TabParamList, 'Home'>,
   NativeStackNavigationProp<RootStackParamList>
 >;
 

@@ -8,9 +8,9 @@ import Icon, { type IconName } from './Icon';
 export const TAB_BAR_HEIGHT = 56;
 
 const TAB_ICONS: Record<string, IconName> = {
-  Dashboard: 'tab-dashboard',
-  Diary: 'book',
-  Library: 'tab-library',
+  Home: 'tab-dashboard',
+  Exercise: 'exercise-weights',
+  Food: 'food',
   Settings: 'settings',
 };
 

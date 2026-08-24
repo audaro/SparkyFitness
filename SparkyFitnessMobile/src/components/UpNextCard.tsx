@@ -11,7 +11,7 @@ import { formatDuration } from '../utils/workoutSession';
 import type { RootStackParamList, TabParamList } from '../types/navigation';
 
 type UpNextCardNavigation = CompositeNavigationProp<
-  BottomTabNavigationProp<TabParamList, 'Dashboard'>,
+  BottomTabNavigationProp<TabParamList, 'Home'>,
   NativeStackNavigationProp<RootStackParamList>
 >;
 

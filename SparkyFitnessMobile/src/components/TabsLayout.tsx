@@ -8,7 +8,7 @@ import { useCSSVariable } from 'uniwind';
 import { createIOSNativeHeaderOptions } from '../utils/nativeHeaderItems';
 import DashboardScreen from '../screens/DashboardScreen';
 import DiaryScreen from '../screens/DiaryScreen';
-import LibraryScreen from '../screens/LibraryScreen';
+import ExerciseHomeScreen from '../screens/ExerciseHomeScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import type { TabParamList } from '../types/navigation';
 import {
@@ -26,7 +26,7 @@ import { AnnouncementModal } from './AnnouncementModal';
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
 import { useHeaderActionColors } from '../hooks/useHeaderActionColors';
 
-export const NON_ADD_TABS = ['Dashboard', 'Diary', 'Library', 'Settings'] as const;
+export const NON_ADD_TABS = ['Home', 'Exercise', 'Food', 'Settings'] as const;
 export type NonAddTabName = typeof NON_ADD_TABS[number];
 const ADD_TAB_ICON: AppleIcon = { sfSymbol: 'plus' };
 
@@ -56,9 +56,9 @@ const AddRedirectScreen = ({ getLastActiveTab }: { getLastActiveTab: () => NonAd
 };
 
 // Tab screens — no Go Back (tab bar provides navigation)
-const SafeDashboard = withErrorBoundary(DashboardScreen, 'Dashboard');
-const SafeDiary = withErrorBoundary(DiaryScreen, 'Diary');
-const SafeLibrary = withErrorBoundary(LibraryScreen, 'Library');
+const SafeHome = withErrorBoundary(DashboardScreen, 'Home');
+const SafeFood = withErrorBoundary(DiaryScreen, 'Food');
+const SafeExercise = withErrorBoundary(ExerciseHomeScreen, 'Exercise');
 const SafeSettings = withErrorBoundary(SettingsScreen, 'Settings');
 
 // Native iOS Tab Navigator (iOS 26+ Liquid Glass)
@@ -67,18 +67,18 @@ const NativeTab = createNativeBottomTabNavigator<TabParamList>();
 // Fallback Tab Navigator (Android / iOS < 26)
 const FallbackTab = createBottomTabNavigator<TabParamList>();
 
-type DashboardStackParamList = {
-  DashboardRoot: undefined;
+type HomeStackParamList = {
+  HomeRoot: undefined;
 };
-type DiaryStackParamList = {
-  DiaryRoot: { selectedDate?: string } | undefined;
+type ExerciseStackParamList = { ExerciseRoot: undefined };
+type FoodStackParamList = {
+  FoodRoot: { selectedDate?: string } | undefined;
 };
-type LibraryStackParamList = { LibraryRoot: undefined };
 type SettingsStackParamList = { SettingsRoot: undefined };
 
-const DashboardStack = createNativeStackNavigator<DashboardStackParamList>();
-const DiaryStack = createNativeStackNavigator<DiaryStackParamList>();
-const LibraryStack = createNativeStackNavigator<LibraryStackParamList>();
+const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+const ExerciseStack = createNativeStackNavigator<ExerciseStackParamList>();
+const FoodStack = createNativeStackNavigator<FoodStackParamList>();
 const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
 
 const NativeTabsOverlayContext = React.createContext<ReturnType<
@@ -115,7 +115,7 @@ function NativeTabsBannerOverlay() {
   );
 }
 
-function DashboardStackScreen() {
+function HomeStackScreen() {
   const { defaultColor } = useHeaderActionColors();
   const textPrimary = useCSSVariable('--color-text-primary') as string;
   const screenOptions = React.useMemo(
@@ -125,22 +125,22 @@ function DashboardStackScreen() {
 
   return (
     <View className="flex-1">
-      <DashboardStack.Navigator screenOptions={screenOptions}>
-        <DashboardStack.Screen
-          name="DashboardRoot"
-          component={SafeDashboard as React.ComponentType}
+      <HomeStack.Navigator screenOptions={screenOptions}>
+        <HomeStack.Screen
+          name="HomeRoot"
+          component={SafeHome as React.ComponentType}
           options={{
-            title: 'Dashboard',
-            headerBackTitle: 'Dashboard',
+            title: 'Home',
+            headerBackTitle: 'Home',
           }}
         />
-      </DashboardStack.Navigator>
+      </HomeStack.Navigator>
       <NativeTabsBannerOverlay />
     </View>
   );
 }
 
-function DiaryStackScreen() {
+function ExerciseStackScreen() {
   const { defaultColor } = useHeaderActionColors();
   const textPrimary = useCSSVariable('--color-text-primary') as string;
   const screenOptions = React.useMemo(
@@ -150,22 +150,22 @@ function DiaryStackScreen() {
 
   return (
     <View className="flex-1">
-      <DiaryStack.Navigator screenOptions={screenOptions}>
-        <DiaryStack.Screen
-          name="DiaryRoot"
-          component={SafeDiary as React.ComponentType}
+      <ExerciseStack.Navigator screenOptions={screenOptions}>
+        <ExerciseStack.Screen
+          name="ExerciseRoot"
+          component={SafeExercise as React.ComponentType}
           options={{
-            title: 'Diary',
-            headerBackTitle: 'Diary',
+            title: 'Exercise',
+            headerBackTitle: 'Exercise',
           }}
         />
-      </DiaryStack.Navigator>
+      </ExerciseStack.Navigator>
       <NativeTabsBannerOverlay />
     </View>
   );
 }
 
-function LibraryStackScreen() {
+function FoodStackScreen() {
   const { defaultColor } = useHeaderActionColors();
   const textPrimary = useCSSVariable('--color-text-primary') as string;
   const screenOptions = React.useMemo(
@@ -175,9 +175,16 @@ function LibraryStackScreen() {
 
   return (
     <View className="flex-1">
-      <LibraryStack.Navigator screenOptions={screenOptions}>
-        <LibraryStack.Screen name="LibraryRoot" component={SafeLibrary as React.ComponentType} options={{ title: 'Library', headerBackTitle: 'Library' }} />
-      </LibraryStack.Navigator>
+      <FoodStack.Navigator screenOptions={screenOptions}>
+        <FoodStack.Screen
+          name="FoodRoot"
+          component={SafeFood as React.ComponentType}
+          options={{
+            title: 'Food',
+            headerBackTitle: 'Food',
+          }}
+        />
+      </FoodStack.Navigator>
       <NativeTabsBannerOverlay />
     </View>
   );
@@ -220,7 +227,7 @@ export function NativeTabsLayout({
       <NativeTab.Navigator
           // Start on the last active tab so toggling the Liquid Glass tab bar —
           // which swaps and remounts this navigator — keeps the user on the tab
-          // they came from. Defaults to Dashboard on a cold start.
+          // they came from. Defaults to Home on a cold start.
           initialRouteName={getLastActiveTab()}
           tabBarActiveTintColor={activeTintColor}
           tabBarInactiveTintColor={inactiveTintColor}
@@ -234,19 +241,20 @@ export function NativeTabsLayout({
           }}
         >
           <NativeTab.Screen
-            name="Dashboard"
-            component={DashboardStackScreen}
+            name="Home"
+            component={HomeStackScreen}
             options={{
-              tabBarLabel: 'Dashboard',
+              tabBarLabel: 'Home',
               tabBarIcon: () => ({ sfSymbol: 'square.grid.2x2.fill' } as unknown as AppleIcon),
             }}
           />
           <NativeTab.Screen
-            name="Diary"
-            component={DiaryStackScreen}
+            name="Exercise"
+            component={ExerciseStackScreen}
             options={{
-              tabBarLabel: 'Diary',
-              tabBarIcon: () => ({ sfSymbol: 'book.fill' } as unknown as AppleIcon),
+              tabBarLabel: 'Exercise',
+              tabBarIcon: () =>
+                ({ sfSymbol: 'figure.strengthtraining.traditional' } as unknown as AppleIcon),
             }}
           />
           <NativeTab.Screen
@@ -267,11 +275,11 @@ export function NativeTabsLayout({
             {() => <AddRedirectScreen getLastActiveTab={getLastActiveTab} />}
           </NativeTab.Screen>
           <NativeTab.Screen
-            name="Library"
-            component={LibraryStackScreen}
+            name="Food"
+            component={FoodStackScreen}
             options={{
-              tabBarLabel: 'Library',
-              tabBarIcon: () => ({ sfSymbol: 'books.vertical.fill' } as unknown as AppleIcon),
+              tabBarLabel: 'Food',
+              tabBarIcon: () => ({ sfSymbol: 'fork.knife' } as unknown as AppleIcon),
             }}
           />
           <NativeTab.Screen
@@ -297,7 +305,7 @@ export function FallbackTabsLayout({
     <FallbackTab.Navigator
       // Start on the last active tab so toggling the Liquid Glass tab bar —
       // which swaps and remounts this navigator — keeps the user on the tab
-      // they came from. Defaults to Dashboard on a cold start.
+      // they came from. Defaults to Home on a cold start.
       initialRouteName={getLastActiveTab()}
       screenListeners={{
         state: (event) => {
@@ -318,8 +326,8 @@ export function FallbackTabsLayout({
         </View>
       )}
     >
-      <FallbackTab.Screen name="Dashboard" component={SafeDashboard} />
-      <FallbackTab.Screen name="Diary" component={SafeDiary} />
+      <FallbackTab.Screen name="Home" component={SafeHome} />
+      <FallbackTab.Screen name="Exercise" component={SafeExercise} />
       <FallbackTab.Screen
         name="Add"
         listeners={{
@@ -331,7 +339,7 @@ export function FallbackTabsLayout({
       >
         {() => <AddRedirectScreen getLastActiveTab={getLastActiveTab} />}
       </FallbackTab.Screen>
-      <FallbackTab.Screen name="Library" component={SafeLibrary} />
+      <FallbackTab.Screen name="Food" component={SafeFood} />
       <FallbackTab.Screen name="Settings" component={SafeSettings} />
     </FallbackTab.Navigator>
   );

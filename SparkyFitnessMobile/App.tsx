@@ -259,7 +259,7 @@ function AppContent() {
       screens: {
         Tabs: {
           screens: {
-            Dashboard: '',
+            Home: '',
           },
         },
         FoodScan: 'scan',

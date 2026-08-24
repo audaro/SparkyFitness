@@ -437,7 +437,7 @@ function WorkoutCompleteScreen({ navigation, route }: Props) {
     });
   };
   const handleDone = () => {
-    navigation.navigate('Tabs', { screen: 'Diary' });
+    navigation.navigate('Tabs', { screen: 'Food' });
   };
 
   const allSetsLogged = summary.completedSetCount === summary.totalSetCount;

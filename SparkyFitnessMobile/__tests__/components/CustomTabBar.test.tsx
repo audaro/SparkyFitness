@@ -10,10 +10,10 @@ describe('CustomTabBar', () => {
 
   const createProps = (): BottomTabBarProps => {
     const routes = [
-      { key: 'Dashboard-key', name: 'Dashboard' as const, params: undefined },
-      { key: 'Diary-key', name: 'Diary' as const, params: undefined },
+      { key: 'Home-key', name: 'Home' as const, params: undefined },
+      { key: 'Exercise-key', name: 'Exercise' as const, params: undefined },
       { key: 'Add-key', name: 'Add' as const, params: undefined },
-      { key: 'Library-key', name: 'Library' as const, params: undefined },
+      { key: 'Food-key', name: 'Food' as const, params: undefined },
       { key: 'Settings-key', name: 'Settings' as const, params: undefined },
     ];
 

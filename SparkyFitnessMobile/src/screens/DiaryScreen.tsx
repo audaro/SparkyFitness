@@ -39,7 +39,7 @@ import type { RootStackParamList, TabParamList } from '../types/navigation';
 import { useHeaderActionColors } from '../hooks/useHeaderActionColors';
 
 type DiaryScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<TabParamList, 'Diary'>,
+  BottomTabScreenProps<TabParamList, 'Food'>,
   NativeStackScreenProps<RootStackParamList>
 >;
 
@@ -61,7 +61,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
     }, [syncTodayRollover])
   );
 
-  // Re-tapping the active Diary tab acts as a quick return to today's
+  // Re-tapping the active Food tab acts as a quick return to today's
   // entries and the top of the screen.
   useEffect(() => {
     return navigation.addListener('tabPress', () => {
@@ -384,7 +384,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
     <>
       {!isConnectionLoading && isConnected ? (
         <DateNavigator
-          title="Diary"
+          title="Food"
           selectedDate={selectedDate}
           onPreviousDay={goToPreviousDay}
           onNextDay={goToNextDay}
@@ -397,7 +397,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
           className="px-4 pb-5"
           style={{ paddingTop: insets.top + 16 }}
         >
-          <Text className="text-2xl font-bold text-text-primary">Diary</Text>
+          <Text className="text-2xl font-bold text-text-primary">Food</Text>
         </View>
       )}
       {renderedContent}
