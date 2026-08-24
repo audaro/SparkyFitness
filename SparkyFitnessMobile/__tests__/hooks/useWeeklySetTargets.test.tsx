@@ -108,6 +108,39 @@ describe('useUpdateWeeklySetTargets', () => {
     expect(queryClient.getQueryData(weeklySetTargetsQueryKey(2))).toEqual(saved);
   });
 
+  // Stepping legs and then immediately tapping push puts two saves in flight.
+  // Each response carries the whole recomputed screen, so if the slower first
+  // one landed last it would put the pre-edit targets back on screen.
+  it('ignores a slow response that lands after a newer save', async () => {
+    const queryClient = createTestQueryClient();
+    const stale = response({ push: 11, pull: 11, legs: 20, core: 5 }, true);
+    const fresh = response({ push: 16, pull: 11, legs: 20, core: 5 }, true);
+
+    let releaseFirst: (value: WeeklySetTargetsResponse) => void = () => {};
+    mockUpdate
+      .mockImplementationOnce(
+        () =>
+          new Promise<WeeklySetTargetsResponse>((resolve) => {
+            releaseFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(fresh);
+
+    const { result } = renderHook(() => useUpdateWeeklySetTargets(2), {
+      wrapper: createQueryWrapper(queryClient),
+    });
+
+    await act(async () => {
+      const first = result.current.mutateAsync({ legs: 20 });
+      const second = result.current.mutateAsync({ push: 16 });
+      await second;
+      releaseFirst(stale);
+      await first;
+    });
+
+    expect(queryClient.getQueryData(weeklySetTargetsQueryKey(2))).toEqual(fresh);
+  });
+
   it('surfaces a failed save without writing anything to the cache', async () => {
     const queryClient = createTestQueryClient();
     mockUpdate.mockRejectedValue(new Error('network down'));

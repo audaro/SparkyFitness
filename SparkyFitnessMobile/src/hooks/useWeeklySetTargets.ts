@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import {
@@ -42,14 +43,29 @@ export function useUpdateWeeklySetTargets(
   historyWeeks: number = WEEKLY_SET_HISTORY_WEEKS,
 ) {
   const queryClient = useQueryClient();
+  // Saves can overlap: stepping legs and then immediately tapping push fires
+  // the second request while the first is still out. Each response carries the
+  // whole recomputed screen, so an early one landing last would put the stale
+  // pre-edit targets back on screen. Only the newest save writes to the cache.
+  const latestSaveRef = useRef(0);
 
   return useMutation({
-    mutationFn: (targets: Partial<Record<MuscleGroup, number>>) =>
-      updateWeeklySetTargets(targets, historyWeeks),
-    onSuccess: (response) => {
+    mutationFn: (targets: Partial<Record<MuscleGroup, number>>) => {
+      const saveId = ++latestSaveRef.current;
+      return updateWeeklySetTargets(targets, historyWeeks).then((response) => ({
+        saveId,
+        response,
+      }));
+    },
+    onSuccess: ({ saveId, response }) => {
       // The server returns the recomputed screen, so write it straight in
       // rather than invalidating and paying for a second round trip.
-      queryClient.setQueryData(weeklySetTargetsQueryKey(historyWeeks), response);
+      if (saveId === latestSaveRef.current) {
+        queryClient.setQueryData(
+          weeklySetTargetsQueryKey(historyWeeks),
+          response,
+        );
+      }
       Toast.show({ type: 'success', text1: 'Targets saved' });
     },
     onError: () => {

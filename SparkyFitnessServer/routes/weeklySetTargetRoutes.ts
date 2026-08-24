@@ -17,6 +17,31 @@ router.use(authenticate);
 // the diary permission like the rest of the exercise domain.
 router.use(checkPermissionMiddleware('diary'));
 
+/**
+ * Targets live in `coach_profiles`, whose RLS policy is owner-only: it matches
+ * `user_id` against `authenticated_user_id()`, the real caller, not the
+ * switched context. So a delegate with diary access on someone else's account
+ * cannot see or write that row no matter what the permission check says — a
+ * delegated GET would silently report derived defaults as though the owner had
+ * never set a target, and a delegated PUT would fail deep in the database and
+ * surface as a 500.
+ *
+ * Rather than lie on read and explode on write, say so: this endpoint is
+ * owner-only until targets move to storage that is deliberately delegatable.
+ */
+const requireSelf: RequestHandler = (req, res, next) => {
+  const authUserId = req.originalUserId ?? req.authenticatedUserId;
+  if (!authUserId || authUserId !== req.userId) {
+    res.status(403).json({
+      error: 'Weekly set targets can only be read or changed by their owner.',
+    });
+    return;
+  }
+  next();
+};
+
+router.use(requireSelf);
+
 const historyQuerySchema = z.object({
   history_weeks: z.coerce
     .number()
@@ -58,7 +83,7 @@ const historyQuerySchema = z.object({
  *       401:
  *         description: Unauthenticated.
  *       403:
- *         description: Forbidden (no diary permission when acting on behalf of another user).
+ *         description: Forbidden (not the owner, or no diary permission for the active context).
  */
 const getHandler: RequestHandler = async (req, res, next) => {
   try {
@@ -109,7 +134,7 @@ const getHandler: RequestHandler = async (req, res, next) => {
  *       401:
  *         description: Unauthenticated.
  *       403:
- *         description: Forbidden (no diary permission when acting on behalf of another user).
+ *         description: Forbidden (not the owner, or no diary permission for the active context).
  */
 const updateHandler: RequestHandler = async (req, res, next) => {
   try {

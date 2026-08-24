@@ -103,9 +103,44 @@ async function upsertCoachProfile(
   }
 }
 
-export { getCoachProfile, upsertCoachProfile };
+/**
+ * Merges keys into `weekly_set_targets` inside a single statement.
+ *
+ * Reading the map, merging in JavaScript and writing it back would lose an
+ * edit whenever two of them overlap: the web client saving `legs` and the phone
+ * saving `push` both read the same map, and whichever writes second puts back a
+ * copy that never saw the other's change. `||` merges right-onto-left in the
+ * database, so each statement only ever contributes its own keys.
+ *
+ * Returns the merged map so a caller can report what was actually stored rather
+ * than what it hoped to store.
+ */
+async function mergeWeeklySetTargets(
+  userId: string,
+  patch: Record<string, number>
+): Promise<Record<string, number>> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `INSERT INTO coach_profiles (user_id, weekly_set_targets)
+       VALUES ($1, $2::jsonb)
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+         weekly_set_targets = coach_profiles.weekly_set_targets || EXCLUDED.weekly_set_targets,
+         updated_at = now()
+       RETURNING weekly_set_targets`,
+      [userId, JSON.stringify(patch)]
+    );
+    return result.rows[0]?.weekly_set_targets ?? {};
+  } finally {
+    client.release();
+  }
+}
+
+export { getCoachProfile, upsertCoachProfile, mergeWeeklySetTargets };
 
 export default {
   getCoachProfile,
   upsertCoachProfile,
+  mergeWeeklySetTargets,
 };

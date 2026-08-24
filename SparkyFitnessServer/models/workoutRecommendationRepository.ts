@@ -467,8 +467,88 @@ async function updateWorkoutRecommendationStatus(
   }
 }
 
+/**
+ * Working sets for the weekly-target screen, counted more strictly than
+ * `getMuscleFatigueInputs` counts them.
+ *
+ * Fatigue asks "how hard has this muscle been worked lately", and its answer is
+ * smoothed over days, so counting a set the moment it is written costs little.
+ * A weekly ring asks "how much have I actually done", and gets that question
+ * wrong in a way the user can see: a live workout started from a preset carries
+ * no `workout_plan_assignment_id`, so under the fatigue predicate every set the
+ * session laid out is credited the instant the app autosaves — the ring fills
+ * before a single rep is lifted, then never moves.
+ *
+ * So an uncompleted set counts only when the entry shows no sign of having been
+ * tracked live. `entry_has_completed` is that sign: once any set in the entry
+ * carries a `completed_at`, the entry is a live session and only its ticked
+ * sets count. An entry where nothing is ticked is a plain diary log — the web
+ * form and every pre-playback entry write `completed_at` as NULL — and all of
+ * its non-warm-up sets count, as they always have.
+ *
+ * The plan-assignment exclusion stays on top of that, because a prescribed
+ * session is pre-created with nothing completed and would otherwise read as a
+ * manual log of work that has not happened.
+ *
+ * This deliberately does not change `getMuscleFatigueInputs`. That predicate is
+ * shared with volume, PR detection and the recommendation engine; tightening it
+ * here keeps the ring honest without silently restating four other features.
+ */
+async function getWeeklySetCountInputs(
+  userId: string,
+  sinceDate: string,
+  untilDate: string
+): Promise<MuscleFatigueInput[]> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `WITH entry_sets AS (
+         SELECT ee.id AS entry_id,
+                ee.entry_date,
+                ee.primary_muscles,
+                ee.secondary_muscles,
+                ee.workout_plan_assignment_id,
+                ees.id AS set_id,
+                ees.set_type,
+                ees.completed_at,
+                bool_or(ees.completed_at IS NOT NULL)
+                  OVER (PARTITION BY ee.id) AS entry_has_completed
+           FROM exercise_entries ee
+           LEFT JOIN exercise_entry_sets ees ON ees.exercise_entry_id = ee.id
+          WHERE ee.user_id = $1
+            AND ee.entry_date IS NOT NULL
+            AND ee.entry_date >= $2::date
+            AND ee.entry_date <= $3::date
+       )
+       SELECT entry_date::TEXT AS entry_date,
+              primary_muscles,
+              secondary_muscles,
+              COUNT(set_id) FILTER (
+                WHERE (set_type IS NULL
+                   OR regexp_replace(LOWER(set_type), '[^a-z0-9]', '', 'g') NOT LIKE 'warmup%')
+                  AND (completed_at IS NOT NULL
+                   OR (workout_plan_assignment_id IS NULL
+                       AND NOT COALESCE(entry_has_completed, FALSE)))
+              ) AS working_set_count
+         FROM entry_sets
+        GROUP BY entry_id, entry_date, primary_muscles, secondary_muscles
+        ORDER BY entry_date, entry_id`,
+      [userId, sinceDate, untilDate]
+    );
+    return result.rows.map((row: FatigueRow) => ({
+      entryDate: row.entry_date,
+      primaryMuscles: parseMuscleColumn(row.primary_muscles),
+      secondaryMuscles: parseMuscleColumn(row.secondary_muscles),
+      workingSetCount: Number(row.working_set_count ?? 0),
+    }));
+  } finally {
+    client.release();
+  }
+}
+
 export {
   getMuscleFatigueInputs,
+  getWeeklySetCountInputs,
   getCandidateExercises,
   getCandidateExerciseById,
   getWorkoutRecommendation,
@@ -478,6 +558,7 @@ export {
 };
 export default {
   getMuscleFatigueInputs,
+  getWeeklySetCountInputs,
   getCandidateExercises,
   getCandidateExerciseById,
   getWorkoutRecommendation,

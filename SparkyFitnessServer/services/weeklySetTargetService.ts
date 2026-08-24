@@ -5,7 +5,6 @@ import {
   recentWeekStarts,
   summarizeWeeklySetTargets,
   todayInZone,
-  weekStartFor,
   type MuscleGroup,
   type WeeklySetEntry,
   type WeeklySetTargetSummary,
@@ -14,7 +13,6 @@ import {
 import workoutRecommendationRepository from '../models/workoutRecommendationRepository.js';
 import coachProfileRepository from '../models/coachProfileRepository.js';
 import { loadUserTimezone } from '../utils/timezoneLoader.js';
-import { addDays } from '@workspace/shared';
 
 /** History weeks a caller may ask for, on top of the current week. */
 export const MAX_HISTORY_WEEKS = 12;
@@ -82,9 +80,13 @@ async function getWeeklySetTargets(
   const today = todayInZone(timezone);
   const weekStarts = recentWeekStarts(today, weeks);
   const rangeStart = weekStarts[0]!;
-  const rangeEnd = addDays(weekStartFor(today), 6);
+  // Today, not Saturday. The screen reports sets already done, so an entry the
+  // user dated later this week — logging ahead, or a session pencilled in for
+  // Friday — must not fill the ring on Tuesday. Every history week ends in the
+  // past, so a single `today` bound covers the whole span.
+  const rangeEnd = today;
 
-  const rows = await workoutRecommendationRepository.getMuscleFatigueInputs(
+  const rows = await workoutRecommendationRepository.getWeeklySetCountInputs(
     userId,
     rangeStart,
     rangeEnd
@@ -123,24 +125,22 @@ async function getWeeklySetTargets(
  *
  * The patch is merged over what is stored rather than replacing it: a client
  * sending only the group the user just changed must not silently clear the
- * others.
+ * others. The merge itself happens in SQL — see `mergeWeeklySetTargets` — so
+ * two clients editing different groups at once cannot clobber each other.
  */
 async function updateWeeklySetTargets(
   userId: string,
   patch: Partial<Record<MuscleGroup, number>>,
   historyWeeks: number
 ): Promise<WeeklySetTargetsResponse> {
-  const profile = await coachProfileRepository.getCoachProfile(userId);
-  const merged: Record<string, number> = {
-    ...(profile?.weekly_set_targets ?? {}),
-  };
+  const changes: Record<string, number> = {};
   for (const group of MUSCLE_GROUPS) {
     const value = patch[group];
-    if (typeof value === 'number') merged[group] = Math.round(value);
+    if (typeof value === 'number') changes[group] = Math.round(value);
   }
-  await coachProfileRepository.upsertCoachProfile(userId, {
-    weekly_set_targets: merged,
-  });
+  if (Object.keys(changes).length > 0) {
+    await coachProfileRepository.mergeWeeklySetTargets(userId, changes);
+  }
   return await getWeeklySetTargets(userId, historyWeeks);
 }
 
