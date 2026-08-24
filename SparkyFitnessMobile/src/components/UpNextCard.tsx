@@ -10,8 +10,11 @@ import { useWorkoutRecommendation } from '../hooks/useWorkoutRecommendation';
 import { formatDuration } from '../utils/workoutSession';
 import type { RootStackParamList, TabParamList } from '../types/navigation';
 
+// Not pinned to one tab: the card is the Exercise tab's first section and also
+// still sits on Home until that move happens, and it only ever navigates to a
+// root-stack route.
 type UpNextCardNavigation = CompositeNavigationProp<
-  BottomTabNavigationProp<TabParamList, 'Home'>,
+  BottomTabNavigationProp<TabParamList>,
   NativeStackNavigationProp<RootStackParamList>
 >;
 

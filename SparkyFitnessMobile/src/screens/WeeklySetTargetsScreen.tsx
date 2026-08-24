@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
@@ -10,10 +10,12 @@ import HexagonProgressRing from '../components/HexagonProgressRing';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
+import { useWeeklySetGroupColors } from '../hooks/useWeeklySetGroupColors';
 import {
   useUpdateWeeklySetTargets,
   useWeeklySetTargets,
 } from '../hooks/useWeeklySetTargets';
+import { formatSetCount } from '../utils/workoutSession';
 import type {
   MuscleGroup,
   WeeklySetGroupProgress,
@@ -42,11 +44,6 @@ const GROUP_DETAIL: Record<MuscleGroup, string> = {
   legs: 'Quads, hamstrings, glutes, calves',
   core: 'Abdominals',
 };
-
-/** Set counts are fractional; a whole number should not render as "12.0". */
-function formatSets(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
 
 const MONTHS = [
   'Jan',
@@ -93,23 +90,11 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
     left: { kind: 'back' },
   });
 
-  const pushColor = useCSSVariable('--color-cat-orange') as string;
-  const pullColor = useCSSVariable('--color-cat-pink') as string;
-  const legsColor = useCSSVariable('--color-cat-teal') as string;
-  const coreColor = useCSSVariable('--color-cat-violet') as string;
   const trackColor = useCSSVariable('--color-progress-track') as string;
   const mutedColor = useCSSVariable('--color-text-muted') as string;
   const primaryTextColor = useCSSVariable('--color-text-primary') as string;
 
-  const groupColors = useMemo<Record<MuscleGroup, string>>(
-    () => ({
-      push: pushColor,
-      pull: pullColor,
-      legs: legsColor,
-      core: coreColor,
-    }),
-    [pushColor, pullColor, legsColor, coreColor],
-  );
+  const groupColors = useWeeklySetGroupColors();
 
   // Left to the React Compiler rather than useMemo: it declines to preserve a
   // manual memo here, and a rejected memo is worse than none.
@@ -229,7 +214,7 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
                   isEditing ? commitEdit() : startEditing(group)
                 }
                 accessibilityRole="button"
-                accessibilityLabel={`${GROUP_LABELS[group.group]}, ${formatSets(group.completed)} of ${group.target} sets`}
+                accessibilityLabel={`${GROUP_LABELS[group.group]}, ${formatSetCount(group.completed)} of ${group.target} sets`}
                 testID={`weekly-set-group-toggle-${group.group}`}
               >
                 <View
@@ -241,14 +226,14 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
                     {GROUP_LABELS[group.group]}
                   </Text>
                   <Text className="mt-0.5 text-sm text-text-secondary">
-                    {formatSets(group.completed)} / {group.target} Sets
+                    {formatSetCount(group.completed)} / {group.target} Sets
                   </Text>
                 </View>
                 <View className="items-end">
                   <Text className="text-base font-semibold text-text-primary">
                     {group.target === 0
                       ? '—'
-                      : formatSets(group.remaining)}
+                      : formatSetCount(group.remaining)}
                   </Text>
                   <Text className="text-xs text-text-muted">
                     {group.target === 0 ? 'not tracked' : 'to go'}
