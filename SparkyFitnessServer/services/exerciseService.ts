@@ -19,6 +19,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { resolveExerciseIdToUuid } from '../utils/uuidUtils.js';
 import { normalizeToStringArray } from '../utils/exerciseJsonFields.js';
+import type { FreeExerciseDbExercise } from '../integrations/freeexercisedb/FreeExerciseDBService.js';
+import {
+  EXERCISE_CATALOG_PACKS,
+  getExerciseCatalogPack,
+  type ExerciseCatalogPack,
+} from '../constants/exerciseCatalogPacks.js';
 import {
   deriveExerciseModality,
   canEditGroupedWorkout,
@@ -317,7 +323,7 @@ async function getAvailableMuscleGroups() {
 const STOCK_IMAGE_SOURCES = new Set(['custom', 'manual']);
 const STOCK_IMAGE_LOOKUP_TIMEOUT_MS = 15_000;
 
-function normalizeExerciseNameForImageMatch(name: string): string {
+function normalizeExerciseNameForMatch(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
@@ -340,11 +346,10 @@ async function findStockImagesForExerciseName(
   // Press") and its result cap would make the uniqueness check local to one
   // page instead of global.
   const catalog = await freeExerciseDBService.getAllExercises();
-  const wanted = normalizeExerciseNameForImageMatch(name);
+  const wanted = normalizeExerciseNameForMatch(name);
   const matches = catalog.filter(
     (candidate) =>
-      normalizeExerciseNameForImageMatch(String(candidate.name ?? '')) ===
-        wanted &&
+      normalizeExerciseNameForMatch(String(candidate.name ?? '')) === wanted &&
       Array.isArray(candidate.images) &&
       candidate.images.length > 0
   );
@@ -1486,58 +1491,11 @@ async function addFreeExerciseDBExerciseToUserExercises(
     if (!exerciseDetails) {
       throw new Error('Free-Exercise-DB exercise not found.');
     }
-    const localImagePaths = await downloadFreeExerciseDbImages(
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      exerciseDetails.images
+    return await createExerciseFromFreeExerciseDbRecord(
+      authenticatedUserId,
+      exerciseDetails as FreeExerciseDbExercise,
+      freeExerciseDBId
     );
-    // Map free-exercise-db data to our generic Exercise model
-    const instructions = normalizeToStringArray(
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      exerciseDetails.instructions
-    );
-    const exerciseData = {
-      id: uuidv4(), // Generate a new UUID for the local exercise
-      source: 'free-exercise-db',
-      // Store the id the dedup lookup above queries by (the caller's id) so
-      // the two can never diverge and miss dedup on re-import.
-      source_id: String(freeExerciseDBId),
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      name: exerciseDetails.name,
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      force: exerciseDetails.force,
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      level: exerciseDetails.level,
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      mechanic: exerciseDetails.mechanic,
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      equipment: normalizeToStringArray(exerciseDetails.equipment),
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      primary_muscles: normalizeToStringArray(exerciseDetails.primaryMuscles),
-      secondary_muscles: normalizeToStringArray(
-        // @ts-expect-error TS(2571): Object is of type 'unknown'.
-        exerciseDetails.secondaryMuscles
-      ),
-      instructions,
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      category: exerciseDetails.category,
-      images: localImagePaths, // Local upload paths — createExercise handles JSON.stringify
-      calories_per_hour:
-        // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
-        await calorieCalculationService.estimateCaloriesBurnedPerHour(
-          exerciseDetails,
-          authenticatedUserId
-        ), // Calculate calories
-      // Same normalized array the instructions field uses, not the raw
-      // (possibly bare-string) value — indexing a bare string here would
-      // silently take its first character instead of the first instruction.
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      description: instructions[0] ?? exerciseDetails.name,
-      user_id: authenticatedUserId,
-      is_custom: true, // Imported exercises are custom to the user
-      shared_with_public: false, // Imported exercises are private by default
-    };
-    const newExercise = await exerciseDb.createExercise(exerciseData);
-    return newExercise;
   } catch (error) {
     log(
       'error',
@@ -1546,6 +1504,228 @@ async function addFreeExerciseDBExerciseToUserExercises(
     );
     throw error;
   }
+}
+
+/**
+ * Maps one free-exercise-db record onto the local Exercise model and persists
+ * it, downloading its photos on the way. Takes the record rather than an id so
+ * catalog-pack import can feed it entries from the already-cached dataset
+ * instead of refetching each exercise's JSON individually.
+ */
+async function createExerciseFromFreeExerciseDbRecord(
+  authenticatedUserId: string,
+  exerciseDetails: FreeExerciseDbExercise,
+  freeExerciseDBId: string
+) {
+  const localImagePaths = await downloadFreeExerciseDbImages(
+    exerciseDetails.images ?? []
+  );
+  const instructions = normalizeToStringArray(exerciseDetails.instructions);
+  const exerciseData = {
+    id: uuidv4(), // Generate a new UUID for the local exercise
+    source: 'free-exercise-db',
+    // Store the id the dedup lookup queries by (the caller's id) so the two
+    // can never diverge and miss dedup on re-import.
+    source_id: String(freeExerciseDBId),
+    name: exerciseDetails.name,
+    force: exerciseDetails.force,
+    level: exerciseDetails.level,
+    mechanic: exerciseDetails.mechanic,
+    equipment: normalizeToStringArray(exerciseDetails.equipment),
+    primary_muscles: normalizeToStringArray(exerciseDetails.primaryMuscles),
+    secondary_muscles: normalizeToStringArray(exerciseDetails.secondaryMuscles),
+    instructions,
+    category: exerciseDetails.category,
+    images: localImagePaths, // Local upload paths — createExercise handles JSON.stringify
+    calories_per_hour:
+      // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
+      await calorieCalculationService.estimateCaloriesBurnedPerHour(
+        exerciseDetails,
+        authenticatedUserId
+      ), // Calculate calories
+    // Same normalized array the instructions field uses, not the raw
+    // (possibly bare-string) value — indexing a bare string here would
+    // silently take its first character instead of the first instruction.
+    description: instructions[0] ?? exerciseDetails.name,
+    user_id: authenticatedUserId,
+    is_custom: true, // Imported exercises are custom to the user
+    shared_with_public: false, // Imported exercises are private by default
+  };
+  return await exerciseDb.createExercise(exerciseData);
+}
+
+/** One exercise's outcome inside a catalog-pack import batch. */
+interface CatalogPackImportBatch {
+  packId: string;
+  total: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+  failures: { name: string; reason: string }[];
+  processed: number;
+  nextOffset: number | null;
+  done: boolean;
+}
+
+/**
+ * Catalog entries belonging to a pack, ordered by name. The order has to be
+ * stable across calls: the client walks the pack with offset/limit batches, so
+ * a shifting order would skip or repeat exercises mid-import.
+ */
+function exerciseCatalogPackMembers(
+  catalog: FreeExerciseDbExercise[],
+  pack: ExerciseCatalogPack
+): FreeExerciseDbExercise[] {
+  const wanted = new Set(pack.equipment);
+  return catalog
+    .filter(
+      (entry) =>
+        entry?.id &&
+        entry?.name &&
+        normalizeToStringArray(entry.equipment).some((value) =>
+          wanted.has(String(value).toLowerCase())
+        )
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The importable catalog packs with this user's progress through each.
+ */
+async function listExerciseCatalogPacks(authenticatedUserId: string) {
+  const { default: freeExerciseDBService } =
+    await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
+  const catalog = await freeExerciseDBService.getAllExercises();
+  const [importedIds, existingNames] = await Promise.all([
+    exerciseDb
+      .getImportedSourceIds('free-exercise-db', authenticatedUserId)
+      .then((ids: string[]) => new Set(ids)),
+    userExerciseNameIndex(authenticatedUserId),
+  ]);
+  return EXERCISE_CATALOG_PACKS.map((pack) => {
+    const members = exerciseCatalogPackMembers(catalog, pack);
+    return {
+      id: pack.id,
+      label: pack.label,
+      description: pack.description,
+      total: members.length,
+      alreadyImported: members.filter((member) =>
+        alreadyInLibrary(member, importedIds, existingNames)
+      ).length,
+    };
+  });
+}
+
+/** Normalized names of everything already in the user's exercise library. */
+async function userExerciseNameIndex(
+  authenticatedUserId: string
+): Promise<Set<string>> {
+  const names = await exerciseDb.getAllExerciseNames(authenticatedUserId);
+  return new Set(
+    names.map((name: string) => normalizeExerciseNameForMatch(String(name)))
+  );
+}
+
+/**
+ * Whether the user already holds this catalog entry — either as a previous
+ * import of the same upstream id, or under the same name from any source. The
+ * name test matters most: an exercise the user created by hand may already
+ * carry logged sets, so importing a second copy of it would split that
+ * history across two near-identical library rows.
+ */
+function alreadyInLibrary(
+  member: FreeExerciseDbExercise,
+  importedIds: Set<string>,
+  existingNames: Set<string>
+): boolean {
+  return (
+    importedIds.has(String(member.id)) ||
+    existingNames.has(normalizeExerciseNameForMatch(String(member.name)))
+  );
+}
+
+/**
+ * Imports one batch of a catalog pack. Batched rather than one long request
+ * because a full pack is a few hundred image downloads — far past any mobile
+ * client's request timeout. The caller walks `nextOffset` until `done`.
+ *
+ * A failing exercise is counted and named, never fatal: one bad upstream
+ * record must not abandon the rest of the pack, and the caller needs to see
+ * what did not make it rather than a silently short library.
+ */
+async function importExerciseCatalogPack(
+  authenticatedUserId: string,
+  packId: string,
+  offset: number,
+  limit: number
+): Promise<CatalogPackImportBatch> {
+  const pack = getExerciseCatalogPack(packId);
+  if (!pack) {
+    const error = new Error(`Unknown exercise pack "${packId}".`);
+    // @ts-expect-error TS(2339): Property 'status' does not exist on type 'Error'.
+    error.status = 400;
+    throw error;
+  }
+  const { default: freeExerciseDBService } =
+    await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
+  const catalog = await freeExerciseDBService.getAllExercises();
+  const members = exerciseCatalogPackMembers(catalog, pack);
+  const batch = members.slice(offset, offset + limit);
+  // Read once per batch rather than per exercise; nothing else writes the
+  // user's library mid-batch, and a name added by this batch is added to the
+  // set as it goes.
+  const existingNames = await userExerciseNameIndex(authenticatedUserId);
+
+  let imported = 0;
+  let skipped = 0;
+  const failures: { name: string; reason: string }[] = [];
+
+  for (const record of batch) {
+    const sourceId = String(record.id);
+    try {
+      const existing = await exerciseDb.getExerciseBySourceAndSourceId(
+        'free-exercise-db',
+        sourceId,
+        authenticatedUserId
+      );
+      const normalizedName = normalizeExerciseNameForMatch(
+        String(record.name ?? '')
+      );
+      if (existing || existingNames.has(normalizedName)) {
+        skipped++;
+        continue;
+      }
+      existingNames.add(normalizedName);
+      await createExerciseFromFreeExerciseDbRecord(
+        authenticatedUserId,
+        record,
+        sourceId
+      );
+      imported++;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      failures.push({ name: String(record.name ?? sourceId), reason });
+      log(
+        'error',
+        `Catalog pack "${packId}": failed to import ${sourceId} for user ${authenticatedUserId}:`,
+        error
+      );
+    }
+  }
+
+  const processed = offset + batch.length;
+  const done = processed >= members.length || batch.length === 0;
+  return {
+    packId,
+    total: members.length,
+    imported,
+    skipped,
+    failed: failures.length,
+    failures,
+    processed,
+    nextOffset: done ? null : processed,
+    done,
+  };
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getSuggestedExercises(authenticatedUserId: any, limit: any) {
@@ -2692,6 +2872,8 @@ export default {
   deleteExercise,
   getExerciseEntriesByDate,
   addFreeExerciseDBExerciseToUserExercises,
+  listExerciseCatalogPacks,
+  importExerciseCatalogPack,
   getSuggestedExercises,
   searchExternalExercises,
   addExternalExerciseToUserExercises,

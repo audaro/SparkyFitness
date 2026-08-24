@@ -233,6 +233,7 @@ export type RootStackParamList = {
   DiarySettings: undefined;
   WorkoutSettings: undefined;
   GymProfiles: undefined;
+  ExercisePacks: undefined;
   ServerSettings: undefined;
   PasskeySettings: undefined;
   AppSettings: undefined;

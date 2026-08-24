@@ -72,6 +72,7 @@ import {
   SafeDiarySettings,
   SafeWorkoutSettings,
   SafeGymProfiles,
+  SafeExercisePacks,
   SafeServerSettings,
   SafePasskeySettings,
   SafeAppSettings,
@@ -640,6 +641,11 @@ function AppContent() {
             name="GymProfiles"
             component={SafeGymProfiles}
             options={createStackScreenOptions('Gym Profiles', { headerBackTitle: 'Workout Settings' })}
+          />
+          <Stack.Screen
+            name="ExercisePacks"
+            component={SafeExercisePacks}
+            options={createStackScreenOptions('Exercise Packs', { headerBackTitle: 'Workout Settings' })}
           />
           <Stack.Screen
             name="ServerSettings"

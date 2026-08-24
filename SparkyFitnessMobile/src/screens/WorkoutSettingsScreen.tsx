@@ -55,6 +55,15 @@ const WorkoutSettingsScreen: React.FC<WorkoutSettingsScreenProps> = ({ navigatio
         />
 
         <SettingsRow
+          title="Exercise packs"
+          subtitle="Add a ready-made set of exercises, photos included."
+          subtitleNumberOfLines={0}
+          onPress={() => navigation.navigate('ExercisePacks')}
+          accessibilityLabel="Exercise packs"
+          testID="workout-settings-exercise-packs"
+        />
+
+        <SettingsRow
           title="Default rest period"
           subtitle="Rest between sets for newly added exercises."
           subtitleNumberOfLines={0}

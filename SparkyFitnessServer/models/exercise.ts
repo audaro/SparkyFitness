@@ -1091,7 +1091,49 @@ async function findExerciseByNameAndUserId(name: any, userId: any) {
     client.release();
   }
 }
+/**
+ * Every source_id the user already holds for one import source. Catalog-pack
+ * import needs to know which of ~150 candidates are already present; asking
+ * per candidate would be one round trip each.
+ */
+async function getImportedSourceIds(
+  source: string,
+  userId: string
+): Promise<string[]> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `SELECT source_id FROM exercises
+       WHERE source = $1 AND user_id = $2 AND source_id IS NOT NULL`,
+      [source, userId]
+    );
+    return result.rows.map((row: { source_id: string }) => row.source_id);
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Every exercise name the user owns. Catalog-pack import compares against
+ * these to avoid creating a second copy of an exercise the user already keeps
+ * by hand — theirs may carry logged history, so it must win.
+ */
+async function getAllExerciseNames(userId: string): Promise<string[]> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      'SELECT name FROM exercises WHERE user_id = $1',
+      [userId]
+    );
+    return result.rows.map((row: { name: string }) => row.name);
+  } finally {
+    client.release();
+  }
+}
+
 export { getExerciseById };
+export { getImportedSourceIds };
+export { getAllExerciseNames };
 export { getExerciseOwnerId };
 export { getOrCreateActiveCaloriesExercise };
 export { getExercisesWithPagination };
@@ -1111,6 +1153,8 @@ export { deleteExerciseAndDependencies };
 export { findExerciseByNameAndUserId };
 export default {
   getExerciseById,
+  getImportedSourceIds,
+  getAllExerciseNames,
   getExerciseOwnerId,
   getOrCreateActiveCaloriesExercise,
   getExercisesWithPagination,

@@ -110,6 +110,9 @@ export const workoutPresetsLibraryQueryKey = (searchTerm: string) =>
 
 export const gymProfilesQueryKey = ['gymProfiles'] as const;
 
+/** Importable exercise catalog packs and the user's progress through each. */
+export const exercisePacksQueryKey = ['exercisePacks'] as const;
+
 /** The one stored "Up Next" workout; the server keeps at most one per user. */
 export const workoutRecommendationQueryKey = ['workoutRecommendation'] as const;
 

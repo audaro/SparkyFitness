@@ -22,6 +22,11 @@ const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
+// Ceiling on one catalog-pack import batch. Each exercise costs two upstream
+// image downloads, so a larger batch risks outliving the client's request
+// timeout — the client walks the pack instead.
+const PACK_IMPORT_BATCH_LIMIT = 10;
+
 const baseUploadsDir = process.env.SPARKY_FITNESS_CUSTOM_UPLOADS_DIRECTORY
   ? path.resolve(process.env.SPARKY_FITNESS_CUSTOM_UPLOADS_DIRECTORY)
   : path.join(__dirname, '../uploads');
@@ -834,6 +839,118 @@ router.get('/names', authenticate, async (req, res, next) => {
       equipment
     );
     res.status(200).json(exerciseNames);
+  } catch (error) {
+    next(error);
+  }
+});
+// Catalog packs. Registered ahead of GET /:id so "packs" is not parsed as an
+// exercise id.
+/**
+ * @swagger
+ * /exercises/packs:
+ *   get:
+ *     summary: List the importable exercise catalog packs and this user's progress through each
+ *     tags:
+ *       - Exercise & Workouts
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: The available packs.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   label:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *                   total:
+ *                     type: integer
+ *                   alreadyImported:
+ *                     type: integer
+ *       500:
+ *         description: Server error.
+ */
+router.get('/packs', authenticate, async (req, res, next) => {
+  try {
+    const packs = await exerciseService.listExerciseCatalogPacks(req.userId);
+    res.status(200).json(packs);
+  } catch (error) {
+    next(error);
+  }
+});
+/**
+ * @swagger
+ * /exercises/packs/{packId}/import:
+ *   post:
+ *     summary: Import one batch of an exercise catalog pack
+ *     description: >
+ *       A full pack is a few hundred image downloads, so import is walked in
+ *       batches: call repeatedly with the returned nextOffset until done is
+ *       true. Already-imported exercises are skipped, so re-running is safe.
+ *     tags:
+ *       - Exercise & Workouts
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: packId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               offset:
+ *                 type: integer
+ *                 default: 0
+ *               limit:
+ *                 type: integer
+ *                 default: 10
+ *     responses:
+ *       200:
+ *         description: The batch result.
+ *       400:
+ *         description: Unknown pack, or invalid offset/limit.
+ *       500:
+ *         description: Server error.
+ */
+router.post('/packs/:packId/import', authenticate, async (req, res, next) => {
+  const { offset, limit } = req.body ?? {};
+  const parsedOffset = offset === undefined ? 0 : Number(offset);
+  const parsedLimit =
+    limit === undefined ? PACK_IMPORT_BATCH_LIMIT : Number(limit);
+  if (!Number.isInteger(parsedOffset) || parsedOffset < 0) {
+    return res
+      .status(400)
+      .json({ error: 'offset must be a non-negative integer.' });
+  }
+  if (
+    !Number.isInteger(parsedLimit) ||
+    parsedLimit < 1 ||
+    parsedLimit > PACK_IMPORT_BATCH_LIMIT
+  ) {
+    return res.status(400).json({
+      error: `limit must be an integer between 1 and ${PACK_IMPORT_BATCH_LIMIT}.`,
+    });
+  }
+  try {
+    const result = await exerciseService.importExerciseCatalogPack(
+      req.userId,
+      req.params.packId,
+      parsedOffset,
+      parsedLimit
+    );
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
