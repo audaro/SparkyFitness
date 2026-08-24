@@ -18,7 +18,10 @@ import {
   useUpdateRecommendationStatus,
   useWorkoutRecommendation,
 } from '../../src/hooks/useWorkoutRecommendation';
-import { buildRecommendationStartPayload } from '../../src/utils/workoutSession';
+import {
+  buildRecommendationStartPayload,
+  orderedRecommendationExercises,
+} from '../../src/utils/workoutSession';
 import type { WorkoutRecommendation } from '../../src/services/api/workoutRecommendationsApi';
 
 jest.mock('../../src/hooks', () => ({
@@ -62,30 +65,54 @@ jest.mock('../../src/services/nativeTabBarPreference', () => ({
 // WorkoutDetailScreen.test.tsx): tests assert the imperative present() wiring
 // and drive item onPress callbacks directly. ActionSheet's own rendering is
 // covered by __tests__/components/ActionSheet.test.tsx.
-type MockSheetProps = { title: string; items: ActionSheetItem[] };
+type MockSheetProps = {
+  title: string;
+  items: ActionSheetItem[];
+  onBack?: () => void;
+  onDismiss?: () => void;
+};
 
-const mockSheet: {
+type MockSheetInstance = {
+  props: MockSheetProps;
   present: jest.Mock;
   dismiss: jest.Mock;
-  props: MockSheetProps | null;
-} = { present: jest.fn(), dismiss: jest.fn(), props: null };
+};
+
+// The screen mounts two sheets, in a fixed order and in every state (both live
+// outside renderContent), so each claims a stable slot on its first render and
+// the tests address them positionally.
+const mockSheets: MockSheetInstance[] = [];
 
 jest.mock('../../src/components/ActionSheet', () => {
   const React = require('react');
   return {
     __esModule: true,
     default: React.forwardRef((props: MockSheetProps, ref: unknown) => {
+      // Slot claimed and props published from an effect, never during render —
+      // the compiler lint rejects writing to module scope from a render pass.
+      const indexRef = React.useRef(-1);
       React.useEffect(() => {
-        mockSheet.props = props;
+        if (indexRef.current === -1) {
+          indexRef.current = mockSheets.length;
+          mockSheets.push({ props, present: jest.fn(), dismiss: jest.fn() });
+        } else {
+          mockSheets[indexRef.current].props = props;
+        }
       });
+      // Resolved at call time, so the handle works before the slot exists.
       React.useImperativeHandle(ref, () => ({
-        present: mockSheet.present,
-        dismiss: mockSheet.dismiss,
+        present: () => mockSheets[indexRef.current]?.present(),
+        dismiss: () => mockSheets[indexRef.current]?.dismiss(),
       }));
       return null;
     }),
   };
 });
+
+/** The Swap Workout sheet — mounted first. */
+const swapSheet = (): MockSheetInstance | undefined => mockSheets[0];
+/** The superset builder — mounted second. */
+const supersetSheet = (): MockSheetInstance | undefined => mockSheets[1];
 
 // Renders the trigger plus every option as its own pressable, so a test can
 // pick from a sheet that never actually opens.
@@ -161,7 +188,14 @@ function headerRightItem(): HeaderTextItem | null {
 }
 
 function sheetItem(key: string): ActionSheetItem | undefined {
-  return mockSheet.props?.items.find((item) => item.key === key);
+  return swapSheet()?.props.items.find((item) => item.key === key);
+}
+
+/** One row of the superset sheet, by its visible label (an exercise name). */
+function supersetSheetRow(label: string): ActionSheetItem {
+  const row = supersetSheet()?.props.items.find((item) => item.label === label);
+  if (!row) throw new Error(`supersetSheetRow: no "${label}" row in the superset sheet`);
+  return row;
 }
 
 /** One row of the ⋯ header menu, by its visible label. */
@@ -176,6 +210,7 @@ const frame = { x: 0, y: 0, width: 390, height: 844 };
 
 const EX_A = '11111111-1111-4111-8111-111111111111';
 const EX_B = '22222222-2222-4222-8222-222222222222';
+const EX_C = '66666666-6666-4666-8666-666666666666';
 const GYM_A = '33333333-3333-4333-8333-333333333333';
 const GYM_B = '55555555-5555-4555-8555-555555555555';
 
@@ -215,6 +250,28 @@ const makePayload = (
   exercises: [makeExercise()],
   ...overrides,
 });
+
+/** Three prescribed exercises — the smallest workout a circuit fits in. */
+const makeThreeExercisePayload = (): WorkoutRecommendationPayload =>
+  makePayload({
+    exercises: [
+      makeExercise({ sort_order: 0 }),
+      makeExercise({
+        exercise_id: EX_B,
+        exercise_name: 'Cable Fly',
+        sort_order: 1,
+        rest_seconds: 60,
+        sets: [makeSet({ rest_time: 60 })],
+      }),
+      makeExercise({
+        exercise_id: EX_C,
+        exercise_name: 'Triceps Pushdown',
+        sort_order: 2,
+        rest_seconds: 45,
+        sets: [makeSet({ rest_time: 45 })],
+      }),
+    ],
+  });
 
 const makeRecommendation = (
   overrides: Partial<WorkoutRecommendation> = {},
@@ -272,7 +329,7 @@ describe('UpNextScreen', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockSheet.props = null;
+    mockSheets.length = 0;
     generateAsync.mockResolvedValue(makeRecommendation());
     activateProfileAsync.mockResolvedValue({});
     mockUsePreferences.mockReturnValue({
@@ -339,7 +396,9 @@ describe('UpNextScreen', () => {
 
     expect(startLiveWorkout).toHaveBeenCalledWith({
       name: 'Up Next workout',
-      exercises: buildRecommendationStartPayload(recommendation.payload),
+      exercises: buildRecommendationStartPayload(
+        orderedRecommendationExercises(recommendation.payload),
+      ),
     });
     expect(updateStatus).toHaveBeenCalledWith({ id: recommendation.id, status: 'started' });
   });
@@ -348,7 +407,7 @@ describe('UpNextScreen', () => {
     const screen = renderScreen();
     fireEvent.press(screen.getByTestId('up-next-swap'));
 
-    expect(mockSheet.present).toHaveBeenCalled();
+    expect(swapSheet()?.present).toHaveBeenCalled();
     expect(generateAsync).not.toHaveBeenCalled();
   });
 
@@ -404,12 +463,12 @@ describe('UpNextScreen', () => {
 
       // On Demand is D3 and has nothing behind it yet, so it is absent rather
       // than present-and-inert.
-      expect(mockSheet.props?.items.map((item) => item.key)).toEqual([
+      expect(swapSheet()?.props.items.map((item) => item.key)).toEqual([
         'pick-muscles',
         'saved-workouts',
         'create-from-scratch',
       ]);
-      expect(mockSheet.props?.title).toBe('Swap Workout');
+      expect(swapSheet()?.props.title).toBe('Swap Workout');
     });
 
     it('opens muscle targeting', () => {
@@ -438,7 +497,7 @@ describe('UpNextScreen', () => {
     it('does not regenerate from the sheet', () => {
       // Regeneration is the ⋯ menu's Refresh; every row here is a destination.
       renderScreen();
-      mockSheet.props?.items.forEach((item) => act(() => item.onPress()));
+      swapSheet()?.props.items.forEach((item) => act(() => item.onPress()));
 
       expect(generateAsync).not.toHaveBeenCalled();
     });
@@ -447,7 +506,7 @@ describe('UpNextScreen', () => {
       setRecommendation(null);
       renderScreen();
 
-      expect(mockSheet.props?.title).toBe('New Workout');
+      expect(swapSheet()?.props.title).toBe('New Workout');
     });
 
     describe('header entry point', () => {
@@ -460,7 +519,7 @@ describe('UpNextScreen', () => {
 
         expect(screen.getByText('No workout yet')).toBeTruthy();
         act(() => headerRightItem()?.onPress());
-        expect(mockSheet.present).toHaveBeenCalled();
+        expect(swapSheet()?.present).toHaveBeenCalled();
       });
 
       it.each([
@@ -513,8 +572,8 @@ describe('UpNextScreen', () => {
     it('offers the rows that have something behind them', () => {
       renderScreen();
 
-      // Share is deferred indefinitely (blueprint D2) and is not a row;
-      // "Build superset/circuit" follows in its own change.
+      // Share is deferred indefinitely (blueprint D2) and is not a row. The
+      // default workout is one exercise, so there is nothing to pair either.
       expect(headerRightItem()?.items?.map((item) => item.label)).toEqual([
         'Save workout',
         'Refresh',
@@ -552,6 +611,170 @@ describe('UpNextScreen', () => {
       renderScreen();
 
       expect(headerRightItem()?.kind).toBe('text');
+    });
+  });
+
+  describe('supersets', () => {
+    /** Group the first two prescribed exercises through the two-stage sheet. */
+    function groupFirstTwo() {
+      act(() => menuAction('Build superset/circuit').onPress());
+      act(() => supersetSheetRow('Bench Press').onPress());
+      act(() => supersetSheetRow('Cable Fly').onPress());
+    }
+
+    it('offers the builder only when there is a pair to make', () => {
+      renderScreen();
+      // One exercise: nothing to pair, so the row is omitted rather than shown
+      // dead — menu entries carry no disabled state on either header path.
+      expect(headerRightItem()?.items?.map((item) => item.label)).not.toContain(
+        'Build superset/circuit',
+      );
+
+      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      renderScreen();
+      expect(headerRightItem()?.items?.map((item) => item.label)).toEqual([
+        'Save workout',
+        'Build superset/circuit',
+        'Refresh',
+      ]);
+    });
+
+    it('picks the anchor first and the partner second', () => {
+      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      renderScreen();
+
+      act(() => menuAction('Build superset/circuit').onPress());
+      expect(supersetSheet()?.present).toHaveBeenCalled();
+      expect(supersetSheet()?.props.title).toBe('Superset which exercise?');
+      expect(supersetSheet()?.props.items.map((item) => item.label)).toEqual([
+        'Bench Press',
+        'Cable Fly',
+        'Triceps Pushdown',
+      ]);
+      // Stage one keeps the sheet up so stage two can swap in place.
+      expect(
+        supersetSheet()?.props.items.every((item) => item.dismissOnPress === false),
+      ).toBe(true);
+
+      act(() => supersetSheetRow('Bench Press').onPress());
+      expect(supersetSheet()?.props.title).toBe('Superset with…');
+      // The anchor is not its own partner.
+      expect(supersetSheet()?.props.items.map((item) => item.label)).toEqual([
+        'Cable Fly',
+        'Triceps Pushdown',
+      ]);
+      // A mis-tapped anchor costs one tap, not a reopen.
+      act(() => supersetSheet()?.props.onBack?.());
+      expect(supersetSheet()?.props.title).toBe('Superset which exercise?');
+    });
+
+    it('applies the grouping at start-workout rather than to the recommendation', () => {
+      const recommendation = makeRecommendation({ payload: makeThreeExercisePayload() });
+      setRecommendation(recommendation);
+      const screen = renderScreen();
+
+      groupFirstTwo();
+      fireEvent.press(screen.getByTestId('up-next-start'));
+
+      const started = startLiveWorkout.mock.calls.at(-1)?.[0];
+      expect(
+        started.exercises.map((exercise: { exercise_id: string }) => exercise.exercise_id),
+      ).toEqual([EX_A, EX_B, EX_C]);
+      expect(
+        started.exercises.map(
+          (exercise: { superset_group: number | null }) => exercise.superset_group,
+        ),
+      ).toEqual([1, 1, null]);
+      // Blueprint D9: nothing is written back to the recommendation, so a swap,
+      // refresh or replace cannot silently discard a stored grouping.
+      expect(generateAsync).not.toHaveBeenCalled();
+      expect(
+        recommendation.payload.exercises.every((exercise) => !('superset_group' in exercise)),
+      ).toBe(true);
+    });
+
+    it('harmonizes rest across the run to the anchor', () => {
+      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      const screen = renderScreen();
+
+      groupFirstTwo();
+      fireEvent.press(screen.getByTestId('up-next-start'));
+
+      // Superset rest is per-round and shared: the partner's own 60s gives way
+      // to the anchor's 120s, and the exercise outside the run keeps its 45s.
+      const started = startLiveWorkout.mock.calls.at(-1)?.[0];
+      expect(
+        started.exercises.map((exercise: { sets: { rest_time: number }[] }) =>
+          exercise.sets.map((set) => set.rest_time),
+        ),
+      ).toEqual([[120, 120], [120], [45]]);
+    });
+
+    it('marks each member with the run rail', () => {
+      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      const screen = renderScreen();
+
+      expect(screen.queryByTestId(`up-next-superset-rail-${EX_A}`)).toBeNull();
+      groupFirstTwo();
+
+      expect(screen.getByTestId(`up-next-superset-rail-${EX_A}`)).toBeTruthy();
+      expect(screen.getByTestId(`up-next-superset-rail-${EX_B}`)).toBeTruthy();
+      expect(screen.queryByTestId(`up-next-superset-rail-${EX_C}`)).toBeNull();
+    });
+
+    it('ungroups from the row the group is on', () => {
+      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      const screen = renderScreen();
+
+      // Ungrouped rows do not offer it at all.
+      fireEvent.press(screen.getByLabelText('More options for Triceps Pushdown'));
+      expect(screen.queryByText('Remove from superset')).toBeNull();
+      fireEvent.press(screen.getByText('Replace exercise'));
+
+      groupFirstTwo();
+      fireEvent.press(screen.getByLabelText('More options for Cable Fly'));
+      fireEvent.press(screen.getByText('Remove from superset'));
+
+      // A two-member run minus one member is not a run — the remainder dissolves.
+      expect(screen.queryByTestId(`up-next-superset-rail-${EX_A}`)).toBeNull();
+      expect(screen.queryByTestId(`up-next-superset-rail-${EX_B}`)).toBeNull();
+    });
+
+    it('drops the grouping when the prescription changes underneath it', () => {
+      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      const screen = renderScreen();
+      groupFirstTwo();
+      expect(screen.getByTestId(`up-next-superset-rail-${EX_A}`)).toBeTruthy();
+
+      // A refresh/swap/replace lands a different prescription. Re-homing groups
+      // onto a workout the user has not seen grouped would be a guess.
+      setRecommendation(
+        makeRecommendation({
+          payload: makePayload({
+            exercises: [
+              makeExercise({ sort_order: 0 }),
+              makeExercise({ exercise_id: EX_B, exercise_name: 'Cable Fly', sort_order: 1 }),
+            ],
+          }),
+        }),
+      );
+      screen.rerender(
+        <SafeAreaProvider initialMetrics={{ insets, frame }}>
+          <UpNextScreen
+            navigation={navigation}
+            route={{ key: 'UpNext-key', name: 'UpNext', params: undefined } as never}
+          />
+        </SafeAreaProvider>,
+      );
+
+      expect(screen.queryByTestId(`up-next-superset-rail-${EX_A}`)).toBeNull();
+      fireEvent.press(screen.getByTestId('up-next-start'));
+      const started = startLiveWorkout.mock.calls.at(-1)?.[0];
+      expect(
+        started.exercises.map(
+          (exercise: { superset_group: number | null }) => exercise.superset_group,
+        ),
+      ).toEqual([null, null]);
     });
   });
 

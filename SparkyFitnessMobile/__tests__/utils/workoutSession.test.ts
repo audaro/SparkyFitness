@@ -4671,6 +4671,8 @@ describe('workout recommendations', () => {
     ...overrides,
   });
 
+  // The builder takes an already-ordered plan rather than the payload: Up Next
+  // hands it the plan the user grouped, and re-sorting would undo that order.
   describe('buildRecommendationStartPayload', () => {
     it('re-keys canonical set types to the lowercase vocabulary mobile stores', () => {
       const payload = makePayload({
@@ -4687,7 +4689,7 @@ describe('workout recommendations', () => {
       });
 
       expect(
-        buildRecommendationStartPayload(payload)[0].sets.map((set) => set.set_type),
+        buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets.map((set) => set.set_type),
       ).toEqual(['warmup', 'normal', 'drop', 'failure']);
     });
 
@@ -4700,7 +4702,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(payload)[0].sets[0].set_type).toBe('normal');
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0].set_type).toBe('normal');
     });
 
     it('keeps warm-ups first and renumbers sets from 1', () => {
@@ -4717,7 +4719,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      const sets = buildRecommendationStartPayload(payload)[0].sets;
+      const sets = buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets;
       expect(sets.map((set) => set.set_number)).toEqual([1, 2, 3, 4]);
       expect(sets.slice(0, 2).map((set) => set.set_type)).toEqual(['warmup', 'warmup']);
       expect(sets.map((set) => set.weight)).toEqual([37.5, 57.5, 80, 80]);
@@ -4732,7 +4734,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(payload)[0].sets[0]).toEqual({
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0]).toEqual({
         set_number: 1,
         set_type: 'normal',
         reps: 10,
@@ -4756,7 +4758,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(payload)[0].sets[0].weight).toBeNull();
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0].weight).toBeNull();
     });
 
     it('zeroes rest and keeps distance on a cardio prescription', () => {
@@ -4777,7 +4779,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(payload)[0].sets[0]).toMatchObject({
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0]).toMatchObject({
         duration: 1800,
         distance: 5.2,
         rest_time: 0,
@@ -4794,7 +4796,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(payload)[0].sets[0]).toMatchObject({
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0]).toMatchObject({
         duration: 45,
         distance: null,
         rest_time: 120,
@@ -4810,7 +4812,7 @@ describe('workout recommendations', () => {
       });
 
       expect(
-        buildRecommendationStartPayload(payload).map((exercise) => [
+        buildRecommendationStartPayload(orderedRecommendationExercises(payload)).map((exercise) => [
           exercise.exercise_id,
           exercise.sort_order,
         ]),
@@ -4832,9 +4834,42 @@ describe('workout recommendations', () => {
         ],
       });
 
-      for (const exercise of buildRecommendationStartPayload(payload)) {
+      for (const exercise of buildRecommendationStartPayload(
+        orderedRecommendationExercises(payload),
+      )) {
         expect(() => presetSessionExerciseRequestSchema.parse(exercise)).not.toThrow();
       }
+    });
+
+    it('carries the plan order and its superset grouping onto the entries', () => {
+      // Up Next's grouping is applied here and nowhere else (blueprint D9), so
+      // re-sorting by sort_order would silently break up every run it built.
+      const grouped = [
+        { ...makeRecommendedExercise({ sort_order: 2 }), superset_group: 1 },
+        {
+          ...makeRecommendedExercise({ exercise_id: EX_B, sort_order: 0 }),
+          superset_group: 1,
+        },
+      ];
+
+      expect(
+        buildRecommendationStartPayload(grouped).map((exercise) => [
+          exercise.exercise_id,
+          exercise.sort_order,
+          exercise.superset_group,
+        ]),
+      ).toEqual([
+        [EX_A, 0, 1],
+        [EX_B, 1, 1],
+      ]);
+    });
+
+    it('leaves an ungrouped plan with no superset membership', () => {
+      expect(
+        buildRecommendationStartPayload(
+          orderedRecommendationExercises(makePayload()),
+        )[0].superset_group,
+      ).toBeNull();
     });
   });
 

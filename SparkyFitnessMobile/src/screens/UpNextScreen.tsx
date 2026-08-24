@@ -18,6 +18,7 @@ import Icon from '../components/Icon';
 import SafeImage from '../components/SafeImage';
 import StatusView from '../components/StatusView';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
+import { useSupersetBorders } from '../components/ActiveWorkoutRail';
 import { usePreferences } from '../hooks';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
 import { useGymProfiles, useGymProfileMutations } from '../hooks/useGymProfiles';
@@ -37,8 +38,15 @@ import {
   formatRestChip,
   makeSparseExercise,
   normalizeWeightUnit,
+  orderedRecommendationExercises,
   titleCaseCanonical,
 } from '../utils/workoutSession';
+import {
+  getPlannedSupersetRuns,
+  supersetPlannedExercises,
+  ungroupPlannedExercise,
+  type PlannedExercise,
+} from '../utils/workoutSupersets';
 import type { RootStackScreenProps } from '../types/navigation';
 
 type UpNextScreenProps = RootStackScreenProps<'UpNext'>;
@@ -99,6 +107,51 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   );
 
   const payload = recommendation?.payload ?? null;
+
+  // The workout as it will be started: the engine's prescription plus any
+  // superset grouping the user built here. Grouping is deliberately NOT stored
+  // on the recommendation (blueprint D9) — Swap, Refresh, Replace and the chips
+  // all replace the payload wholesale, which would discard it silently. It is
+  // applied to the entries that starting the workout creates.
+  const basePlan = useMemo<PlannedExercise[]>(
+    () => (payload ? orderedRecommendationExercises(payload) : []),
+    [payload],
+  );
+  // Identity of the workout the grouping was built against. Any change to which
+  // exercises are prescribed drops it rather than trying to re-home groups onto
+  // a workout the user has not seen grouped.
+  const planKey = useMemo(
+    () => basePlan.map((exercise) => exercise.exercise_id).join('|'),
+    [basePlan],
+  );
+  const [groupedPlan, setGroupedPlan] = useState<{
+    key: string;
+    exercises: PlannedExercise[];
+  } | null>(null);
+  // Derived during render rather than reset from an effect: a stale key means
+  // the grouping belongs to a workout that is no longer on screen.
+  const plan = groupedPlan?.key === planKey ? groupedPlan.exercises : basePlan;
+  const editPlan = useCallback(
+    (next: (exercises: PlannedExercise[]) => PlannedExercise[]) => {
+      setGroupedPlan((previous) => {
+        const current = previous?.key === planKey ? previous.exercises : basePlan;
+        return { key: planKey, exercises: next(current) };
+      });
+    },
+    [basePlan, planKey],
+  );
+
+  const supersetRuns = useMemo(() => getPlannedSupersetRuns(plan), [plan]);
+  const { borders: supersetBorders } = useSupersetBorders(
+    useMemo(
+      () =>
+        plan.map((exercise) => ({
+          id: exercise.exercise_id,
+          superset_group: exercise.superset_group ?? null,
+        })),
+      [plan],
+    ),
+  );
 
   // Every way of getting a different workout hangs off one sheet.
   const swapSheetRef = useRef<ActionSheetRef>(null);
@@ -161,26 +214,102 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     });
   }, [navigation, payload]);
 
+  // Superset building is one sheet in two stages, the shape the preset form's
+  // row menu uses: choose the exercise to build around, then the one to pair
+  // with it. A null `anchorId` is the first stage.
+  const supersetSheetRef = useRef<ActionSheetRef>(null);
+  const [supersetAnchorId, setSupersetAnchorId] = useState<string | null>(null);
+
+  const groupedExerciseIds = useMemo(
+    () => new Set(supersetRuns.flatMap((run) => run.entryIds)),
+    [supersetRuns],
+  );
+  // Only ungrouped exercises can be pulled into a group; an anchor that is
+  // already in a run extends it, which is what makes a 3+ circuit reachable.
+  const supersetCandidateIds = useMemo(
+    () =>
+      plan
+        .filter((exercise) => !groupedExerciseIds.has(exercise.exercise_id))
+        .map((exercise) => exercise.exercise_id),
+    [plan, groupedExerciseIds],
+  );
+  const canBuildSuperset = plan.length >= 2 && supersetCandidateIds.length >= 1;
+
+  const handleBuildSuperset = useCallback(() => {
+    setSupersetAnchorId(null);
+    supersetSheetRef.current?.present();
+  }, []);
+
+  const handleUngroupExercise = useCallback(
+    (exerciseId: string) => {
+      editPlan((exercises) => ungroupPlannedExercise(exercises, exerciseId));
+    },
+    [editPlan],
+  );
+
+  const supersetSheetItems = useMemo<ActionSheetItem[]>(() => {
+    const nameOf = (exerciseId: string) =>
+      plan.find((exercise) => exercise.exercise_id === exerciseId)?.exercise_name ??
+      'Exercise';
+
+    if (supersetAnchorId != null) {
+      return supersetCandidateIds
+        .filter((exerciseId) => exerciseId !== supersetAnchorId)
+        .map((exerciseId) => ({
+          key: exerciseId,
+          label: nameOf(exerciseId),
+          onPress: () => {
+            editPlan((exercises) =>
+              supersetPlannedExercises(exercises, supersetAnchorId, exerciseId),
+            );
+          },
+        }));
+    }
+
+    return plan
+      .filter((exercise) =>
+        // An exercise with no possible partner would open an empty stage two.
+        supersetCandidateIds.some((id) => id !== exercise.exercise_id),
+      )
+      .map((exercise) => ({
+        key: exercise.exercise_id,
+        label: exercise.exercise_name,
+        // Keeps the sheet presented; the candidate list swaps in place.
+        dismissOnPress: false,
+        onPress: () => setSupersetAnchorId(exercise.exercise_id),
+      }));
+  }, [plan, supersetAnchorId, supersetCandidateIds, editPlan]);
+
   // The ⋯ menu. "Share" is deferred indefinitely (blueprint D2) and is not a
   // row. Menu entries carry no disabled state on either header path, so the
   // handlers guard themselves instead of rendering a dead-looking row.
-  const overflowMenuItems = useMemo<HeaderMenuEntry[]>(
-    () => [
+  const overflowMenuItems = useMemo<HeaderMenuEntry[]>(() => {
+    const items: HeaderMenuEntry[] = [
       {
         label: 'Save workout',
         sfSymbol: 'bookmark',
         icon: 'bookmark',
         onPress: handleSaveWorkout,
       },
-      {
-        label: 'Refresh',
-        sfSymbol: 'arrow.triangle.2.circlepath',
-        icon: 'sync',
-        onPress: handleRefreshWorkout,
-      },
-    ],
-    [handleSaveWorkout, handleRefreshWorkout],
-  );
+    ];
+    // Omitted rather than shown dead when there is nothing left to pair — a
+    // one-exercise workout, or one already grouped end to end.
+    if (canBuildSuperset) {
+      items.push({
+        label: 'Build superset/circuit',
+        sfSymbol: 'arrow.trianglehead.2.clockwise',
+        icon: 'swap-vertical',
+        onPress: handleBuildSuperset,
+      });
+    }
+    items.push({
+      label: 'Refresh',
+      sfSymbol: 'arrow.triangle.2.circlepath',
+      icon: 'sync',
+      onPress: handleRefreshWorkout,
+    });
+    return items;
+  }, [handleSaveWorkout, canBuildSuperset, handleBuildSuperset, handleRefreshWorkout]);
 
   // `renderContent()` only reaches the Swap button once a workout exists; every
   // other branch is a `StatusView`, which takes exactly one action — and it is
@@ -292,7 +421,10 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     if (!recommendation || !payload) return;
     void startLiveWorkout({
       name: 'Up Next workout',
-      exercises: buildRecommendationStartPayload(payload),
+      // `plan`, not the payload: this is where a locally built superset becomes
+      // a `superset_group` on the entries, and its ordering is what makes each
+      // run adjacent.
+      exercises: buildRecommendationStartPayload(plan),
     });
     // Optimistic, best-effort lifecycle marker. `startLiveWorkout` swallows its
     // own failures (it owns the toast) and returns the same void promise either
@@ -302,7 +434,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     // user then cancelled costs nothing; a failure here must never unwind a
     // workout that is already live.
     updateStatus({ id: recommendation.id, status: 'started' });
-  }, [recommendation, payload, startLiveWorkout, updateStatus]);
+  }, [recommendation, payload, plan, startLiveWorkout, updateStatus]);
 
   const handleOpenExercise = useCallback(
     (exercise: RecommendedExercise) => {
@@ -356,13 +488,31 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
 
   // The row body opens the exercise; the trailing ⋯ is a sibling pressable, not
   // a nested one, so the two cannot mis-fire into each other.
-  const renderExerciseRow = (exercise: RecommendedExercise) => {
+  const renderExerciseRow = (exercise: PlannedExercise) => {
     const image = exercise.images[0] ?? null;
+    const supersetBorder = supersetBorders.get(exercise.exercise_id) ?? null;
     return (
       <View
         key={exercise.exercise_id}
         className="flex-row items-center border-b border-border-subtle"
       >
+      {supersetBorder ? (
+        // Same flat 3px rail the live workout draws: interior members run the
+        // full row height so consecutive members read as one line, and the
+        // run's last member stops short of the divider.
+        <View
+          testID={`up-next-superset-rail-${exercise.exercise_id}`}
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: supersetBorder.isLast ? 8 : 0,
+            width: 3,
+            backgroundColor: supersetBorder.color,
+          }}
+        />
+      ) : null}
       <TouchableOpacity
         className="flex-1 flex-row items-center pl-4 py-3"
         activeOpacity={0.7}
@@ -515,7 +665,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
             </View>
           </View>
 
-          {payload.exercises.map(renderExerciseRow)}
+          {plan.map(renderExerciseRow)}
         </ScrollView>
 
         <View
@@ -548,6 +698,22 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
                 if (exerciseId) handleReplaceExercise(exerciseId);
               },
             },
+            // Ungrouping lives on the row rather than in the ⋯ menu: the group a
+            // tap is meant to break up is the one the row is already pointing at.
+            ...(rowMenu && groupedExerciseIds.has(rowMenu.exerciseId)
+              ? [
+                  {
+                    key: 'ungroup',
+                    label: 'Remove from superset',
+                    icon: 'close' as const,
+                    onPress: () => {
+                      const exerciseId = rowMenu.exerciseId;
+                      setRowMenu(null);
+                      handleUngroupExercise(exerciseId);
+                    },
+                  },
+                ]
+              : []),
           ]}
         />
       </>
@@ -567,6 +733,15 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
         ref={swapSheetRef}
         title={payload ? 'Swap Workout' : 'New Workout'}
         items={swapSheetItems}
+      />
+      <ActionSheet
+        ref={supersetSheetRef}
+        title={supersetAnchorId == null ? 'Superset which exercise?' : 'Superset with…'}
+        items={supersetSheetItems}
+        // Stage two backs out to the anchor list rather than closing, so a
+        // mis-tapped anchor costs one tap instead of reopening the sheet.
+        onBack={supersetAnchorId == null ? undefined : () => setSupersetAnchorId(null)}
+        onDismiss={() => setSupersetAnchorId(null)}
       />
     </View>
   );

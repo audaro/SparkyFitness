@@ -1,4 +1,4 @@
-import type { ExerciseEntryResponse } from '@workspace/shared';
+import type { ExerciseEntryResponse, RecommendedExercise } from '@workspace/shared';
 import type { WorkoutDraftExercise } from '../types/drafts';
 import { getDefaultRestSec } from '../stores/appPreferencesStore';
 
@@ -224,6 +224,70 @@ export function normalizeSessionSupersetGroups(
   exercises: ExerciseEntryResponse[],
 ): ExerciseEntryResponse[] {
   return normalizeSupersetGroupsByFields(exercises, SESSION_SUPERSET_FIELDS);
+}
+
+// Planned-shaped wrappers (Up Next). Third shape, same algebra: the grouping a
+// user builds on a generated workout is held in local screen state and applied
+// when the workout is started (blueprint D9) — Swap/Refresh replace the payload
+// wholesale, so a group stored on it would be silently discarded. These
+// normalize inline for the same reason the draft wrappers do.
+
+/**
+ * A generated workout's exercise carrying the group the user built for it.
+ * The field is added client-side and never sent back: the payload schema is
+ * `.strict()`, and the group belongs on the `exercise_entries` row that
+ * starting the workout creates.
+ */
+export type PlannedExercise = RecommendedExercise & { superset_group?: number | null };
+
+const PLANNED_SUPERSET_FIELDS: SupersetFields<PlannedExercise> = {
+  idField: 'exercise_id',
+  groupField: 'superset_group',
+  firstRestSec: e => e.sets[0]?.rest_time,
+  // `rest_seconds` is the same number the sets carry (it is what the row's
+  // "2:00 rest" chip reads), so harmonizing one without the other would leave
+  // the card advertising a rest the started workout will not take.
+  withRest: (e, restSec) => ({
+    ...e,
+    rest_seconds: restSec,
+    sets: e.sets.map(s => ({ ...s, rest_time: restSec })),
+  }),
+};
+
+/** See {@link normalizeSupersetGroupsByFields}; planned-workout shape. */
+export function normalizePlannedSupersetGroups(
+  exercises: PlannedExercise[],
+): PlannedExercise[] {
+  return normalizeSupersetGroupsByFields(exercises, PLANNED_SUPERSET_FIELDS);
+}
+
+export function supersetPlannedExercises(
+  exercises: PlannedExercise[],
+  currentExerciseId: string,
+  pickedExerciseId: string,
+): PlannedExercise[] {
+  return normalizePlannedSupersetGroups(
+    supersetWithByFields(
+      exercises,
+      currentExerciseId,
+      pickedExerciseId,
+      PLANNED_SUPERSET_FIELDS,
+    ),
+  );
+}
+
+export function ungroupPlannedExercise(
+  exercises: PlannedExercise[],
+  exerciseId: string,
+): PlannedExercise[] {
+  const next = ungroupExerciseByFields(exercises, exerciseId, PLANNED_SUPERSET_FIELDS);
+  if (next === exercises) return exercises;
+  return normalizePlannedSupersetGroups(next);
+}
+
+/** Runs over a planned workout, keyed by `exercise_id`. */
+export function getPlannedSupersetRuns(exercises: PlannedExercise[]): SupersetRun[] {
+  return runsByFields(exercises, PLANNED_SUPERSET_FIELDS);
 }
 
 // Draft-shaped wrappers (the form reducers). These normalize inline — the

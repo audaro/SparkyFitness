@@ -34,7 +34,7 @@ import type { WorkoutPresetExercisePayload } from '../services/api/workoutPreset
 import type { CreateExerciseEntryPayload } from '../services/api/exerciseApi';
 import { weightToKg, weightFromKg, distanceFromKm, distanceToKm } from './unitConversions';
 import { parseDecimalInput } from './numericInput';
-import { getDefaultRestSec } from './workoutSupersets';
+import { getDefaultRestSec, type PlannedExercise } from './workoutSupersets';
 
 // The superset/reorder algebra lives in its own module; re-exported here so
 // the many existing import sites keep working.
@@ -1532,6 +1532,12 @@ const CANONICAL_TO_MOBILE_SET_TYPE: Record<string, (typeof SET_TYPE_OPTIONS)[num
  * warm-ups-first with `set_number` renumbered across the whole list, so this
  * only re-keys the set type and gates the measures the modality allows.
  *
+ * Takes the exercises **in the order to start them** rather than the payload:
+ * grouping an Up Next workout into supersets reorders the list so each run is
+ * adjacent, and re-sorting by the engine's `sort_order` here would undo that.
+ * Callers holding an unedited payload pass
+ * {@link orderedRecommendationExercises}.
+ *
  * Band and bodyweight prescriptions legitimately carry a null weight — the
  * engine declines to invent a kilogram it cannot know — and that null is
  * passed through so the live row renders an empty cell rather than "0 kg".
@@ -1549,9 +1555,9 @@ export function orderedRecommendationExercises(
 }
 
 export function buildRecommendationStartPayload(
-  payload: WorkoutRecommendationPayload,
+  exercises: readonly PlannedExercise[],
 ): PresetSessionExerciseRequest[] {
-  return orderedRecommendationExercises(payload)
+  return exercises
     .map((exercise, index) => {
       const cardio = isCardioModality(exercise.modality);
       return {
@@ -1559,8 +1565,10 @@ export function buildRecommendationStartPayload(
         sort_order: index,
         duration_minutes: 0,
         notes: null,
-        // The engine has no superset concept; every exercise stands alone.
-        superset_group: null,
+        // The engine has no superset concept, so this is null unless the user
+        // built a group on Up Next — grouping lives on the entries this
+        // creates, never on the recommendation payload (blueprint D9).
+        superset_group: exercise.superset_group ?? null,
         sets: exercise.sets.map((set, setIndex) => ({
           set_number: setIndex + 1,
           set_type: CANONICAL_TO_MOBILE_SET_TYPE[set.set_type] ?? 'normal',
