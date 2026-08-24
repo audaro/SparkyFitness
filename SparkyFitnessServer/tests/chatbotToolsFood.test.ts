@@ -1407,6 +1407,118 @@ describe('log_food', () => {
     expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
   });
 
+  // Live failure this quartet guards: a reply's "1,008 kcal" total leaked into
+  // the quantity field and 1008 slices of cheese (~110,000 kcal) were logged
+  // without complaint. Counted units cap at 100; measurable at 10 kg / 10 L.
+  it('refuses an absurd count-unit quantity before touching the diary', async () => {
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'log_food',
+        food_id: FOOD_ID,
+        quantity: 1008,
+        unit: 'slice',
+        meal_type: 'breakfast',
+      },
+      opts
+    );
+
+    expect(result).toContain('Error [VALIDATION]: Refusing to log 1008 slice');
+    expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
+  });
+
+  it('refuses a measurable quantity above the 10 kg ceiling', async () => {
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'log_food',
+        food_id: FOOD_ID,
+        quantity: 12000,
+        unit: 'g',
+        meal_type: 'breakfast',
+      },
+      opts
+    );
+
+    expect(result).toContain('Error [VALIDATION]: Refusing to log 12000 g');
+    expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
+  });
+
+  it('accepts a large but plausible gram amount', async () => {
+    vi.mocked(foodRepository.getFoodById).mockResolvedValue({
+      ...eggsRow,
+      default_variant: {
+        ...eggsRow.default_variant,
+        serving_size: 100,
+        serving_unit: 'g',
+      },
+    });
+    vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+    vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+      id: ENTRY_ID,
+      food_name: 'Eggs',
+    });
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'log_food',
+        food_id: FOOD_ID,
+        quantity: 500,
+        unit: 'g',
+        meal_type: 'breakfast',
+        entry_date: '2026-06-10',
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      '✅ Logged "Eggs" (500 g) for Breakfast on 2026-06-10.'
+    );
+  });
+
+  it('refuses an absurd quantity on update_entry and log_external_food too', async () => {
+    const updated = await tools.sparky_manage_food.execute!(
+      {
+        action: 'update_entry',
+        food_name: 'Cheese',
+        quantity: 1008,
+      },
+      opts
+    );
+    expect(updated).toContain('Error [VALIDATION]: Refusing to log 1008');
+
+    const logged = await tools.sparky_manage_food.execute!(
+      {
+        action: 'log_external_food',
+        food_name: 'Cheese Slices',
+        quantity: 500,
+        unit: 'slice',
+        meal_type: 'snacks',
+      },
+      opts
+    );
+    expect(logged).toContain('Error [VALIDATION]: Refusing to log 500 slice');
+    expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
+  });
+
+  it('refuses an absurd quantity on create_food before saving the food', async () => {
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'create_food',
+        food_name: 'Cheese Slice',
+        calories: 109,
+        protein: 7,
+        carbs: 0,
+        fat: 9,
+        quantity: 1008,
+        unit: 'slice',
+        meal_type: 'breakfast',
+      },
+      opts
+    );
+
+    expect(result).toContain('Error [VALIDATION]: Refusing to log 1008 slice');
+    expect(foodCoreService.createFood).not.toHaveBeenCalled();
+  });
+
   it('maps a snapshotting failure to a validation error with the service message', async () => {
     vi.mocked(foodRepository.getFoodById).mockResolvedValue(eggsRow);
     vi.mocked(foodEntryService.createFoodEntry).mockRejectedValue(

@@ -280,6 +280,47 @@ function normalizeFoodUnit(unit: unknown): string {
   return aliases[normalized] ?? normalized;
 }
 
+// Anything counted (slices, pieces, cups) above this is a data error, not a
+// meal. The live failure this guards: a reply's 1,008 kcal total leaked into
+// the quantity field and 1008 slices of cheese (~110,000 kcal) sailed into the
+// diary. Measurable amounts get a separate ceiling: 10 kg / 10 L equivalent.
+const MAX_COUNT_UNIT_QUANTITY = 100;
+const MAX_MEASURABLE_QUANTITY = 10_000;
+
+/**
+ * Absurd-quantity guard for every write that accepts (quantity, unit).
+ *
+ * Returns the refusal message, or null when the quantity is plausible. Basic
+ * validation (positive, finite) stays with the Zod schema — this only rejects
+ * amounts no single diary entry can plausibly mean, so a model that pasted a
+ * calorie count or a typo into `quantity` gets a corrective error instead of
+ * a poisoned diary day.
+ */
+function quantitySanityError(
+  quantity: number,
+  unit: string | null | undefined
+): string | null {
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+  // A missing unit gets the count ceiling, not the measurable one: the
+  // conversion helper defaults blank units to grams, which would let
+  // "quantity: 1008" with no unit through as a kilogram amount when the
+  // entry it lands on may well be counted in slices.
+  const unitText = String(unit ?? '').trim();
+  const grams = unitText ? convertFoodUnitAmount(quantity, unit, 'g') : null;
+  const measurable =
+    grams ?? (unitText ? convertFoodUnitAmount(quantity, unit, 'ml') : null);
+  if (measurable !== null) {
+    if (measurable > MAX_MEASURABLE_QUANTITY) {
+      return `Refusing to log ${quantity} ${unit}: that is over 10 ${grams !== null ? 'kg' : 'liters'} of food in one entry, which looks like a calorie count or a typo pasted into the quantity, not an amount eaten. Log the real amount the user described.`;
+    }
+    return null;
+  }
+  if (quantity > MAX_COUNT_UNIT_QUANTITY) {
+    return `Refusing to log ${quantity} ${unit || 'serving'}: a count that high looks like a calorie count or a typo pasted into the quantity, not an amount eaten. Log the real amount the user described.`;
+  }
+  return null;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function dedupeVariantsById(variants: any[]) {
   const seen = new Set<string>();
@@ -1835,6 +1876,13 @@ Actions:
             }
 
             case 'log_food': {
+              const insaneQuantity = quantitySanityError(
+                args.quantity,
+                args.unit
+              );
+              if (insaneQuantity) {
+                return ERRORS.VALIDATION(insaneQuantity);
+              }
               const mealType = await resolveMealType(
                 userId,
                 args.meal_type_id,
@@ -1911,6 +1959,10 @@ Actions:
               }
               const entryDate = args.entry_date || todayInZone(tz);
               const quantity = args.quantity ?? 1;
+              const insaneQuantity = quantitySanityError(quantity, args.unit);
+              if (insaneQuantity) {
+                return ERRORS.VALIDATION(insaneQuantity);
+              }
               const result = await lookupFoodNutrition(
                 userId,
                 args.food_name,
@@ -2220,6 +2272,13 @@ Actions:
                 (args.quantity ||
                   (hasPositivePrefix || isCountUnit ? 1 : 100)) *
                 unitMultiplier;
+              const insaneQuantity = quantitySanityError(
+                targetQuantity,
+                targetUnit
+              );
+              if (insaneQuantity) {
+                return ERRORS.VALIDATION(insaneQuantity);
+              }
               const mealType =
                 args.meal_type_id || args.meal_type
                   ? await resolveMealType(
@@ -2935,6 +2994,18 @@ Actions:
             }
 
             case 'update_entry': {
+              if (args.quantity !== undefined) {
+                // With no unit stated the count-unit ceiling applies — the
+                // model restates the unit on retry if the amount is genuinely
+                // a large measurable one.
+                const insaneQuantity = quantitySanityError(
+                  args.quantity,
+                  args.unit
+                );
+                if (insaneQuantity) {
+                  return ERRORS.VALIDATION(insaneQuantity);
+                }
+              }
               // Name resolution never narrows by meal_type here: for updates
               // the meal selector is the TARGET the entry moves to, not a
               // filter on the source.
