@@ -251,3 +251,91 @@ export function muscleGroupOf(raw: string): MuscleGroup | null {
 export function isLowerBodyMuscle(raw: string): boolean {
   return LOWER_BODY_MUSCLE_SET.has(normalizeMuscleName(raw));
 }
+
+/**
+ * Training splits a user can ask for by name, for choosing what to train.
+ *
+ * Deliberately NOT the same thing as {@link MUSCLE_GROUPS}, and deliberately
+ * not built on it. Groups are a *partition* — every canonical muscle in exactly
+ * one bucket, asserted by `weeklySetTargets.test.ts` — because a weekly set
+ * total that double counts or silently drops a muscle is wrong. Splits
+ * **overlap** by nature: chest is in Push, in Upper body and in Full body.
+ * Folding splits into the group map would break the partition and with it the
+ * weekly set target ring, so the two vocabularies stay separate even where
+ * their members coincide.
+ *
+ * "Recovered muscles" is not in this list. It is the *absence* of a muscle
+ * constraint — the generator's own freshness ranking, which is what it does
+ * when a request names no muscles at all. Enumerating it here would turn a
+ * default into a fixed list that stops tracking recovery.
+ */
+export const MUSCLE_SPLITS = [
+  "push",
+  "pull",
+  "upper body",
+  "lower body",
+  "full body",
+] as const;
+export type MuscleSplit = (typeof MUSCLE_SPLITS)[number];
+
+/**
+ * Upper body is defined as "not lower body" rather than as a second hand-kept
+ * list. One list means the two halves cannot drift apart, and a muscle added
+ * upstream lands in upper body by default instead of falling out of both.
+ *
+ * That places `abdominals` and `neck` in upper body, which is the conventional
+ * reading of an upper/lower split and the same bucketing the group map already
+ * uses for `neck`.
+ */
+const UPPER_BODY_MUSCLES: readonly Muscle[] = MUSCLES.filter(
+  (muscle) => !isLowerBodyMuscle(muscle),
+);
+
+/**
+ * The canonical muscles each split resolves to.
+ *
+ * Resolution happens on the client and the wire carries muscles, never split
+ * names: the server has no reason to learn a training vocabulary, and it keeps
+ * the split list and the per-muscle grid on one code path.
+ *
+ * Push and Pull are the classical movement-pattern reading — Push is the
+ * chest/shoulder/triceps chain, Pull is the back, elbow flexors and the traps
+ * and neck that pulling loads. `abdominals` belongs to neither; it is reachable
+ * through Upper body, Full body, or by picking it directly, which is better
+ * than attaching core work to one arbitrary half of a push/pull program.
+ */
+export const MUSCLE_SPLIT_MEMBERS: Readonly<
+  Record<MuscleSplit, readonly Muscle[]>
+> = {
+  push: ["chest", "shoulders", "triceps"],
+  pull: [
+    "biceps",
+    "forearms",
+    "lats",
+    "lower back",
+    "middle back",
+    "neck",
+    "traps",
+  ],
+  "upper body": UPPER_BODY_MUSCLES,
+  "lower body": LOWER_BODY_MUSCLES,
+  "full body": MUSCLES,
+};
+
+const MUSCLE_SPLIT_SET: ReadonlySet<string> = new Set(MUSCLE_SPLITS);
+
+/** Exact membership test for a split name. See {@link isKnownMuscle}. */
+export function isKnownMuscleSplit(value: string): value is MuscleSplit {
+  return MUSCLE_SPLIT_SET.has(value);
+}
+
+/**
+ * The canonical muscles a split names, or null when the string is outside the
+ * split vocabulary. Normalizes its input, so a display label round-trips.
+ */
+export function musclesForSplit(raw: string): readonly Muscle[] | null {
+  const normalized = raw.trim().toLowerCase();
+  return isKnownMuscleSplit(normalized)
+    ? MUSCLE_SPLIT_MEMBERS[normalized]
+    : null;
+}
