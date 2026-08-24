@@ -1368,7 +1368,41 @@ describe('log_food', () => {
     );
 
     expect(result).toBe(
-      'Error [VALIDATION]: Cannot safely log 100 g for this food because no matching serving variant is available.'
+      "Error [VALIDATION]: Cannot safely log 100 g for this food because no matching serving variant is available. This food's serving variants: 1 serving. Convert the amount to one of those units and log again, or ask the user."
+    );
+    expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
+  });
+
+  // The live failure this guards: "3 whole" eggs against a food whose only
+  // variant is 100 g. Without the variant list in the error, the model has no
+  // way to self-correct mid-turn and has been seen narrating the item as
+  // logged anyway.
+  it('names the available variants when rejecting a unit mismatch', async () => {
+    vi.mocked(foodRepository.getFoodById).mockResolvedValue({
+      ...eggsRow,
+      default_variant: {
+        ...eggsRow.default_variant,
+        serving_size: 100,
+        serving_unit: 'g',
+      },
+    });
+    vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'log_food',
+        food_name: 'Eggs',
+        food_id: FOOD_ID,
+        quantity: 3,
+        unit: 'whole',
+        meal_type: 'dinner',
+        entry_date: '2026-06-10',
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      "Error [VALIDATION]: Cannot safely log 3 whole for this food because no matching serving variant is available. This food's serving variants: 100 g. Convert the amount to one of those units and log again, or ask the user."
     );
     expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
   });

@@ -393,9 +393,27 @@ async function resolveFoodLogVariantAndQuantity(args: {
   });
 
   if (!variant?.id || !resolved) {
+    // Name the units that WOULD work. Without this the model has already
+    // dropped the lookup result from its context by the time the error lands,
+    // so "no matching variant" is a dead end — it either gives up on the item
+    // or, worse, narrates it as logged anyway. With the list it can convert
+    // ("3 whole" eggs -> ~150 g) and retry inside the same turn.
+    const availableUnits = [
+      ...new Set(
+        candidates
+          .filter((candidate) => candidate?.serving_unit)
+          .map(
+            (candidate) => `${candidate.serving_size} ${candidate.serving_unit}`
+          )
+      ),
+    ];
+    const retryHint =
+      availableUnits.length > 0
+        ? ` This food's serving variants: ${availableUnits.join(', ')}. Convert the amount to one of those units and log again, or ask the user.`
+        : '';
     return {
       ok: false as const,
-      message: `Cannot safely log ${args.quantity} ${requestedUnit || 'serving'} for this food because no matching serving variant is available.`,
+      message: `Cannot safely log ${args.quantity} ${requestedUnit || 'serving'} for this food because no matching serving variant is available.${retryHint}`,
     };
   }
 
