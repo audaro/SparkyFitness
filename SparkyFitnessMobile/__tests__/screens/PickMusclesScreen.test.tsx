@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { MUSCLES } from '@workspace/shared';
 
 import PickMusclesScreen from '../../src/screens/PickMusclesScreen';
@@ -41,11 +41,23 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
+const mockRemoveListener = jest.fn();
+const mockAddListener = jest.fn(() => mockRemoveListener);
+
 const mockNavigation = {
   goBack: jest.fn(),
   setOptions: jest.fn(),
   navigate: jest.fn(),
+  addListener: mockAddListener,
 } as never;
+
+/** The `beforeRemove` handler the screen registered, if it registered one. */
+function beforeRemoveListener(): ((event: { preventDefault: () => void }) => void) | null {
+  const call = mockAddListener.mock.calls.find(
+    ([event]: unknown[]) => event === 'beforeRemove',
+  ) as [string, (event: { preventDefault: () => void }) => void] | undefined;
+  return call ? call[1] : null;
+}
 
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
@@ -169,6 +181,33 @@ describe('PickMusclesScreen', () => {
       expect(screen.getByTestId('pick-muscles-splits')).toBeTruthy();
     });
 
+    it('leaves the back button alone so it pops the picker', () => {
+      renderScreen();
+
+      expect(beforeRemoveListener()).toBeNull();
+    });
+
+    // Backing out mid-request is legitimate; pushing a workout screen at
+    // someone who already left is not.
+    it('does not navigate after the picker has been left', async () => {
+      let settle: ((value: unknown) => void) | undefined;
+      mockGenerateRecommendation.mockReturnValue(
+        new Promise((resolve) => {
+          settle = resolve;
+        }),
+      );
+      const screen = renderScreen();
+
+      fireEvent.press(screen.getByTestId('pick-muscles-split-push'));
+      screen.unmount();
+      await act(async () => {
+        settle?.({ id: 'rec-1' });
+      });
+
+      expect(mockGenerateRecommendation).toHaveBeenCalledTimes(1);
+      expect(mockNavigation.navigate).not.toHaveBeenCalled();
+    });
+
     it('ignores a second tap while a request is in flight', async () => {
       const screen = renderScreen();
 
@@ -272,6 +311,37 @@ describe('PickMusclesScreen', () => {
 
       expect(screen.getByTestId('pick-muscles-splits')).toBeTruthy();
       expect(mockGenerateRecommendation).not.toHaveBeenCalled();
+    });
+
+    // Android's hardware back does not go through the header, so it has to be
+    // intercepted or it pops the picker out from under a half-made selection.
+    it('does what Cancel does when the screen is backed out of', () => {
+      const screen = openGrid(renderScreen());
+      const event = { preventDefault: jest.fn() };
+
+      const listener = beforeRemoveListener();
+      expect(listener).not.toBeNull();
+      act(() => listener?.(event));
+
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(screen.getByTestId('pick-muscles-splits')).toBeTruthy();
+      expect(mockGenerateRecommendation).not.toHaveBeenCalled();
+    });
+
+    // ...but that guard must not block the pop back to Up Next that a
+    // successful Save performs.
+    it('lets the screen go once a pick has generated', async () => {
+      const screen = openGrid(renderScreen());
+
+      fireEvent.press(screen.getByTestId('pick-muscles-tile-chest'));
+      fireEvent.press(screen.getByText('Save'));
+      await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('UpNext'));
+
+      const event = { preventDefault: jest.fn() };
+      act(() => beforeRemoveListener()?.(event));
+
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('pick-muscles-splits')).toBeNull();
     });
   });
 });

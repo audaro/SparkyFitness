@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
@@ -97,6 +97,33 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
   const recoveryByMuscle = new Map(recovery.map((entry) => [entry.muscle, entry]));
 
   const inFlightRef = useRef(false);
+  // Set the moment a generate succeeds, so the `beforeRemove` guard below lets
+  // the screen go when *we* are the ones leaving.
+  const leavingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  /**
+   * Android's hardware back does not go through the header, so without this it
+   * would pop the whole picker out from under a half-made selection instead of
+   * doing what Cancel does. iOS's swipe-back is turned off in grid mode
+   * through `gestureEnabled` — native-stack does not route that gesture
+   * through this event, which is why both guards are needed.
+   */
+  useEffect(() => {
+    if (mode !== 'grid') return;
+    return navigation.addListener('beforeRemove', (event) => {
+      if (leavingRef.current) return;
+      event.preventDefault();
+      setMode('splits');
+    });
+  }, [navigation, mode]);
 
   const runGenerate = useCallback(
     async (targetMuscles: readonly Muscle[] | null, key: string) => {
@@ -111,9 +138,16 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
             ? { target_muscles: [...targetMuscles] }
             : {},
         );
+        // Leaving while the request was in flight is a legitimate thing to do,
+        // and the workout still lands in the recommendation cache Up Next
+        // reads — but pushing a screen at someone who has already backed out
+        // of the picker is not. Only navigate if we are still here.
+        if (!isMountedRef.current) return;
         // The generated workout is the answer to what was just asked, so land
         // on it. `navigate` pops back to Up Next when the picker was opened
-        // from there and pushes it otherwise.
+        // from there and pushes it otherwise. Popping removes this screen, so
+        // the guard above has to be told this departure is ours.
+        leavingRef.current = true;
         navigation.navigate('UpNext');
       } catch {
         // The hook's onError already showed the failure toast; stay put so the
