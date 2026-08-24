@@ -2,9 +2,9 @@ import React from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 
+import { useFreshnessToneColors } from '../hooks/useFreshnessToneColors';
 import { useMuscleRecovery } from '../hooks/useMuscleRecovery';
 import { titleCaseCanonical } from '../utils/workoutSession';
-import type { FreshnessTone } from '../utils/muscleRecoveryDisplay';
 
 const TILE_WIDTH = 64;
 
@@ -22,21 +22,13 @@ const TILE_WIDTH = 64;
 const MuscleRecoveryStrip: React.FC = () => {
   const { muscles, isLoading } = useMuscleRecovery();
 
-  const [accentPrimary, trackColor, textMuted, freshColor, moderateColor, fatiguedColor] =
-    useCSSVariable([
-      '--color-accent-primary',
-      '--color-progress-track',
-      '--color-text-muted',
-      '--color-icon-success',
-      '--color-icon-warning',
-      '--color-icon-danger',
-    ]) as [string, string, string, string, string, string];
+  const [accentPrimary, trackColor, textMuted] = useCSSVariable([
+    '--color-accent-primary',
+    '--color-progress-track',
+    '--color-text-muted',
+  ]) as [string, string, string];
 
-  const toneColors: Record<FreshnessTone, string> = {
-    fresh: freshColor,
-    moderate: moderateColor,
-    fatigued: fatiguedColor,
-  };
+  const toneColors = useFreshnessToneColors();
 
   // Hidden only when there is nothing to draw — deliberately keyed on the data
   // rather than on `isError`. The error flag is also true when a *refetch*

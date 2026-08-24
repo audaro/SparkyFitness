@@ -192,6 +192,10 @@ export type RootStackParamList = {
   PresetSearch: { selectedExercise?: Exercise; selectionNonce?: number } | undefined;
   // Carries a selection back from ExerciseSearch when a row's Replace was used.
   UpNext: { selectedExercise?: Exercise; selectionNonce?: number } | undefined;
+  // Split list and muscle grid for the next generated workout. Takes no
+  // params: the picked muscles go straight into a generate request, and the
+  // response lands in the recommendation cache Up Next already reads.
+  PickMuscles: undefined;
   WorkoutAdd: {
     session?: PresetSessionResponse;
     preset?: WorkoutPreset;

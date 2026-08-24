@@ -53,6 +53,7 @@ import {
   SafeExerciseSearch,
   SafePresetSearch,
   SafeUpNext,
+  SafePickMuscles,
   SafeWorkoutAdd,
   SafeActivityAdd,
   SafeWorkoutDetail,
@@ -536,6 +537,11 @@ function AppContent() {
             name="UpNext"
             component={SafeUpNext}
             options={createStackScreenOptions('Up Next', { headerBackTitle: 'Back' })}
+          />
+          <Stack.Screen
+            name="PickMuscles"
+            component={SafePickMuscles}
+            options={createStackScreenOptions('Pick Muscles', { headerBackTitle: 'Up Next' })}
           />
           <Stack.Screen
             name="WorkoutAdd"
