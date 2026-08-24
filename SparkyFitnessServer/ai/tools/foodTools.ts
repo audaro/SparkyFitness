@@ -1077,7 +1077,7 @@ async function resolveFoodEntryByName(
         at !== -1;
         at = name.indexOf(wanted, at + 1)
       ) {
-        if (at === 0 || !/[a-z0-9]/.test(name[at - 1])) {
+        if (at === 0 || !/[\p{L}\p{N}]/u.test(name[at - 1])) {
           return true;
         }
       }

@@ -377,7 +377,11 @@ async function createExercise(authenticatedUserId: any, exerciseData: any) {
       try {
         // Race a cap so a stalled upstream fetch or image download can only
         // delay creation, never hang it — past the cap the exercise is
-        // simply created bare.
+        // simply created bare. The losing lookup is deliberately not
+        // aborted: it holds no DB handle and writes nothing to the DB, and
+        // at worst it finishes warming the dataset cache and leaves the
+        // photo pair in the shared free-exercise-db uploads directory,
+        // where the next request for that exercise's images reuses it.
         const stockImages = await Promise.race([
           findStockImagesForExerciseName(exerciseData.name),
           new Promise<null>((resolve) => {

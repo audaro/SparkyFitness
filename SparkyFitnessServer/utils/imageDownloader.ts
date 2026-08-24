@@ -74,6 +74,28 @@ async function fetchImageResponse(imageUrl: string): Promise<Response> {
   throw new Error('[imageDownloader] Image redirect resolution failed');
 }
 
+// Two images on one entity can share a basename while coming from different
+// URLs (…/a/image.jpg and …/b/image.jpg). Without the URL-derived suffix they
+// land on the same path, so the concurrent downloads in localizeImages
+// overwrite each other and both array slots point at one file.
+function storedFileNameParts(imageUrl: string): {
+  stem: string;
+  hash: string;
+  extension: string;
+} {
+  const sourceName = path.basename(new URL(imageUrl).pathname);
+  const hash = crypto
+    .createHash('md5')
+    .update(imageUrl)
+    .digest('hex')
+    .slice(0, 8);
+  const stem =
+    path
+      .basename(sourceName, path.extname(sourceName))
+      .replace(/[^a-zA-Z0-9_-]/g, '_') || 'image';
+  return { stem, hash, extension: path.extname(sourceName).toLowerCase() };
+}
+
 function resolveImageFileName(imageUrl: string, contentType: string): string {
   const allowedExtensions = IMAGE_CONTENT_TYPE_EXTENSIONS.get(contentType);
   if (!allowedExtensions) {
@@ -82,58 +104,28 @@ function resolveImageFileName(imageUrl: string, contentType: string): string {
     );
   }
 
-  const sourceName = path.basename(new URL(imageUrl).pathname);
-  const sourceExtension = path.extname(sourceName).toLowerCase();
-  // Two images on one entity can share a basename while coming from different
-  // URLs (…/a/image.jpg and …/b/image.jpg). Without the URL-derived suffix they
-  // land on the same path, so the concurrent downloads in localizeImages
-  // overwrite each other and both array slots point at one file.
-  const urlHash = crypto
-    .createHash('md5')
-    .update(imageUrl)
-    .digest('hex')
-    .slice(0, 8);
-  const sourceStem =
-    path
-      .basename(sourceName, path.extname(sourceName))
-      .replace(/[^a-zA-Z0-9_-]/g, '_') || 'image';
-
-  if (sourceName && allowedExtensions.includes(sourceExtension)) {
-    return `${sourceStem}_${urlHash}${sourceExtension}`;
+  const { stem, hash, extension } = storedFileNameParts(imageUrl);
+  if (allowedExtensions.includes(extension)) {
+    return `${stem}_${hash}${extension}`;
   }
 
-  return `${sourceStem}_${urlHash}${allowedExtensions[0]}`;
+  return `${stem}_${hash}${allowedExtensions[0]}`;
 }
 
 /**
- * Whether a requested local filename refers to the given upstream image
- * basename. Stored filenames carry the URL-hash suffix resolveImageFileName
- * appends (`0.jpg` -> `0_ab12cd34.jpg`) while upstream records list the plain
- * basename, so on-demand recovery must accept both the verbatim name and its
- * hashed form — otherwise a hash-named file lost from disk can never be
- * re-downloaded.
+ * The exact filename downloadImage will store for a URL whose path already
+ * carries a recognized raster-image extension (`…/0.jpg` -> `0_ab12cd34.jpg`),
+ * or null when the name cannot be predicted without the response content-type.
+ * The on-demand /uploads/exercises recovery route compares requested filenames
+ * against this: only the verbatim upstream basename or this exact hash-suffixed
+ * name resolves, so a fabricated hash cannot trigger an upstream download.
  */
-function matchesUpstreamImageBasename(
-  upstreamBasename: string,
-  requestedFileName: string
-): boolean {
-  if (upstreamBasename === requestedFileName) {
-    return true;
-  }
-  const requestedExtensionRaw = path.extname(requestedFileName);
-  const requestedExtension = requestedExtensionRaw.toLowerCase();
-  const requestedStem = path.basename(requestedFileName, requestedExtensionRaw);
-  const hashedStem = /^(.*)_[0-9a-f]{8}$/.exec(requestedStem);
-  if (!hashedStem) {
-    return false;
-  }
-  const upstreamExtension = path.extname(upstreamBasename).toLowerCase();
-  const upstreamStem = path
-    .basename(upstreamBasename, path.extname(upstreamBasename))
-    .replace(/[^a-zA-Z0-9_-]/g, '_');
-  return (
-    upstreamStem === hashedStem[1] && upstreamExtension === requestedExtension
-  );
+function expectedStoredImageFileName(imageUrl: string): string | null {
+  const { stem, hash, extension } = storedFileNameParts(imageUrl);
+  const isKnownImageExtension = [
+    ...IMAGE_CONTENT_TYPE_EXTENSIONS.values(),
+  ].some((extensions) => extensions.includes(extension));
+  return isKnownImageExtension ? `${stem}_${hash}${extension}` : null;
 }
 
 /**
@@ -233,7 +225,7 @@ async function downloadImage(
     throw error;
   }
 }
-export { downloadImage, matchesUpstreamImageBasename };
+export { downloadImage, expectedStoredImageFileName };
 export type { ImageDomain };
 export default {
   downloadImage,

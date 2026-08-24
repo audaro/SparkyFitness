@@ -105,7 +105,7 @@ import { toNodeHandler } from 'better-auth/node';
 import freeExerciseDBService from './integrations/freeexercisedb/FreeExerciseDBService.js';
 import {
   downloadImage,
-  matchesUpstreamImageBasename,
+  expectedStoredImageFileName,
 } from './utils/imageDownloader.js';
 import authRoutes from './routes/authRoutes.js';
 import mcpRoutes from './routes/mcpRoutes.js';
@@ -416,15 +416,18 @@ app.get(
         return res.status(404).send('Exercise not found.');
       }
       // The stored filename may carry the downloader's URL-hash suffix
-      // (`0_ab12cd34.jpg`) while the upstream record lists `0.jpg`; the
-      // matcher recognizes both so hash-named files stay recoverable.
+      // (`0_ab12cd34.jpg`) while the upstream record lists `0.jpg`; accept
+      // the verbatim basename or the exact name the downloader would write
+      // for that image's canonical URL — a fabricated hash matches neither,
+      // so it cannot make this unauthenticated route re-download upstream.
       const originalRelativeImagePath = (
         (exercise as { images?: string[] }).images ?? []
-      ).find((img) =>
-        matchesUpstreamImageBasename(
-          path.basename(img),
-          imageFileName as string
-        )
+      ).find(
+        (img) =>
+          path.basename(img) === imageFileName ||
+          expectedStoredImageFileName(
+            freeExerciseDBService.getExerciseImageUrl(img)
+          ) === imageFileName
       );
       if (!originalRelativeImagePath) {
         return res.status(404).send('Image not found for this exercise.');
