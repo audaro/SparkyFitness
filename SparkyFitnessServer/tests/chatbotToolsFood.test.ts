@@ -521,6 +521,36 @@ describe('lookup_food_nutrition', () => {
     expect(result).not.toContain('Form mismatch');
   });
 
+  // Qualifiers are compared by stem: an inflection difference between the
+  // query and the match ("chip" vs "chips") is not a form mismatch.
+  it('does not warn when the query says the qualifier in a different inflection', async () => {
+    vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+      { ...eggsRow, name: 'Banana chips', brand: null },
+    ]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'lookup_food_nutrition', food_name: 'banana chip' },
+      opts
+    );
+
+    expect(result).not.toContain('Form mismatch');
+  });
+
+  it('warns on inflected qualifiers the query did not say, quoting the matched words', async () => {
+    vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+      { ...eggsRow, name: 'Concentrated apple juice', brand: null },
+    ]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'lookup_food_nutrition', food_name: 'apple' },
+      opts
+    );
+
+    expect(result).toContain('⚠️ Form mismatch:');
+    expect(result).toContain('"concentrated"');
+    expect(result).toContain('"juice"');
+  });
+
   // Same-food descriptors (toasted, raw, fresh...) track the plain food's
   // nutrition; warning on them would teach the model to distrust exact-enough
   // matches like "toast" → "Toasted White Bread".

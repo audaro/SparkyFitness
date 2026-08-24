@@ -321,50 +321,78 @@ function quantitySanityError(
   return null;
 }
 
-// Form qualifiers that turn a food into a nutritionally different product.
-// Deliberately excludes same-food descriptors (raw, fresh, whole, toasted,
-// frozen) whose calories track the plain food: a warning on those would train
-// the model to distrust correct matches. The live failure this guards: "a
-// normal banana" instant-logged as the user's saved "Banana, dried" at triple
-// the calories, because an own-catalog match skips the confirmation card.
-const FORM_QUALIFIER_TOKENS = [
+// Form qualifiers that turn a food into a nutritionally different product,
+// stored as canonical singular stems. Deliberately excludes same-food
+// descriptors (raw, fresh, whole, toasted, frozen) whose calories track the
+// plain food: a warning on those would train the model to distrust correct
+// matches. The live failure this guards: "a normal banana" instant-logged as
+// the user's saved "Banana, dried" at triple the calories, because an
+// own-catalog match skips the confirmation card.
+const FORM_QUALIFIER_STEMS = new Set([
   'dried',
   'dehydrated',
   'powder',
-  'powdered',
   'candied',
   'sweetened',
   'canned',
-  'chips',
+  'chip',
   'juice',
   'syrup',
   'concentrate',
   'instant',
-] as const;
+  'puree',
+  'flake',
+]);
 
-function tokenizeFoodName(name: string): Set<string> {
-  return new Set(
-    name
-      .toLowerCase()
-      .split(/[^a-z]+/)
-      .filter(Boolean)
-  );
+// Inflections the trailing-s strip can't reach, folded onto their stem so
+// "powdered sugar" and "sugar powder" read as the same qualifier.
+const QUALIFIER_STEM_ALIASES: Record<string, string> = {
+  powdered: 'powder',
+  concentrated: 'concentrate',
+  pureed: 'puree',
+  flaked: 'flake',
+  juiced: 'juice',
+};
+
+function qualifierStem(token: string): string {
+  const aliased = QUALIFIER_STEM_ALIASES[token];
+  if (aliased) return aliased;
+  return token.length > 3 && token.endsWith('s') ? token.slice(0, -1) : token;
+}
+
+function foodNameTokens(name: string): string[] {
+  return name
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter(Boolean);
 }
 
 /**
  * Form qualifiers present in the matched food's name but absent from the
- * lookup query — the "Banana" → "Banana, dried" trap. Empty when the match's
- * form is one the user actually named.
+ * lookup query — the "Banana" → "Banana, dried" trap. Compared by stem so an
+ * inflection difference ("banana chip" → "Banana chips") is not a mismatch.
+ * Returns the matched name's own tokens (not the stems) for readable
+ * warnings. Empty when the match's form is one the user actually named.
  */
 function unrequestedFormQualifiers(
   queryName: string,
   matchedName: string
 ): string[] {
-  const queryTokens = tokenizeFoodName(queryName);
-  const matchedTokens = tokenizeFoodName(matchedName);
-  return FORM_QUALIFIER_TOKENS.filter(
-    (q) => matchedTokens.has(q) && !queryTokens.has(q)
-  );
+  const queryStems = new Set(foodNameTokens(queryName).map(qualifierStem));
+  const reported = new Set<string>();
+  const qualifiers: string[] = [];
+  for (const token of foodNameTokens(matchedName)) {
+    const stem = qualifierStem(token);
+    if (
+      FORM_QUALIFIER_STEMS.has(stem) &&
+      !queryStems.has(stem) &&
+      !reported.has(stem)
+    ) {
+      reported.add(stem);
+      qualifiers.push(token);
+    }
+  }
+  return qualifiers;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
