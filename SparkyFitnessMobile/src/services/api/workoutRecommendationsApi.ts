@@ -2,6 +2,7 @@ import type {
   AlternativeExercise,
   AlternativeExercisesResponse,
   GenerateWorkoutRecommendationRequest,
+  MuscleRecoveryResponse,
   ReplaceRecommendationExerciseRequest,
   WorkoutRecommendationResponse,
   WorkoutRecommendationStatus,
@@ -35,6 +36,24 @@ export const fetchRecommendation = async (): Promise<WorkoutRecommendation | nul
     if (error instanceof ApiError && error.statusCode === 404) return null;
     throw error;
   }
+};
+
+/**
+ * Per-muscle recovery for today, in the user's timezone, freshest first.
+ *
+ * The server answers with a complete vector over the whole canonical muscle
+ * vocabulary — a muscle with no history comes back at `freshness: 1`,
+ * `last_trained: null` rather than being omitted — so callers never fill gaps.
+ *
+ * `freshness` is **0.0–1.0, not a percentage**. `tunables` rides along because
+ * `fatigue_sets` is meaningless without `full_fatigue_sets` to read it against.
+ */
+export const fetchMuscleRecovery = async (): Promise<MuscleRecoveryResponse> => {
+  return apiFetch<MuscleRecoveryResponse>({
+    endpoint: '/api/workout-recommendations/recovery',
+    serviceName: SERVICE_NAME,
+    operation: 'fetch muscle recovery',
+  });
 };
 
 /**

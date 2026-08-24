@@ -14,6 +14,7 @@ import DateNavigator from '../components/DateNavigator';
 import ExerciseSummary from '../components/ExerciseSummary';
 import HexagonProgressRing from '../components/HexagonProgressRing';
 import Icon from '../components/Icon';
+import MuscleRecoveryStrip from '../components/MuscleRecoveryStrip';
 import SettingsRow, { SettingsRowGroup } from '../components/SettingsRow';
 import UpNextCard from '../components/UpNextCard';
 import { addSheetRef } from '../components/AddSheet';
@@ -61,7 +62,7 @@ const SHORT_GROUP_LABELS: Record<MuscleGroup, string> = {
  * The tab keeps its own selected day (`exerciseDateStore`) rather than sharing
  * the diary's: the sections above the log are "now"-based, so a day scrubbed
  * back to on the Food tab must not put yesterday's workouts under today's
- * suggestion. The recovery section arrives with the muscle grid.
+ * suggestion — the recovery strip included.
  */
 const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -256,10 +257,11 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
           </Pressable>
         )}
 
-        {/* Recovery — per-muscle freshness from
-            GET /api/workout-recommendations/recovery. Section intentionally
-            absent until the muscle grid lands rather than shipping an empty
-            card that says nothing. */}
+        {/* Per-muscle freshness from GET /api/workout-recommendations/recovery.
+            "Now"-based like Up Next above it — today's recovery, not the
+            selected day's. The strip hides itself when it has nothing to draw. */}
+        <MuscleRecoveryStrip />
+
 
         <DateNavigator
           title="Logged"

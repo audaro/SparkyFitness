@@ -6,6 +6,7 @@ import ExerciseHomeScreen from '../../src/screens/ExerciseHomeScreen';
 import { useDailySummary } from '../../src/hooks/useDailySummary';
 import { useWeeklySetTargets } from '../../src/hooks/useWeeklySetTargets';
 import { useWorkoutRecommendation } from '../../src/hooks/useWorkoutRecommendation';
+import { useMuscleRecovery } from '../../src/hooks/useMuscleRecovery';
 import { getTodayDate } from '../../src/utils/dateUtils';
 import type { WeeklySetTargetsResponse } from '../../src/services/api/weeklySetTargetsApi';
 
@@ -56,6 +57,10 @@ jest.mock('../../src/hooks/useWorkoutRecommendation', () => ({
   useWorkoutRecommendation: jest.fn(),
 }));
 
+jest.mock('../../src/hooks/useMuscleRecovery', () => ({
+  useMuscleRecovery: jest.fn(),
+}));
+
 jest.mock('../../src/components/ActiveWorkoutBar', () => ({
   useActiveWorkoutBarPadding: jest.fn(() => 0),
 }));
@@ -74,6 +79,7 @@ const mockUseWeeklySetTargets = useWeeklySetTargets as jest.MockedFunction<
   typeof useWeeklySetTargets
 >;
 const mockUseWorkoutRecommendation = useWorkoutRecommendation as jest.Mock;
+const mockUseMuscleRecovery = useMuscleRecovery as jest.Mock;
 const mockUseDailySummary = useDailySummary as jest.Mock;
 
 function makeWeek(): WeeklySetTargetsResponse {
@@ -148,6 +154,22 @@ describe('ExerciseHomeScreen', () => {
       isLoading: false,
       isError: false,
     });
+    mockUseMuscleRecovery.mockReturnValue({
+      recovery: null,
+      muscles: [
+        {
+          muscle: 'chest',
+          freshness: 0.84,
+          fatigue_sets: 1.6,
+          last_trained: '2026-08-23',
+          percent: 84,
+          tone: 'fresh',
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
     mockUseWeeklySetTargets.mockReturnValue({
       data: makeWeek(),
       isLoading: false,
@@ -162,6 +184,7 @@ describe('ExerciseHomeScreen', () => {
     expect(getByTestId('exercise-home-title')).toBeTruthy();
     expect(getByTestId('up-next-card')).toBeTruthy();
     expect(getByTestId('exercise-home-week-card')).toBeTruthy();
+    expect(getByTestId('exercise-home-recovery-card')).toBeTruthy();
     expect(getByText('Logged')).toBeTruthy();
     expect(getByText('Create')).toBeTruthy();
     expect(getByText('Quick access')).toBeTruthy();

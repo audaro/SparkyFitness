@@ -123,6 +123,13 @@ export const weeklySetTargetsQueryKey = (historyWeeks: number) =>
 /** The one stored "Up Next" workout; the server keeps at most one per user. */
 export const workoutRecommendationQueryKey = ['workoutRecommendation'] as const;
 
+/**
+ * Today's per-muscle recovery vector. Not keyed by day: the server computes it
+ * for the user's own today, so a key carrying the device's date would strand
+ * the cache on the wrong side of a timezone or a midnight rollover.
+ */
+export const muscleRecoveryQueryKey = ['muscleRecovery'] as const;
+
 /** Ranked replacements for one exercise, feeding Replace's Suggested section. */
 export const exerciseAlternativesQueryKey = (exerciseId: string) =>
   ['exerciseAlternatives', exerciseId] as const;
