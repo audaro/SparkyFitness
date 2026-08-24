@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type {
   RecommendationSet,
@@ -10,6 +10,7 @@ import type {
 import UpNextScreen from '../../src/screens/UpNextScreen';
 import { usePreferences } from '../../src/hooks';
 import { useGymProfiles, useGymProfileMutations } from '../../src/hooks/useGymProfiles';
+import { useScreenHeader } from '../../src/hooks/useScreenHeader';
 import { useStartLiveWorkout } from '../../src/hooks/useStartLiveWorkout';
 import {
   useReplaceRecommendationExercise,
@@ -104,6 +105,27 @@ const mockUseGymProfileMutations = useGymProfileMutations as jest.MockedFunction
 const mockUseStartLiveWorkout = useStartLiveWorkout as jest.MockedFunction<
   typeof useStartLiveWorkout
 >;
+const mockUseScreenHeader = useScreenHeader as jest.MockedFunction<typeof useScreenHeader>;
+
+type HeaderTextItem = {
+  label?: string;
+  onPress: () => void;
+  disabled?: boolean;
+  role?: string;
+  accessibilityLabel?: string;
+};
+
+/**
+ * useScreenHeader is mocked out, so reach the muscle-picker action through the
+ * descriptor the screen handed it rather than through a bar that never renders.
+ */
+function headerRightItem(): HeaderTextItem {
+  const config = mockUseScreenHeader.mock.calls.at(-1)?.[0] as {
+    right?: HeaderTextItem;
+  };
+  if (!config?.right) throw new Error('headerRightItem: no right header item declared');
+  return config.right;
+}
 
 const insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const frame = { x: 0, y: 0, width: 390, height: 844 };
@@ -328,6 +350,58 @@ describe('UpNextScreen', () => {
 
     fireEvent.press(screen.getByText("Generate today's workout"));
     await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({}));
+  });
+
+  describe('muscle targeting', () => {
+    it('opens the picker from the header', () => {
+      renderScreen();
+      act(() => headerRightItem().onPress());
+
+      expect(navigation.navigate).toHaveBeenCalledWith('PickMuscles');
+    });
+
+    it('leaves whole-workout Swap alone', async () => {
+      // The Swap button regenerates the same targets; the header opens the
+      // picker. C4 adds an affordance, it does not repurpose one.
+      const screen = renderScreen();
+      fireEvent.press(screen.getByTestId('up-next-swap'));
+
+      await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({ swap: true }));
+      expect(navigation.navigate).not.toHaveBeenCalledWith('PickMuscles');
+    });
+
+    it('is reachable before any workout exists', () => {
+      // The body's Swap button is not rendered in this state, which is why the
+      // entry point lives on the header — choosing what to train is most
+      // useful when there is nothing to swap.
+      setRecommendation(null);
+      const screen = renderScreen();
+
+      expect(screen.getByText('No workout yet')).toBeTruthy();
+      expect(headerRightItem().disabled).toBe(false);
+    });
+
+    it('declares no accent action', () => {
+      // `useScreenHeader` throws in __DEV__ on a second primary; Up Next has
+      // none, and this action must not become the first.
+      renderScreen();
+
+      expect(headerRightItem().role).toBeUndefined();
+    });
+
+    it('is blocked while a workout is being generated', () => {
+      setRecommendation(makeRecommendation(), { isGenerating: true });
+      renderScreen();
+
+      expect(headerRightItem().disabled).toBe(true);
+    });
+
+    it('is blocked while a workout is starting', () => {
+      mockUseStartLiveWorkout.mockReturnValue({ startLiveWorkout, isStarting: true });
+      renderScreen();
+
+      expect(headerRightItem().disabled).toBe(true);
+    });
   });
 
   it('opens the exercise detail with workout actions suppressed', () => {

@@ -94,7 +94,31 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     new Map<string, React.ComponentRef<typeof TouchableOpacity> | null>(),
   );
 
-  const header = useScreenHeader({ title: 'Up Next', left: { kind: 'back' } });
+  // Muscle targeting is a destination, not a mutation: the picker owns the
+  // generate and lands back here with the workout it built.
+  const handlePickMuscles = useCallback(() => {
+    navigation.navigate('PickMuscles');
+  }, [navigation]);
+
+  // The picker lives on the header rather than beside Swap because the body is
+  // only rendered once a workout exists — and "no workout yet" is exactly when
+  // choosing what to train is most useful. It stays neutral (no `role`), so the
+  // screen still declares no accent action. D1 folds this into the Swap sheet;
+  // until that sheet exists this is the only way in.
+  const header = useScreenHeader({
+    title: 'Up Next',
+    left: { kind: 'back' },
+    right: {
+      kind: 'text',
+      label: 'Muscles',
+      onPress: handlePickMuscles,
+      // Retargeting mid-generate would leave two requests racing for the same
+      // recommendation row, and the loser would silently win the cache.
+      disabled: isGenerating || isStarting,
+      accessibilityLabel: 'Pick muscles',
+      identifier: 'up-next-pick-muscles',
+    },
+  });
 
   const payload = recommendation?.payload ?? null;
 
