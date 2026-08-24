@@ -51,6 +51,32 @@ class FreeExerciseDBService {
       return null;
     }
   }
+  /**
+   * The full upstream dataset, cached under a single fixed key. Every search
+   * previously fetched the multi-megabyte exercises.json again because the
+   * per-query result cache keys never overlap between queries.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getAllExercises(): Promise<any[]> {
+    const cacheKey = 'all_exercises_dataset';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cached = githubCache.get<any[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const exercisesJsonUrl =
+      'https://api.github.com/repos/yuhonas/free-exercise-db/contents/dist/exercises.json';
+    log(
+      'debug',
+      `[FreeExerciseDBService] Fetching exercises from: ${exercisesJsonUrl}`
+    );
+    const response = await axios.get(exercisesJsonUrl, {
+      headers: { Accept: 'application/vnd.github.raw+json' },
+    });
+    githubCache.set(cacheKey, response.data);
+    return response.data;
+  }
+
   async searchExercises(
     query: string | null | undefined,
     equipmentFilter: string[] = [],
@@ -67,15 +93,7 @@ class FreeExerciseDBService {
       return cachedResults;
     }
     try {
-      const exercisesJsonUrl =
-        'https://api.github.com/repos/yuhonas/free-exercise-db/contents/dist/exercises.json';
-      console.log(
-        `[FreeExerciseDBService] Fetching exercises from: ${exercisesJsonUrl}`
-      );
-      const response = await axios.get(exercisesJsonUrl, {
-        headers: { Accept: 'application/vnd.github.raw+json' },
-      });
-      const allExercises = response.data;
+      const allExercises = await this.getAllExercises();
 
       // 1. Filter by equipment and muscle group first
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

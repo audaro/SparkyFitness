@@ -310,11 +310,86 @@ async function getAvailableMuscleGroups() {
     throw error;
   }
 }
+// The source values hand-created exercises arrive with: 'custom' from the
+// mobile/web form, 'manual' from the chat tools. Importer sources
+// (free-exercise-db, wger) and auto-created activity types (Health Data)
+// bring their own media story and stay out of stock-image matching.
+const STOCK_IMAGE_SOURCES = new Set(['custom', 'manual']);
+
+function normalizeExerciseNameForImageMatch(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Stock photos for a hand-created exercise: the free-exercise-db image set
+ * whose exercise name is an exact (normalized) match for the given name.
+ * The wrong exercise's photos are worse than none, so anything short of a
+ * unique exact match returns null and the exercise stays bare.
+ */
+async function findStockImagesForExerciseName(
+  name: string
+): Promise<string[] | null> {
+  const { default: freeExerciseDBService } =
+    await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
+  const { exercises } = (await freeExerciseDBService.searchExercises(
+    name,
+    [],
+    [],
+    25,
+    0
+  )) as { exercises: { name?: string; images?: string[] }[] };
+  const wanted = normalizeExerciseNameForImageMatch(name);
+  const matches = (exercises ?? []).filter(
+    (candidate) =>
+      normalizeExerciseNameForImageMatch(String(candidate.name ?? '')) ===
+        wanted &&
+      Array.isArray(candidate.images) &&
+      candidate.images.length > 0
+  );
+  if (matches.length !== 1) {
+    return null;
+  }
+  const images = await downloadFreeExerciseDbImages(
+    matches[0].images as string[]
+  );
+  return images.length > 0 ? images : null;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function createExercise(authenticatedUserId: any, exerciseData: any) {
   try {
     // Ensure the exercise is created for the authenticated user
     exerciseData.user_id = authenticatedUserId;
+    // A hand-created exercise with no photos borrows the free-exercise-db
+    // set when its name unambiguously matches one catalog entry. Never
+    // blocks creation: an upstream fetch failure just creates it bare.
+    const hasImages = Array.isArray(exerciseData.images)
+      ? exerciseData.images.length > 0
+      : Boolean(exerciseData.images);
+    if (
+      !hasImages &&
+      STOCK_IMAGE_SOURCES.has(String(exerciseData.source ?? '')) &&
+      typeof exerciseData.name === 'string' &&
+      exerciseData.name.trim()
+    ) {
+      try {
+        const stockImages = await findStockImagesForExerciseName(
+          exerciseData.name
+        );
+        if (stockImages) {
+          exerciseData.images = stockImages;
+        }
+      } catch (stockImageError) {
+        log(
+          'debug',
+          `Stock image lookup failed for exercise "${exerciseData.name}":`,
+          stockImageError
+        );
+      }
+    }
     // exerciseDb.createExercise (models/exercise.ts) is the single
     // persistence chokepoint for JSON-encoding equipment/muscles/
     // instructions/images — encoding images here too would double-encode it
@@ -1332,6 +1407,49 @@ async function addNutritionixExerciseToUserExercises(
     throw error;
   }
 }
+/**
+ * Downloads a free-exercise-db image set into /uploads/exercises and returns
+ * the stored relative paths. Persists the path downloadImage actually wrote,
+ * not the upstream one: resolveImageFileName appends a URL hash
+ * (`0.jpg` -> `0_ab12cd34.jpg`), so storing the upstream `Name/0.jpg` pointed
+ * every thumbnail at a file that does not exist. The `/uploads/exercises/`
+ * prefix is stripped to match the relative shape the wger importer stores.
+ */
+async function downloadFreeExerciseDbImages(
+  imagePaths: string[]
+): Promise<string[]> {
+  const { default: freeExerciseDBService } =
+    await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
+  const localImagePaths = await Promise.all(
+    imagePaths.map(async (imagePath: string) => {
+      const imageUrl = freeExerciseDBService.getExerciseImageUrl(imagePath);
+      // Sanitized before it reaches downloadImage, which path.join()s the
+      // value into the uploads dir without checking it: an upstream entry
+      // whose first segment is `..` would otherwise escape
+      // /uploads/exercises. The charset keeps `_` and `-` (unlike the wger
+      // and CSV callers' [^a-zA-Z0-9]) so a real id such as `3_4_Sit-Up`
+      // survives byte-for-byte — the /uploads/exercises/:exerciseId route
+      // re-downloads a missing file by looking the id up upstream, and a
+      // rewritten directory name would break that recovery.
+      const exerciseIdFromPath = imagePath
+        .split('/')[0]
+        .replace(/[^a-zA-Z0-9_-]/g, '_');
+      try {
+        const fullPath = await downloadImage(imageUrl, exerciseIdFromPath);
+        return (fullPath as string).replace('/uploads/exercises/', '');
+      } catch (imgError) {
+        log(
+          'error',
+          `Failed to download free-exercise-db image ${imageUrl}:`,
+          imgError
+        );
+        return null;
+      }
+    })
+  );
+  return localImagePaths.filter((p): p is string => p !== null);
+}
+
 async function addFreeExerciseDBExerciseToUserExercises(
   authenticatedUserId: string,
   freeExerciseDBId: string
@@ -1355,38 +1473,9 @@ async function addFreeExerciseDBExerciseToUserExercises(
     if (!exerciseDetails) {
       throw new Error('Free-Exercise-DB exercise not found.');
     }
-    // Persist the path downloadImage actually wrote, not the upstream one:
-    // resolveImageFileName appends a URL hash (`0.jpg` -> `0_ab12cd34.jpg`), so
-    // storing the upstream `Name/0.jpg` pointed every thumbnail at a file that
-    // does not exist. Strip the `/uploads/exercises/` prefix to match the
-    // relative shape the wger importer stores.
-    const localImagePaths = await Promise.all(
+    const localImagePaths = await downloadFreeExerciseDbImages(
       // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      exerciseDetails.images.map(async (imagePath: string) => {
-        const imageUrl = freeExerciseDBService.getExerciseImageUrl(imagePath); // This now correctly forms the external URL
-        // Sanitized before it reaches downloadImage, which path.join()s the
-        // value into the uploads dir without checking it: an upstream entry
-        // whose first segment is `..` would otherwise escape
-        // /uploads/exercises. The charset keeps `_` and `-` (unlike the wger
-        // and CSV callers' [^a-zA-Z0-9]) so a real id such as `3_4_Sit-Up`
-        // survives byte-for-byte — the /uploads/exercises/:exerciseId route
-        // re-downloads a missing file by looking the id up upstream, and a
-        // rewritten directory name would break that recovery.
-        const exerciseIdFromPath = imagePath
-          .split('/')[0]
-          .replace(/[^a-zA-Z0-9_-]/g, '_');
-        try {
-          const fullPath = await downloadImage(imageUrl, exerciseIdFromPath);
-          return fullPath.replace('/uploads/exercises/', '');
-        } catch (imgError) {
-          log(
-            'error',
-            `Failed to download image ${imageUrl} for free-exercise-db exercise ${freeExerciseDBId}:`,
-            imgError
-          );
-          return null;
-        }
-      })
+      exerciseDetails.images
     );
     // Map free-exercise-db data to our generic Exercise model
     const instructions = normalizeToStringArray(
@@ -1418,8 +1507,7 @@ async function addFreeExerciseDBExerciseToUserExercises(
       instructions,
       // @ts-expect-error TS(2571): Object is of type 'unknown'.
       category: exerciseDetails.category,
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      images: localImagePaths.filter((p): p is string => p !== null), // Local upload paths — createExercise handles JSON.stringify
+      images: localImagePaths, // Local upload paths — createExercise handles JSON.stringify
       calories_per_hour:
         // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
         await calorieCalculationService.estimateCaloriesBurnedPerHour(
@@ -2573,6 +2661,7 @@ export { updateGroupedWorkoutSession };
 export { getGroupedWorkoutSessionById };
 export default {
   getExerciseById,
+  findStockImagesForExerciseName,
   getOrCreateActiveCaloriesExercise,
   upsertExerciseEntryData,
   getExercisesWithPagination,
