@@ -458,15 +458,14 @@ describe('UpNextScreen', () => {
   });
 
   describe('swap sheet', () => {
-    it('offers only the destinations that exist', () => {
+    it('offers every way of getting a different workout', () => {
       renderScreen();
 
-      // On Demand is D3 and has nothing behind it yet, so it is absent rather
-      // than present-and-inert.
       expect(swapSheet()?.props.items.map((item) => item.key)).toEqual([
         'pick-muscles',
         'saved-workouts',
         'create-from-scratch',
+        'on-demand',
       ]);
       expect(swapSheet()?.props.title).toBe('Swap Workout');
     });
@@ -492,6 +491,13 @@ describe('UpNextScreen', () => {
       expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPresetForm', {
         mode: 'create-preset',
       });
+    });
+
+    it('opens the themed on-demand list', () => {
+      renderScreen();
+      act(() => sheetItem('on-demand')?.onPress());
+
+      expect(navigation.navigate).toHaveBeenCalledWith('OnDemandWorkouts');
     });
 
     it('does not regenerate from the sheet', () => {

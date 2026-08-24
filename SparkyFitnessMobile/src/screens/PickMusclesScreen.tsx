@@ -15,8 +15,8 @@ import SettingsRow, { SettingsRowGroup } from '../components/SettingsRow';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
+import { useGenerateAndShowWorkout } from '../hooks/useGenerateAndShowWorkout';
 import { useMuscleRecovery, type MuscleRecoveryItem } from '../hooks/useMuscleRecovery';
-import { useWorkoutRecommendation } from '../hooks/useWorkoutRecommendation';
 import { MUSCLE_TILE_SECTIONS, musclesForTiles, type MuscleTileDefinition } from '../constants/muscleTiles';
 import { titleCaseCanonical } from '../utils/workoutSession';
 import type { RootStackScreenProps } from '../types/navigation';
@@ -86,28 +86,22 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
 
   const [mode, setMode] = useState<'splits' | 'grid'>('splits');
   const [selectedTileIds, setSelectedTileIds] = useState<string[]>([]);
-  const [pendingKey, setPendingKey] = useState<string | null>(null);
 
   const { muscles: recovery } = useMuscleRecovery();
-  // Only the mutation is wanted here: the stored recommendation is not
-  // rendered on this screen, and generation writes the fresh row into the
-  // shared cache itself, so Up Next is current by the time we land on it.
-  const { generateAsync } = useWorkoutRecommendation({ enabled: false });
 
   const recoveryByMuscle = new Map(recovery.map((entry) => [entry.muscle, entry]));
 
-  const inFlightRef = useRef(false);
   // Set the moment a generate succeeds, so the `beforeRemove` guard below lets
   // the screen go when *we* are the ones leaving.
   const leavingRef = useRef(false);
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
+  const markLeaving = useCallback(() => {
+    leavingRef.current = true;
   }, []);
+
+  const { generateAndShow, pendingKey, isGenerating } = useGenerateAndShowWorkout(
+    navigation,
+    { onBeforeNavigate: markLeaving },
+  );
 
   /**
    * Android's hardware back does not go through the header, so without this it
@@ -125,39 +119,20 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
     });
   }, [navigation, mode]);
 
+  /**
+   * Naming no muscles is not the same request as naming every muscle: the
+   * field is `.min(1)`, so an empty selection omits it entirely and asks the
+   * engine for its own freshness ranking.
+   */
   const runGenerate = useCallback(
-    async (targetMuscles: readonly Muscle[] | null, key: string) => {
-      // The disabled props alone cannot stop a double-tap: they follow the
-      // mutation's pending state, which only flips on the next render.
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
-      setPendingKey(key);
-      try {
-        await generateAsync(
-          targetMuscles && targetMuscles.length > 0
-            ? { target_muscles: [...targetMuscles] }
-            : {},
-        );
-        // Leaving while the request was in flight is a legitimate thing to do,
-        // and the workout still lands in the recommendation cache Up Next
-        // reads — but pushing a screen at someone who has already backed out
-        // of the picker is not. Only navigate if we are still here.
-        if (!isMountedRef.current) return;
-        // The generated workout is the answer to what was just asked, so land
-        // on it. `navigate` pops back to Up Next when the picker was opened
-        // from there and pushes it otherwise. Popping removes this screen, so
-        // the guard above has to be told this departure is ours.
-        leavingRef.current = true;
-        navigation.navigate('UpNext');
-      } catch {
-        // The hook's onError already showed the failure toast; stay put so the
-        // selection is not lost.
-      } finally {
-        inFlightRef.current = false;
-        setPendingKey(null);
-      }
-    },
-    [generateAsync, navigation],
+    (targetMuscles: readonly Muscle[] | null, key: string) =>
+      generateAndShow(
+        targetMuscles && targetMuscles.length > 0
+          ? { target_muscles: [...targetMuscles] }
+          : {},
+        key,
+      ),
+    [generateAndShow],
   );
 
   const toggleTile = useCallback((tileId: string) => {
@@ -173,8 +148,6 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
     if (targetMuscles.length === 0) return;
     void runGenerate(targetMuscles, 'grid');
   }, [runGenerate, selectedTileIds]);
-
-  const isGenerating = pendingKey !== null;
 
   const header = useScreenHeader({
     title: mode === 'grid' ? 'Individual Muscles' : 'Pick Muscles',

@@ -173,6 +173,10 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     navigation.navigate('WorkoutPresetForm', { mode: 'create-preset' });
   }, [navigation]);
 
+  const handleOnDemand = useCallback(() => {
+    navigation.navigate('OnDemandWorkouts');
+  }, [navigation]);
+
   const runGenerate = useCallback(
     async (
       body: Parameters<typeof generateAsync>[0],
@@ -374,10 +378,10 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     replaceExercise({ exercise_id_out: outgoing, exercise_id_in: exercise.id });
   });
 
-  // "On Demand" (D3) is deliberately absent rather than present-and-inert:
-  // there is nothing behind it yet, and a row that opens nothing reads as a
-  // bug. D3 adds it here. Regenerating the same targets is not one of these
-  // rows — it is the ⋯ menu's Refresh.
+  // Every row is a destination that produces a *different* workout. Ordered by
+  // how much the user has to decide: name the muscles, reuse one they saved,
+  // build one by hand, or take a themed session whole. Regenerating the same
+  // targets is not one of these rows — it is the ⋯ menu's Refresh.
   const swapSheetItems = useMemo<ActionSheetItem[]>(
     () => [
       { key: 'pick-muscles', label: 'Pick Muscles', onPress: handlePickMuscles },
@@ -387,8 +391,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
         label: 'Create From Scratch',
         onPress: handleCreateFromScratch,
       },
+      { key: 'on-demand', label: 'On Demand', onPress: handleOnDemand },
     ],
-    [handlePickMuscles, handleSavedWorkouts, handleCreateFromScratch],
+    [handlePickMuscles, handleSavedWorkouts, handleCreateFromScratch, handleOnDemand],
   );
 
   const handleSelectDuration = useCallback(

@@ -204,6 +204,10 @@ export type RootStackParamList = {
   // params: the picked muscles go straight into a generate request, and the
   // response lands in the recommendation cache Up Next already reads.
   PickMuscles: undefined;
+  // Themed one-tap generation. Takes no params for the same reason
+  // `PickMuscles` does not: the theme's parameters go straight into a generate
+  // request and the response lands in the recommendation cache.
+  OnDemandWorkouts: undefined;
   WorkoutAdd: {
     session?: PresetSessionResponse;
     preset?: WorkoutPreset;
