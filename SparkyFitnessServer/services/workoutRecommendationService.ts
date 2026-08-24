@@ -122,6 +122,12 @@ export interface GenerateOptions {
   durationMinutes?: number;
   gymProfileId?: string | null;
   swap?: boolean;
+  /**
+   * Canonical muscles the client asked to train. Absent means "no
+   * constraint" — the engine picks the freshest muscles itself, which is what
+   * every caller did before this existed.
+   */
+  targetMuscles?: readonly string[];
 }
 
 const DEFAULT_SESSION_MINUTES = 60;
@@ -436,9 +442,13 @@ async function generateRecommendation(
     // field this is the single line that turns it on.
     experienceLevel: null,
     excludeIds,
+    targetMuscles: opts.targetMuscles,
   };
 
-  const targetMuscles = selectTargetMuscles(muscles);
+  // Resolved here as well as inside `planWorkout` because the candidate query
+  // and the free-exercise-db backfill both run before the planner does.
+  // `selectTargetMuscles` is pure, so the two resolutions cannot disagree.
+  const targetMuscles = selectTargetMuscles(muscles, opts.targetMuscles);
   let candidates = await workoutRecommendationRepository.getCandidateExercises(
     userId,
     targetMuscles

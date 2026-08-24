@@ -113,6 +113,11 @@ const getHandler: RequestHandler = async (req, res, next) => {
  *       logged returns the identical workout by design; sending `swap: true` passes the current
  *       workout's exercises to the planner as a scoring penalty so it prefers different movements for
  *       the same muscles.
+ *
+ *       `target_muscles` overrides the recovery-based muscle choice with the caller's own, honoured
+ *       exactly — nothing is added for balance and nothing is dropped for fatigue. Values must be
+ *       canonical free-exercise-db muscle names; anything else is a 400 rather than a silent
+ *       no-match. Omit the field to have the engine pick the freshest muscles itself.
  *     security:
  *       - cookieAuth: []
  *     responses:
@@ -137,6 +142,7 @@ const generateHandler: RequestHandler = async (req, res, next) => {
         durationMinutes: parsed.data.duration_minutes,
         gymProfileId: parsed.data.gym_profile_id,
         swap: parsed.data.swap,
+        targetMuscles: parsed.data.target_muscles,
       });
     res
       .status(200)

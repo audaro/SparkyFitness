@@ -391,6 +391,34 @@ describe('generateRecommendation', () => {
     expect(muscles).toEqual(result.payload.muscle_groups);
   });
 
+  it('builds around requested muscles instead of the freshest ones', async () => {
+    // The fatigue fixture leaves chest and lats fresh, so an unasked-for
+    // workout is a chest/lats day. Asking for lats has to narrow both the
+    // catalog read and the workout itself.
+    const result = await workoutRecommendationService.generateRecommendation(
+      USER_ID,
+      { targetMuscles: ['lats'] }
+    );
+    const [, muscles] = repo.getCandidateExercises.mock.calls[0];
+
+    expect(muscles).toEqual(['lats']);
+    expect(result.payload.muscle_groups).toEqual(['lats']);
+    expect(result.payload.exercises.map((e) => e.exercise_id)).toEqual([
+      ROW_ID,
+    ]);
+  });
+
+  it('ignores an empty muscle request rather than planning nothing', async () => {
+    const asked = await workoutRecommendationService.generateRecommendation(
+      USER_ID,
+      { targetMuscles: [] }
+    );
+    const unasked =
+      await workoutRecommendationService.generateRecommendation(USER_ID);
+
+    expect(asked.payload).toEqual(unasked.payload);
+  });
+
   it('records the active gym profile it built against', async () => {
     gymRepo.getActiveGymProfile.mockResolvedValue({
       id: 'gym-1',
@@ -1496,6 +1524,27 @@ describe('workout recommendation routes', () => {
       .send({});
 
     expect(res.status).toBe(200);
+  });
+
+  it('passes requested muscles through to the planner', async () => {
+    const res = await request(app)
+      .post('/api/workout-recommendations/generate')
+      .send({ target_muscles: ['lats'] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.payload.muscle_groups).toEqual(['lats']);
+  });
+
+  // A mis-cased muscle is invisible to `::jsonb ?|`, so accepting it would
+  // return a workout built around whatever else was in the list rather than an
+  // error. The 400 is the only place this can be caught honestly.
+  it('rejects a muscle outside the canonical vocabulary', async () => {
+    const res = await request(app)
+      .post('/api/workout-recommendations/generate')
+      .send({ target_muscles: ['Quadriceps'] });
+
+    expect(res.status).toBe(400);
+    expect(repo.upsertWorkoutRecommendation).not.toHaveBeenCalled();
   });
 
   it('answers 422, not 500, when there is nothing to program', async () => {

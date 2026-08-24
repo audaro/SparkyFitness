@@ -28,6 +28,7 @@ import {
   isLowerBodyMuscle,
   MUSCLES,
   MUSCLE_SIZE_RANK,
+  MUSCLE_SPLIT_MEMBERS,
 } from '@workspace/shared';
 
 // --- fixtures ---------------------------------------------------------------
@@ -242,6 +243,92 @@ describe('selectTargetMuscles', () => {
 
   it('returns nothing for an empty vector', () => {
     expect(selectTargetMuscles([])).toEqual([]);
+  });
+});
+
+// --- client-requested muscles -----------------------------------------------
+
+describe('selectTargetMuscles with requested muscles', () => {
+  // Fatigued legs and a fully fresh upper body: every unguarded rule in the
+  // function — the freshness floor, the cap, the balance swap — wants to
+  // change this answer.
+  const legDayYesterday = [
+    fresh('chest', 1),
+    fresh('lats', 1),
+    fresh('shoulders', 1),
+    fresh('biceps', 1),
+    fresh('triceps', 1),
+    fresh('quadriceps', 0.1),
+    fresh('hamstrings', 0.1),
+    fresh('glutes', 0.15),
+  ];
+
+  it('honours the request exactly, in the order asked for', () => {
+    expect(
+      selectTargetMuscles(legDayYesterday, ['hamstrings', 'quadriceps'])
+    ).toEqual(['hamstrings', 'quadriceps']);
+  });
+
+  it('does not add a muscle for balance', () => {
+    // The user asked for legs on sore legs. That is a decision, not a mistake,
+    // and the picker already showed them the recovery percentage.
+    const result = selectTargetMuscles(legDayYesterday, [
+      'quadriceps',
+      'hamstrings',
+      'glutes',
+    ]);
+
+    expect(result).toEqual(['quadriceps', 'hamstrings', 'glutes']);
+    expect(result.every(isLowerBodyMuscle)).toBe(true);
+  });
+
+  it('does not clamp a request to the automatic cap', () => {
+    const upperBody = [...MUSCLE_SPLIT_MEMBERS['upper body']];
+    const result = selectTargetMuscles(legDayYesterday, upperBody);
+
+    expect(result).toEqual(upperBody);
+    expect(result.length).toBeGreaterThan(GENERATION_TUNABLES.maxTargetMuscles);
+  });
+
+  it('ignores freshness entirely, including muscles it has no score for', () => {
+    // `neck` is absent from this freshness vector. Ranking would drop it;
+    // honouring the request keeps it.
+    expect(selectTargetMuscles(legDayYesterday, ['neck'])).toEqual(['neck']);
+  });
+
+  it('treats an empty request as no request', () => {
+    expect(selectTargetMuscles(legDayYesterday, [])).toEqual(
+      selectTargetMuscles(legDayYesterday)
+    );
+  });
+
+  it('falls back to ranking when nothing in the request is canonical', () => {
+    // Not a silent empty workout: an unrecognized muscle cannot be matched by
+    // `::jsonb ?|` anyway, so the useful answer is the one the engine would
+    // have given on its own. The HTTP contract rejects these before here.
+    expect(selectTargetMuscles(legDayYesterday, ['quads', 'legs'])).toEqual(
+      selectTargetMuscles(legDayYesterday)
+    );
+  });
+
+  it('canonicalizes and de-duplicates what it is given', () => {
+    expect(
+      selectTargetMuscles(legDayYesterday, [
+        ' Quadriceps ',
+        'quadriceps',
+        'HAMSTRINGS',
+        'not a muscle',
+      ])
+    ).toEqual(['quadriceps', 'hamstrings']);
+  });
+
+  it('stays deterministic across repeated calls', () => {
+    const request = [...MUSCLE_SPLIT_MEMBERS['pull']];
+    const first = selectTargetMuscles(legDayYesterday, request);
+    const second = selectTargetMuscles(legDayYesterday, request);
+
+    expect(first).toEqual(second);
+    expect(first).toEqual(request);
   });
 });
 
@@ -490,6 +577,25 @@ describe('planWorkout', () => {
     const slots = plan.exercises.map((e) => e.slot);
 
     expect(slots).toEqual(['compound', 'compound', 'isolation', 'isolation']);
+  });
+
+  it('builds around the requested muscles instead of the freshest ones', () => {
+    // Chest is the fresher muscle, so an unconstrained plan opens with it.
+    // Asking for lats has to be enough to leave chest out entirely.
+    const plan = planWorkout(
+      freshness,
+      pool,
+      options({ targetMuscles: ['lats'] })
+    );
+
+    expect(plan.targetMuscles).toEqual(['lats']);
+    expect(plan.exercises.map((e) => e.candidate.id)).toEqual(['l1', 'l2']);
+  });
+
+  it('ignores an empty request rather than planning nothing', () => {
+    const plan = planWorkout(freshness, pool, options({ targetMuscles: [] }));
+
+    expect(plan.targetMuscles).toEqual(['chest', 'lats']);
   });
 
   it('loses a slot to a real movement rather than a stretch', () => {

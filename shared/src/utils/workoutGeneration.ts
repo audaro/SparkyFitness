@@ -3,6 +3,7 @@ import {
   isLowerBodyMuscle,
   normalizeEquipmentName,
   normalizeMuscleName,
+  toCanonicalMuscle,
   type Muscle,
 } from "../constants/exerciseTaxonomy.ts";
 import {
@@ -241,6 +242,12 @@ export interface GenerationOptions {
   experienceLevel?: string | null;
   /** Exercise ids in the workout being swapped away from. */
   excludeIds?: string[];
+  /**
+   * Muscles the client asked to train, when it asked. Absent or empty means
+   * "no constraint" — build around the freshest muscles instead. Never split
+   * names: splits are resolved to canonical muscles before they reach here.
+   */
+  targetMuscles?: readonly string[];
 }
 
 export interface PlannedExercise {
@@ -251,7 +258,10 @@ export interface PlannedExercise {
 }
 
 export interface WorkoutPlan {
-  /** The muscles the workout was built around, freshest first. */
+  /**
+   * The muscles the workout was built around: freshest first when the engine
+   * chose them, in the order asked for when the client named them.
+   */
   targetMuscles: string[];
   exercises: PlannedExercise[];
   /**
@@ -349,20 +359,48 @@ function rankByFreshness(freshness: readonly MuscleFreshness[]): string[] {
 /**
  * The muscles to build the workout around.
  *
- * Takes the freshest muscles clearing {@link GENERATION_TUNABLES.minTargetFreshness},
- * capped at five. If fewer than two clear it the two freshest are taken
- * regardless — someone who trained everything yesterday still wants a workout,
- * and refusing to produce one is worse than producing a light one.
+ * When the caller names muscles, those are the muscles — returned in the order
+ * asked for, with none added and none removed. Not the cap, not the balance
+ * swap, not the freshness floor: a user who taps Legs on fatigued legs is
+ * making a decision, and quietly adding a shoulder to it produces a workout
+ * nobody asked for. Recovery is still shown next to every muscle in the picker,
+ * so the information is offered rather than enforced.
+ *
+ * Otherwise: the freshest muscles clearing
+ * {@link GENERATION_TUNABLES.minTargetFreshness}, capped at five. If fewer than
+ * two clear it the two freshest are taken regardless — someone who trained
+ * everything yesterday still wants a workout, and refusing to produce one is
+ * worse than producing a light one.
  *
  * The balance guard then fixes the failure this scoring makes easy. Freshness
  * is per-muscle, so a heavy leg day leaves the entire upper body at 1.0 and the
  * top five come back all-upper — a "full body" workout with no legs in it, five
  * days running. If the picks are homogeneous and the other half of the body has
  * anything reasonably fresh, the least-fresh slot is given away to it.
+ *
+ * Still pure and still deterministic in both branches. Same arguments, same
+ * answer, every time: that is what makes an "Up Next" stable across app opens
+ * and what makes Swap mean something.
  */
 export function selectTargetMuscles(
   freshness: readonly MuscleFreshness[],
+  requested?: readonly string[],
 ): string[] {
+  // Canonicalized and de-duplicated rather than trusted: the HTTP contract
+  // pins the enum, but this is a shared function and the catalog filter it
+  // feeds (`::jsonb ?|`) is exact and case-sensitive, so a stray `'Chest'`
+  // from another caller would match nothing instead of failing. An empty
+  // result — nothing asked for, or nothing recognizable asked for — falls
+  // through to the freshness ranking, which is what "no constraint" means.
+  const honoured = [
+    ...new Set(
+      (requested ?? [])
+        .map(toCanonicalMuscle)
+        .filter((muscle): muscle is Muscle => muscle !== null),
+    ),
+  ];
+  if (honoured.length > 0) return honoured;
+
   const ranked = rankByFreshness(freshness);
   if (ranked.length === 0) return [];
 
@@ -613,7 +651,7 @@ export function planWorkout(
   candidates: readonly CandidateExercise[],
   options: GenerationOptions,
 ): WorkoutPlan {
-  const targetMuscles = selectTargetMuscles(freshness);
+  const targetMuscles = selectTargetMuscles(freshness, options.targetMuscles);
   const excludeIds = new Set(options.excludeIds ?? []);
 
   const eligible = candidates.filter(
