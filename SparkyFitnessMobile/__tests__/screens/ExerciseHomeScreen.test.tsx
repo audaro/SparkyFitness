@@ -106,7 +106,7 @@ describe('ExerciseHomeScreen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('WeeklySetTargets');
   });
 
-  it('hides the week card when the targets read fails', () => {
+  it('hides the week card when the targets read fails with nothing cached', () => {
     mockUseWeeklySetTargets.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -119,6 +119,23 @@ describe('ExerciseHomeScreen', () => {
     expect(queryByTestId('exercise-home-week-card')).toBeNull();
     // The rest of the tab still works — a failed read is not a broken screen.
     expect(getByText('Quick access')).toBeTruthy();
+  });
+
+  // The hook refetches on every tab focus, so a user who goes offline hits
+  // isError with data still cached (React Query's isRefetchError) on the very
+  // next focus. Blanking the ring there would be the common offline case.
+  it('keeps the week card when a refetch fails over cached data', () => {
+    mockUseWeeklySetTargets.mockReturnValue({
+      data: makeWeek(),
+      isLoading: false,
+      isError: true,
+      refetch: jest.fn(),
+    } as never);
+
+    const { getByTestId } = renderScreen();
+
+    expect(getByTestId('exercise-home-week-card')).toBeTruthy();
+    expect(getByTestId('exercise-home-week-overall')).toHaveTextContent('50%');
   });
 
   it('routes each quick access and setup row to its own screen', () => {

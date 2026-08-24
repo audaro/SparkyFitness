@@ -38,11 +38,15 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
     '--color-text-muted',
   ]) as [string, string];
 
+  const payload = recommendation?.payload ?? null;
+
   // A failed read is not worth a dashboard error block — the card simply
   // stays out of the way and the Start Workout flow still reaches the screen.
-  if (isError) return null;
+  // Only when the read left nothing behind, though: `isError` covers a refetch
+  // that failed over cached data too, and blanking a workout the user can
+  // still see and start would be a worse offline story than a stale one.
+  if (isError && !payload) return null;
 
-  const payload = recommendation?.payload ?? null;
   const exerciseCount = payload?.exercises.length ?? 0;
   const muscleCount = payload?.muscle_groups.length ?? 0;
 

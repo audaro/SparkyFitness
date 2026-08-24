@@ -74,6 +74,18 @@ describe('UpNextCard', () => {
     expect(screen.queryByTestId('up-next-card')).toBeNull();
   });
 
+  // isError also covers a refetch that failed over cached data, and the card
+  // sits on screens that refetch on focus. A stale workout the user can still
+  // start beats no card at all the moment they lose signal.
+  it('keeps showing a cached workout when a refetch fails', () => {
+    setState({ recommendation, isError: true });
+
+    const screen = render(<UpNextCard navigation={navigation} />);
+
+    expect(screen.getByTestId('up-next-card')).toBeTruthy();
+    expect(screen.getByText('Chest · Triceps')).toBeTruthy();
+  });
+
   it('navigates to the Up Next screen', () => {
     setState({ recommendation });
 

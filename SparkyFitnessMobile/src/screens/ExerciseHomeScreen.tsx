@@ -98,8 +98,13 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
 
       {/* A failed read is not worth an error block on a tab that has plenty
           else to offer; the section simply stays out of the way, and the ring
-          is one tap away on the targets screen either way. */}
-      {!isWeekError && (
+          is one tap away on the targets screen either way.
+
+          Only when there is nothing to draw, though: `isError` is also true
+          when a refetch fails over cached data (React Query's isRefetchError),
+          and this hook refetches on every tab focus — so keying on the error
+          alone would blank a populated ring the moment the user went offline. */}
+      {!(isWeekError && !week) && (
         <Pressable
           className="bg-surface rounded-xl p-4 mb-6 shadow-sm"
           onPress={() => navigation.navigate('WeeklySetTargets')}
