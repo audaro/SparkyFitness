@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MUSCLES } from "../../constants/exerciseTaxonomy.ts";
 import { CANONICAL_SET_TYPES } from "../../constants/setTypes.ts";
 import { exerciseModalitySchema } from "./Exercises.api.zod.ts";
 import { workoutRecommendationStatusSchema } from "../database/WorkoutRecommendations.zod.ts";
@@ -152,10 +153,11 @@ export const workoutRecommendationResponseSchema = z
 /**
  * `POST /generate`.
  *
- * All three fields are optional because the common case — the app opening for
- * the first time that day — has nothing to say: duration falls back to the
- * coach profile's `session_minutes` and then to 60, and the gym falls back to
- * whichever profile is active.
+ * Every field is optional because the common case — the app opening for the
+ * first time that day — has nothing to say: duration falls back to the coach
+ * profile's `session_minutes` and then to 60, the gym falls back to whichever
+ * profile is active, and naming no muscles is what asks the engine to pick the
+ * freshest ones itself.
  */
 export const generateWorkoutRecommendationRequestSchema = z
   .object({
@@ -169,6 +171,32 @@ export const generateWorkoutRecommendationRequestSchema = z
      * for the same muscles but can still repeat one if nothing else fits.
      */
     swap: z.boolean().optional(),
+    /**
+     * Build the workout around these muscles instead of the freshest ones.
+     *
+     * Validated against the canonical enum rather than accepted as free
+     * strings: catalog muscle matching is `::jsonb ?|`, which is exact and
+     * case-sensitive, so `"Quadriceps"` would not fail — it would quietly
+     * match nothing and return a workout built around a muscle the user did
+     * not ask for. A 400 is the honest answer.
+     *
+     * Split names never reach the wire. The client resolves Push / Upper body
+     * / Full body to canonical muscles (`MUSCLE_SPLIT_MEMBERS`) and sends the
+     * muscles, which keeps the split list and the per-muscle grid on one code
+     * path and keeps training vocabulary out of the server.
+     *
+     * The upper bound is the size of the vocabulary, not a smaller "sensible"
+     * number, because Full body legitimately names all 17 and Upper body names
+     * 11. How many of them a session can actually serve is the planner's
+     * decision through duration fitting, not the wire's. Omitting the field
+     * and sending every muscle are different requests: the first tracks
+     * recovery, the second overrides it.
+     */
+    target_muscles: z
+      .array(z.enum(MUSCLES))
+      .min(1)
+      .max(MUSCLES.length)
+      .optional(),
   })
   .strict();
 
