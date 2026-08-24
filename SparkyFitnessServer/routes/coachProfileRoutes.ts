@@ -10,6 +10,7 @@ import coachProfileRepository, {
   type CoachProfilePatch,
   type CoachProfileRow,
 } from '../models/coachProfileRepository.js';
+import { invalidateChatContextInputs } from '../services/chatContextCache.js';
 
 const router = express.Router();
 
@@ -131,6 +132,13 @@ const updateHandler: RequestHandler = async (req, res, next) => {
       req.userId,
       bodyResult.data as CoachProfilePatch
     );
+    // Every coaching system prompt embeds a summary built from these exact
+    // columns, cached per user for 60 seconds. Without this the coach would
+    // keep planning around the old session length or training days for up to a
+    // minute after the user changed them. `sparky_manage_coach_profile` does
+    // the same after its own write; the cache is keyed by the authenticated
+    // user, which `requireSelf` has already established is `req.userId`.
+    invalidateChatContextInputs(req.userId);
     res.status(200).json(toResponse(row));
   } catch (error: unknown) {
     next(error);

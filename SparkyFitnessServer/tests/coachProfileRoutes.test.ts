@@ -5,6 +5,7 @@ import type { NextFunction, Request, Response } from 'express';
 import request from 'supertest';
 import coachProfileRepository from '../models/coachProfileRepository.js';
 import coachProfileRoutes from '../routes/coachProfileRoutes.js';
+import { invalidateChatContextInputs } from '../services/chatContextCache.js';
 
 vi.mock('../models/coachProfileRepository.js', () => ({
   default: {
@@ -14,6 +15,9 @@ vi.mock('../models/coachProfileRepository.js', () => ({
 }));
 vi.mock('../utils/permissionUtils.js', () => ({
   canAccessUserData: vi.fn().mockResolvedValue(true),
+}));
+vi.mock('../services/chatContextCache.js', () => ({
+  invalidateChatContextInputs: vi.fn(),
 }));
 
 // The active context is switchable per request so the owner-only guard can be
@@ -123,6 +127,19 @@ describe('PATCH /coach-profile', () => {
       'owner-1',
       { training_days_per_week: null }
     );
+  });
+
+  // The coaching system prompt embeds a summary built from these columns,
+  // cached per user for 60 seconds. Without the drop the coach would keep
+  // planning around the old session length for up to a minute after the edit.
+  it('drops the cached chat context so the coach sees the edit', async () => {
+    await request(app).patch('/coach-profile').send({ session_minutes: 45 });
+    expect(invalidateChatContextInputs).toHaveBeenCalledWith('owner-1');
+  });
+
+  it('leaves the cached chat context alone when the patch is rejected', async () => {
+    await request(app).patch('/coach-profile').send({ session_minutes: 1 });
+    expect(invalidateChatContextInputs).not.toHaveBeenCalled();
   });
 
   it('rejects a training week longer than a week', async () => {
