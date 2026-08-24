@@ -4,10 +4,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import Icon, { type IconName } from './Icon';
+import type { TabParamList } from '../types/navigation';
 
 export const TAB_BAR_HEIGHT = 56;
 
-const TAB_ICONS: Record<string, IconName> = {
+/** Every tab this bar draws an icon for — `Add` is the centre action instead. */
+type ContentTabName = Exclude<keyof TabParamList, 'Add'>;
+
+// Keyed to the tab names themselves so renaming a tab without renaming its icon
+// is a typecheck failure rather than a silently icon-less tab on Android and
+// iOS < 26. The native iOS tab bar takes its icons from TabsLayout, not here.
+const TAB_ICONS: Record<ContentTabName, IconName> = {
   Home: 'tab-dashboard',
   Exercise: 'exercise-weights',
   Food: 'food',
@@ -102,7 +109,7 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
           typeof options.tabBarLabel === 'string'
             ? options.tabBarLabel
             : options.title ?? route.name;
-        const iconName = TAB_ICONS[route.name];
+        const iconName: IconName | undefined = TAB_ICONS[route.name as ContentTabName];
         const tintColor = isFocused ? tabActive : tabInactive;
 
         return (
