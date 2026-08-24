@@ -138,11 +138,13 @@ const mockUseStartLiveWorkout = useStartLiveWorkout as jest.MockedFunction<
 const mockUseScreenHeader = useScreenHeader as jest.MockedFunction<typeof useScreenHeader>;
 
 type HeaderTextItem = {
+  kind?: string;
   label?: string;
-  onPress: () => void;
+  onPress?: () => void;
   disabled?: boolean;
   role?: string;
   accessibilityLabel?: string;
+  items?: { label: string; onPress: () => void }[];
 };
 
 /**
@@ -160,6 +162,13 @@ function headerRightItem(): HeaderTextItem | null {
 
 function sheetItem(key: string): ActionSheetItem | undefined {
   return mockSheet.props?.items.find((item) => item.key === key);
+}
+
+/** One row of the ⋯ header menu, by its visible label. */
+function menuAction(label: string): { label: string; onPress: () => void } {
+  const action = headerRightItem()?.items?.find((item) => item.label === label);
+  if (!action) throw new Error(`menuAction: no "${label}" row in the overflow menu`);
+  return action;
 }
 
 const insets = { top: 0, bottom: 0, left: 0, right: 0 };
@@ -399,7 +408,6 @@ describe('UpNextScreen', () => {
         'pick-muscles',
         'saved-workouts',
         'create-from-scratch',
-        'refresh',
       ]);
       expect(mockSheet.props?.title).toBe('Swap Workout');
     });
@@ -427,22 +435,18 @@ describe('UpNextScreen', () => {
       });
     });
 
-    it('keeps whole-workout regeneration behind the Refresh row', async () => {
-      // The Swap button used to do this directly. It is the only whole-workout
-      // swap path there is; D2 moves the row to the ⋯ menu, it does not drop it.
+    it('does not regenerate from the sheet', () => {
+      // Regeneration is the ⋯ menu's Refresh; every row here is a destination.
       renderScreen();
-      act(() => sheetItem('refresh')?.onPress());
+      mockSheet.props?.items.forEach((item) => act(() => item.onPress()));
 
-      await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({ swap: true }));
-      expect(navigation.navigate).not.toHaveBeenCalledWith('PickMuscles');
+      expect(generateAsync).not.toHaveBeenCalled();
     });
 
-    it('drops Refresh when there is no workout to regenerate', () => {
+    it('titles itself for the state it opened in', () => {
       setRecommendation(null);
       renderScreen();
 
-      // The empty state's own action already offers a plain generate.
-      expect(sheetItem('refresh')).toBeUndefined();
       expect(mockSheet.props?.title).toBe('New Workout');
     });
 
@@ -472,10 +476,11 @@ describe('UpNextScreen', () => {
       });
 
       it('stands down once the Swap button renders', () => {
-        // Two identical entry points on one screen; the body one wins.
+        // Two identical entry points on one screen; the body one wins, and the
+        // header slot goes to the ⋯ menu instead.
         renderScreen();
 
-        expect(headerRightItem()).toBeNull();
+        expect(headerRightItem()?.kind).toBe('menu');
       });
 
       it('declares no accent action', () => {
@@ -501,6 +506,52 @@ describe('UpNextScreen', () => {
 
         expect(headerRightItem()?.disabled).toBe(true);
       });
+    });
+  });
+
+  describe('overflow menu', () => {
+    it('offers the rows that have something behind them', () => {
+      renderScreen();
+
+      // Share is deferred indefinitely (blueprint D2) and is not a row;
+      // "Build superset/circuit" follows in its own change.
+      expect(headerRightItem()?.items?.map((item) => item.label)).toEqual([
+        'Save workout',
+        'Refresh',
+      ]);
+      expect(headerRightItem()?.role).toBeUndefined();
+    });
+
+    it('keeps whole-workout regeneration behind Refresh', async () => {
+      // The Swap button used to do this directly, and it is the only
+      // whole-workout swap path there is — repointing that button at the sheet
+      // moved this row, it did not drop it.
+      renderScreen();
+      act(() => menuAction('Refresh').onPress());
+
+      await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({ swap: true }));
+    });
+
+    it('saves the workout by review, not by writing it', () => {
+      const recommendation = makeRecommendation();
+      setRecommendation(recommendation);
+
+      renderScreen();
+      act(() => menuAction('Save workout').onPress());
+
+      // The create form owns the write; the payload rides along as the seed so
+      // a generate landing behind the user cannot change what they are saving.
+      expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPresetForm', {
+        mode: 'create-preset',
+        sourceRecommendation: recommendation.payload,
+      });
+    });
+
+    it('is not on the header when there is no workout to act on', () => {
+      setRecommendation(null);
+      renderScreen();
+
+      expect(headerRightItem()?.kind).toBe('text');
     });
   });
 

@@ -14,7 +14,10 @@ import { kgToLbs } from '../../src/utils/unitConversions';
 import type { Exercise } from '../../src/types/exercise';
 import type { WorkoutDraftExercise } from '../../src/types/drafts';
 import type { WorkoutPreset } from '../../src/types/workoutPresets';
-import type { PresetSessionResponse } from '@workspace/shared';
+import type {
+  PresetSessionResponse,
+  WorkoutRecommendationPayload,
+} from '@workspace/shared';
 
 function exercise(overrides: Partial<Exercise> = {}): Exercise {
   return {
@@ -950,6 +953,59 @@ describe('useWorkoutPresetForm', () => {
 
     expect(result.current.state.name).toBe('Push Day');
     expect(result.current.state.exercises).toHaveLength(1);
+    expect(result.current.state.exercises[0].clientId).toBeTruthy();
+    expect(result.current.state.exercises[0].sets[0].clientId).toBeTruthy();
+    expect(result.current.exercisesModifiedRef.current).toBe(false);
+  });
+
+  it('populateFromRecommendation seeds the draft from a generated workout', () => {
+    const { result } = renderHook(() => useWorkoutPresetForm());
+
+    act(() => {
+      result.current.addExercise(exercise());
+    });
+    expect(result.current.exercisesModifiedRef.current).toBe(true);
+
+    const payload: WorkoutRecommendationPayload = {
+      muscle_groups: ['chest', 'triceps'],
+      estimated_duration_minutes: 45,
+      exercises: [
+        {
+          exercise_id: '11111111-1111-4111-8111-111111111111',
+          exercise_name: 'Bench Press',
+          modality: 'weight_reps',
+          primary_muscles: ['chest'],
+          secondary_muscles: ['triceps'],
+          equipment: ['barbell'],
+          images: [],
+          sort_order: 0,
+          rest_seconds: 120,
+          rationale: 'fresh chest',
+          sets: [
+            {
+              set_number: 1,
+              set_type: 'Working Set',
+              reps: 8,
+              weight: 80,
+              duration: null,
+              distance: null,
+              rest_time: 120,
+            },
+          ],
+        },
+      ],
+    };
+
+    act(() => {
+      result.current.populateFromRecommendation(payload, 'kg', 'km');
+    });
+
+    // A generated workout has no name of its own; the muscles it was built
+    // around seed the field the user is about to edit.
+    expect(result.current.state.name).toBe('Chest, Triceps');
+    expect(result.current.state.description).toBe('');
+    expect(result.current.state.exercises).toHaveLength(1);
+    expect(result.current.state.exercises[0].exerciseName).toBe('Bench Press');
     expect(result.current.state.exercises[0].clientId).toBeTruthy();
     expect(result.current.state.exercises[0].sets[0].clientId).toBeTruthy();
     expect(result.current.exercisesModifiedRef.current).toBe(false);

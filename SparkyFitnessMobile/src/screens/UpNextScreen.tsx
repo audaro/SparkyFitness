@@ -28,7 +28,7 @@ import {
   useWorkoutRecommendation,
 } from '../hooks/useWorkoutRecommendation';
 import { useSelectedExercise } from '../hooks/useSelectedExercise';
-import { useScreenHeader } from '../hooks/useScreenHeader';
+import { useScreenHeader, type HeaderMenuEntry } from '../hooks/useScreenHeader';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import {
   buildRecommendationStartPayload,
@@ -120,6 +120,68 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     navigation.navigate('WorkoutPresetForm', { mode: 'create-preset' });
   }, [navigation]);
 
+  const runGenerate = useCallback(
+    async (
+      body: Parameters<typeof generateAsync>[0],
+      action: 'swap' | 'settings',
+    ) => {
+      // The disabled props alone cannot stop a double-tap: they follow the
+      // mutation's pending state, which only flips on the next render.
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      setPendingAction(action);
+      try {
+        await generateAsync(body);
+      } catch {
+        // The hook's onError already showed the failure toast.
+      } finally {
+        inFlightRef.current = false;
+        setPendingAction(null);
+      }
+    },
+    [generateAsync],
+  );
+
+  // Whole-workout regeneration: same targets, different exercises. This is the
+  // screen's only whole-workout swap path — the Swap button is the sheet now.
+  const handleRefreshWorkout = useCallback(() => {
+    void runGenerate({ swap: true }, 'swap');
+  }, [runGenerate]);
+
+  // Templating the generated workout is review-and-save through the preset
+  // create form, prefilled from the payload — the same shape as "Save as
+  // preset" on a logged workout. Nothing is written until the user saves, and
+  // the params snapshot the payload, so a generate landing behind them cannot
+  // swap the form's contents out from under the review.
+  const handleSaveWorkout = useCallback(() => {
+    if (!payload) return;
+    navigation.navigate('WorkoutPresetForm', {
+      mode: 'create-preset',
+      sourceRecommendation: payload,
+    });
+  }, [navigation, payload]);
+
+  // The ⋯ menu. "Share" is deferred indefinitely (blueprint D2) and is not a
+  // row. Menu entries carry no disabled state on either header path, so the
+  // handlers guard themselves instead of rendering a dead-looking row.
+  const overflowMenuItems = useMemo<HeaderMenuEntry[]>(
+    () => [
+      {
+        label: 'Save workout',
+        sfSymbol: 'bookmark',
+        icon: 'bookmark',
+        onPress: handleSaveWorkout,
+      },
+      {
+        label: 'Refresh',
+        sfSymbol: 'arrow.triangle.2.circlepath',
+        icon: 'sync',
+        onPress: handleRefreshWorkout,
+      },
+    ],
+    [handleSaveWorkout, handleRefreshWorkout],
+  );
+
   // `renderContent()` only reaches the Swap button once a workout exists; every
   // other branch is a `StatusView`, which takes exactly one action — and it is
   // already spoken for by Generate / Retry. So the sheet moves to the header in
@@ -129,8 +191,17 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const header = useScreenHeader({
     title: 'Up Next',
     left: { kind: 'back' },
+    // With a workout on screen the header carries its ⋯ menu; without one there
+    // is nothing to save or refresh, so the slot carries the sheet instead.
+    // Never both, and neither is `role: 'primary'` — the screen declares no
+    // accent header action.
     right: showsSwapButton
-      ? null
+      ? {
+          kind: 'menu',
+          items: overflowMenuItems,
+          accessibilityLabel: 'Workout options',
+          identifier: 'up-next-overflow',
+        }
       : {
           kind: 'text',
           // The sheet is "how do I get a workout" here, not "swap this one" —
@@ -174,38 +245,12 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     replaceExercise({ exercise_id_out: outgoing, exercise_id_in: exercise.id });
   });
 
-  const runGenerate = useCallback(
-    async (
-      body: Parameters<typeof generateAsync>[0],
-      action: 'swap' | 'settings',
-    ) => {
-      // The disabled props alone cannot stop a double-tap: they follow the
-      // mutation's pending state, which only flips on the next render.
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
-      setPendingAction(action);
-      try {
-        await generateAsync(body);
-      } catch {
-        // The hook's onError already showed the failure toast.
-      } finally {
-        inFlightRef.current = false;
-        setPendingAction(null);
-      }
-    },
-    [generateAsync],
-  );
-
-  // Whole-workout regeneration: same targets, different exercises. It used to
-  // be what the Swap button did; the button now opens the sheet, so this is a
-  // row inside it. D2 moves the row to the ⋯ menu, which is where the design
-  // puts Refresh — the label is already its name so that stays a move.
-  const handleRefreshWorkout = useCallback(() => {
-    void runGenerate({ swap: true }, 'swap');
-  }, [runGenerate]);
-
-  const swapSheetItems = useMemo<ActionSheetItem[]>(() => {
-    const items: ActionSheetItem[] = [
+  // "On Demand" (D3) is deliberately absent rather than present-and-inert:
+  // there is nothing behind it yet, and a row that opens nothing reads as a
+  // bug. D3 adds it here. Regenerating the same targets is not one of these
+  // rows — it is the ⋯ menu's Refresh.
+  const swapSheetItems = useMemo<ActionSheetItem[]>(
+    () => [
       { key: 'pick-muscles', label: 'Pick Muscles', onPress: handlePickMuscles },
       { key: 'saved-workouts', label: 'Saved Workouts', onPress: handleSavedWorkouts },
       {
@@ -213,28 +258,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
         label: 'Create From Scratch',
         onPress: handleCreateFromScratch,
       },
-    ];
-    // "On Demand" (D3) is deliberately absent rather than present-and-inert:
-    // there is nothing behind it yet, and a row that opens nothing reads as a
-    // bug. D3 adds it here.
-    if (payload) {
-      // Nothing to regenerate before the first workout exists — the empty
-      // state's own action already offers a plain generate.
-      items.push({
-        key: 'refresh',
-        label: 'Refresh',
-        group: 'regenerate',
-        onPress: handleRefreshWorkout,
-      });
-    }
-    return items;
-  }, [
-    payload,
-    handlePickMuscles,
-    handleSavedWorkouts,
-    handleCreateFromScratch,
-    handleRefreshWorkout,
-  ]);
+    ],
+    [handlePickMuscles, handleSavedWorkouts, handleCreateFromScratch],
+  );
 
   const handleSelectDuration = useCallback(
     (minutes: number) => {

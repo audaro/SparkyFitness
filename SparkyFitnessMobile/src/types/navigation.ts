@@ -5,6 +5,7 @@ import type {
   IndividualSessionResponse,
   PresetSessionResponse,
   SharedPregnancy,
+  WorkoutRecommendationPayload,
 } from '@workspace/shared';
 import type { FoodInfoItem } from './foodInfo';
 import type { FoodEntry } from './foodEntries';
@@ -49,7 +50,14 @@ export type RootStackParamList = {
   WorkoutPresetsLibrary: undefined;
   WorkoutPresetDetail: { preset: WorkoutPreset; updatedPreset?: WorkoutPreset };
   WorkoutPresetForm:
-    | { mode: 'create-preset'; sourceSession?: PresetSessionResponse; selectedExercise?: Exercise; selectionNonce?: number }
+    | {
+        mode: 'create-preset';
+        sourceSession?: PresetSessionResponse;
+        /** "Save workout" from Up Next: seeds the form from a generated workout. */
+        sourceRecommendation?: WorkoutRecommendationPayload;
+        selectedExercise?: Exercise;
+        selectionNonce?: number;
+      }
     | { mode: 'edit-preset'; preset: WorkoutPreset; returnKey: string; selectedExercise?: Exercise; selectionNonce?: number };
   MealDetail: { mealId: string; initialMeal?: Meal };
   FoodDetail: {

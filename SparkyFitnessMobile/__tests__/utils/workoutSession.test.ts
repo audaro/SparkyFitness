@@ -59,6 +59,9 @@ import {
   formatDurationSeconds,
   buildActivitySetsPayload,
   buildRecommendationStartPayload,
+  buildRecommendationDraftExercises,
+  orderedRecommendationExercises,
+  recommendationPresetName,
   formatRecommendedSets,
   formatRestChip,
 } from '../../src/utils/workoutSession';
@@ -4832,6 +4835,145 @@ describe('workout recommendations', () => {
       for (const exercise of buildRecommendationStartPayload(payload)) {
         expect(() => presetSessionExerciseRequestSchema.parse(exercise)).not.toThrow();
       }
+    });
+  });
+
+  describe('buildRecommendationDraftExercises', () => {
+    // Ids the caller generates from `orderedRecommendationExercises`, which is
+    // what keeps them aligned with the order the builder maps.
+    const clientIdsFor = (payload: WorkoutRecommendationPayload) =>
+      orderedRecommendationExercises(payload).map((exercise, index) => ({
+        exerciseClientId: `ex-${index}`,
+        setClientIds: exercise.sets.map((_set, setIndex) => `set-${index}-${setIndex}`),
+      }));
+
+    const build = (
+      payload: WorkoutRecommendationPayload,
+      weightUnit: 'kg' | 'lbs' = 'kg',
+      distanceUnit: 'km' | 'miles' = 'km',
+    ) =>
+      buildRecommendationDraftExercises(
+        payload,
+        weightUnit,
+        distanceUnit,
+        clientIdsFor(payload),
+      );
+
+    it('carries the prescription over as editable display text', () => {
+      const payload = makePayload();
+
+      expect(build(payload)).toEqual([
+        {
+          clientId: 'ex-0',
+          exerciseId: EX_A,
+          exerciseName: 'Bench Press',
+          exerciseCategory: null,
+          exerciseModality: 'weight_reps',
+          images: [],
+          supersetGroup: null,
+          sets: [
+            {
+              clientId: 'set-0-0',
+              setType: 'normal',
+              restTime: 120,
+              duration: null,
+              notes: null,
+              weight: '80',
+              reps: '8',
+              distance: '',
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('converts the load into the unit the form edits in', () => {
+      const drafts = build(makePayload(), 'lbs');
+
+      expect(drafts[0].sets[0].weight).toBe(
+        String(parseFloat(weightFromKg(80, 'lbs').toFixed(1))),
+      );
+    });
+
+    it('leaves the load empty rather than inventing a kilogram', () => {
+      // Band and bodyweight prescriptions carry a null weight on purpose.
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            modality: 'reps_only',
+            sets: [makeRecommendedSet({ weight: null })],
+          }),
+        ],
+      });
+
+      expect(build(payload)[0].sets[0].weight).toBe('');
+    });
+
+    it('gates the cardio measures exactly as starting the workout does', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            modality: 'duration_distance',
+            sets: [
+              makeRecommendedSet({ reps: null, weight: null, duration: 1200, distance: 5 }),
+            ],
+          }),
+        ],
+      });
+
+      // Same two gates as buildRecommendationStartPayload: distance is
+      // meaningful here, and cardio takes no between-set rest.
+      expect(build(payload)[0].sets[0]).toMatchObject({ distance: '5', restTime: 0 });
+    });
+
+    it('drops a distance the modality cannot mean', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({ sets: [makeRecommendedSet({ distance: 5 })] }),
+        ],
+      });
+
+      expect(build(payload)[0].sets[0].distance).toBe('');
+    });
+
+    it('re-keys canonical set types to the vocabulary the form stores', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({
+            sets: [
+              makeRecommendedSet({ set_type: 'Warmup' }),
+              makeRecommendedSet({ set_number: 2 }),
+            ],
+          }),
+        ],
+      });
+
+      expect(build(payload)[0].sets.map((set) => set.setType)).toEqual([
+        'warmup',
+        'normal',
+      ]);
+    });
+
+    it('maps in prescribed order, not array order', () => {
+      const payload = makePayload({
+        exercises: [
+          makeRecommendedExercise({ exercise_id: EX_B, exercise_name: 'Row', sort_order: 1 }),
+          makeRecommendedExercise({ sort_order: 0 }),
+        ],
+      });
+
+      // Misalignment here would give an exercise another's client ids, so the
+      // saved template would not be the workout the user was looking at.
+      expect(build(payload).map((draft) => [draft.exerciseId, draft.clientId])).toEqual([
+        [EX_A, 'ex-0'],
+        [EX_B, 'ex-1'],
+      ]);
+    });
+  });
+
+  describe('recommendationPresetName', () => {
+    it('names the template after the muscles the workout was built around', () => {
+      expect(recommendationPresetName(makePayload())).toBe('Chest, Triceps');
     });
   });
 

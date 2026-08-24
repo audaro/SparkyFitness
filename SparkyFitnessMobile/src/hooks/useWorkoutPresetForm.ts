@@ -1,6 +1,11 @@
 import { useCallback, useReducer, useRef } from 'react';
-import type { PresetSessionResponse } from '@workspace/shared';
+import type { PresetSessionResponse, WorkoutRecommendationPayload } from '@workspace/shared';
 import { distanceFromKm, weightFromKg } from '../utils/unitConversions';
+import {
+  buildRecommendationDraftExercises,
+  orderedRecommendationExercises,
+  recommendationPresetName,
+} from '../utils/workoutSession';
 import type { WorkoutDraftExercise } from '../types/drafts';
 import type { WorkoutPreset } from '../types/workoutPresets';
 import {
@@ -40,6 +45,13 @@ type PresetFormAction =
   | {
       type: 'POPULATE_FROM_SESSION';
       session: PresetSessionResponse;
+      weightUnit: 'kg' | 'lbs';
+      distanceUnit: 'km' | 'miles';
+      clientIds: PresetClientIds;
+    }
+  | {
+      type: 'POPULATE_FROM_RECOMMENDATION';
+      payload: WorkoutRecommendationPayload;
       weightUnit: 'kg' | 'lbs';
       distanceUnit: 'km' | 'miles';
       clientIds: PresetClientIds;
@@ -119,6 +131,22 @@ export function presetFormReducer(state: PresetDraft, action: PresetFormAction):
         })),
       };
 
+    // "Save workout" from Up Next. The engine's programming carries over
+    // verbatim through the shared builder, which gates cardio measures exactly
+    // as starting the workout would; the payload has no name or description of
+    // its own, so the muscles it was built around seed the name field.
+    case 'POPULATE_FROM_RECOMMENDATION':
+      return {
+        name: recommendationPresetName(action.payload),
+        description: '',
+        exercises: buildRecommendationDraftExercises(
+          action.payload,
+          action.weightUnit,
+          action.distanceUnit,
+          action.clientIds,
+        ),
+      };
+
     // Everything else is a shared exercise-array edit. Identity return from
     // the slice (unknown action, no-op edit) keeps the state object identical.
     default: {
@@ -190,6 +218,31 @@ export function useWorkoutPresetForm() {
     [exercisesModifiedRef],
   );
 
+  const populateFromRecommendation = useCallback(
+    (
+      payload: WorkoutRecommendationPayload,
+      weightUnit: 'kg' | 'lbs',
+      distanceUnit: 'km' | 'miles',
+    ) => {
+      // Generated in prescribed order, which is the order the builder maps —
+      // array order alone would misalign the ids against a payload whose
+      // `sort_order` disagreed with it.
+      const clientIds: PresetClientIds = orderedRecommendationExercises(payload).map(e => ({
+        exerciseClientId: generateClientId(),
+        setClientIds: e.sets.map(() => generateClientId()),
+      }));
+      exercisesModifiedRef.current = false;
+      dispatch({
+        type: 'POPULATE_FROM_RECOMMENDATION',
+        payload,
+        weightUnit,
+        distanceUnit,
+        clientIds,
+      });
+    },
+    [exercisesModifiedRef],
+  );
+
   return {
     state,
     setName,
@@ -208,6 +261,7 @@ export function useWorkoutPresetForm() {
     reorderExercises,
     populateFromPreset,
     populateFromSession,
+    populateFromRecommendation,
     exercisesModifiedRef,
     initialDescriptionRef,
   };

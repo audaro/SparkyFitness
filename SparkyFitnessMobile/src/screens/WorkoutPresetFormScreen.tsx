@@ -169,7 +169,7 @@ interface CreatePresetModeProps {
 }
 
 const CreatePresetMode: React.FC<CreatePresetModeProps> = ({ navigation, route, params }) => {
-  const { sourceSession } = params;
+  const { sourceSession, sourceRecommendation } = params;
   const { preferences, isLoading: isPreferencesLoading } = usePreferences();
   const weightUnit = getWeightUnit(preferences?.default_weight_unit);
   const distanceUnit = (preferences?.default_distance_unit as 'km' | 'miles') ?? 'km';
@@ -191,6 +191,7 @@ const CreatePresetMode: React.FC<CreatePresetModeProps> = ({ navigation, route, 
     ungroupExercise,
     reorderExercises,
     populateFromSession,
+    populateFromRecommendation,
   } = useWorkoutPresetForm();
 
   const [eligibleIds, setEligibleIds] = useState<Set<string>>(() => new Set());
@@ -241,14 +242,30 @@ const CreatePresetMode: React.FC<CreatePresetModeProps> = ({ navigation, route, 
     rpeEnabled: false,
   });
 
-  // "Save as preset" from a logged workout: seed the form from the session
-  // once preferences resolve (the weight unit drives the kg→display mapping).
+  // "Save as preset" from a logged workout, or "Save workout" from Up Next:
+  // seed the form from whichever source arrived, once preferences resolve (the
+  // weight unit drives the kg→display mapping). Callers send one or the other.
   const hasPopulatedRef = useRef(false);
   useEffect(() => {
-    if (sourceSession == null || hasPopulatedRef.current || isPreferencesLoading) return;
-    hasPopulatedRef.current = true;
-    populateFromSession(sourceSession, weightUnit, distanceUnit);
-  }, [sourceSession, isPreferencesLoading, populateFromSession, weightUnit, distanceUnit]);
+    if (hasPopulatedRef.current || isPreferencesLoading) return;
+    if (sourceSession != null) {
+      hasPopulatedRef.current = true;
+      populateFromSession(sourceSession, weightUnit, distanceUnit);
+      return;
+    }
+    if (sourceRecommendation != null) {
+      hasPopulatedRef.current = true;
+      populateFromRecommendation(sourceRecommendation, weightUnit, distanceUnit);
+    }
+  }, [
+    sourceSession,
+    sourceRecommendation,
+    isPreferencesLoading,
+    populateFromSession,
+    populateFromRecommendation,
+    weightUnit,
+    distanceUnit,
+  ]);
 
   const { createPresetAsync, isPending } = useCreateWorkoutPreset();
 

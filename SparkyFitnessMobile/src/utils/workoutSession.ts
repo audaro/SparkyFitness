@@ -7,6 +7,7 @@ import type {
   ExerciseSnapshotResponse,
   PresetSessionExerciseRequest,
   PresetSessionResponse,
+  RecommendedExercise,
   WorkoutRecommendationPayload,
 } from '@workspace/shared';
 import {
@@ -1535,11 +1536,22 @@ const CANONICAL_TO_MOBILE_SET_TYPE: Record<string, (typeof SET_TYPE_OPTIONS)[num
  * engine declines to invent a kilogram it cannot know — and that null is
  * passed through so the live row renders an empty cell rather than "0 kg".
  */
+/**
+ * Payload exercises in prescribed order. Every consumer that turns a generated
+ * workout into rows the user will edit or log must walk it through this, so a
+ * payload whose array order ever disagrees with `sort_order` cannot make the
+ * saved preset and the started session differ.
+ */
+export function orderedRecommendationExercises(
+  payload: WorkoutRecommendationPayload,
+): RecommendedExercise[] {
+  return [...payload.exercises].sort((a, b) => a.sort_order - b.sort_order);
+}
+
 export function buildRecommendationStartPayload(
   payload: WorkoutRecommendationPayload,
 ): PresetSessionExerciseRequest[] {
-  return [...payload.exercises]
-    .sort((a, b) => a.sort_order - b.sort_order)
+  return orderedRecommendationExercises(payload)
     .map((exercise, index) => {
       const cardio = isCardioModality(exercise.modality);
       return {
@@ -1566,6 +1578,69 @@ export function buildRecommendationStartPayload(
         })),
       };
     });
+}
+
+/**
+ * Seed name for "Save workout": a generated workout has no name of its own, so
+ * the muscles it was built around become one — the same string the Up Next
+ * header shows under the title. It is a seed, not a decision: the create form
+ * puts it in an editable field before anything is written.
+ */
+export function recommendationPresetName(payload: WorkoutRecommendationPayload): string {
+  return payload.muscle_groups.map(titleCaseCanonical).join(', ');
+}
+
+/**
+ * Seed the preset create form from a generated workout ("Save workout" on Up
+ * Next). Sibling of {@link buildRecommendationStartPayload} and gated the same
+ * way on purpose — the template the user saves has to match what starting the
+ * workout would log: canonical set types re-keyed to mobile's vocabulary,
+ * distance kept only where the modality means it, and no between-set rest on
+ * cardio. Weights and distances become display-unit text because the form
+ * edits strings, not metric (`buildPresetPayload` converts them back).
+ *
+ * `clientIds` is indexed against {@link orderedRecommendationExercises}, which
+ * is what the caller must generate them from — the reducer stays pure, so id
+ * generation belongs to the hook, exactly as the session/preset paths do it.
+ */
+export function buildRecommendationDraftExercises(
+  payload: WorkoutRecommendationPayload,
+  weightUnit: 'kg' | 'lbs',
+  distanceUnit: 'km' | 'miles',
+  clientIds: { exerciseClientId: string; setClientIds: string[] }[],
+): WorkoutDraftExercise[] {
+  return orderedRecommendationExercises(payload).map((exercise, index) => {
+    const cardio = isCardioModality(exercise.modality);
+    return {
+      clientId: clientIds[index].exerciseClientId,
+      exerciseId: exercise.exercise_id,
+      exerciseName: exercise.exercise_name,
+      // The payload carries no catalog category — it is display-only in the
+      // form, and the modality it does carry is what drives the set fields.
+      exerciseCategory: null,
+      exerciseModality: exercise.modality,
+      images: exercise.images,
+      // D9: grouping is applied at start-workout, never stored on a payload,
+      // so there is none to carry into the template.
+      supersetGroup: null,
+      sets: exercise.sets.map((set, setIndex) => ({
+        clientId: clientIds[index].setClientIds[setIndex],
+        setType: CANONICAL_TO_MOBILE_SET_TYPE[set.set_type] ?? 'normal',
+        restTime: cardio ? 0 : set.rest_time,
+        duration: set.duration,
+        notes: null,
+        weight:
+          set.weight != null
+            ? String(parseFloat(weightFromKg(set.weight, weightUnit).toFixed(1)))
+            : '',
+        reps: set.reps != null ? String(set.reps) : '',
+        distance:
+          cardio && set.distance != null
+            ? String(parseFloat(distanceFromKm(set.distance, distanceUnit).toFixed(2)))
+            : '',
+      })),
+    };
+  });
 }
 
 /**
