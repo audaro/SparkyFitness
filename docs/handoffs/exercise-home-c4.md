@@ -69,6 +69,46 @@ pnpm run validate && pnpm exec jest --watchman=false --runInBand --coverage=fals
 A **Debug dev-client build is installed on the iPhone** and verified working. Reproducing this cost
 real time; the traps are worth reading before rebuilding anything.
 
+### Working remotely (the phone is NOT on the same network)
+
+Set up 2026-08-24 so JS changes reach the device from anywhere. **Read this before touching Metro.**
+
+- **Metro is served over HTTPS on the tailnet**, because the app ships
+  `NSAllowsArbitraryLoads: false` with no exception keys — ATS refuses any cleartext bundle fetch,
+  so a plain `http://` packager URL cannot work off-LAN:
+  `tailscale serve --bg --https=8446 http://127.0.0.1:8081` (443 is already the API → `:3010`;
+  8443/8444/8445/9443 were taken). The rule persists in tailscaled state across reboots.
+- **⚠ Metro MUST be started with `EXPO_PACKAGER_PROXY_URL`. Running a bare `pnpm start` silently
+  breaks remote testing.** Without it the manifest advertises `launchAsset.url` as
+  `https://<tailnet-host>:8081` — scheme from the proxy, Metro's own port — and nothing serves TLS
+  there, so the manifest loads and the bundle then fails. The symptom looks like a broken app, not
+  a bad URL. Correct invocation, from `SparkyFitnessMobile/`:
+
+  ```bash
+  EXPO_PACKAGER_PROXY_URL=https://<tailnet-host>:8446 pnpm start
+  ```
+
+  It is currently running detached under `nohup` (log: `/tmp/metro-tailscale.log`). Verify with
+  `curl -H 'expo-platform: ios' -H 'Accept: application/expo+json,application/json'
+  https://<tailnet-host>:8446/` and check `launchAsset.url` carries **:8446**.
+- **In this pnpm monorepo Metro's server root is the REPO root**, so the bundle path is
+  `/SparkyFitnessMobile/index.bundle`, not `/index.bundle`. A `/index.bundle` request 404s with an
+  "Unable to resolve module ./index" error that reads like a broken entry point.
+- **The phone is already pointed at that origin.** Re-point without touching it (needs USB/LAN):
+  `xcrun devicectl device process launch --device <coredevice-uuid>
+  --payload-url "sparkyfitnessmobile://expo-development-client/?url=<urlencoded https origin>"
+  com.audaro.sparkyfitness.dev`. Note the two tools want **different ids for the same phone**:
+  `devicectl` takes the CoreDevice UUID, `expo run:ios --device` takes the xctrace UDID.
+- **HARD LIMIT — only JS and assets go remote.** Any native change (a dependency with native code,
+  `app.config.ts`, `plugins/`, `targets/`, `patches/`, anything needing prebuild) produces a new
+  binary, and `devicectl install` requires USB or the same LAN — Tailscale does not carry the
+  CoreDevice/mDNS discovery it needs. OTA/EAS Update would not help either; that also ships only JS.
+  **If a task turns out to need a native change, stop and say so** rather than building something
+  that cannot be installed. All of Phase D is pure JS.
+- No SSH on the Mac; remote access is Parsec / Chrome Remote Desktop. Sleep is disabled
+  (`pmset` shows `sleep 0`, caffeinate active). Metro is unsupervised — if it dies it needs a
+  manual restart with the env var above.
+
 - **Device:** an iPhone 17 Pro Max on iOS 27.0, paired over USB.
   **`xcrun devicectl list devices` prints an "Identifier" that is a CoreDevice UUID, and
   `expo run:ios --device` rejects it.** Get the real hardware UDID from
