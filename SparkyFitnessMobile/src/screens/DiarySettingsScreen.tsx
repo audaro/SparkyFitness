@@ -146,7 +146,7 @@ const DiarySettingsScreen: React.FC<DiarySettingsScreenProps> = () => {
     );
   };
 
-  const header = useScreenHeader({ title: 'Diary Settings', left: { kind: 'back' } });
+  const header = useScreenHeader({ title: 'Food Diary Settings', left: { kind: 'back' } });
 
   return (
     <View

@@ -6,20 +6,37 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { hasSupplementNutrition } from '@workspace/shared';
+import CreateTile from '../components/CreateTile';
 import DateNavigator from '../components/DateNavigator';
+import FoodLibraryRow from '../components/FoodLibraryRow';
 import FoodSummary from '../components/FoodSummary';
+import MealLibraryRow from '../components/MealLibraryRow';
 import MeasurementsSummary from '../components/MeasurementsSummary';
+import SettingsRow, { SettingsRowGroup } from '../components/SettingsRow';
 import CalendarSheet, { type CalendarSheetRef } from '../components/CalendarSheet';
 import ServingAdjustSheet, { type ServingAdjustSheetRef } from '../components/ServingAdjustSheet';
 import EmptyDayIllustration from '../components/EmptyDayIllustration';
 import DiaryCalorieMacroSummary from '../components/DiaryCalorieMacroSummary';
 import StatusView from '../components/StatusView';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
-import { useServerConnection, useDailySummary, useCustomNutrients, useNutrientDisplayPreferences, useMealTypes } from '../hooks';
+import {
+  useCustomNutrients,
+  useDailySummary,
+  useFavorites,
+  useFoods,
+  useMealTypes,
+  useNutrientDisplayPreferences,
+  useRecentMeals,
+  useServerConnection,
+} from '../hooks';
 import { useMeasurements } from '../hooks/useMeasurements';
 import { useCustomMeasurementsByDate } from '../hooks/useCustomMeasurements';
+import { useNavigationActionGuard } from '../hooks/useNavigationActionGuard';
 import { isManualSource } from '../utils/customMeasurementsForm';
 import { usePreferences } from '../hooks/usePreferences';
+import { foodItemToFoodInfo } from '../types/foodInfo';
+import type { FoodItem } from '../types/foods';
+import type { Meal } from '../types/meals';
 import {
   setNativeHeaderDatePickerOptions,
   type NativeHeaderDatePickerNavigation,
@@ -38,6 +55,10 @@ type DiaryScreenProps = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Food'>,
   NativeStackScreenProps<RootStackParamList>
 >;
+
+const RECENT_LIMIT = 4;
+
+type RecentItem = { type: 'meal'; data: Meal } | { type: 'food'; data: FoodItem };
 
 const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -171,6 +192,54 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
     preferences: nutrientPrefs,
     refetch: refetchNutrientPrefs,
   } = useNutrientDisplayPreferences({ enabled: isConnected });
+  // The library half of the tab: what the Library tab used to hold for food,
+  // now that this screen is the single Food destination.
+  const { isNavigationLocked, runNavigationAction } = useNavigationActionGuard(navigation);
+  const { favoriteFoods, favoriteMeals } = useFavorites({ enabled: isConnected });
+  const {
+    recentFoods,
+    isLoading: isRecentFoodsLoading,
+    isError: isRecentFoodsError,
+    refetch: refetchRecentFoods,
+  } = useFoods({ enabled: isConnected });
+  const {
+    recentMeals,
+    isLoading: isRecentMealsLoading,
+    isError: isRecentMealsError,
+    refetch: refetchRecentMeals,
+  } = useRecentMeals({ enabled: isConnected, limit: RECENT_LIMIT });
+
+  const favoriteFoodIds = useMemo(() => new Set(favoriteFoods.map((f) => f.id)), [favoriteFoods]);
+  const favoriteMealIds = useMemo(() => new Set(favoriteMeals.map((m) => m.id)), [favoriteMeals]);
+
+  const recentItems = useMemo<RecentItem[]>(() => {
+    const items: RecentItem[] = [];
+    let mi = 0;
+    let fi = 0;
+    while (items.length < RECENT_LIMIT) {
+      const hasMeal = mi < recentMeals.length;
+      const hasFood = fi < recentFoods.length;
+      if (!hasMeal && !hasFood) break;
+      if (hasMeal) {
+        items.push({ type: 'meal', data: recentMeals[mi++] });
+        if (items.length >= RECENT_LIMIT) break;
+      }
+      if (hasFood) items.push({ type: 'food', data: recentFoods[fi++] });
+    }
+    return items;
+  }, [recentMeals, recentFoods]);
+
+  const isRecentLoading = isRecentFoodsLoading || isRecentMealsLoading;
+  // Only when nothing survived the failure: a refetch that fails over cached
+  // rows must leave the rows on screen.
+  const showRecentError =
+    !isRecentLoading && recentItems.length === 0 && (isRecentFoodsError || isRecentMealsError);
+
+  const retryRecent = () => {
+    void refetchRecentFoods();
+    void refetchRecentMeals();
+  };
+
   const diaryNutrientRow = nutrientPrefs.find(
     (p) => p.view_group === 'diary' && p.platform === 'mobile',
   );
@@ -216,6 +285,8 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
         refetchCustomMeasurements(),
         refetchCustomNutrients(),
         refetchNutrientPrefs(),
+        refetchRecentFoods(),
+        refetchRecentMeals(),
       ]);
     } finally {
       setRefreshing(false);
@@ -227,34 +298,30 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
     refetchCustomMeasurements,
     refetchCustomNutrients,
     refetchNutrientPrefs,
+    refetchRecentFoods,
+    refetchRecentMeals,
   ]);
 
   const isRefreshing = refreshing;
 
-  const renderContent = () => {
-    if (!isConnectionLoading && !isConnected) {
-      return (
-        <StatusView
-          icon="cloud-offline"
-          iconTone="muted"
-          iconSize={64}
-          title="No server configured"
-          subtitle="Configure your server connection in Settings to view your diary."
-          action={{ label: 'Go to Settings', onPress: () => navigation.navigate('Settings'), variant: 'primary' }}
-        />
-      );
+  // The day's half of the tab. It renders inside the scroll view rather than
+  // replacing it, so a failed or slow summary read never takes the Create,
+  // Browse and Recently Logged sections down with it.
+  const renderDay = () => {
+    if (isLoading) {
+      return <StatusView inline loading title="Loading diary..." />;
     }
 
-    if (isLoading || isConnectionLoading) {
-      return <StatusView loading title="Loading diary..." />;
-    }
-
-    if (isError) {
+    // `isError` is also true when a refetch fails over cached data, and this
+    // screen refetches on focus — so only a read that left nothing behind
+    // replaces the day with an error.
+    if (isError && !summary) {
       return (
         <StatusView
+          inline
           icon="alert-circle"
           iconTone="danger"
-          iconSize={64}
+          iconSize={48}
           title="Failed to load diary"
           subtitle="Please check your connection and try again."
           action={{ label: 'Retry', onPress: () => refetch(), variant: 'primary' }}
@@ -267,23 +334,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
     }
 
     return (
-      <ScrollView
-        ref={scrollViewRef}
-        className="flex-1 bg-background"
-        style={{ flex: 1 }}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: 8,
-          paddingBottom: 80 + activeWorkoutBarPadding,
-        }}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        contentInsetAdjustmentBehavior={usesNativeTabs ? 'automatic' : 'never'}
-        automaticallyAdjustsScrollIndicatorInsets={usesNativeTabs}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={accentColor} />
-        }
-      >
+      <>
         {(summary.foodEntries.length > 0 ||
           hasSupplementNutrition(summary.supplementTotals) ||
           summary.exerciseEntries.length > 0 ||
@@ -335,6 +386,157 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
             />
           </>
         )}
+      </>
+    );
+  };
+
+  const renderContent = () => {
+    if (!isConnectionLoading && !isConnected) {
+      return (
+        <StatusView
+          icon="cloud-offline"
+          iconTone="muted"
+          iconSize={64}
+          title="No server configured"
+          subtitle="Configure your server connection in Settings to view your diary."
+          action={{ label: 'Go to Settings', onPress: () => navigation.navigate('Settings'), variant: 'primary' }}
+        />
+      );
+    }
+
+    if (isConnectionLoading) {
+      return <StatusView loading title="Loading diary..." />;
+    }
+
+    return (
+      <ScrollView
+        ref={scrollViewRef}
+        className="flex-1 bg-background"
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: 80 + activeWorkoutBarPadding,
+        }}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        contentInsetAdjustmentBehavior={usesNativeTabs ? 'automatic' : 'never'}
+        automaticallyAdjustsScrollIndicatorInsets={usesNativeTabs}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={accentColor} />
+        }
+      >
+        {renderDay()}
+
+        <View className="mb-3 mt-6">
+          <Text className="text-lg font-semibold text-text-primary">Create</Text>
+        </View>
+
+        <View className="flex-row justify-between mb-6">
+          <CreateTile
+            icon="food"
+            title="Food"
+            subtitle="Manual entry"
+            disabled={isNavigationLocked}
+            onPress={() =>
+              runNavigationAction(() =>
+                navigation.navigate('FoodForm', { mode: 'create-food', pickerMode: 'library' }),
+              )
+            }
+            className="w-[48%]"
+            testID="food-home-create-food"
+          />
+          <CreateTile
+            icon="meal"
+            title="Meal"
+            subtitle="Group foods"
+            disabled={isNavigationLocked}
+            onPress={() => runNavigationAction(() => navigation.navigate('MealAdd'))}
+            className="w-[48%]"
+            testID="food-home-create-meal"
+          />
+        </View>
+
+        <View className="mb-3">
+          <Text className="text-lg font-semibold text-text-primary">Quick access</Text>
+        </View>
+
+        <SettingsRowGroup>
+          <SettingsRow
+            icon="food"
+            title="Foods"
+            subtitle="Every food you can log"
+            onPress={() => navigation.navigate('FoodsLibrary')}
+            testID="food-home-foods-library"
+          />
+          <SettingsRow
+            icon="meal"
+            title="Meals"
+            subtitle="Groups of foods you have saved"
+            onPress={() => navigation.navigate('MealsLibrary')}
+            testID="food-home-meals-library"
+          />
+        </SettingsRowGroup>
+
+        <View className="mb-3">
+          <Text className="text-lg font-semibold text-text-primary">Recently logged</Text>
+        </View>
+
+        <View className="bg-surface rounded-xl overflow-hidden shadow-sm">
+          {isRecentLoading ? (
+            <StatusView inline loading title="Loading recent items..." />
+          ) : showRecentError ? (
+            <View className="px-4 py-6 items-start">
+              <Text className="text-text-secondary text-sm">Failed to load recent items.</Text>
+              <Button
+                variant="link"
+                className="px-0 py-0 mt-3"
+                textClassName="text-sm"
+                onPress={retryRecent}
+              >
+                Retry
+              </Button>
+            </View>
+          ) : recentItems.length > 0 ? (
+            recentItems.map((item, index) => {
+              const showDivider = index < recentItems.length - 1;
+              if (item.type === 'meal') {
+                return (
+                  <MealLibraryRow
+                    key={`meal-${item.data.id}`}
+                    meal={item.data}
+                    isFavorite={favoriteMealIds.has(item.data.id)}
+                    showDivider={showDivider}
+                    onPress={() =>
+                      navigation.navigate('MealDetail', {
+                        mealId: item.data.id,
+                        initialMeal: item.data,
+                      })
+                    }
+                  />
+                );
+              }
+              return (
+                <FoodLibraryRow
+                  key={`food-${item.data.id}`}
+                  food={item.data}
+                  isFavorite={favoriteFoodIds.has(item.data.id)}
+                  showDivider={showDivider}
+                  onPress={() =>
+                    navigation.navigate('FoodDetail', { item: foodItemToFoodInfo(item.data) })
+                  }
+                />
+              );
+            })
+          ) : (
+            <View className="px-4 py-6">
+              <Text className="text-text-primary text-base font-medium">No recent items yet</Text>
+              <Text className="text-text-secondary text-sm mt-1">
+                Foods and meals you log will appear here for quick access.
+              </Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
     );
   };

@@ -152,7 +152,7 @@ npx expo prebuild --clean
 ## Food, Meals, Units, And Photo Estimates
 
 - Food search spans local foods, online providers, meals, barcode scan, label scan, and AI photo estimates. Keep `FoodSearchScreen`, `FoodScanScreen`, `FoodEntryAddScreen`, `FoodFormScreen`, `FoodPhotoFlow`, and route params aligned.
-- `LibraryScreen` is the hub for saved Foods and Meals (`FoodsLibraryScreen`, `MealsLibraryScreen`); `ExercisesLibraryScreen` and `WorkoutPresetsLibraryScreen` are reached from the Exercise tab instead, and `MedicationsList` from a row on `DashboardScreen`.
+- `DiaryScreen` (the Food tab) is both the day's food diary and the food hub: under the day's entries it carries create tiles for a food and a meal, quick-access rows into `FoodsLibraryScreen` / `MealsLibraryScreen`, and a recently-logged list. The two halves fail independently — the day's summary read renders its own inline status inside the shared scroll view rather than replacing the screen, so a slow or failed read never takes the create/browse sections down with it. `LibraryScreen` is gone; `ExercisesLibraryScreen` and `WorkoutPresetsLibraryScreen` are reached from the Exercise tab, and `MedicationsList` from a row on `DashboardScreen`.
 - Food detail/edit flow: `FoodDetailScreen`, `FoodFormScreen`, `FoodForm`, `FoodUnitSelectorSheet`, `useFoodVariants`, `useFoodsLibrary`, `useDeleteFood`, `foodsApi`, and `utils/foodDetails.ts`.
 - `FoodForm` supports equivalent serving sizes grouped by nutrient signature, auto-scale nutrition, compatible unit conversion via `convertServingSizeOnUnitChange`, optional AI cross-category unit conversion, custom nutrients, and caller-provided `headerChildren`.
 - `EditBarcodeScreen` lets users add or remove extra barcodes for a saved food. Keep `FoodDetailScreen`, `EditBarcodeScreen`, `foodsApi`, and the `EditBarcode` route params aligned.
@@ -286,7 +286,7 @@ const androidService = require('../../src/services/healthConnectService.ts');
 
 - Health sync changes: rerun `useSyncHealthData`, `backgroundSyncService`, `healthDataApi`, `healthConnectService`, `healthConnectService.ios`, and relevant `services/healthconnect` / `services/healthkit` tests.
 - Health writeback changes: rerun `healthconnect/writeback`, `healthkit/writeback`, writeback mapper tests, `HealthDataWriteback`, `backgroundSyncService`, notifications where relevant, and sync tests.
-- Food library/form/unit/barcode changes: rerun `FoodForm`, `FoodUnitSelectorSheet`, `LibraryScreen`, `FoodDetailScreen`, `FoodFormScreen`, `EditBarcodeScreen`, `useFoodsLibrary`, `useFoodVariants`, `useDeleteFood`, `foodsApi`, `foodDetails`, and unit conversion tests.
+- Food library/form/unit/barcode changes: rerun `FoodForm`, `FoodUnitSelectorSheet`, `DiaryScreen`, `FoodDetailScreen`, `FoodFormScreen`, `EditBarcodeScreen`, `useFoodsLibrary`, `useFoodVariants`, `useDeleteFood`, `foodsApi`, `foodDetails`, and unit conversion tests.
 - Meal template/logged-meal changes: rerun meals library/detail/add/edit screens, `MealTypeDetailScreen`, copy meal tests, food search/entry picker tests, meal hooks/API tests, and meal builder/nutrition utils.
 - Exercise/workout/preset changes: rerun exercise/preset library/detail/form/search/mutation tests, workout/activity form and draft tests, active workout store tests, rest-period tests, and `workoutSession` tests.
 - Fasting changes: rerun `FastingCard`, `FastingGoalReconciler`, `FastingDetailScreen`, `useFasting`, `useFastingTimer`, `fastingApi`, notification tests, and fasting utility/constant tests.
@@ -299,7 +299,7 @@ const androidService = require('../../src/services/healthConnectService.ts');
 
 - Health sync bug: start at `healthConnectService.ts` or `.ios.ts`, then `services/healthconnect/` or `services/healthkit/`, `backgroundSyncService.ts`, `autoSyncCoordinator.ts`, `useSyncHealthData.ts`, `SyncScreen.tsx`, and `healthDataApi.ts`.
 - Health writeback bug: inspect `HealthDataWriteback`, `services/writeback.ts` / `.ios.ts`, platform writeback modules, mapper files, tracking storage, app permissions, and inbound source filters.
-- Food library/edit bug: inspect `LibraryScreen`, food library/detail/form/barcode screens, `FoodForm`, unit selector, food hooks, `foodsApi`, food unit types, and `foodDetails.ts`.
+- Food library/edit bug: inspect `DiaryScreen`, food library/detail/form/barcode screens, `FoodForm`, unit selector, food hooks, `foodsApi`, food unit types, and `foodDetails.ts`.
 - Meal bug: inspect meals library/detail/add/edit screens, `MealTypeDetailScreen`, food picker routes, meal hooks/API, selection service, logged-meal API, and meal nutrition utils.
 - Exercise/preset bug: inspect library/detail/form/search screens, related hooks/API, selected-exercise handoff, rest-period controls, and workout session helpers.
 - Workout/activity/HUD bug: inspect `AddSheet`, workout/activity screens, workout form hooks, `workoutDraftService`, `activeWorkoutStore`, `ActiveWorkoutBar`, rest notifications, and detail screen set interactions.

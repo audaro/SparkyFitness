@@ -6,7 +6,10 @@ import DiaryScreen from '../../src/screens/DiaryScreen';
 import {
   useDailySummary,
   useCustomNutrients,
+  useFavorites,
+  useFoods,
   useNutrientDisplayPreferences,
+  useRecentMeals,
   useServerConnection,
 } from '../../src/hooks';
 import { useMeasurements } from '../../src/hooks/useMeasurements';
@@ -40,6 +43,16 @@ jest.mock('../../src/hooks', () => ({
   useCustomNutrients: jest.fn(),
   useNutrientDisplayPreferences: jest.fn(),
   useMealTypes: jest.fn(() => ({ mealTypes: [], isLoading: false, isError: false })),
+  useFavorites: jest.fn(),
+  useFoods: jest.fn(),
+  useRecentMeals: jest.fn(),
+}));
+
+jest.mock('../../src/hooks/useNavigationActionGuard', () => ({
+  useNavigationActionGuard: jest.fn(() => ({
+    isNavigationLocked: false,
+    runNavigationAction: (action: () => void) => action(),
+  })),
 }));
 
 jest.mock('../../src/hooks/useMeasurements', () => ({
@@ -158,6 +171,32 @@ jest.mock('../../src/components/DiaryCalorieMacroSummary', () => {
   return { __esModule: true, default: () => <View testID="macro-summary" /> };
 });
 
+// The recently-logged rows are exercised by their own tests; here only which
+// kind of row the section renders matters.
+jest.mock('../../src/components/FoodLibraryRow', () => {
+  const { Text, View } = require('react-native');
+  return {
+    __esModule: true,
+    default: ({ food }: any) => (
+      <View testID={`recent-food-${food.id}`}>
+        <Text>{food.name}</Text>
+      </View>
+    ),
+  };
+});
+
+jest.mock('../../src/components/MealLibraryRow', () => {
+  const { Text, View } = require('react-native');
+  return {
+    __esModule: true,
+    default: ({ meal }: any) => (
+      <View testID={`recent-meal-${meal.id}`}>
+        <Text>{meal.name}</Text>
+      </View>
+    ),
+  };
+});
+
 jest.mock('../../src/components/EmptyDayIllustration', () => {
   const { View } = require('react-native');
   return { __esModule: true, default: () => <View testID="empty-day" /> };
@@ -181,6 +220,9 @@ const mockUseMeasurements = useMeasurements as jest.MockedFunction<typeof useMea
 const mockUseCustomMeasurementsByDate = useCustomMeasurementsByDate as jest.MockedFunction<
   typeof useCustomMeasurementsByDate
 >;
+const mockUseFavorites = useFavorites as jest.Mock;
+const mockUseFoods = useFoods as jest.Mock;
+const mockUseRecentMeals = useRecentMeals as jest.Mock;
 
 const baseSummary = {
   foodEntries: [],
@@ -193,6 +235,8 @@ const refetchMeasurements = jest.fn();
 const refetchCustomMeasurements = jest.fn();
 const refetchCustomNutrients = jest.fn();
 const refetchNutrientPrefs = jest.fn();
+const refetchRecentFoods = jest.fn();
+const refetchRecentMeals = jest.fn();
 
 const configureConnection = (isConnected: boolean, isLoading = false) => {
   mockUseServerConnection.mockReturnValue({
@@ -238,6 +282,19 @@ const configureOnlineData = (overrides: {
     preferences: [],
     refetch: refetchNutrientPrefs,
   } as any);
+  mockUseFavorites.mockReturnValue({ favoriteFoods: [], favoriteMeals: [] });
+  mockUseFoods.mockReturnValue({
+    recentFoods: [],
+    isLoading: false,
+    isError: false,
+    refetch: refetchRecentFoods,
+  });
+  mockUseRecentMeals.mockReturnValue({
+    recentMeals: [],
+    isLoading: false,
+    isError: false,
+    refetch: refetchRecentMeals,
+  });
 };
 
 const insets = { top: 0, bottom: 0, left: 0, right: 0 };
@@ -294,6 +351,8 @@ describe('DiaryScreen custom queries', () => {
     expect(refetchCustomMeasurements).toHaveBeenCalledTimes(1);
     expect(refetchCustomNutrients).toHaveBeenCalledTimes(1);
     expect(refetchNutrientPrefs).toHaveBeenCalledTimes(1);
+    expect(refetchRecentFoods).toHaveBeenCalledTimes(1);
+    expect(refetchRecentMeals).toHaveBeenCalledTimes(1);
   });
 
   test('Test D — offline pull-to-refresh does not fire network', () => {
@@ -395,4 +454,92 @@ describe('DiaryScreen custom queries', () => {
     expect(UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false);
   });
 
+});
+
+describe('DiaryScreen library sections', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useDiaryDateStore.setState({
+      selectedDate: '2024-06-15',
+      lastKnownToday: getTodayDate(),
+    });
+    configureConnection(true);
+    configureOnlineData();
+  });
+
+  test('the Food tab is the way in to authoring a food and a meal', () => {
+    const { getByTestId } = renderScreen();
+
+    fireEvent.press(getByTestId('food-home-create-food'));
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('FoodForm', {
+      mode: 'create-food',
+      pickerMode: 'library',
+    });
+
+    fireEvent.press(getByTestId('food-home-create-meal'));
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('MealAdd');
+  });
+
+  test('quick access reaches both full lists', () => {
+    const { getByTestId } = renderScreen();
+
+    fireEvent.press(getByTestId('food-home-foods-library'));
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('FoodsLibrary');
+
+    fireEvent.press(getByTestId('food-home-meals-library'));
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('MealsLibrary');
+  });
+
+  test('recently logged lists foods and meals together', () => {
+    mockUseFoods.mockReturnValue({
+      recentFoods: [{ id: 'food-1', name: 'Oats' }],
+      isLoading: false,
+      isError: false,
+      refetch: refetchRecentFoods,
+    });
+    mockUseRecentMeals.mockReturnValue({
+      recentMeals: [{ id: 'meal-1', name: 'Breakfast' }],
+      isLoading: false,
+      isError: false,
+      refetch: refetchRecentMeals,
+    });
+
+    const { getByText } = renderScreen();
+
+    expect(getByText('Breakfast')).toBeTruthy();
+    expect(getByText('Oats')).toBeTruthy();
+  });
+
+  // The day and the library halves fail independently: a summary read that
+  // came back empty must not take Create, Quick access and Recently logged
+  // down with it.
+  test('a failed day read leaves the rest of the tab usable', () => {
+    mockUseDailySummary.mockReturnValue({
+      summary: null,
+      isLoading: false,
+      isError: true,
+      refetch: refetchSummary,
+    } as any);
+
+    const { getByTestId } = renderScreen();
+
+    expect(getByTestId('food-home-foods-library')).toBeTruthy();
+    expect(getByTestId('food-home-create-food')).toBeTruthy();
+  });
+
+  // isError is also true when a refetch fails over cached data, and this
+  // screen refetches on focus.
+  test('a refetch that fails over cached data keeps the day on screen', () => {
+    mockUseDailySummary.mockReturnValue({
+      summary: baseSummary,
+      isLoading: false,
+      isError: true,
+      refetch: refetchSummary,
+    } as any);
+
+    const { getByTestId, queryByText } = renderScreen();
+
+    expect(getByTestId('empty-day')).toBeTruthy();
+    expect(queryByText('Failed to load diary')).toBeNull();
+  });
 });

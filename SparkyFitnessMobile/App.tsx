@@ -344,22 +344,22 @@ function AppContent() {
           <Stack.Screen
             name="FoodsLibrary"
             component={SafeFoodsLibrary}
-            options={createStackScreenOptions('Foods', { headerBackTitle: 'Library' })}
+            options={createStackScreenOptions('Foods', { headerBackTitle: 'Food' })}
           />
           <Stack.Screen
             name="MealsLibrary"
             component={SafeMealsLibrary}
-            options={createStackScreenOptions('Meals', { headerBackTitle: 'Library' })}
+            options={createStackScreenOptions('Meals', { headerBackTitle: 'Food' })}
           />
           <Stack.Screen
             name="ExercisesLibrary"
             component={SafeExercisesLibrary}
-            options={createStackScreenOptions('Exercises', { headerBackTitle: 'Library' })}
+            options={createStackScreenOptions('Exercises', { headerBackTitle: 'Exercise' })}
           />
           <Stack.Screen
             name="WorkoutPresetsLibrary"
             component={SafeWorkoutPresetsLibrary}
-            options={createStackScreenOptions('Workout Presets', { headerBackTitle: 'Library' })}
+            options={createStackScreenOptions('Workout Presets', { headerBackTitle: 'Exercise' })}
           />
           <Stack.Screen
             name="WorkoutPresetDetail"
@@ -494,17 +494,17 @@ function AppContent() {
           <Stack.Screen
             name="FoodEntryView"
             component={SafeFoodEntryView}
-            options={({ route }) => createStackScreenOptions(route.params.entry.food_name ?? 'Food Entry', { headerBackTitle: 'Diary' })}
+            options={({ route }) => createStackScreenOptions(route.params.entry.food_name ?? 'Food Entry', { headerBackTitle: 'Food' })}
           />
           <Stack.Screen
             name="EditLoggedMeal"
             component={SafeEditLoggedMeal}
-            options={createStackScreenOptions('Edit Meal', { headerBackTitle: 'Diary' })}
+            options={createStackScreenOptions('Edit Meal', { headerBackTitle: 'Food' })}
           />
           <Stack.Screen
             name="MealTypeDetail"
             component={SafeMealTypeDetail}
-            options={({ route }) => createStackScreenOptions(route.params.mealLabel ?? 'Meal', { headerBackTitle: 'Diary' })}
+            options={({ route }) => createStackScreenOptions(route.params.mealLabel ?? 'Meal', { headerBackTitle: 'Food' })}
           />
           <Stack.Screen
             name="DailyNutritionDetails"
@@ -552,7 +552,7 @@ function AppContent() {
             component={SafeWorkoutDetail}
             options={({ route }) =>
               createStackScreenOptions(route.params?.session?.name ?? 'Workout', {
-                headerBackTitle: 'Diary',
+                headerBackTitle: 'Exercise',
               })
             }
           />
@@ -575,7 +575,7 @@ function AppContent() {
           <Stack.Screen
             name="ActivityDetail"
             component={SafeActivityDetail}
-            options={({ route }) => createStackScreenOptions(route.params.session.name ?? 'Activity', { headerBackTitle: 'Diary' })}
+            options={({ route }) => createStackScreenOptions(route.params.session.name ?? 'Activity', { headerBackTitle: 'Exercise' })}
           />
           <Stack.Screen
             name="FastingDetail"
@@ -626,12 +626,12 @@ function AppContent() {
           <Stack.Screen
             name="DashboardSettings"
             component={SafeDashboardSettings}
-            options={createStackScreenOptions('Dashboard Settings', { headerBackTitle: 'Settings' })}
+            options={createStackScreenOptions('Home Settings', { headerBackTitle: 'Settings' })}
           />
           <Stack.Screen
             name="DiarySettings"
             component={SafeDiarySettings}
-            options={createStackScreenOptions('Diary Settings', { headerBackTitle: 'Settings' })}
+            options={createStackScreenOptions('Food Diary Settings', { headerBackTitle: 'Settings' })}
           />
           <Stack.Screen
             name="WorkoutSettings"

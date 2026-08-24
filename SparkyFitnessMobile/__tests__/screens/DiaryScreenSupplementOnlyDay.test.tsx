@@ -11,6 +11,17 @@ jest.mock('../../src/hooks', () => ({
   useCustomNutrients: () => ({ customNutrients: [] }),
   useNutrientDisplayPreferences: () => ({ preferences: [] }),
   useMealTypes: () => ({ mealTypes: [], isLoading: false, isError: false }),
+  // The library half of the tab; irrelevant to whether the day reads as empty.
+  useFavorites: () => ({ favoriteFoods: [], favoriteMeals: [] }),
+  useFoods: () => ({ recentFoods: [], isLoading: false, isError: false, refetch: jest.fn() }),
+  useRecentMeals: () => ({ recentMeals: [], isLoading: false, isError: false, refetch: jest.fn() }),
+}));
+
+jest.mock('../../src/hooks/useNavigationActionGuard', () => ({
+  useNavigationActionGuard: () => ({
+    isNavigationLocked: false,
+    runNavigationAction: (action: () => void) => action(),
+  }),
 }));
 
 jest.mock('../../src/hooks/useMeasurements', () => ({
