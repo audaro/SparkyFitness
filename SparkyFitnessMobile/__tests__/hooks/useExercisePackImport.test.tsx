@@ -159,6 +159,24 @@ describe('useExercisePackImport', () => {
     expect(result.current.progress?.imported).toBe(10);
   });
 
+  // A lost or timed-out response says nothing about whether the batch
+  // committed, so a confirmed import count cannot gate the refresh.
+  it('refreshes the exercise caches when the very first batch fails', async () => {
+    mockImportBatch.mockRejectedValueOnce(new Error('timed out'));
+
+    const { result, queryClient } = renderImportHook();
+    const resetQueries = jest.spyOn(queryClient, 'resetQueries');
+
+    await act(async () => {
+      await result.current.importPack(pack);
+    });
+
+    expect(result.current.progress?.imported).toBe(0);
+    expect(resetQueries).toHaveBeenCalledWith({
+      queryKey: ['exercisesLibrary'],
+    });
+  });
+
   it('ignores a second start while one import is already running', async () => {
     mockImportBatch.mockImplementation(async () =>
       batch({ processed: 25, nextOffset: null, done: true }),

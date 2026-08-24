@@ -74,6 +74,9 @@ export function useExercisePackImport() {
       let offset = 0;
       let imported = 0;
       let skipped = 0;
+      // A batch that fails has an unknown server-side outcome: a lost or
+      // timed-out response says nothing about whether the import committed.
+      let outcomeUnknown = false;
       const failures: { name: string; reason: string }[] = [];
       setProgress({
         packId: pack.id,
@@ -123,6 +126,7 @@ export function useExercisePackImport() {
           });
         }
       } catch (error) {
+        outcomeUnknown = true;
         Toast.show({
           type: 'error',
           text1: 'Import stopped',
@@ -132,12 +136,14 @@ export function useExercisePackImport() {
               : 'Please check your connection and try again.',
         });
       } finally {
-        if (imported > 0) {
+        if (imported > 0 || outcomeUnknown) {
           // Every exercise list is cached with an infinite stale time, so a
           // fresh import stays invisible until these are dropped. This runs
-          // even when a later batch throws: the exercises earlier batches
-          // added are already saved, and hiding them until the next app
-          // launch would look like the import lost them.
+          // even when a batch throws: the exercises earlier batches added are
+          // already saved, and a failed batch may well have committed before
+          // its response was lost, so a confirmed import count is not the
+          // test. Hiding either set until the next app launch would look
+          // like the import lost them.
           await queryClient.resetQueries({ queryKey: ['exercisesLibrary'] });
           await queryClient.invalidateQueries({ queryKey: ['exerciseSearch'] });
           await queryClient.invalidateQueries({
