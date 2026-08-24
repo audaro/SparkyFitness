@@ -8,6 +8,18 @@ const GITHUB_RAW_BASE_URL =
 const EXERCISES_PATH = 'exercises'; // No leading slash for API
 // Initialize cache for GitHub API responses (e.g., 1 hour TTL)
 const githubCache = new NodeCache({ stdTTL: 3600 });
+
+// Shape of one upstream free-exercise-db record (dist/exercises.json entry).
+// Only the fields this service and its callers actually touch are typed.
+export interface FreeExerciseDbExercise {
+  id: string;
+  name: string;
+  images?: string[];
+  equipment?: string | string[] | null;
+  primaryMuscles?: string[];
+  secondaryMuscles?: string[];
+  [key: string]: unknown;
+}
 class FreeExerciseDBService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseList: any;
@@ -56,11 +68,9 @@ class FreeExerciseDBService {
    * previously fetched the multi-megabyte exercises.json again because the
    * per-query result cache keys never overlap between queries.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async getAllExercises(): Promise<any[]> {
+  async getAllExercises(): Promise<FreeExerciseDbExercise[]> {
     const cacheKey = 'all_exercises_dataset';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cached = githubCache.get<any[]>(cacheKey);
+    const cached = githubCache.get<FreeExerciseDbExercise[]>(cacheKey);
     if (cached) {
       return cached;
     }
@@ -70,9 +80,15 @@ class FreeExerciseDBService {
       'debug',
       `[FreeExerciseDBService] Fetching exercises from: ${exercisesJsonUrl}`
     );
-    const response = await axios.get(exercisesJsonUrl, {
-      headers: { Accept: 'application/vnd.github.raw+json' },
-    });
+    const response = await axios.get<FreeExerciseDbExercise[]>(
+      exercisesJsonUrl,
+      {
+        headers: { Accept: 'application/vnd.github.raw+json' },
+        // Exercise creation can be waiting on this fetch; a hung GitHub
+        // connection must fail instead of stalling the caller indefinitely.
+        timeout: 10_000,
+      }
+    );
     githubCache.set(cacheKey, response.data);
     return response.data;
   }
@@ -96,31 +112,27 @@ class FreeExerciseDBService {
       const allExercises = await this.getAllExercises();
 
       // 1. Filter by equipment and muscle group first
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const preFiltered = allExercises.filter((exercise: any) => {
+      const preFiltered = allExercises.filter((exercise) => {
         const matchesEquipment =
           equipmentFilter.length === 0 ||
-          (exercise.equipment &&
-            equipmentFilter.some((filter) =>
-              exercise.equipment.includes(filter)
-            ));
+          equipmentFilter.some(
+            (filter) => exercise.equipment?.includes(filter) ?? false
+          );
         const matchesMuscleGroup =
           muscleGroupFilter.length === 0 ||
-          (exercise.primaryMuscles &&
-            muscleGroupFilter.some((filter) =>
-              exercise.primaryMuscles.includes(filter)
-            )) ||
-          (exercise.secondaryMuscles &&
-            muscleGroupFilter.some((filter) =>
-              exercise.secondaryMuscles.includes(filter)
-            ));
+          muscleGroupFilter.some(
+            (filter) => exercise.primaryMuscles?.includes(filter) ?? false
+          ) ||
+          muscleGroupFilter.some(
+            (filter) => exercise.secondaryMuscles?.includes(filter) ?? false
+          );
         return matchesEquipment && matchesMuscleGroup;
       });
 
       // 2. Filter and sort by search query using the shared utility
       const filteredExercises = filterAndSortByTerms(
         preFiltered,
-        (ex: any) => ex.name,
+        (ex) => ex.name,
         query || ''
       );
 

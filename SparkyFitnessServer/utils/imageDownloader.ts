@@ -106,6 +106,37 @@ function resolveImageFileName(imageUrl: string, contentType: string): string {
 }
 
 /**
+ * Whether a requested local filename refers to the given upstream image
+ * basename. Stored filenames carry the URL-hash suffix resolveImageFileName
+ * appends (`0.jpg` -> `0_ab12cd34.jpg`) while upstream records list the plain
+ * basename, so on-demand recovery must accept both the verbatim name and its
+ * hashed form — otherwise a hash-named file lost from disk can never be
+ * re-downloaded.
+ */
+function matchesUpstreamImageBasename(
+  upstreamBasename: string,
+  requestedFileName: string
+): boolean {
+  if (upstreamBasename === requestedFileName) {
+    return true;
+  }
+  const requestedExtensionRaw = path.extname(requestedFileName);
+  const requestedExtension = requestedExtensionRaw.toLowerCase();
+  const requestedStem = path.basename(requestedFileName, requestedExtensionRaw);
+  const hashedStem = /^(.*)_[0-9a-f]{8}$/.exec(requestedStem);
+  if (!hashedStem) {
+    return false;
+  }
+  const upstreamExtension = path.extname(upstreamBasename).toLowerCase();
+  const upstreamStem = path
+    .basename(upstreamBasename, path.extname(upstreamBasename))
+    .replace(/[^a-zA-Z0-9_-]/g, '_');
+  return (
+    upstreamStem === hashedStem[1] && upstreamExtension === requestedExtension
+  );
+}
+
+/**
  * Ensures the upload directory exists.
  */
 async function ensureUploadsDir(domain: ImageDomain) {
@@ -202,7 +233,7 @@ async function downloadImage(
     throw error;
   }
 }
-export { downloadImage };
+export { downloadImage, matchesUpstreamImageBasename };
 export type { ImageDomain };
 export default {
   downloadImage,

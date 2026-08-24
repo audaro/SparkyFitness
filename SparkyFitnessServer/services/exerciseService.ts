@@ -315,6 +315,7 @@ async function getAvailableMuscleGroups() {
 // (free-exercise-db, wger) and auto-created activity types (Health Data)
 // bring their own media story and stay out of stock-image matching.
 const STOCK_IMAGE_SOURCES = new Set(['custom', 'manual']);
+const STOCK_IMAGE_LOOKUP_TIMEOUT_MS = 15_000;
 
 function normalizeExerciseNameForImageMatch(name: string): string {
   return name
@@ -334,15 +335,13 @@ async function findStockImagesForExerciseName(
 ): Promise<string[] | null> {
   const { default: freeExerciseDBService } =
     await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
-  const { exercises } = (await freeExerciseDBService.searchExercises(
-    name,
-    [],
-    [],
-    25,
-    0
-  )) as { exercises: { name?: string; images?: string[] }[] };
+  // Scan the full dataset rather than searchExercises: its term matching
+  // keeps interior punctuation (a "bench-press" query never matches "Bench
+  // Press") and its result cap would make the uniqueness check local to one
+  // page instead of global.
+  const catalog = await freeExerciseDBService.getAllExercises();
   const wanted = normalizeExerciseNameForImageMatch(name);
-  const matches = (exercises ?? []).filter(
+  const matches = catalog.filter(
     (candidate) =>
       normalizeExerciseNameForImageMatch(String(candidate.name ?? '')) ===
         wanted &&
@@ -376,9 +375,19 @@ async function createExercise(authenticatedUserId: any, exerciseData: any) {
       exerciseData.name.trim()
     ) {
       try {
-        const stockImages = await findStockImagesForExerciseName(
-          exerciseData.name
-        );
+        // Race a cap so a stalled upstream fetch or image download can only
+        // delay creation, never hang it — past the cap the exercise is
+        // simply created bare.
+        const stockImages = await Promise.race([
+          findStockImagesForExerciseName(exerciseData.name),
+          new Promise<null>((resolve) => {
+            const timer = setTimeout(
+              () => resolve(null),
+              STOCK_IMAGE_LOOKUP_TIMEOUT_MS
+            );
+            timer.unref?.();
+          }),
+        ]);
         if (stockImages) {
           exerciseData.images = stockImages;
         }

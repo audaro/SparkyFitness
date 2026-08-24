@@ -103,7 +103,10 @@ import { createCorsOriginChecker } from './utils/corsHelper.js';
 import authModule from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 import freeExerciseDBService from './integrations/freeexercisedb/FreeExerciseDBService.js';
-import { downloadImage } from './utils/imageDownloader.js';
+import {
+  downloadImage,
+  matchesUpstreamImageBasename,
+} from './utils/imageDownloader.js';
 import authRoutes from './routes/authRoutes.js';
 import mcpRoutes from './routes/mcpRoutes.js';
 import identityRoutes from './routes/identityRoutes.js';
@@ -412,9 +415,17 @@ app.get(
       if (!exercise) {
         return res.status(404).send('Exercise not found.');
       }
+      // The stored filename may carry the downloader's URL-hash suffix
+      // (`0_ab12cd34.jpg`) while the upstream record lists `0.jpg`; the
+      // matcher recognizes both so hash-named files stay recoverable.
       const originalRelativeImagePath = (
         (exercise as { images?: string[] }).images ?? []
-      ).find((img) => path.basename(img) === imageFileName);
+      ).find((img) =>
+        matchesUpstreamImageBasename(
+          path.basename(img),
+          imageFileName as string
+        )
+      );
       if (!originalRelativeImagePath) {
         return res.status(404).send('Image not found for this exercise.');
       }

@@ -1066,10 +1066,25 @@ async function resolveFoodEntryByName(
   // both and the model reliably gives up instead of retrying with the names
   // from the error (observed live). A unique containment match resolves it;
   // several containment matches fall through to the existing candidates
-  // path. Minimum three characters so "a" cannot match the whole day.
+  // path. Minimum three characters so "a" cannot match the whole day, and
+  // the match must start on a word boundary (though it may end mid-word, so
+  // "toast" still finds "Toasted White Bread") — mid-word starts would let
+  // "ham" resolve, and delete, "Graham Crackers".
   if (matches.length === 0 && wanted.length >= 3) {
+    const containsAtTokenStart = (name: string): boolean => {
+      for (
+        let at = name.indexOf(wanted);
+        at !== -1;
+        at = name.indexOf(wanted, at + 1)
+      ) {
+        if (at === 0 || !/[a-z0-9]/.test(name[at - 1])) {
+          return true;
+        }
+      }
+      return false;
+    };
     matches = rows.filter((row) =>
-      (row.food_name ?? '').toLowerCase().includes(wanted)
+      containsAtTokenStart((row.food_name ?? '').toLowerCase())
     );
   }
   if (narrowByMealType && (mealTypeId || mealType)) {

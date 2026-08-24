@@ -3035,6 +3035,33 @@ describe('delete_entry', () => {
     expect(foodEntryService.deleteFoodEntry).not.toHaveBeenCalled();
   });
 
+  // The fallback only matches from a word boundary: "ham" occurring
+  // mid-word must not resolve (and delete) "Graham Crackers".
+  it('does not substring-match starting mid-word', async () => {
+    vi.mocked(foodEntryService.getFoodEntriesByDate).mockResolvedValue([
+      {
+        id: ENTRY_ID,
+        food_name: 'Graham Crackers',
+        quantity: 3,
+        unit: 'cracker',
+        meal_type: 'snacks',
+        meal_type_id: 'snacks-id',
+      },
+    ]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'delete_entry',
+        food_name: 'ham',
+        entry_date: '2026-06-10',
+      },
+      opts
+    );
+
+    expect(result).toContain('No entry named "ham"');
+    expect(foodEntryService.deleteFoodEntry).not.toHaveBeenCalled();
+  });
+
   // Below three characters the containment fallback is off — "to" must not
   // resolve to whatever entry happens to contain those letters.
   it('does not substring-match a food_name shorter than three characters', async () => {

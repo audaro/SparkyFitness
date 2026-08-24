@@ -32,7 +32,7 @@ vi.mock('../integrations/freeexercisedb/FreeExerciseDBService', () => ({
   default: {
     getExerciseById: vi.fn(),
     getExerciseImageUrl: vi.fn(),
-    searchExercises: vi.fn(),
+    getAllExercises: vi.fn(),
   },
 }));
 vi.mock('../models/measurementRepository', () => ({}));
@@ -85,10 +85,9 @@ describe('custom exercise stock images', () => {
 
   it('attaches the catalog images on an exact normalized name match', async () => {
     // @ts-expect-error TS(2339): mock method not on typed function.
-    freeExerciseDBService.searchExercises.mockResolvedValue({
-      exercises: [upstreamBenchPress],
-      totalCount: 1,
-    });
+    freeExerciseDBService.getAllExercises.mockResolvedValue([
+      upstreamBenchPress,
+    ]);
 
     await exerciseService.createExercise(userId, {
       name: 'barbell bench-press',
@@ -108,10 +107,9 @@ describe('custom exercise stock images', () => {
 
   it('attaches nothing when the best match is only fuzzy', async () => {
     // @ts-expect-error TS(2339): mock method not on typed function.
-    freeExerciseDBService.searchExercises.mockResolvedValue({
-      exercises: [upstreamBenchPress],
-      totalCount: 1,
-    });
+    freeExerciseDBService.getAllExercises.mockResolvedValue([
+      upstreamBenchPress,
+    ]);
 
     await exerciseService.createExercise(userId, {
       name: 'Machine Chest Press',
@@ -134,7 +132,7 @@ describe('custom exercise stock images', () => {
       images: ['My_Exercise/own-photo.jpg'],
     });
 
-    expect(freeExerciseDBService.searchExercises).not.toHaveBeenCalled();
+    expect(freeExerciseDBService.getAllExercises).not.toHaveBeenCalled();
     // @ts-expect-error TS(2339): mock method not on typed function.
     const created = exerciseDb.createExercise.mock.calls[0][0];
     expect(created.images).toEqual(['My_Exercise/own-photo.jpg']);
@@ -147,12 +145,12 @@ describe('custom exercise stock images', () => {
       images: [],
     });
 
-    expect(freeExerciseDBService.searchExercises).not.toHaveBeenCalled();
+    expect(freeExerciseDBService.getAllExercises).not.toHaveBeenCalled();
   });
 
   it('still creates the exercise when the catalog lookup fails', async () => {
     // @ts-expect-error TS(2339): mock method not on typed function.
-    freeExerciseDBService.searchExercises.mockRejectedValue(
+    freeExerciseDBService.getAllExercises.mockRejectedValue(
       new Error('network down')
     );
 
@@ -172,13 +170,10 @@ describe('custom exercise stock images', () => {
 
   it('attaches nothing when several catalog entries share the normalized name', async () => {
     // @ts-expect-error TS(2339): mock method not on typed function.
-    freeExerciseDBService.searchExercises.mockResolvedValue({
-      exercises: [
-        upstreamBenchPress,
-        { ...upstreamBenchPress, id: 'Barbell_Bench_Press_2' },
-      ],
-      totalCount: 2,
-    });
+    freeExerciseDBService.getAllExercises.mockResolvedValue([
+      upstreamBenchPress,
+      { ...upstreamBenchPress, id: 'Barbell_Bench_Press_2' },
+    ]);
 
     await exerciseService.createExercise(userId, {
       name: 'Barbell Bench Press',
