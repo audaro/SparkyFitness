@@ -141,6 +141,65 @@ describe('useUpdateWeeklySetTargets', () => {
     expect(queryClient.getQueryData(weeklySetTargetsQueryKey(2))).toEqual(fresh);
   });
 
+  // The seq guard alone would drop the successful save on the floor: its
+  // response is not the newest, and the newest never produced one. Only a
+  // refetch after everything settles gets the screen back to the truth.
+  it('refetches when a newer save fails after an older one succeeded', async () => {
+    const queryClient = createTestQueryClient();
+    const saved = response({ push: 11, pull: 11, legs: 20, core: 5 }, true);
+    mockFetch.mockResolvedValue(saved);
+
+    let releaseFirst: (value: WeeklySetTargetsResponse) => void = () => {};
+    let rejectSecond: (reason: Error) => void = () => {};
+    mockUpdate
+      .mockImplementationOnce(
+        () =>
+          new Promise<WeeklySetTargetsResponse>((resolve) => {
+            releaseFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<WeeklySetTargetsResponse>((_resolve, reject) => {
+            rejectSecond = reject;
+          }),
+      );
+
+    // The read hook has to be mounted too: an invalidate only refetches a query
+    // something is actually observing.
+    const { result } = renderHook(
+      () => ({
+        query: useWeeklySetTargets(2),
+        update: useUpdateWeeklySetTargets(2),
+      }),
+      { wrapper: createQueryWrapper(queryClient) },
+    );
+    await waitFor(() => expect(result.current.query.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    let first: Promise<unknown> = Promise.resolve();
+    let second: Promise<unknown> = Promise.resolve();
+    // Both mutations have to reach their mutationFn before the resolvers above
+    // are assigned; firing and settling in one act would reject a closure that
+    // is still the initial no-op.
+    await act(async () => {
+      first = result.current.update.mutateAsync({ legs: 20 });
+      second = result.current.update
+        .mutateAsync({ push: 16 })
+        .catch(() => undefined);
+    });
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      rejectSecond(new Error('network down'));
+      await second;
+      releaseFirst(saved);
+      await first;
+    });
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(2));
+  });
+
   it('surfaces a failed save without writing anything to the cache', async () => {
     const queryClient = createTestQueryClient();
     mockUpdate.mockRejectedValue(new Error('network down'));

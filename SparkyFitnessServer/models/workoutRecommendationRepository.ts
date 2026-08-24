@@ -479,12 +479,22 @@ async function updateWorkoutRecommendationStatus(
  * session laid out is credited the instant the app autosaves — the ring fills
  * before a single rep is lifted, then never moves.
  *
- * So an uncompleted set counts only when the entry shows no sign of having been
- * tracked live. `entry_has_completed` is that sign: once any set in the entry
- * carries a `completed_at`, the entry is a live session and only its ticked
- * sets count. An entry where nothing is ticked is a plain diary log — the web
- * form and every pre-playback entry write `completed_at` as NULL — and all of
- * its non-warm-up sets count, as they always have.
+ * So an uncompleted set counts only where nothing shows a sign of having been
+ * tracked live. `session_has_completed` is that sign, and it is measured over
+ * the whole **session** — `exercise_preset_entry_id`, the id that groups one
+ * workout's entries — not over the single entry. Per entry it would barely
+ * help: tick a set on the first exercise of a six-exercise session and the
+ * other five are each still "an entry where nothing is ticked", so five sixths
+ * of the workout stays credited in advance. Session-wide, the first tick
+ * anywhere marks the whole session live and only ticked sets count from then
+ * on. An entry with no session falls back to itself.
+ *
+ * A session where nothing at all is ticked still counts in full, and that is
+ * deliberate: it is indistinguishable from a plain diary log, which is exactly
+ * what `exercise_preset_entries` also records when a preset is logged without
+ * live tracking. Excluding those would silently drop real work. Closing that
+ * last gap needs a persisted live-session marker, which is a schema change, not
+ * a predicate change.
  *
  * The plan-assignment exclusion stays on top of that, because a prescribed
  * session is pre-created with nothing completed and would otherwise read as a
@@ -512,7 +522,9 @@ async function getWeeklySetCountInputs(
                 ees.set_type,
                 ees.completed_at,
                 bool_or(ees.completed_at IS NOT NULL)
-                  OVER (PARTITION BY ee.id) AS entry_has_completed
+                  OVER (
+                    PARTITION BY COALESCE(ee.exercise_preset_entry_id, ee.id)
+                  ) AS session_has_completed
            FROM exercise_entries ee
            LEFT JOIN exercise_entry_sets ees ON ees.exercise_entry_id = ee.id
           WHERE ee.user_id = $1
@@ -528,7 +540,7 @@ async function getWeeklySetCountInputs(
                    OR regexp_replace(LOWER(set_type), '[^a-z0-9]', '', 'g') NOT LIKE 'warmup%')
                   AND (completed_at IS NOT NULL
                    OR (workout_plan_assignment_id IS NULL
-                       AND NOT COALESCE(entry_has_completed, FALSE)))
+                       AND NOT COALESCE(session_has_completed, FALSE)))
               ) AS working_set_count
          FROM entry_sets
         GROUP BY entry_id, entry_date, primary_muscles, secondary_muscles
