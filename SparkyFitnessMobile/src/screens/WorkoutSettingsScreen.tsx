@@ -55,6 +55,15 @@ const WorkoutSettingsScreen: React.FC<WorkoutSettingsScreenProps> = ({ navigatio
         />
 
         <SettingsRow
+          title="Weekly set targets"
+          subtitle="Track working sets per muscle group against a weekly goal."
+          subtitleNumberOfLines={0}
+          onPress={() => navigation.navigate('WeeklySetTargets')}
+          accessibilityLabel="Weekly set targets"
+          testID="workout-settings-weekly-set-targets"
+        />
+
+        <SettingsRow
           title="Exercise packs"
           subtitle="Add a ready-made set of exercises, photos included."
           subtitleNumberOfLines={0}

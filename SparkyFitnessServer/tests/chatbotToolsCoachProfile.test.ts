@@ -46,6 +46,7 @@ const fullProfile = {
   aliases: {
     'my usual walk': { kind: 'exercise' as const, id: EXERCISE_ID },
   },
+  weekly_set_targets: {},
   created_at: new Date('2026-08-01T00:00:00Z'),
   updated_at: new Date('2026-08-01T00:00:00Z'),
 };

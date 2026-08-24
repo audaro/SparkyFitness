@@ -131,6 +131,60 @@ export const LOWER_BODY_MUSCLES: readonly Muscle[] = [
   "quadriceps",
 ];
 
+/**
+ * Training groups a muscle can belong to, for weekly set targets.
+ *
+ * These are training buckets, not anatomy: `pull` holds every posterior-chain
+ * and elbow-flexor muscle rather than only the ones a "pulling" movement
+ * pattern hits. The point is that a user can hold three or four numbers in
+ * their head, which is what makes a weekly set target usable at all.
+ *
+ * `core` exists because the alternative is worse. Every canonical muscle has
+ * to land somewhere: dropping abdominals from the taxonomy would silently
+ * discard logged ab work, and a target screen that quietly ignores sets the
+ * user performed is a bug that looks like a design.
+ */
+export const MUSCLE_GROUPS = ["push", "pull", "legs", "core"] as const;
+export type MuscleGroup = (typeof MUSCLE_GROUPS)[number];
+
+/**
+ * Every muscle in {@link MUSCLES} appears exactly once across these lists.
+ * `exerciseTaxonomy.test.ts` asserts both halves of that (total coverage and
+ * no muscle in two groups), so adding a muscle upstream fails the suite here
+ * rather than silently vanishing from someone's weekly totals.
+ */
+export const MUSCLE_GROUP_MEMBERS: Readonly<
+  Record<MuscleGroup, readonly Muscle[]>
+> = {
+  push: ["chest", "shoulders", "triceps"],
+  pull: [
+    "biceps",
+    "forearms",
+    "lats",
+    "lower back",
+    "middle back",
+    "neck",
+    "traps",
+  ],
+  legs: [
+    "abductors",
+    "adductors",
+    "calves",
+    "glutes",
+    "hamstrings",
+    "quadriceps",
+  ],
+  core: ["abdominals"],
+};
+
+const MUSCLE_TO_GROUP: ReadonlyMap<string, MuscleGroup> = new Map(
+  MUSCLE_GROUPS.flatMap((group) =>
+    MUSCLE_GROUP_MEMBERS[group].map(
+      (muscle) => [muscle, group] as [string, MuscleGroup],
+    ),
+  ),
+);
+
 const MUSCLE_SET: ReadonlySet<string> = new Set(MUSCLES);
 const EQUIPMENT_SET: ReadonlySet<string> = new Set(EQUIPMENT);
 const LOWER_BODY_MUSCLE_SET: ReadonlySet<string> = new Set(LOWER_BODY_MUSCLES);
@@ -182,6 +236,15 @@ export function toCanonicalMuscle(raw: string): Muscle | null {
 export function toCanonicalEquipment(raw: string): Equipment | null {
   const normalized = normalizeEquipmentName(raw);
   return isKnownEquipment(normalized) ? normalized : null;
+}
+
+/**
+ * The training group a muscle belongs to, or null when the string is outside
+ * the canonical vocabulary. Normalizes its input, so it is safe to hand it a
+ * raw value straight off an `exercise_entries` muscle snapshot.
+ */
+export function muscleGroupOf(raw: string): MuscleGroup | null {
+  return MUSCLE_TO_GROUP.get(normalizeMuscleName(raw)) ?? null;
 }
 
 /** True for a canonical lower-body muscle. Normalizes its input. */

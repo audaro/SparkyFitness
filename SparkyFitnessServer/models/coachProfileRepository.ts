@@ -11,6 +11,7 @@ export interface CoachProfileRow {
   limitations: string[];
   food_preferences: Record<string, unknown>;
   aliases: Record<string, CoachProfileAlias>;
+  weekly_set_targets: Record<string, number>;
   created_at: Date;
   updated_at: Date;
 }
@@ -23,10 +24,11 @@ export interface CoachProfilePatch {
   limitations?: string[];
   food_preferences?: Record<string, unknown>;
   aliases?: Record<string, CoachProfileAlias>;
+  weekly_set_targets?: Record<string, number>;
 }
 
 const PROFILE_COLS =
-  'id, user_id, goals, training_days_per_week, session_minutes, equipment, limitations, food_preferences, aliases, created_at, updated_at';
+  'id, user_id, goals, training_days_per_week, session_minutes, equipment, limitations, food_preferences, aliases, weekly_set_targets, created_at, updated_at';
 
 // Columns that hold jsonb. Their values must be serialized explicitly:
 // node-postgres renders a JS array parameter as a Postgres array literal,
@@ -36,6 +38,7 @@ const JSONB_COLS = new Set([
   'limitations',
   'food_preferences',
   'aliases',
+  'weekly_set_targets',
 ]);
 
 const PATCHABLE_COLS = [
@@ -46,6 +49,7 @@ const PATCHABLE_COLS = [
   'limitations',
   'food_preferences',
   'aliases',
+  'weekly_set_targets',
 ] as const;
 
 async function getCoachProfile(

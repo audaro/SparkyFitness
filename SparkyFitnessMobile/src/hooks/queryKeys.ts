@@ -113,6 +113,13 @@ export const gymProfilesQueryKey = ['gymProfiles'] as const;
 /** Importable exercise catalog packs and the user's progress through each. */
 export const exercisePacksQueryKey = ['exercisePacks'] as const;
 
+/**
+ * Weekly working-set progress per training group. Keyed by how many history
+ * weeks were requested, since that changes the payload the server returns.
+ */
+export const weeklySetTargetsQueryKey = (historyWeeks: number) =>
+  ['weeklySetTargets', historyWeeks] as const;
+
 /** The one stored "Up Next" workout; the server keeps at most one per user. */
 export const workoutRecommendationQueryKey = ['workoutRecommendation'] as const;
 

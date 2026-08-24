@@ -32,6 +32,10 @@ const coachProfilesFieldsSchema = z.object({
   limitations: z.array(z.string()),
   food_preferences: z.record(z.string(), z.unknown()),
   aliases: z.record(z.string(), coachProfileAliasSchema),
+  // Working sets per training group the user means to hit each week, keyed by
+  // MuscleGroup. An empty object means "not set": the server then derives a
+  // default from training_days_per_week rather than showing a target of zero.
+  weekly_set_targets: z.record(z.string(), z.number()),
   created_at: z.date(),
   updated_at: z.date(),
 });
