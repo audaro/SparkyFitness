@@ -22,6 +22,7 @@ import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
 import { useServerConnection } from '../hooks';
 import { useDailySummary } from '../hooks/useDailySummary';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
+import { useGymProfiles } from '../hooks/useGymProfiles';
 import { useNavigationActionGuard } from '../hooks/useNavigationActionGuard';
 import { usePreferences } from '../hooks/usePreferences';
 import { useWeeklySetGroupColors } from '../hooks/useWeeklySetGroupColors';
@@ -111,6 +112,9 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
   const weightUnit = (preferences?.default_weight_unit as 'kg' | 'lbs') ?? 'kg';
   const distanceUnit = (preferences?.default_distance_unit as 'km' | 'miles') ?? 'km';
   const { getImageSource } = useExerciseImageSource();
+  // Which gym the user is in constrains every suggestion this tab makes, so
+  // the row names it rather than describing what gym profiles are.
+  const { activeProfile } = useGymProfiles();
 
   const { summary } = useDailySummary({ date: selectedDate, enabled: isConnected });
 
@@ -342,13 +346,28 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
           <Text className="text-lg font-semibold text-text-primary">Setup</Text>
         </View>
 
+        {/* Weekly set targets are reachable from the week card above too, but
+            that card hides itself when the read came back with nothing —
+            leaving the screen that sets the targets unreachable exactly when a
+            user would go looking for it. This row does not hide. */}
         <SettingsRowGroup>
           <SettingsRow
             icon="workout-settings"
             title="Gym profiles"
-            subtitle="Which equipment your workouts may use"
+            subtitle={
+              activeProfile
+                ? `Active: ${activeProfile.name}`
+                : 'No active profile — every exercise is available'
+            }
             onPress={() => navigation.navigate('GymProfiles')}
             testID="exercise-home-gym-profiles"
+          />
+          <SettingsRow
+            icon="chart-bar"
+            title="Weekly set targets"
+            subtitle="Working sets per muscle group, per week"
+            onPress={() => navigation.navigate('WeeklySetTargets')}
+            testID="exercise-home-weekly-set-targets"
           />
           <SettingsRow
             icon="list"

@@ -8,17 +8,6 @@ import {
 } from '../../src/stores/appPreferencesStore';
 import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';
 
-// The gym-profiles row reads the active profile through the API client; stub
-// the fetch layer rather than the hook so the row's real query path is covered.
-const mockFetchGymProfiles = jest.fn();
-jest.mock('../../src/services/api/gymProfilesApi', () => ({
-  fetchGymProfiles: (...args: unknown[]) => mockFetchGymProfiles(...args),
-  createGymProfile: jest.fn(),
-  updateGymProfile: jest.fn(),
-  deleteGymProfile: jest.fn(),
-  activateGymProfile: jest.fn(),
-}));
-
 const mockPresent = jest.fn();
 let sheetOnChange: ((seconds: number) => void) | null = null;
 
@@ -61,7 +50,6 @@ describe('WorkoutSettingsScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sheetOnChange = null;
-    mockFetchGymProfiles.mockResolvedValue([]);
     __resetAppPreferencesStoreForTests();
   });
 
@@ -116,32 +104,12 @@ describe('WorkoutSettingsScreen', () => {
     expect(useAppPreferencesStore.getState().workoutKeepAwakeEnabled).toBe(true);
   });
 
-  it('opens the gym profiles screen from the gym profiles row', () => {
-    const { getByText } = renderScreen();
-    fireEvent.press(getByText('Gym profiles'));
-    expect(navigation.navigate).toHaveBeenCalledWith('GymProfiles');
-  });
-
-  it('names the active gym profile in the row subtitle', async () => {
-    mockFetchGymProfiles.mockResolvedValue([
-      {
-        id: 'profile-1',
-        user_id: 'user-1',
-        name: 'Home',
-        equipment: ['dumbbell', 'bands'],
-        is_active: true,
-        created_at: '2026-08-23T00:00:00.000Z',
-        updated_at: '2026-08-23T00:00:00.000Z',
-      },
-    ]);
-    const { findByText } = renderScreen();
-    expect(await findByText('Active: Home')).toBeTruthy();
-  });
-
-  it('says every exercise is available when no profile is active', async () => {
-    const { findByText } = renderScreen();
-    expect(
-      await findByText('No active profile — every exercise is available.'),
-    ).toBeTruthy();
+  // Gym profiles, weekly set targets and exercise packs moved to the Exercise
+  // tab's Setup section; what stays here is device and behaviour preference.
+  it('no longer carries the training configuration rows', () => {
+    const { queryByText } = renderScreen();
+    expect(queryByText('Gym profiles')).toBeNull();
+    expect(queryByText('Weekly set targets')).toBeNull();
+    expect(queryByText('Exercise packs')).toBeNull();
   });
 });

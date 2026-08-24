@@ -11,7 +11,6 @@ import Switch from '../components/ui/Switch';
 import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
-import { useGymProfiles } from '../hooks/useGymProfiles';
 import type { RootStackScreenProps } from '../types/navigation';
 
 type WorkoutSettingsScreenProps = RootStackScreenProps<'WorkoutSettings'>;
@@ -27,7 +26,6 @@ const WorkoutSettingsScreen: React.FC<WorkoutSettingsScreenProps> = ({ navigatio
   const setRestTimerSoundEnabled = useAppPreferencesStore((s) => s.setRestTimerSoundEnabled);
   const workoutKeepAwakeEnabled = useAppPreferencesStore((s) => s.workoutKeepAwakeEnabled);
   const setWorkoutKeepAwakeEnabled = useAppPreferencesStore((s) => s.setWorkoutKeepAwakeEnabled);
-  const { activeProfile } = useGymProfiles();
   const restSheetRef = useRef<RestPeriodSheetRef>(null);
   const header = useScreenHeader({ title: 'Workout Settings', left: { kind: 'back' } });
 
@@ -41,37 +39,10 @@ const WorkoutSettingsScreen: React.FC<WorkoutSettingsScreenProps> = ({ navigatio
         }}
         contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
       >
-        <SettingsRow
-          title="Gym profiles"
-          subtitle={
-            activeProfile
-              ? `Active: ${activeProfile.name}`
-              : 'No active profile — every exercise is available.'
-          }
-          subtitleNumberOfLines={0}
-          onPress={() => navigation.navigate('GymProfiles')}
-          accessibilityLabel="Gym profiles"
-          testID="workout-settings-gym-profiles"
-        />
-
-        <SettingsRow
-          title="Weekly set targets"
-          subtitle="Track working sets per muscle group against a weekly goal."
-          subtitleNumberOfLines={0}
-          onPress={() => navigation.navigate('WeeklySetTargets')}
-          accessibilityLabel="Weekly set targets"
-          testID="workout-settings-weekly-set-targets"
-        />
-
-        <SettingsRow
-          title="Exercise packs"
-          subtitle="Add a ready-made set of exercises, photos included."
-          subtitleNumberOfLines={0}
-          onPress={() => navigation.navigate('ExercisePacks')}
-          accessibilityLabel="Exercise packs"
-          testID="workout-settings-exercise-packs"
-        />
-
+        {/* Gym profiles, weekly set targets and exercise packs are training
+            configuration and live on the Exercise tab's Setup section. What is
+            left here is device and behaviour preference, which belongs in
+            Settings. */}
         <SettingsRow
           title="Default rest period"
           subtitle="Rest between sets for newly added exercises."

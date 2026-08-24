@@ -41,6 +41,17 @@ jest.mock('../../src/hooks/useExerciseImageSource', () => ({
   useExerciseImageSource: jest.fn(() => ({ getImageSource: jest.fn() })),
 }));
 
+// The gym-profiles row reads the active profile through the API client; stub
+// the fetch layer rather than the hook so the row's real query path is covered.
+const mockFetchGymProfiles = jest.fn();
+jest.mock('../../src/services/api/gymProfilesApi', () => ({
+  fetchGymProfiles: (...args: unknown[]) => mockFetchGymProfiles(...args),
+  createGymProfile: jest.fn(),
+  updateGymProfile: jest.fn(),
+  deleteGymProfile: jest.fn(),
+  activateGymProfile: jest.fn(),
+}));
+
 jest.mock('../../src/hooks/useWorkoutRecommendation', () => ({
   useWorkoutRecommendation: jest.fn(),
 }));
@@ -130,6 +141,7 @@ function renderScreen() {
 describe('ExerciseHomeScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetchGymProfiles.mockResolvedValue([]);
     mockUseDailySummary.mockReturnValue({ summary: { exerciseEntries: [] } });
     mockUseWorkoutRecommendation.mockReturnValue({
       recommendation: null,
@@ -157,6 +169,7 @@ describe('ExerciseHomeScreen', () => {
     expect(getByTestId('exercise-home-workout-presets')).toBeTruthy();
     expect(getByTestId('exercise-home-exercises-library')).toBeTruthy();
     expect(getByTestId('exercise-home-gym-profiles')).toBeTruthy();
+    expect(getByTestId('exercise-home-weekly-set-targets')).toBeTruthy();
     expect(getByTestId('exercise-home-exercise-packs')).toBeTruthy();
   });
 
@@ -272,7 +285,54 @@ describe('ExerciseHomeScreen', () => {
     fireEvent.press(getByTestId('exercise-home-gym-profiles'));
     expect(navigation.navigate).toHaveBeenCalledWith('GymProfiles');
 
+    fireEvent.press(getByTestId('exercise-home-weekly-set-targets'));
+    expect(navigation.navigate).toHaveBeenCalledWith('WeeklySetTargets');
+
     fireEvent.press(getByTestId('exercise-home-exercise-packs'));
     expect(navigation.navigate).toHaveBeenCalledWith('ExercisePacks');
+  });
+
+  it('names the active gym profile in the setup row', async () => {
+    mockFetchGymProfiles.mockResolvedValue([
+      {
+        id: 'profile-1',
+        user_id: 'user-1',
+        name: 'Home',
+        equipment: ['dumbbell', 'bands'],
+        is_active: true,
+        created_at: '2026-08-23T00:00:00.000Z',
+        updated_at: '2026-08-23T00:00:00.000Z',
+      },
+    ]);
+
+    const { findByText } = renderScreen();
+
+    expect(await findByText('Active: Home')).toBeTruthy();
+  });
+
+  it('says every exercise is available when no profile is active', async () => {
+    const { findByText } = renderScreen();
+
+    expect(
+      await findByText('No active profile — every exercise is available'),
+    ).toBeTruthy();
+  });
+
+  // The week card is the usual way in, but it hides itself when the read came
+  // back with nothing — which would leave the screen that sets the targets
+  // unreachable exactly when a user goes looking for it.
+  it('keeps weekly set targets reachable when the week card is hidden', () => {
+    mockUseWeeklySetTargets.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: jest.fn(),
+    } as never);
+
+    const { queryByTestId, getByTestId } = renderScreen();
+
+    expect(queryByTestId('exercise-home-week-card')).toBeNull();
+    fireEvent.press(getByTestId('exercise-home-weekly-set-targets'));
+    expect(navigation.navigate).toHaveBeenCalledWith('WeeklySetTargets');
   });
 });
