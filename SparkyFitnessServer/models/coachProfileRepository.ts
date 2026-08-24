@@ -17,9 +17,13 @@ export interface CoachProfileRow {
 }
 
 export interface CoachProfilePatch {
-  goals?: string;
-  training_days_per_week?: number;
-  session_minutes?: number;
+  // The three nullable scalars accept null explicitly: clearing a stated value
+  // back to "not stated" is a distinct operation from leaving it alone, and
+  // `training_days_per_week` of null is what makes weekly set targets report
+  // themselves as derived. `undefined` still means "do not touch this column".
+  goals?: string | null;
+  training_days_per_week?: number | null;
+  session_minutes?: number | null;
   equipment?: string[];
   limitations?: string[];
   food_preferences?: Record<string, unknown>;
