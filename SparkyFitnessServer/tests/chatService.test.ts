@@ -2235,6 +2235,61 @@ describe('chatService', () => {
       );
     });
 
+    // The canonical recovery dance retries by id, not name: log_food(food_name)
+    // → Error → lookup_food_nutrition (result carries "ID: <uuid>") →
+    // log_food(food_id). Observed live: both items saved on the id retry while
+    // the note still claimed they "did NOT get saved" — the name-keyed failure
+    // must be cleared through the lookup's name→id pairing.
+    it('omits the note when a name-keyed failure is retried successfully by food_id', async () => {
+      vi.mocked(mealTypeRepository.getAllMealTypes).mockResolvedValue([
+        { id: 'dinner-id', name: 'Dinner', sort_order: 3, user_id: null },
+      ]);
+      vi.mocked(foodRepository.getFoodsWithPagination)
+        .mockResolvedValueOnce([]) // log_food by name: not found
+        .mockResolvedValueOnce([eggsFood]); // lookup: internal match with ID
+      vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([
+        eggsFood.default_variant,
+      ]);
+      vi.mocked(foodRepository.getFoodById).mockResolvedValue(eggsFood);
+      vi.mocked(foodEntryService.createFoodEntry).mockResolvedValue({
+        id: 'entry-1',
+        food_name: 'Eggs',
+      });
+      scriptStreamModel([
+        streamToolCallChunks('call-1', {
+          action: 'log_food',
+          food_name: 'Eggs',
+          quantity: 2,
+          unit: 'serving',
+          meal_type: 'dinner',
+          entry_date: '2026-08-22',
+        }),
+        streamToolCallChunks('call-2', {
+          action: 'lookup_food_nutrition',
+          food_name: 'Eggs',
+        }),
+        streamToolCallChunks('call-3', {
+          action: 'log_food',
+          food_id: eggsFood.id,
+          quantity: 2,
+          unit: 'serving',
+          meal_type: 'dinner',
+          entry_date: '2026-08-22',
+        }),
+        streamTextChunks('Logged your eggs for dinner!'),
+      ]);
+
+      const { stream } = await chatService.processChatMessageStream(
+        [{ role: 'user', content: 'I had eggs for dinner' }],
+        'svc-1',
+        activeUserId,
+        actorUserId
+      );
+      const chunks = await drainStream(stream);
+
+      expect(noteDeltas(chunks)).toHaveLength(0);
+    });
+
     // A failed READ leaves nothing unsaved; it must never trigger the
     // "did NOT get saved" correction.
     it('omits the note when only a read action fails in the final tool step', async () => {

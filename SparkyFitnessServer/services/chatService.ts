@@ -2243,6 +2243,11 @@ function extractToolTarget(input: unknown): string | undefined {
   return undefined;
 }
 
+// A lookup result surfaces the matched food's UUID as a bare "  ID: <uuid>"
+// line (foodTools' internal-match rendering); pairing it with the lookup's
+// food_name input is what lets an id-keyed retry absolve a name-keyed failure.
+const LOOKUP_RESULT_ID = /\n\s*ID: (\S+)/;
+
 // Tracks write-tool failures that were never recovered. A failure is keyed by
 // the call input's target name (food_name, meal_name, ...) and is cleared only
 // when a later write call for the SAME target succeeds — a success on a
@@ -2250,9 +2255,16 @@ function extractToolTarget(input: unknown): string | undefined {
 // with no extractable target can't be correlated with a retry, so they count
 // only when they happen in the run's final tool-bearing step (nothing but
 // prose follows, so they are unrecovered by definition).
+//
+// The retry that recovers a failure does not always reuse the name: the
+// canonical dance is log_food(food_name) → Error → lookup_food_nutrition →
+// log_food(food_id). Lookup results are therefore mined for their name→id
+// pairing so the id-keyed success clears the name-keyed failure (observed
+// live: both items saved on retry, note still claimed they were not).
 function createUnrecoveredWriteErrorTracker() {
   const named = new Map<string, string>();
   let unnamed: string[] = [];
+  const lookupNameById = new Map<string, string>();
   const onStepFinish = (
     toolCalls: readonly StepToolCall[] | undefined,
     toolResults: readonly StepToolResult[] | undefined
@@ -2272,6 +2284,14 @@ function createUnrecoveredWriteErrorTracker() {
           ? ((input as Record<string, unknown>).action as string)
           : undefined;
       const action = inputAction ?? r.toolName.replace(/^sparky_/, '');
+      if (action === 'lookup_food_nutrition') {
+        const queryName = extractToolTarget(input);
+        const idMatch = LOOKUP_RESULT_ID.exec(r.output);
+        if (queryName && !queryName.startsWith('id:') && idMatch) {
+          lookupNameById.set(`id:${idMatch[1].toLowerCase()}`, queryName);
+        }
+        continue;
+      }
       if (!WRITE_TOOL_ACTION.test(action)) continue;
       const target = extractToolTarget(input);
       if (r.output.startsWith('Error [')) {
@@ -2282,6 +2302,11 @@ function createUnrecoveredWriteErrorTracker() {
       } else if (target) {
         stepSuccessTargets.add(target);
         named.delete(target);
+        const aliasedName = lookupNameById.get(target);
+        if (aliasedName) {
+          stepSuccessTargets.add(aliasedName);
+          named.delete(aliasedName);
+        }
       }
     }
     for (const e of stepErrors) {

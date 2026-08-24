@@ -487,6 +487,56 @@ describe('lookup_food_nutrition', () => {
     expect(searchProviderFoods).not.toHaveBeenCalled();
   });
 
+  // Live failure: "a normal banana" instant-logged as the user's saved
+  // "Banana, dried" (own-catalog matches skip the confirmation card). A
+  // form qualifier in the match that the query never said must surface an
+  // in-band do-not-log warning demanding a sparky_confirm_food card.
+  it('warns when the internal match adds a form qualifier the query did not say', async () => {
+    vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+      { ...eggsRow, name: 'Banana, dried', brand: null },
+    ]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'lookup_food_nutrition', food_name: 'banana' },
+      opts
+    );
+
+    expect(result).toContain(
+      '⚠️ Form mismatch: this match is "Banana, dried" but the request said "banana"'
+    );
+    expect(result).toContain('Do NOT log this match');
+    expect(result).toContain('sparky_confirm_food');
+  });
+
+  it('does not warn when the query itself named the form qualifier', async () => {
+    vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+      { ...eggsRow, name: 'Banana, dried', brand: null },
+    ]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'lookup_food_nutrition', food_name: 'dried banana' },
+      opts
+    );
+
+    expect(result).not.toContain('Form mismatch');
+  });
+
+  // Same-food descriptors (toasted, raw, fresh...) track the plain food's
+  // nutrition; warning on them would teach the model to distrust exact-enough
+  // matches like "toast" → "Toasted White Bread".
+  it('does not warn on a match whose extra words are not form qualifiers', async () => {
+    vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+      { ...eggsRow, name: 'Toasted White Bread', brand: null },
+    ]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      { action: 'lookup_food_nutrition', food_name: 'toast' },
+      opts
+    );
+
+    expect(result).not.toContain('Form mismatch');
+  });
+
   it('cascades through active providers in order and appends OpenFoodFacts', async () => {
     vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([]);
     vi.mocked(foodRepository.countFoods).mockResolvedValue(0);

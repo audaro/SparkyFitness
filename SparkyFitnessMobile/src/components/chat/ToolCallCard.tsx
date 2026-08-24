@@ -22,6 +22,13 @@ type ToolStatus = 'running' | 'complete' | 'error';
 function deriveStatus(part: ToolCallMessagePart): ToolStatus {
   if (part.isError) return 'error';
   if (part.result === undefined) return 'running';
+  // Server tool handlers never throw — failures come back as ordinary result
+  // strings ("Error [VALIDATION]: …" from the ERRORS.* helpers), so isError
+  // stays false and a failed log would render a green checkmark (observed
+  // live: two failed calls in a six-card turn, all six green).
+  if (typeof part.result === 'string' && part.result.startsWith('Error [')) {
+    return 'error';
+  }
   return 'complete';
 }
 

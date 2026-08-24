@@ -321,6 +321,52 @@ function quantitySanityError(
   return null;
 }
 
+// Form qualifiers that turn a food into a nutritionally different product.
+// Deliberately excludes same-food descriptors (raw, fresh, whole, toasted,
+// frozen) whose calories track the plain food: a warning on those would train
+// the model to distrust correct matches. The live failure this guards: "a
+// normal banana" instant-logged as the user's saved "Banana, dried" at triple
+// the calories, because an own-catalog match skips the confirmation card.
+const FORM_QUALIFIER_TOKENS = [
+  'dried',
+  'dehydrated',
+  'powder',
+  'powdered',
+  'candied',
+  'sweetened',
+  'canned',
+  'chips',
+  'juice',
+  'syrup',
+  'concentrate',
+  'instant',
+] as const;
+
+function tokenizeFoodName(name: string): Set<string> {
+  return new Set(
+    name
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .filter(Boolean)
+  );
+}
+
+/**
+ * Form qualifiers present in the matched food's name but absent from the
+ * lookup query — the "Banana" → "Banana, dried" trap. Empty when the match's
+ * form is one the user actually named.
+ */
+function unrequestedFormQualifiers(
+  queryName: string,
+  matchedName: string
+): string[] {
+  const queryTokens = tokenizeFoodName(queryName);
+  const matchedTokens = tokenizeFoodName(matchedName);
+  return FORM_QUALIFIER_TOKENS.filter(
+    (q) => matchedTokens.has(q) && !queryTokens.has(q)
+  );
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function dedupeVariantsById(variants: any[]) {
   const seen = new Set<string>();
@@ -1852,6 +1898,21 @@ Actions:
                     text += ` (${altV.serving_size}${altV.serving_unit}: ${altV.calories ?? altV.energy ?? 0} kcal)`;
                   }
                 });
+              }
+
+              // Internal matches are logged instantly by rule (the user's own
+              // saved food) — which is exactly how "a normal banana" became
+              // 100 g of saved "Banana, dried" with no confirmation card. A
+              // system-prompt rule against loose matches lost that fight, so
+              // the warning lives in-band where the model demonstrably obeys.
+              if (result.source === 'internal') {
+                const qualifiers = unrequestedFormQualifiers(
+                  args.food_name,
+                  f.name
+                );
+                if (qualifiers.length > 0) {
+                  text += `\n\n⚠️ Form mismatch: this match is "${f.name}" but the request said "${args.food_name}" — "${qualifiers.join('", "')}" makes it a nutritionally different food. Do NOT log this match unless the user explicitly asked for the ${qualifiers.join('/')} version. Show it as ONE sparky_confirm_food card (or search external providers for the plain food) and log nothing until the user chooses.`;
+                }
               }
 
               // External-provider results are not yet in the user's food

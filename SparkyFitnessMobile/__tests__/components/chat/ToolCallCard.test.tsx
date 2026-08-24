@@ -72,6 +72,21 @@ describe('ToolCallCard', () => {
     expect(UNSAFE_queryByType(ActivityIndicator)).toBeNull();
   });
 
+  // Server tool handlers never throw — failures arrive as ordinary result
+  // strings with isError unset, and must not render as green successes.
+  it('renders an error indicator for an "Error [" result string without isError', () => {
+    const { getByTestId, queryByTestId } = render(
+      <ToolCallCard
+        part={{
+          ...baseFoodPart,
+          result: 'Error [VALIDATION]: Food "Banana" not found in the database.',
+        }}
+      />
+    );
+    expect(getByTestId('icon-alert-circle')).toBeTruthy();
+    expect(queryByTestId('icon-checkmark-circle')).toBeNull();
+  });
+
   it('stringifies a non-string result as JSON when expanded', () => {
     const { getByText, queryByTestId } = render(
       <ToolCallCard part={{ ...baseFoodPart, result: { ok: true, id: 7 } }} />
