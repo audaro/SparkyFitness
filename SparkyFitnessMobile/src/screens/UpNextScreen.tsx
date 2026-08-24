@@ -4,6 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { isCardioModality, type RecommendedExercise } from '@workspace/shared';
 
+import ActionSheet, {
+  type ActionSheetItem,
+  type ActionSheetRef,
+} from '../components/ActionSheet';
 import AnchoredMenu, {
   measureAnchoredMenuTrigger,
   type AnchorRect,
@@ -94,33 +98,53 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     new Map<string, React.ComponentRef<typeof TouchableOpacity> | null>(),
   );
 
+  const payload = recommendation?.payload ?? null;
+
+  // Every way of getting a different workout hangs off one sheet.
+  const swapSheetRef = useRef<ActionSheetRef>(null);
+  const handleOpenSwapSheet = useCallback(() => {
+    swapSheetRef.current?.present();
+  }, []);
+
   // Muscle targeting is a destination, not a mutation: the picker owns the
   // generate and lands back here with the workout it built.
   const handlePickMuscles = useCallback(() => {
     navigation.navigate('PickMuscles');
   }, [navigation]);
 
-  // The picker lives on the header rather than beside Swap because the body is
-  // only rendered once a workout exists — and "no workout yet" is exactly when
-  // choosing what to train is most useful. It stays neutral (no `role`), so the
-  // screen still declares no accent action. D1 folds this into the Swap sheet;
-  // until that sheet exists this is the only way in.
+  const handleSavedWorkouts = useCallback(() => {
+    navigation.navigate('WorkoutPresetsLibrary');
+  }, [navigation]);
+
+  const handleCreateFromScratch = useCallback(() => {
+    navigation.navigate('WorkoutPresetForm', { mode: 'create-preset' });
+  }, [navigation]);
+
+  // `renderContent()` only reaches the Swap button once a workout exists; every
+  // other branch is a `StatusView`, which takes exactly one action — and it is
+  // already spoken for by Generate / Retry. So the sheet moves to the header in
+  // exactly those states, and the two entry points are never both on screen.
+  const showsSwapButton = !isLoading && !isError && !!recommendation && !!payload;
+
   const header = useScreenHeader({
     title: 'Up Next',
     left: { kind: 'back' },
-    right: {
-      kind: 'text',
-      label: 'Muscles',
-      onPress: handlePickMuscles,
-      // Retargeting mid-generate would leave two requests racing for the same
-      // recommendation row, and the loser would silently win the cache.
-      disabled: isGenerating || isStarting,
-      accessibilityLabel: 'Pick muscles',
-      identifier: 'up-next-pick-muscles',
-    },
+    right: showsSwapButton
+      ? null
+      : {
+          kind: 'text',
+          // The sheet is "how do I get a workout" here, not "swap this one" —
+          // there is nothing on screen to swap. Neutral (no `role`), so the
+          // screen still declares no accent header action.
+          label: 'New',
+          onPress: handleOpenSwapSheet,
+          // Retargeting mid-generate would leave two requests racing for the
+          // same recommendation row, and the loser would silently win the cache.
+          disabled: isGenerating || isStarting,
+          accessibilityLabel: 'New workout options',
+          identifier: 'up-next-workout-options',
+        },
   });
-
-  const payload = recommendation?.payload ?? null;
 
   const handleOpenRowMenu = useCallback((exerciseId: string) => {
     measureAnchoredMenuTrigger(
@@ -172,9 +196,45 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     [generateAsync],
   );
 
-  const handleSwap = useCallback(() => {
+  // Whole-workout regeneration: same targets, different exercises. It used to
+  // be what the Swap button did; the button now opens the sheet, so this is a
+  // row inside it. D2 moves the row to the ⋯ menu, which is where the design
+  // puts Refresh — the label is already its name so that stays a move.
+  const handleRefreshWorkout = useCallback(() => {
     void runGenerate({ swap: true }, 'swap');
   }, [runGenerate]);
+
+  const swapSheetItems = useMemo<ActionSheetItem[]>(() => {
+    const items: ActionSheetItem[] = [
+      { key: 'pick-muscles', label: 'Pick Muscles', onPress: handlePickMuscles },
+      { key: 'saved-workouts', label: 'Saved Workouts', onPress: handleSavedWorkouts },
+      {
+        key: 'create-from-scratch',
+        label: 'Create From Scratch',
+        onPress: handleCreateFromScratch,
+      },
+    ];
+    // "On Demand" (D3) is deliberately absent rather than present-and-inert:
+    // there is nothing behind it yet, and a row that opens nothing reads as a
+    // bug. D3 adds it here.
+    if (payload) {
+      // Nothing to regenerate before the first workout exists — the empty
+      // state's own action already offers a plain generate.
+      items.push({
+        key: 'refresh',
+        label: 'Refresh',
+        group: 'regenerate',
+        onPress: handleRefreshWorkout,
+      });
+    }
+    return items;
+  }, [
+    payload,
+    handlePickMuscles,
+    handleSavedWorkouts,
+    handleCreateFromScratch,
+    handleRefreshWorkout,
+  ]);
 
   const handleSelectDuration = useCallback(
     (minutes: number) => {
@@ -419,7 +479,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
             <View className="mt-3">
               <Button
                 variant="outline"
-                onPress={handleSwap}
+                onPress={handleOpenSwapSheet}
                 disabled={isGenerating || isStarting}
                 loading={pendingAction === 'swap' && isGenerating}
                 testID="up-next-swap"
@@ -475,6 +535,13 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     >
       {header}
       {renderContent()}
+      {/* Mounted outside renderContent so the header entry point still has a
+          sheet to present in the loading / error / empty branches. */}
+      <ActionSheet
+        ref={swapSheetRef}
+        title={payload ? 'Swap Workout' : 'New Workout'}
+        items={swapSheetItems}
+      />
     </View>
   );
 };

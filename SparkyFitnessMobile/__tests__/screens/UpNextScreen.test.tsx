@@ -8,6 +8,7 @@ import type {
 } from '@workspace/shared';
 
 import UpNextScreen from '../../src/screens/UpNextScreen';
+import type { ActionSheetItem } from '../../src/components/ActionSheet';
 import { usePreferences } from '../../src/hooks';
 import { useGymProfiles, useGymProfileMutations } from '../../src/hooks/useGymProfiles';
 import { useScreenHeader } from '../../src/hooks/useScreenHeader';
@@ -56,6 +57,35 @@ jest.mock('../../src/components/ActiveWorkoutBar', () => ({
 jest.mock('../../src/services/nativeTabBarPreference', () => ({
   useNativeIOSHeadersActive: jest.fn(() => false),
 }));
+
+// The sheet is captured rather than rendered (same pattern as
+// WorkoutDetailScreen.test.tsx): tests assert the imperative present() wiring
+// and drive item onPress callbacks directly. ActionSheet's own rendering is
+// covered by __tests__/components/ActionSheet.test.tsx.
+type MockSheetProps = { title: string; items: ActionSheetItem[] };
+
+const mockSheet: {
+  present: jest.Mock;
+  dismiss: jest.Mock;
+  props: MockSheetProps | null;
+} = { present: jest.fn(), dismiss: jest.fn(), props: null };
+
+jest.mock('../../src/components/ActionSheet', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    default: React.forwardRef((props: MockSheetProps, ref: unknown) => {
+      React.useEffect(() => {
+        mockSheet.props = props;
+      });
+      React.useImperativeHandle(ref, () => ({
+        present: mockSheet.present,
+        dismiss: mockSheet.dismiss,
+      }));
+      return null;
+    }),
+  };
+});
 
 // Renders the trigger plus every option as its own pressable, so a test can
 // pick from a sheet that never actually opens.
@@ -116,15 +146,20 @@ type HeaderTextItem = {
 };
 
 /**
- * useScreenHeader is mocked out, so reach the muscle-picker action through the
+ * useScreenHeader is mocked out, so reach the header's sheet action through the
  * descriptor the screen handed it rather than through a bar that never renders.
+ * The screen declares it only in the states with no body Swap button, so this
+ * returns null rather than throwing when there is none.
  */
-function headerRightItem(): HeaderTextItem {
+function headerRightItem(): HeaderTextItem | null {
   const config = mockUseScreenHeader.mock.calls.at(-1)?.[0] as {
-    right?: HeaderTextItem;
+    right?: HeaderTextItem | null;
   };
-  if (!config?.right) throw new Error('headerRightItem: no right header item declared');
-  return config.right;
+  return config?.right ?? null;
+}
+
+function sheetItem(key: string): ActionSheetItem | undefined {
+  return mockSheet.props?.items.find((item) => item.key === key);
 }
 
 const insets = { top: 0, bottom: 0, left: 0, right: 0 };
@@ -228,6 +263,7 @@ describe('UpNextScreen', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSheet.props = null;
     generateAsync.mockResolvedValue(makeRecommendation());
     activateProfileAsync.mockResolvedValue({});
     mockUsePreferences.mockReturnValue({
@@ -299,11 +335,12 @@ describe('UpNextScreen', () => {
     expect(updateStatus).toHaveBeenCalledWith({ id: recommendation.id, status: 'started' });
   });
 
-  it('regenerates with swap when Swap is pressed', async () => {
+  it('opens the swap sheet instead of regenerating when Swap is pressed', () => {
     const screen = renderScreen();
     fireEvent.press(screen.getByTestId('up-next-swap'));
 
-    await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({ swap: true }));
+    expect(mockSheet.present).toHaveBeenCalled();
+    expect(generateAsync).not.toHaveBeenCalled();
   });
 
   it('regenerates for a new target duration', async () => {
@@ -352,55 +389,118 @@ describe('UpNextScreen', () => {
     await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({}));
   });
 
-  describe('muscle targeting', () => {
-    it('opens the picker from the header', () => {
+  describe('swap sheet', () => {
+    it('offers only the destinations that exist', () => {
       renderScreen();
-      act(() => headerRightItem().onPress());
+
+      // On Demand is D3 and has nothing behind it yet, so it is absent rather
+      // than present-and-inert.
+      expect(mockSheet.props?.items.map((item) => item.key)).toEqual([
+        'pick-muscles',
+        'saved-workouts',
+        'create-from-scratch',
+        'refresh',
+      ]);
+      expect(mockSheet.props?.title).toBe('Swap Workout');
+    });
+
+    it('opens muscle targeting', () => {
+      renderScreen();
+      act(() => sheetItem('pick-muscles')?.onPress());
 
       expect(navigation.navigate).toHaveBeenCalledWith('PickMuscles');
     });
 
-    it('leaves whole-workout Swap alone', async () => {
-      // The Swap button regenerates the same targets; the header opens the
-      // picker. C4 adds an affordance, it does not repurpose one.
-      const screen = renderScreen();
-      fireEvent.press(screen.getByTestId('up-next-swap'));
+    it('opens the saved workouts library', () => {
+      renderScreen();
+      act(() => sheetItem('saved-workouts')?.onPress());
+
+      expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPresetsLibrary');
+    });
+
+    it('opens the preset form to build one from scratch', () => {
+      renderScreen();
+      act(() => sheetItem('create-from-scratch')?.onPress());
+
+      expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPresetForm', {
+        mode: 'create-preset',
+      });
+    });
+
+    it('keeps whole-workout regeneration behind the Refresh row', async () => {
+      // The Swap button used to do this directly. It is the only whole-workout
+      // swap path there is; D2 moves the row to the ⋯ menu, it does not drop it.
+      renderScreen();
+      act(() => sheetItem('refresh')?.onPress());
 
       await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({ swap: true }));
       expect(navigation.navigate).not.toHaveBeenCalledWith('PickMuscles');
     });
 
-    it('is reachable before any workout exists', () => {
-      // The body's Swap button is not rendered in this state, which is why the
-      // entry point lives on the header — choosing what to train is most
-      // useful when there is nothing to swap.
+    it('drops Refresh when there is no workout to regenerate', () => {
       setRecommendation(null);
-      const screen = renderScreen();
-
-      expect(screen.getByText('No workout yet')).toBeTruthy();
-      expect(headerRightItem().disabled).toBe(false);
-    });
-
-    it('declares no accent action', () => {
-      // `useScreenHeader` throws in __DEV__ on a second primary; Up Next has
-      // none, and this action must not become the first.
       renderScreen();
 
-      expect(headerRightItem().role).toBeUndefined();
+      // The empty state's own action already offers a plain generate.
+      expect(sheetItem('refresh')).toBeUndefined();
+      expect(mockSheet.props?.title).toBe('New Workout');
     });
 
-    it('is blocked while a workout is being generated', () => {
-      setRecommendation(makeRecommendation(), { isGenerating: true });
-      renderScreen();
+    describe('header entry point', () => {
+      it('carries the sheet when the body has no Swap button', () => {
+        // `renderContent()` falls back to a StatusView here, which takes one
+        // action — already spent on Generate. Without the header item the sheet
+        // would be unreachable in exactly the state that needs it most.
+        setRecommendation(null);
+        const screen = renderScreen();
 
-      expect(headerRightItem().disabled).toBe(true);
-    });
+        expect(screen.getByText('No workout yet')).toBeTruthy();
+        act(() => headerRightItem()?.onPress());
+        expect(mockSheet.present).toHaveBeenCalled();
+      });
 
-    it('is blocked while a workout is starting', () => {
-      mockUseStartLiveWorkout.mockReturnValue({ startLiveWorkout, isStarting: true });
-      renderScreen();
+      it.each([
+        ['loading', { isLoading: true }],
+        ['failed', { isError: true }],
+      ])('carries the sheet while the read is %s', (_label, state) => {
+        // These branches are StatusViews too, even with a cached recommendation
+        // behind them — so the body Swap button is not on screen either.
+        setRecommendation(makeRecommendation(), state);
+        renderScreen();
 
-      expect(headerRightItem().disabled).toBe(true);
+        expect(headerRightItem()).not.toBeNull();
+      });
+
+      it('stands down once the Swap button renders', () => {
+        // Two identical entry points on one screen; the body one wins.
+        renderScreen();
+
+        expect(headerRightItem()).toBeNull();
+      });
+
+      it('declares no accent action', () => {
+        // `useScreenHeader` throws in __DEV__ on a second primary; Up Next has
+        // none, and this action must not become the first.
+        setRecommendation(null);
+        renderScreen();
+
+        expect(headerRightItem()?.role).toBeUndefined();
+      });
+
+      it('is blocked while a workout is being generated', () => {
+        setRecommendation(null, { isGenerating: true });
+        renderScreen();
+
+        expect(headerRightItem()?.disabled).toBe(true);
+      });
+
+      it('is blocked while a workout is starting', () => {
+        setRecommendation(null);
+        mockUseStartLiveWorkout.mockReturnValue({ startLiveWorkout, isStarting: true });
+        renderScreen();
+
+        expect(headerRightItem()?.disabled).toBe(true);
+      });
     });
   });
 
