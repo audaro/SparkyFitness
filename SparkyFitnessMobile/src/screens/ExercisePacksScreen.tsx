@@ -72,6 +72,10 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
 
     return packs.map((pack) => {
       const active = progress?.packId === pack.id;
+      // Progress survives the run that produced it so the outcome stays on
+      // screen, which means "this pack has progress" is not the same question
+      // as "this pack is importing right now".
+      const running = active && isImporting;
       const complete = pack.alreadyImported >= pack.total;
       return (
         <View
@@ -92,8 +96,11 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
           {active && progress ? (
             <View className="mt-4">
               <View className="flex-row items-center">
-                <ActivityIndicator size="small" />
-                <Text className="ml-2 text-sm text-text-secondary">
+                {running ? <ActivityIndicator size="small" /> : null}
+                <Text
+                  className={`text-sm text-text-secondary ${running ? 'ml-2' : ''}`}
+                  testID={`pack-progress-${pack.id}`}
+                >
                   {progress.processed} of {progress.total} · added{' '}
                   {progress.imported}
                   {progress.skipped > 0
@@ -101,16 +108,6 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
                     : ''}
                 </Text>
               </View>
-              {isImporting ? (
-                <Button
-                  className="mt-3"
-                  variant="secondary"
-                  onPress={cancel}
-                  accessibilityLabel="Stop importing"
-                >
-                  Stop
-                </Button>
-              ) : null}
               {progress.failures.length > 0 ? (
                 <Text className="mt-3 text-sm text-text-muted">
                   {progress.failures.length} could not be added:{' '}
@@ -122,15 +119,31 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
                 </Text>
               ) : null}
             </View>
+          ) : null}
+
+          {running ? (
+            <Button
+              className="mt-3"
+              variant="secondary"
+              onPress={cancel}
+              accessibilityLabel="Stop importing"
+              testID={`stop-pack-${pack.id}`}
+            >
+              Stop
+            </Button>
           ) : (
             <Button
-              className="mt-4"
+              className={active ? 'mt-3' : 'mt-4'}
               onPress={() => handleImport(pack)}
               disabled={isImporting || complete}
               accessibilityLabel={`Import ${pack.label}`}
               testID={`import-pack-${pack.id}`}
             >
-              {complete ? 'Already added' : 'Add to my exercises'}
+              {complete
+                ? 'Already added'
+                : active
+                  ? 'Add the rest'
+                  : 'Add to my exercises'}
             </Button>
           )}
         </View>

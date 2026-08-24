@@ -42,9 +42,12 @@ function batch(
 
 function renderImportHook() {
   const queryClient = createTestQueryClient();
-  return renderHook(() => useExercisePackImport(), {
-    wrapper: createQueryWrapper(queryClient),
-  });
+  return {
+    ...renderHook(() => useExercisePackImport(), {
+      wrapper: createQueryWrapper(queryClient),
+    }),
+    queryClient,
+  };
 }
 
 // A pack is a few hundred image downloads, so the client walks it batch by
@@ -134,6 +137,26 @@ describe('useExercisePackImport', () => {
     });
 
     expect(result.current.isImporting).toBe(false);
+  });
+
+  // The exercises earlier batches added are already saved; leaving them behind
+  // an infinite stale time would look like the failed import lost them.
+  it('refreshes the exercise caches when a later batch fails', async () => {
+    mockImportBatch
+      .mockResolvedValueOnce(batch({ imported: 10 }))
+      .mockRejectedValueOnce(new Error('network down'));
+
+    const { result, queryClient } = renderImportHook();
+    const resetQueries = jest.spyOn(queryClient, 'resetQueries');
+
+    await act(async () => {
+      await result.current.importPack(pack);
+    });
+
+    expect(resetQueries).toHaveBeenCalledWith({
+      queryKey: ['exercisesLibrary'],
+    });
+    expect(result.current.progress?.imported).toBe(10);
   });
 
   it('ignores a second start while one import is already running', async () => {

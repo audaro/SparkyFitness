@@ -238,7 +238,7 @@ describe('exercise catalog packs', () => {
   it('rejects an unknown pack id with a 400', async () => {
     await expect(
       exerciseService.importExerciseCatalogPack(userId, 'not-a-pack', 0, 10)
-    ).rejects.toMatchObject({ status: 400 });
+    ).rejects.toMatchObject({ statusCode: 400 });
     expect(exerciseDb.createExercise).not.toHaveBeenCalled();
   });
 

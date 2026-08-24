@@ -1571,6 +1571,12 @@ interface CatalogPackImportBatch {
  * Catalog entries belonging to a pack, ordered by name. The order has to be
  * stable across calls: the client walks the pack with offset/limit batches, so
  * a shifting order would skip or repeat exercises mid-import.
+ *
+ * Order is stable for a given dataset, but the dataset itself is cached for an
+ * hour — an upstream release landing mid-walk could insert a member ahead of
+ * the cursor and push one past it. That costs a missed exercise, not a wrong
+ * one: the pack list reports how many members are still missing, and importing
+ * again picks them up because import skips what is already present.
  */
 function exerciseCatalogPackMembers(
   catalog: FreeExerciseDbExercise[],
@@ -1662,8 +1668,10 @@ async function importExerciseCatalogPack(
   const pack = getExerciseCatalogPack(packId);
   if (!pack) {
     const error = new Error(`Unknown exercise pack "${packId}".`);
-    // @ts-expect-error TS(2339): Property 'status' does not exist on type 'Error'.
-    error.status = 400;
+    // statusCode, not status: middleware/errorHandler.ts reads `err.statusCode`
+    // and anything else falls through to a 500.
+    // @ts-expect-error TS(2339): Property 'statusCode' does not exist on type 'Error'.
+    error.statusCode = 400;
     throw error;
   }
   const { default: freeExerciseDBService } =
@@ -1671,9 +1679,11 @@ async function importExerciseCatalogPack(
   const catalog = await freeExerciseDBService.getAllExercises();
   const members = exerciseCatalogPackMembers(catalog, pack);
   const batch = members.slice(offset, offset + limit);
-  // Read once per batch rather than per exercise; nothing else writes the
-  // user's library mid-batch, and a name added by this batch is added to the
-  // set as it goes.
+  // Read once per batch rather than per exercise, with names this batch
+  // creates added as it goes. This is a snapshot, so an exercise created by
+  // hand *during* the batch could still collide; that needs a unique index to
+  // close properly, and a self-hosted user racing their own import is not
+  // worth a migration.
   const existingNames = await userExerciseNameIndex(authenticatedUserId);
 
   let imported = 0;
@@ -1695,12 +1705,14 @@ async function importExerciseCatalogPack(
         skipped++;
         continue;
       }
-      existingNames.add(normalizedName);
       await createExerciseFromFreeExerciseDbRecord(
         authenticatedUserId,
         record,
         sourceId
       );
+      // Only after the insert lands: claiming the name up front would make a
+      // failed create block a later retry of the same name in this batch.
+      existingNames.add(normalizedName);
       imported++;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);

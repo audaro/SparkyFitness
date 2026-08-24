@@ -107,16 +107,6 @@ export function useExercisePackImport() {
           offset = batch.nextOffset;
         }
 
-        if (imported > 0) {
-          // Every exercise list is cached with an infinite stale time, so a
-          // fresh import is invisible until these are dropped.
-          await queryClient.resetQueries({ queryKey: ['exercisesLibrary'] });
-          await queryClient.invalidateQueries({ queryKey: ['exerciseSearch'] });
-          await queryClient.invalidateQueries({
-            queryKey: exercisePacksQueryKey,
-          });
-        }
-
         if (!cancelledRef.current) {
           Toast.show({
             type: failures.length > 0 ? 'error' : 'success',
@@ -142,6 +132,18 @@ export function useExercisePackImport() {
               : 'Please check your connection and try again.',
         });
       } finally {
+        if (imported > 0) {
+          // Every exercise list is cached with an infinite stale time, so a
+          // fresh import stays invisible until these are dropped. This runs
+          // even when a later batch throws: the exercises earlier batches
+          // added are already saved, and hiding them until the next app
+          // launch would look like the import lost them.
+          await queryClient.resetQueries({ queryKey: ['exercisesLibrary'] });
+          await queryClient.invalidateQueries({ queryKey: ['exerciseSearch'] });
+          await queryClient.invalidateQueries({
+            queryKey: exercisePacksQueryKey,
+          });
+        }
         runningRef.current = false;
         setIsImporting(false);
       }
