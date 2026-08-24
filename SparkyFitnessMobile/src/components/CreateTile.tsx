@@ -10,6 +10,8 @@ interface CreateTileProps {
   onPress: () => void;
   disabled?: boolean;
   className?: string;
+  accessibilityLabel?: string;
+  testID?: string;
 }
 
 const CreateTile: React.FC<CreateTileProps> = ({
@@ -19,6 +21,8 @@ const CreateTile: React.FC<CreateTileProps> = ({
   onPress,
   disabled = false,
   className = '',
+  accessibilityLabel,
+  testID,
 }) => {
   const accentPrimary = useCSSVariable('--color-accent-primary') as string;
 
@@ -27,7 +31,10 @@ const CreateTile: React.FC<CreateTileProps> = ({
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ disabled }}
+      testID={testID}
       style={disabled ? { opacity: 0.7 } : undefined}
       className={`bg-surface rounded-xl px-3 py-3 flex-row items-center shadow-sm ${className}`}
     >

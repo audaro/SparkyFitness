@@ -97,6 +97,17 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
     };
   }, []);
 
+  /**
+   * The day the sheet was opened over.
+   *
+   * Two tabs are day-scoped and each keeps its own day, so the answer depends
+   * on where the user was: opening Add while browsing last Tuesday on the
+   * Exercise tab must log to last Tuesday, not to the Food tab's day. The tab
+   * state itself cannot be asked — on native tabs, pressing Add makes `Add`
+   * the selected route — so this reads `lastActiveTabRef`, which records only
+   * content tabs. Falls back to the Food tab, and then to undefined, which the
+   * add screens resolve to today.
+   */
   const getActiveDiaryDate = useCallback(() => {
     const rootOrTabState = rootNavigationRef.isReady()
       ? (rootNavigationRef.getRootState() as TabStateSnapshot | undefined)
@@ -106,12 +117,21 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
       rootOrTabState?.routes?.some((route) => route.name === 'Tabs')
         ? findRouteState(rootOrTabState, 'Tabs')
         : rootOrTabState;
-    const diaryState = findRouteState(tabState, 'Food');
-    const diaryParams =
-      findRouteParams<{ selectedDate?: string }>(diaryState, 'FoodRoot') ??
-      findRouteParams<{ selectedDate?: string }>(tabState, 'Food');
 
-    return diaryParams?.selectedDate;
+    const dateForTab = (tab: 'Exercise' | 'Food') => {
+      const tabLocalState = findRouteState(tabState, tab);
+      const params =
+        findRouteParams<{ selectedDate?: string }>(tabLocalState, `${tab}Root`) ??
+        findRouteParams<{ selectedDate?: string }>(tabState, tab);
+      return params?.selectedDate;
+    };
+
+    if (lastActiveTabRef.current === 'Exercise') {
+      const exerciseDate = dateForTab('Exercise');
+      if (exerciseDate) return exerciseDate;
+    }
+
+    return dateForTab('Food');
   }, []);
 
   const navigateFromSheet = useCallback(<T extends keyof RootStackParamList>(

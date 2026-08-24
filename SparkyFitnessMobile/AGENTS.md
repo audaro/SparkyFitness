@@ -152,7 +152,7 @@ npx expo prebuild --clean
 ## Food, Meals, Units, And Photo Estimates
 
 - Food search spans local foods, online providers, meals, barcode scan, label scan, and AI photo estimates. Keep `FoodSearchScreen`, `FoodScanScreen`, `FoodEntryAddScreen`, `FoodFormScreen`, `FoodPhotoFlow`, and route params aligned.
-- `LibraryScreen` is the hub for saved Foods, Meals, Exercises, and Workout Presets. Full lists live in `FoodsLibraryScreen`, `MealsLibraryScreen`, `ExercisesLibraryScreen`, and `WorkoutPresetsLibraryScreen`.
+- `LibraryScreen` is the hub for saved Foods and Meals (`FoodsLibraryScreen`, `MealsLibraryScreen`); `ExercisesLibraryScreen` and `WorkoutPresetsLibraryScreen` are reached from the Exercise tab instead, and `MedicationsList` from a row on `DashboardScreen`.
 - Food detail/edit flow: `FoodDetailScreen`, `FoodFormScreen`, `FoodForm`, `FoodUnitSelectorSheet`, `useFoodVariants`, `useFoodsLibrary`, `useDeleteFood`, `foodsApi`, and `utils/foodDetails.ts`.
 - `FoodForm` supports equivalent serving sizes grouped by nutrient signature, auto-scale nutrition, compatible unit conversion via `convertServingSizeOnUnitChange`, optional AI cross-category unit conversion, custom nutrients, and caller-provided `headerChildren`.
 - `EditBarcodeScreen` lets users add or remove extra barcodes for a saved food. Keep `FoodDetailScreen`, `EditBarcodeScreen`, `foodsApi`, and the `EditBarcode` route params aligned.
@@ -170,7 +170,8 @@ npx expo prebuild --clean
 
 ## Exercise, Workouts, And Fasting
 
-- `ExerciseHomeScreen` is the Exercise tab: `UpNextCard` verbatim, the weekly-set-target ring at summary size, a marked slot for per-muscle recovery, and `SettingsRowGroup` rows into the exercise library, workout presets, gym profiles, and exercise packs. It is a hub — it navigates and summarizes, and every mutation lives on the screen it routes to.
+- `ExerciseHomeScreen` is the Exercise tab: `UpNextCard` verbatim, the weekly-set-target ring at summary size, a marked slot for per-muscle recovery, the day's `ExerciseSummary` log under a `DateNavigator`, create tiles for a custom exercise and a workout preset, and `SettingsRowGroup` rows into the exercise library, workout presets, gym profiles, and exercise packs. It is a hub — it navigates and summarizes, and every mutation lives on the screen it routes to (the create tiles are the app's only route into `ExerciseForm {create-exercise}` / `WorkoutPresetForm {create-preset}` from scratch).
+- The Exercise tab keeps its **own** selected day: `stores/exerciseDateStore.ts` and `stores/diaryDateStore.ts` are two instances of the `createDateStore()` factory, because the sections above the log are "now"-based and must not follow a day scrubbed back to on the Food tab. Both day-scoped tabs publish their day through `navigation.setParams({ selectedDate })`, and `useAddSheetActions.getActiveDiaryDate()` picks between them using `lastActiveTabRef` — not the tab state, which reports `Add` as selected while the sheet is open. A new day-scoped tab must publish its day the same way or the Add sheet will date its entries to the wrong tab's day.
 - Exercise and workout preset flows use `ExerciseSearch`, `PresetSearch`, detail/form screens, paginated/search hooks, mutation hooks, and shared workout payload helpers in `utils/workoutSession.ts`.
 - Session responses are discriminated unions from `@workspace/shared`: preset workouts and individual activity sessions have different shapes. Keep detail/edit screens type-safe.
 - Workout/activity drafts are persisted by `workoutDraftService`; `useWorkoutForm`, `useActivityForm`, and `useDraftPersistence` own form state.

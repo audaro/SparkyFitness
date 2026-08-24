@@ -70,7 +70,9 @@ const FallbackTab = createBottomTabNavigator<TabParamList>();
 type HomeStackParamList = {
   HomeRoot: undefined;
 };
-type ExerciseStackParamList = { ExerciseRoot: undefined };
+type ExerciseStackParamList = {
+  ExerciseRoot: { selectedDate?: string } | undefined;
+};
 type FoodStackParamList = {
   FoodRoot: { selectedDate?: string } | undefined;
 };

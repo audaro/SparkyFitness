@@ -181,7 +181,7 @@ describe('LibraryScreen', () => {
     });
   });
 
-  it('shows meals, foods, and exercises totals', async () => {
+  it('shows meals and foods totals', async () => {
     mockUseMeals.mockReturnValue({
       meals: [createMeal('m1', 'A', 100), createMeal('m2', 'B', 200)] as any,
       isLoading: false,
@@ -192,17 +192,14 @@ describe('LibraryScreen', () => {
       foods: [],
       pagination: { page: 1, pageSize: 1, totalCount: 448, hasMore: true },
     });
-    mockFetchExercisesCount.mockResolvedValue(17);
 
-    const screen = renderScreen({ fetchCounts: ['foods', 'exercises'] });
+    const screen = renderScreen({ fetchCounts: ['foods'] });
 
     expect(screen.getByText('Meals')).toBeTruthy();
     expect(screen.getByText('Foods')).toBeTruthy();
-    expect(screen.getByText('Exercises')).toBeTruthy();
     expect(screen.getByText('2')).toBeTruthy();
     await waitFor(() => {
       expect(screen.getByText('448')).toBeTruthy();
-      expect(screen.getByText('17')).toBeTruthy();
     });
   });
 
@@ -299,43 +296,14 @@ describe('LibraryScreen', () => {
     expect(screen.getByText('No recent items yet')).toBeTruthy();
   });
 
-  it('navigates to ExercisesLibrary when the Exercises browse row is pressed', () => {
-    const screen = renderScreen();
-    fireEvent.press(screen.getByText('Exercises'));
-    expect(navigation.navigate).toHaveBeenCalledWith('ExercisesLibrary');
-  });
-
-  it('navigates to WorkoutPresetsLibrary when the Workout presets row is pressed', () => {
-    const screen = renderScreen();
-    fireEvent.press(screen.getByText('Workout presets'));
-    expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPresetsLibrary');
-  });
-
-  it('navigates to MedicationsList when the Medications row is pressed', () => {
-    const screen = renderScreen();
-    fireEvent.press(screen.getByText('Medications'));
-    expect(navigation.navigate).toHaveBeenCalledWith('MedicationsList');
-  });
-
   it('does not queue multiple create screens during the same navigation transition', () => {
     const screen = renderScreen();
 
     fireEvent.press(screen.getByText('Meal'));
-    fireEvent.press(screen.getByText('Workout preset'));
+    fireEvent.press(screen.getByText('Food'));
 
     expect(navigation.navigate).toHaveBeenCalledTimes(1);
     expect(navigation.navigate).toHaveBeenCalledWith('MealAdd');
-  });
-
-  it('shows the workout presets count from the API', async () => {
-    mockFetchWorkoutPresetsPage.mockResolvedValue({
-      presets: [],
-      pagination: { page: 1, pageSize: 1, totalCount: 9, hasMore: true },
-    });
-
-    const screen = renderScreen({ fetchCounts: ['presets'] });
-
-    await waitFor(() => expect(screen.getByText('9')).toBeTruthy());
   });
 
   it('renders recent exercises in the combined Recent list and navigates to ExerciseDetail on press', () => {
@@ -419,15 +387,6 @@ describe('LibraryScreen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('FoodForm', {
       mode: 'create-food',
       pickerMode: 'library',
-    });
-  });
-
-  it('navigates to ExerciseForm in create-exercise mode when the Exercise create tile is pressed', () => {
-    const screen = renderScreen();
-
-    fireEvent.press(screen.getByText('Exercise'));
-    expect(navigation.navigate).toHaveBeenCalledWith('ExerciseForm', {
-      mode: 'create-exercise',
     });
   });
 });

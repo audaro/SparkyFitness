@@ -27,7 +27,9 @@ export type FoodPickerMode = 'log-entry' | 'meal-builder' | 'library';
 
 export type TabParamList = {
   Home: undefined;
-  Exercise: undefined;
+  // Both day-scoped tabs publish the day they are showing so the Add sheet can
+  // date what it logs from whichever tab the user opened it over.
+  Exercise: { selectedDate?: string } | undefined;
   Add: undefined;
   Food: { selectedDate?: string } | undefined;
   Settings: undefined;

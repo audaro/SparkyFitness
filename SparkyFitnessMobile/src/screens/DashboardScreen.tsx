@@ -36,7 +36,7 @@ import HydrationGauge from '../components/HydrationGauge';
 import SegmentedControl, { type Segment } from '../components/SegmentedControl';
 import HealthTrendsPager from '../components/HealthTrendsPager';
 import ExerciseProgressCard from '../components/ExerciseProgressCard';
-import UpNextCard from '../components/UpNextCard';
+import SettingsRow from '../components/SettingsRow';
 import StatusView from '../components/StatusView';
 import FastingCard from '../components/FastingCard';
 import CycleCard from '../components/CycleCard';
@@ -174,7 +174,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const hydrationCardVisible = useAppPreferencesStore((s) => s.hydrationCardVisible);
   const askSparkyVisible = useAppPreferencesStore((s) => s.askSparkyVisible);
   const medicationsCardVisible = useAppPreferencesStore((s) => s.medicationsCardVisible);
-  const upNextCardVisible = useAppPreferencesStore((s) => s.upNextCardVisible);
 
   useLayoutEffect(() => {
     syncNativeHeaderDatePicker();
@@ -401,12 +400,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
           </Pressable>
         )}
 
-        {/* The suggested workout is "now"-based like the fasting card — it is
-            today's recommendation regardless of the date navigator, so it is
-            deliberately not wired to `selectedDate`. Visibility is a local app
-            setting toggled from Dashboard Settings. */}
-        {upNextCardVisible && <UpNextCard navigation={navigation} />}
-
         {(summary.foodEntries.length > 0 || summary.exerciseEntries.length > 0) &&
           (summary.exerciseMinutesGoal > 0 || summary.exerciseCaloriesGoal > 0 || summary.exerciseMinutes > 0 || summary.otherExerciseCalories > 0) && (
           <ExerciseProgressCard
@@ -445,6 +438,19 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         {cycleCardVisible && <CycleCard navigation={navigation} />}
 
         {medicationsCardVisible && <MedicationsCard navigation={navigation} />}
+
+        {/* The way in to the medication list, which used to be a Library row.
+            Deliberately not behind `medicationsCardVisible` and not behind the
+            card's own has-doses-today check: both of those hide the day's
+            doses, and neither is a statement that the list itself should
+            become unreachable. */}
+        <SettingsRow
+          icon="medication"
+          title="Medications"
+          subtitle="Your medications and schedules"
+          onPress={() => navigation.navigate('MedicationsList')}
+          testID="dashboard-medications-row"
+        />
 
         <Text className="text-text-primary text-xl font-bold mb-2">Health Trends</Text>
         <SegmentedControl segments={RANGE_SEGMENTS} activeKey={stepsRange} onSelect={setStepsRange} />

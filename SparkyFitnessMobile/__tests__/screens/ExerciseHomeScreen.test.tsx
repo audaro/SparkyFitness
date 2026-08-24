@@ -1,13 +1,44 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import ExerciseHomeScreen from '../../src/screens/ExerciseHomeScreen';
+import { useDailySummary } from '../../src/hooks/useDailySummary';
 import { useWeeklySetTargets } from '../../src/hooks/useWeeklySetTargets';
 import { useWorkoutRecommendation } from '../../src/hooks/useWorkoutRecommendation';
+import { getTodayDate } from '../../src/utils/dateUtils';
 import type { WeeklySetTargetsResponse } from '../../src/services/api/weeklySetTargetsApi';
+
+jest.mock('@react-navigation/native', () => {
+  const actual = jest.requireActual('@react-navigation/native');
+  return {
+    ...actual,
+    useFocusEffect: (callback: () => void) => {
+      callback();
+    },
+  };
+});
 
 jest.mock('../../src/hooks/useWeeklySetTargets', () => ({
   useWeeklySetTargets: jest.fn(),
+}));
+
+jest.mock('../../src/hooks/useDailySummary', () => ({
+  useDailySummary: jest.fn(),
+}));
+
+jest.mock('../../src/hooks', () => ({
+  useServerConnection: jest.fn(() => ({ isConnected: true, isLoading: false })),
+}));
+
+jest.mock('../../src/hooks/usePreferences', () => ({
+  usePreferences: jest.fn(() => ({
+    preferences: { default_weight_unit: 'kg', default_distance_unit: 'km' },
+  })),
+}));
+
+jest.mock('../../src/hooks/useExerciseImageSource', () => ({
+  useExerciseImageSource: jest.fn(() => ({ getImageSource: jest.fn() })),
 }));
 
 jest.mock('../../src/hooks/useWorkoutRecommendation', () => ({
@@ -32,6 +63,7 @@ const mockUseWeeklySetTargets = useWeeklySetTargets as jest.MockedFunction<
   typeof useWeeklySetTargets
 >;
 const mockUseWorkoutRecommendation = useWorkoutRecommendation as jest.Mock;
+const mockUseDailySummary = useDailySummary as jest.Mock;
 
 function makeWeek(): WeeklySetTargetsResponse {
   return {
@@ -52,16 +84,53 @@ function makeWeek(): WeeklySetTargetsResponse {
   } as WeeklySetTargetsResponse;
 }
 
-const navigation = { navigate: jest.fn() } as never;
+// A logged individual activity, shaped the way the daily summary returns one:
+// the row reads `name`, `sets`, and the snapshot, so a stub with only an id
+// crashes the summary helpers rather than rendering.
+function makeActivity() {
+  return {
+    type: 'individual',
+    id: 'session-1',
+    entry_date: getTodayDate(),
+    exercise_id: 'ex-1',
+    name: 'Bench Press',
+    duration_minutes: 30,
+    calories_burned: 300,
+    distance: null,
+    avg_heart_rate: null,
+    notes: null,
+    source: null,
+    superset_group: null,
+    sets: [],
+    exercise_snapshot: null,
+  };
+}
+
+const navigation = {
+  navigate: jest.fn(),
+  setParams: jest.fn(),
+  addListener: jest.fn(() => jest.fn()),
+  isFocused: jest.fn(() => true),
+} as never;
 const route = { params: undefined } as never;
 
+// The logged-exercise rows own their own delete mutation, so the log section
+// needs a real client even though every read on this screen is mocked.
 function renderScreen() {
-  return render(<ExerciseHomeScreen navigation={navigation} route={route} />);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ExerciseHomeScreen navigation={navigation} route={route} />
+    </QueryClientProvider>,
+  );
 }
 
 describe('ExerciseHomeScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseDailySummary.mockReturnValue({ summary: { exerciseEntries: [] } });
     mockUseWorkoutRecommendation.mockReturnValue({
       recommendation: null,
       isLoading: false,
@@ -78,15 +147,68 @@ describe('ExerciseHomeScreen', () => {
   it('renders every section of the tab', () => {
     const { getByText, getByTestId } = renderScreen();
 
-    expect(getByText('Exercise')).toBeTruthy();
+    expect(getByTestId('exercise-home-title')).toBeTruthy();
     expect(getByTestId('up-next-card')).toBeTruthy();
     expect(getByTestId('exercise-home-week-card')).toBeTruthy();
+    expect(getByText('Logged')).toBeTruthy();
+    expect(getByText('Create')).toBeTruthy();
     expect(getByText('Quick access')).toBeTruthy();
     expect(getByText('Setup')).toBeTruthy();
-    expect(getByText('Workout presets')).toBeTruthy();
-    expect(getByText('Exercise library')).toBeTruthy();
-    expect(getByText('Gym profiles')).toBeTruthy();
-    expect(getByText('Exercise packs')).toBeTruthy();
+    expect(getByTestId('exercise-home-workout-presets')).toBeTruthy();
+    expect(getByTestId('exercise-home-exercises-library')).toBeTruthy();
+    expect(getByTestId('exercise-home-gym-profiles')).toBeTruthy();
+    expect(getByTestId('exercise-home-exercise-packs')).toBeTruthy();
+  });
+
+  it('publishes its day so the Add sheet dates what it logs from this tab', () => {
+    renderScreen();
+
+    expect(navigation.setParams).toHaveBeenCalledWith({
+      selectedDate: getTodayDate(),
+    });
+  });
+
+  it('lists the exercise logged on the selected day', () => {
+    mockUseDailySummary.mockReturnValue({
+      summary: { exerciseEntries: [makeActivity()] },
+    });
+
+    const { getByText } = renderScreen();
+
+    expect(getByText('Bench Press')).toBeTruthy();
+  });
+
+  it('opens a logged activity from the log', () => {
+    const session = makeActivity();
+    mockUseDailySummary.mockReturnValue({ summary: { exerciseEntries: [session] } });
+
+    const { getByText } = renderScreen();
+    fireEvent.press(getByText('Bench Press'));
+
+    expect(navigation.navigate).toHaveBeenCalledWith('ActivityDetail', { session });
+  });
+
+  // The Library tab was the app's only route to either form from scratch;
+  // every other caller starts from a finished session.
+  it('is the way in to authoring an exercise and a preset from scratch', () => {
+    const { getByTestId } = renderScreen();
+
+    fireEvent.press(getByTestId('exercise-home-create-exercise'));
+    expect(navigation.navigate).toHaveBeenCalledWith('ExerciseForm', {
+      mode: 'create-exercise',
+    });
+  });
+
+  it('does not queue two create screens during one navigation transition', () => {
+    const { getByTestId } = renderScreen();
+
+    fireEvent.press(getByTestId('exercise-home-create-preset'));
+    fireEvent.press(getByTestId('exercise-home-create-exercise'));
+
+    expect(navigation.navigate).toHaveBeenCalledTimes(1);
+    expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPresetForm', {
+      mode: 'create-preset',
+    });
   });
 
   it('shows the week as an overall percentage and a per-group breakdown', () => {
