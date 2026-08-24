@@ -141,6 +141,8 @@ interface CandidateRow {
   name: string;
   modality: string | null;
   category: string | null;
+  source: string | null;
+  source_id: string | null;
   primary_muscles: string | null;
   secondary_muscles: string | null;
   equipment: string | null;
@@ -161,6 +163,16 @@ function mapCandidateRow(row: CandidateRow): CandidateExercise {
     id: row.id,
     name: row.name,
     modality: resolveExerciseModality(row.modality, row.category),
+    // Carried raw as well as folded into the modality above. The modality
+    // derivation only knows `cardio` and `isometric`, so `stretching` reaches
+    // the planner as `weight_reps` and would be programmed as three sets of
+    // ten; the engine reads the category itself to decide the prescription
+    // shape (`isMobilityExercise`).
+    category: row.category,
+    // `source`/`source_id` key the apparatus overrides — the pull-up bar and
+    // bench that `body only` does not admit to needing.
+    source: row.source ?? '',
+    sourceId: row.source_id,
     primaryMuscles: toStringArray(
       row.primary_muscles,
       `primary_muscles for exercise ${row.id}`
@@ -182,6 +194,8 @@ const CANDIDATE_COLS = `e.id,
               e.name,
               e.modality,
               e.category,
+              e.source,
+              e.source_id,
               e.primary_muscles,
               e.secondary_muscles,
               e.equipment,

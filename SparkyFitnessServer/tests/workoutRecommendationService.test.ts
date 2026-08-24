@@ -83,6 +83,10 @@ const FLY_ID = '44444444-4444-4444-8444-444444444444';
 const ROW_ID = '55555555-5555-4555-8555-555555555555';
 const DIP_ID = '66666666-6666-4666-8666-666666666666';
 const PULLDOWN_ID = '77777777-7777-4777-8777-777777777777';
+const STRETCH_ID = '88888888-8888-4888-8888-888888888888';
+const CHIN_UP_ID = '99999999-9999-4999-8999-999999999999';
+const DUMBBELL_ROW_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const ATLAS_STONE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 const app = express();
 app.use(express.json());
@@ -111,6 +115,9 @@ function candidate(
   return {
     name: `Exercise ${overrides.id}`,
     modality: 'weight_reps',
+    category: 'strength',
+    source: 'manual',
+    sourceId: null,
     primaryMuscles: ['chest'],
     secondaryMuscles: [],
     equipment: ['barbell'],
@@ -156,6 +163,46 @@ const LAT_PULLDOWN = candidate({
   primaryMuscles: ['lats'],
   mechanic: 'compound',
   equipment: ['cable'],
+});
+
+// Three real free-exercise-db rows, each an instance of something the engine
+// used to prescribe and cannot: a stretch programmed as 3x10, a `body only`
+// row that needs a bar to hang from, and strongman gear admitted because the
+// account had no gym profile to filter it.
+const LAT_STRETCH = candidate({
+  id: STRETCH_ID,
+  name: 'Lat Stretch',
+  category: 'stretching',
+  source: 'free-exercise-db',
+  sourceId: 'Lat_Stretch',
+  primaryMuscles: ['lats'],
+  mechanic: 'isolation',
+  equipment: ['body only'],
+});
+const CHIN_UP = candidate({
+  id: CHIN_UP_ID,
+  name: 'Chin-Up',
+  source: 'free-exercise-db',
+  sourceId: 'Chin-Up',
+  primaryMuscles: ['lats'],
+  mechanic: 'compound',
+  equipment: ['body only'],
+});
+const DUMBBELL_ROW = candidate({
+  id: DUMBBELL_ROW_ID,
+  name: 'Bent Over Two-Dumbbell Row',
+  primaryMuscles: ['lats'],
+  mechanic: 'compound',
+  equipment: ['dumbbell'],
+});
+const ATLAS_STONE = candidate({
+  id: ATLAS_STONE_ID,
+  name: 'Atlas Stone Trainer',
+  source: 'free-exercise-db',
+  sourceId: 'Atlas_Stone_Trainer',
+  primaryMuscles: ['lats'],
+  mechanic: 'compound',
+  equipment: ['other'],
 });
 
 /** Echo the payload back the way the real upsert would. */
@@ -707,6 +754,167 @@ describe('generateRecommendation', () => {
         exercises.addFreeExerciseDBExerciseToUserExercises.mock.calls.length
       ).toBeLessThanOrEqual(10);
     });
+
+    it('counts a muscle covered only by a stretch as unserved', async () => {
+      // A catalog whose only lats row is a stretch can be handed a lats
+      // *stretch* and nothing to train with. The planner will still program it
+      // as a fallback, but only after this has had a chance to find a real
+      // movement to beat it.
+      repo.getCandidateExercises.mockResolvedValue([BENCH, LAT_STRETCH]);
+      fedb.searchExercises.mockResolvedValue({
+        exercises: [{ id: 'Pullup', name: 'Pullup', primaryMuscles: ['lats'] }],
+        totalCount: 1,
+      });
+
+      await workoutRecommendationService.generateRecommendation(USER_ID);
+
+      expect(
+        exercises.addFreeExerciseDBExerciseToUserExercises
+      ).toHaveBeenCalledWith(USER_ID, 'Pullup');
+    });
+
+    it('imports a real movement over an upstream stretch', async () => {
+      // Importing another stretch to cover a stretch-only muscle leaves the
+      // slot exactly as unserved as it started.
+      repo.getCandidateExercises.mockResolvedValue([BENCH]);
+      fedb.searchExercises.mockResolvedValue({
+        exercises: [
+          {
+            id: 'Lat_Stretch',
+            name: 'Lat Stretch',
+            primaryMuscles: ['lats'],
+            category: 'stretching',
+          },
+          {
+            id: 'Pullup',
+            name: 'Pullup',
+            primaryMuscles: ['lats'],
+            category: 'strength',
+          },
+        ],
+        totalCount: 2,
+      });
+
+      await workoutRecommendationService.generateRecommendation(USER_ID);
+
+      expect(
+        exercises.addFreeExerciseDBExerciseToUserExercises
+      ).toHaveBeenCalledWith(USER_ID, 'Pullup');
+    });
+
+    it('takes a stretch when upstream moves the muscle no other way', async () => {
+      repo.getCandidateExercises.mockResolvedValue([BENCH]);
+      fedb.searchExercises.mockResolvedValue({
+        exercises: [
+          {
+            id: 'Lat_Stretch',
+            name: 'Lat Stretch',
+            primaryMuscles: ['lats'],
+            category: 'stretching',
+          },
+        ],
+        totalCount: 1,
+      });
+
+      await workoutRecommendationService.generateRecommendation(USER_ID);
+
+      expect(
+        exercises.addFreeExerciseDBExerciseToUserExercises
+      ).toHaveBeenCalledWith(USER_ID, 'Lat_Stretch');
+    });
+
+    it('does not spend a round trip on gear the planner would then reject', async () => {
+      // `Chin-Up` is `body only` upstream, so nothing before this filter knows
+      // the home profile cannot do it — and importing it costs a fetch plus
+      // image downloads for a row the very next plan discards.
+      gymRepo.getActiveGymProfile.mockResolvedValue({
+        id: 'gym-1',
+        equipment: ['dumbbell', 'bands'],
+      });
+      repo.getCandidateExercises.mockResolvedValue([]);
+      fedb.searchExercises.mockImplementation(
+        (_q: unknown, _eq: unknown, muscles: string[]) =>
+          Promise.resolve({
+            exercises: [
+              {
+                id: 'Chin-Up',
+                name: 'Chin-Up',
+                primaryMuscles: muscles,
+                equipment: 'body only',
+              },
+              {
+                id: 'Atlas_Stone_Trainer',
+                name: 'Atlas Stone Trainer',
+                primaryMuscles: muscles,
+                equipment: 'other',
+              },
+            ],
+            totalCount: 2,
+          })
+      );
+
+      await expect(
+        workoutRecommendationService.generateRecommendation(USER_ID)
+      ).rejects.toThrow(/No exercises available/);
+      expect(
+        exercises.addFreeExerciseDBExerciseToUserExercises
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('what it refuses to prescribe', () => {
+    it('programs a stretch as a hold, and says so in the payload', async () => {
+      repo.getCandidateExercises.mockResolvedValue([BENCH, LAT_STRETCH]);
+
+      const result =
+        await workoutRecommendationService.generateRecommendation(USER_ID);
+      const stretch = result.payload.exercises.find(
+        (exercise) => exercise.exercise_id === LAT_STRETCH.id
+      );
+
+      expect(stretch).toBeDefined();
+      // The catalog stores this row `weight_reps`; publishing that would put
+      // duration sets under a weight-and-reps editor.
+      expect(stretch!.modality).toBe('duration');
+      expect(stretch!.sets).toHaveLength(GENERATION_TUNABLES.mobilitySets);
+      expect(
+        stretch!.sets.every(
+          (set) =>
+            set.reps === null &&
+            set.weight === null &&
+            set.duration === GENERATION_TUNABLES.mobilityHoldSeconds
+        )
+      ).toBe(true);
+      expect(stretch!.rationale).toBe('fresh lats · mobility hold');
+    });
+
+    it('keeps opt-in gear out of a session with no gym profile', async () => {
+      // The W7 live run prescribed an Atlas Stone Trainer to an account that
+      // had simply never made a profile.
+      repo.getCandidateExercises.mockResolvedValue([BENCH, ATLAS_STONE]);
+
+      const result =
+        await workoutRecommendationService.generateRecommendation(USER_ID);
+
+      expect(
+        result.payload.exercises.map((exercise) => exercise.exercise_id)
+      ).not.toContain(ATLAS_STONE.id);
+    });
+
+    it('keeps a pull-up out of a dumbbells-and-bands session', async () => {
+      gymRepo.getActiveGymProfile.mockResolvedValue({
+        id: 'gym-1',
+        equipment: ['dumbbell', 'bands'],
+      });
+      repo.getCandidateExercises.mockResolvedValue([DUMBBELL_ROW, CHIN_UP]);
+
+      const result =
+        await workoutRecommendationService.generateRecommendation(USER_ID);
+
+      expect(
+        result.payload.exercises.map((exercise) => exercise.exercise_id)
+      ).toEqual([DUMBBELL_ROW.id]);
+    });
   });
 
   it('refuses to persist an empty workout', async () => {
@@ -873,6 +1081,52 @@ describe('getAlternatives', () => {
     expect(result[result.length - 1]).toBe(external);
     // A bare upstream string becomes a one-item array, not a spread of chars.
     expect(external?.equipment).toEqual(['barbell']);
+  });
+
+  it('holds upstream suggestions to the same performability bar as local ones', async () => {
+    // Upstream's own equipment filter is a case-sensitive substring match and
+    // knows nothing about apparatus, so a home profile asking for a lat
+    // replacement was offered Chin-Up.
+    gymRepo.getActiveGymProfile.mockResolvedValue({
+      id: 'gym-1',
+      equipment: ['dumbbell', 'bands'],
+    });
+    repo.getCandidateExercises.mockResolvedValue([source]);
+    fedb.searchExercises.mockResolvedValue({
+      exercises: [
+        {
+          id: 'Chin-Up',
+          name: 'Chin-Up',
+          primaryMuscles: ['chest'],
+          equipment: 'body only',
+        },
+        {
+          id: 'Atlas_Stone_Trainer',
+          name: 'Atlas Stone Trainer',
+          primaryMuscles: ['chest'],
+          equipment: 'other',
+        },
+        {
+          id: 'Push-Ups',
+          name: 'Push-Ups',
+          primaryMuscles: ['chest'],
+          equipment: 'body only',
+        },
+      ],
+      totalCount: 3,
+    });
+
+    const result = await workoutRecommendationService.getAlternatives(
+      USER_ID,
+      BENCH_ID,
+      10
+    );
+
+    expect(
+      result
+        .filter((item) => item.source === 'external')
+        .map((item) => item.exercise_id)
+    ).toEqual(['Push-Ups']);
   });
 
   it('does not offer an upstream copy of a movement already imported', async () => {

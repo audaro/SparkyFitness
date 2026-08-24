@@ -7,6 +7,8 @@ import {
   fitToDuration,
   isEquipmentAvailable,
   isExcludedByLimitations,
+  isMobilityExercise,
+  isPerformable,
   modalWorkingWeightKg,
   planWorkout,
   prescribeSets,
@@ -44,6 +46,9 @@ function candidate(
   return {
     name: `Exercise ${overrides.id}`,
     modality: 'weight_reps',
+    category: 'strength',
+    source: 'manual',
+    sourceId: null,
     primaryMuscles: ['chest'],
     secondaryMuscles: [],
     equipment: ['barbell'],
@@ -73,6 +78,7 @@ function session(
     reps: number | null;
     weight: number | null;
     setType?: string | null;
+    duration?: number | null;
   }[]
 ) {
   return {
@@ -81,6 +87,7 @@ function session(
       setType: set.setType ?? 'Working Set',
       reps: set.reps,
       weight: set.weight,
+      duration: set.duration ?? null,
     })),
   };
 }
@@ -275,6 +282,102 @@ describe('isEquipmentAvailable', () => {
     expect(isEquipmentAvailable(['barbell'], [])).toBe(false);
     expect(isEquipmentAvailable(['body only'], [])).toBe(true);
   });
+
+  it('keeps opt-in gear out even with no gym profile', () => {
+    // `other` is Atlas Stones, Car Deadlift and Battling Ropes, not an
+    // "unclassified" bucket — the W7 live run offered an Atlas Stone Trainer to
+    // an account that had simply never made a profile. Not having said where
+    // you train is not a claim to own a strongman yard.
+    expect(isEquipmentAvailable(['other'], null)).toBe(false);
+    expect(isEquipmentAvailable(['other'], ['barbell'])).toBe(false);
+    expect(isEquipmentAvailable(['other'], ['other'])).toBe(true);
+    // Everything else still passes freely with no profile.
+    expect(isEquipmentAvailable(['barbell', 'cable'], null)).toBe(true);
+  });
+});
+
+describe('isPerformable', () => {
+  it('rules out an exercise the profile cannot equip', () => {
+    expect(
+      isPerformable(candidate({ id: 'a', equipment: ['barbell'] }), [
+        'dumbbell',
+      ])
+    ).toBe(false);
+  });
+
+  it('rules out a pull-up for a home profile that says body only', () => {
+    // `Chin-Up` is `body only` upstream, so the equipment test passes it and
+    // the W7 gate duly put it in a dumbbells-and-bands session. The apparatus
+    // override is what catches it.
+    expect(isEquipmentAvailable(CHIN_UP.equipment, ['dumbbell', 'bands'])).toBe(
+      true
+    );
+    expect(isPerformable(CHIN_UP, ['dumbbell', 'bands'])).toBe(false);
+  });
+
+  it('allows it where the profile implies a bar', () => {
+    expect(isPerformable(CHIN_UP, ['dumbbell', 'cable', 'machine'])).toBe(true);
+    expect(isPerformable(CHIN_UP, ['barbell'])).toBe(true);
+    // And with no profile at all, like every other availability rule here.
+    expect(isPerformable(CHIN_UP, null)).toBe(true);
+  });
+
+  it('lets logged history overrule the inference', () => {
+    // Apparatus availability is a guess about the room; having done the
+    // exercise ten times is evidence about it.
+    expect(
+      isPerformable({ ...CHIN_UP, timesPerformed: 10 }, ['dumbbell', 'bands'])
+    ).toBe(true);
+  });
+
+  it('does not let history overrule the profile itself', () => {
+    // A barbell squat logged at the gym last month is still not doable in a
+    // dumbbell-only garage today. The profile is a statement, not a guess.
+    expect(
+      isPerformable(
+        candidate({ id: 'a', equipment: ['barbell'], timesPerformed: 50 }),
+        ['dumbbell']
+      )
+    ).toBe(false);
+  });
+
+  it('does not read an inherited property as an apparatus requirement', () => {
+    // `source_id` is a database value. An object-literal lookup would answer
+    // `constructor` with a function, whose truthy `.length` reads as "needs one
+    // apparatus" and quietly hides the row from every home profile.
+    expect(
+      isPerformable({ ...CHIN_UP, sourceId: 'constructor' }, [
+        'dumbbell',
+        'bands',
+      ])
+    ).toBe(true);
+    expect(
+      isPerformable({ ...CHIN_UP, sourceId: 'toString' }, ['dumbbell'])
+    ).toBe(true);
+  });
+
+  it('leaves rows from other sources alone', () => {
+    // The overrides describe free-exercise-db's data. A user's own "Chin-Up"
+    // is their own record of what they can do.
+    expect(
+      isPerformable({ ...CHIN_UP, source: 'manual', sourceId: null }, [
+        'dumbbell',
+      ])
+    ).toBe(true);
+  });
+});
+
+describe('isMobilityExercise', () => {
+  it('reads the category, which is the only place the fact lives', () => {
+    expect(isMobilityExercise({ category: 'stretching' })).toBe(true);
+    expect(isMobilityExercise({ category: ' Stretching ' })).toBe(true);
+    expect(isMobilityExercise({ category: 'strength' })).toBe(false);
+    expect(isMobilityExercise({ category: null })).toBe(false);
+  });
+
+  it('does not count an isometric — a plank is a training set', () => {
+    expect(isMobilityExercise({ category: 'isometrics' })).toBe(false);
+  });
 });
 
 describe('isExcludedByLimitations', () => {
@@ -341,6 +444,30 @@ const LAT_ISOLATION = candidate({
   mechanic: 'isolation',
   equipment: ['cable'],
 });
+/**
+ * A real free-exercise-db row, and the one the W7 live gate programmed as
+ * 3x10: `stretching` category, `body only`, hamstrings as the primary mover.
+ */
+const STRETCH = candidate({
+  id: 's1',
+  name: '90/90 Hamstring',
+  category: 'stretching',
+  source: 'free-exercise-db',
+  sourceId: '90_90_Hamstring',
+  primaryMuscles: ['hamstrings'],
+  mechanic: 'isolation',
+  equipment: ['body only'],
+});
+/** Same row family, and the reason `body only` cannot be taken at its word. */
+const CHIN_UP = candidate({
+  id: 'p1',
+  name: 'Chin-Up',
+  source: 'free-exercise-db',
+  sourceId: 'Chin-Up',
+  primaryMuscles: ['lats'],
+  mechanic: 'compound',
+  equipment: ['body only'],
+});
 
 describe('planWorkout', () => {
   const freshness = [fresh('chest', 1), fresh('lats', 0.9)];
@@ -363,6 +490,49 @@ describe('planWorkout', () => {
     const slots = plan.exercises.map((e) => e.slot);
 
     expect(slots).toEqual(['compound', 'compound', 'isolation', 'isolation']);
+  });
+
+  it('loses a slot to a real movement rather than a stretch', () => {
+    // Even a familiar stretch: the penalty is sized to beat the familiarity
+    // bonus, or a stretch the user has done before would outrank a press they
+    // have not.
+    const familiarStretch = {
+      ...STRETCH,
+      primaryMuscles: ['chest'],
+      timesPerformed: 20,
+    };
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [familiarStretch, CHEST_COMPOUND],
+      options()
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('c1');
+  });
+
+  it('still programs a stretch when the muscle has nothing else', () => {
+    // A soft penalty, not an exclusion. An empty slot is worse than a hold,
+    // and the hold is at least programmed as one.
+    const plan = planWorkout([fresh('hamstrings', 1)], [STRETCH], options());
+
+    expect(plan.exercises.map((e) => e.candidate.id)).toEqual(['s1']);
+  });
+
+  it('drops an exercise whose apparatus the profile does not imply', () => {
+    const plan = planWorkout(
+      [fresh('lats', 1)],
+      [CHIN_UP, LAT_ISOLATION],
+      options({ availableEquipment: ['dumbbell', 'bands', 'body only'] })
+    );
+
+    expect(plan.exercises.map((e) => e.candidate.id)).toEqual([]);
+    expect(
+      planWorkout(
+        [fresh('lats', 1)],
+        [CHIN_UP, LAT_ISOLATION],
+        options({ availableEquipment: ['cable'] })
+      ).exercises.map((e) => e.candidate.id)
+    ).toEqual(['p1', 'l2']);
   });
 
   it('prefers a movement the user has performed before', () => {
@@ -822,6 +992,103 @@ describe('prescribeSets', () => {
       prescribeSets(candidate({ id: 'a' }), input, options())
     );
   });
+
+  describe('mobility', () => {
+    it('programs a stretch as a hold, not three sets of ten', () => {
+      // The whole point: `stretching` rows are stored `weight_reps` like
+      // everything else, so reading modality alone gave "90/90 Hamstring" a
+      // rep target and a rest timer built for a compound lift.
+      const result = prescribeSets(STRETCH, null, options());
+
+      expect(result.mobility).toBe(true);
+      expect(result.modality).toBe('duration');
+      expect(result.sets).toHaveLength(GENERATION_TUNABLES.mobilitySets);
+      expect(result.sets).toEqual(
+        Array.from({ length: GENERATION_TUNABLES.mobilitySets }, (_, i) => ({
+          set_number: i + 1,
+          set_type: 'Working Set',
+          reps: null,
+          weight: null,
+          duration: GENERATION_TUNABLES.mobilityHoldSeconds,
+          distance: null,
+          rest_time: GENERATION_TUNABLES.restMobility,
+        }))
+      );
+      expect(result.restSeconds).toBe(GENERATION_TUNABLES.restMobility);
+    });
+
+    it('never puts a load on one, even with loadable equipment recorded', () => {
+      const result = prescribeSets(
+        candidate({
+          id: 'a',
+          category: 'stretching',
+          equipment: ['barbell'],
+        }),
+        null,
+        options()
+      );
+
+      expect(result.workingWeightKg).toBeNull();
+      expect(result.sets.every((s) => s.weight === null)).toBe(true);
+      // And therefore no ramp: the warm-up gate reads the prescription's
+      // modality, which is `duration` here whatever the catalog stored.
+      expect(
+        warmupSetsFor(result.workingWeightKg, ['barbell'], result.modality)
+      ).toEqual([]);
+    });
+
+    it("honours the last session's hold", () => {
+      const result = prescribeSets(
+        STRETCH,
+        history(
+          session('2026-08-20', [{ reps: null, weight: null, duration: 45 }])
+        ),
+        options()
+      );
+
+      expect(result.sets.every((s) => s.duration === 45)).toBe(true);
+    });
+
+    it('holds rather than progressing — there is nothing to add to', () => {
+      expect(prescribeSets(STRETCH, null, options()).progression).toBe('hold');
+      expect(
+        prescribeSets(
+          STRETCH,
+          history(session('2026-08-20', [{ reps: 10, weight: 20 }])),
+          options()
+        ).progression
+      ).toBe('hold');
+    });
+
+    it('leaves an isometric alone — a plank is a training set, not mobility', () => {
+      const plank = candidate({
+        id: 'a',
+        category: 'isometrics',
+        modality: 'duration',
+        equipment: ['body only'],
+      });
+      const result = prescribeSets(plank, null, options());
+
+      expect(result.mobility).toBe(false);
+      expect(result.sets).toHaveLength(GENERATION_TUNABLES.workingSetsDefault);
+      expect(result.sets[0]!.duration).toBe(
+        GENERATION_TUNABLES.defaultDurationSeconds
+      );
+    });
+
+    it('reports the modality the sets were built as for everything else too', () => {
+      expect(
+        prescribeSets(candidate({ id: 'a' }), null, options()).modality
+      ).toBe('weight_reps');
+      expect(
+        prescribeSets(
+          candidate({ id: 'a', modality: 'duration_distance' }),
+          null,
+          options()
+        ).modality
+      ).toBe('duration_distance');
+    });
+  });
 });
 
 describe('modalWorkingWeightKg', () => {
@@ -909,6 +1176,14 @@ describe('rationaleFor', () => {
         prescribeSets(candidate({ id: 'a' }), null, options())
       )
     ).toBe('fresh chest · first time — starting light');
+  });
+
+  it('does not talk about load on a movement that has none', () => {
+    // "first time — starting light" reads as a conservative weight, and a
+    // stretch has no weight to be conservative about.
+    expect(
+      rationaleFor('hamstrings', prescribeSets(STRETCH, null, options()))
+    ).toBe('fresh hamstrings · mobility hold');
   });
 });
 

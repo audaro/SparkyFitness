@@ -4,13 +4,13 @@ import {
   estimateDurationMinutes,
   fitToDuration,
   isCompound,
-  isEquipmentAvailable,
   isExcludedByLimitations,
+  isMobilityExercise,
+  isPerformable,
   normalizeMuscleName,
   planWorkout,
   prescribeSets,
   rationaleFor,
-  resolveExerciseModality,
   selectTargetMuscles,
   todayInZone,
   warmupSetsFor,
@@ -164,6 +164,38 @@ export function deriveGoal(goals: string | null | undefined): WorkoutGoal {
  * Failures are logged and swallowed: a GitHub outage should cost the user the
  * one muscle it could not fill, not their whole workout.
  */
+/**
+ * One raw free-exercise-db row in the shape the availability rules read.
+ *
+ * Upstream rows have no local uuid and no history, so this is not a candidate
+ * the planner could ever program — it exists so `isPerformable` can be asked
+ * about a row *before* it is imported. `sourceId` is the upstream id and the
+ * key the apparatus overrides are written against, which is the whole point:
+ * "Chin-Up" says `body only` here exactly as it does after the import.
+ */
+function asExternalCandidate(item: {
+  id?: string;
+  name?: string;
+  category?: string | null;
+  equipment?: unknown;
+}): CandidateExercise {
+  return {
+    id: item.id ?? '',
+    name: item.name ?? '',
+    modality: 'weight_reps',
+    category: item.category ?? null,
+    source: 'free-exercise-db',
+    sourceId: item.id ?? null,
+    primaryMuscles: [],
+    secondaryMuscles: [],
+    equipment: normalizeToStringArray(item.equipment),
+    mechanic: null,
+    level: null,
+    images: [],
+    timesPerformed: 0,
+  };
+}
+
 async function importMissingMuscles(
   userId: string,
   missingMuscles: readonly string[],
@@ -182,7 +214,13 @@ async function importMissingMuscles(
         GENERATION_TUNABLES.catalogImportSearchLimit,
         0
       )) as {
-        exercises: { id?: string; name?: string; primaryMuscles?: unknown }[];
+        exercises: {
+          id?: string;
+          name?: string;
+          primaryMuscles?: unknown;
+          category?: string | null;
+          equipment?: unknown;
+        }[];
       };
       // Upstream matches a muscle in either list, but the planner slots on the
       // primary mover only — so taking the top result imports exercises that
@@ -193,13 +231,26 @@ async function importMissingMuscles(
       // This is why the search above pages deep: the filter runs after upstream
       // has already paginated, so a shallow page can contain no primary mover at
       // all even when the catalog has nineteen of them.
-      const top = (found.exercises ?? []).find(
+      const primaryMovers = (found.exercises ?? []).filter(
         (item) =>
           item.id &&
           normalizeToStringArray(item.primaryMuscles).some(
             (value) => normalizeMuscleName(value) === muscle
-          )
+          ) &&
+          // Do not spend a round trip and an image download on a row the
+          // planner is then going to filter out: `other` gear the user has not
+          // opted into, or a pull-up bar their profile does not imply.
+          isPerformable(asExternalCandidate(item), availableEquipment)
       );
+      // A stretch is why this import was triggered in the first place — the
+      // muscle's local coverage was mobility-only. Importing another one would
+      // leave the slot exactly as unserved as it started, so a real movement
+      // wins outright and a stretch is taken only when upstream has nothing
+      // else that moves the muscle primarily.
+      const top =
+        primaryMovers.find(
+          (item) => !isMobilityExercise({ category: item.category ?? null })
+        ) ?? primaryMovers[0];
       if (!top?.id) {
         log(
           'info',
@@ -233,6 +284,12 @@ async function importMissingMuscles(
  * Eligibility, not mere presence: a muscle with five candidates that the user's
  * gym profile rules out is exactly as unservable as one with none, and the
  * blueprint's "zero local candidates" test would miss it.
+ *
+ * Mobility rows do not count as cover either, for the same reason. A catalog
+ * whose only hamstring entry is "90/90 Hamstring" can be given a hamstring
+ * *stretch* and nothing to actually train with — the planner will still program
+ * the stretch as a fallback, but only after this has had a chance to import a
+ * real movement to beat it.
  */
 function unservedMuscles(
   targetMuscles: readonly string[],
@@ -241,8 +298,9 @@ function unservedMuscles(
 ): string[] {
   const eligible = candidates.filter(
     (candidate) =>
-      isEquipmentAvailable(candidate.equipment, options.availableEquipment) &&
-      !isExcludedByLimitations(candidate, options.limitations)
+      isPerformable(candidate, options.availableEquipment) &&
+      !isExcludedByLimitations(candidate, options.limitations) &&
+      !isMobilityExercise(candidate)
   );
   return targetMuscles.filter(
     (muscle) =>
@@ -299,17 +357,19 @@ async function programExercise(
     warmupSetsFor(
       prescription.workingWeightKg,
       planned.candidate.equipment,
-      planned.candidate.modality
+      prescription.modality
     )
   );
 
   return {
     exercise_id: planned.candidate.id,
     exercise_name: planned.candidate.name,
-    // Already resolved by the repository; re-resolving narrows the planner's
-    // plain `string` back to the enum the payload schema requires without a
-    // cast that would lie if the value were ever bad.
-    modality: resolveExerciseModality(planned.candidate.modality, null),
+    // The modality the sets were actually built as, not the catalog's stored
+    // value — they differ for a stretch, which is stored `weight_reps` and
+    // programmed as a hold. Publishing the stored value would put duration sets
+    // under a weight-and-reps editor. Already an `ExerciseModality`, so no cast
+    // and no re-resolution.
+    modality: prescription.modality,
     primary_muscles: planned.candidate.primaryMuscles,
     secondary_muscles: planned.candidate.secondaryMuscles,
     equipment: planned.candidate.equipment,
@@ -768,7 +828,7 @@ async function getAlternatives(
     .filter(
       (candidate) =>
         candidate.id !== source.id &&
-        isEquipmentAvailable(candidate.equipment, availableEquipment)
+        isPerformable(candidate, availableEquipment)
     )
     .map((candidate) => ({
       candidate,
@@ -822,6 +882,7 @@ interface ExternalExerciseResult {
   images?: unknown;
   mechanic?: string | null;
   level?: string | null;
+  category?: string | null;
 }
 
 /**
@@ -856,7 +917,12 @@ async function searchExternalAlternatives(
         (item): item is ExternalExerciseResult & { id: string; name: string } =>
           typeof item.id === 'string' &&
           typeof item.name === 'string' &&
-          !seenNames.has(item.name.toLowerCase())
+          !seenNames.has(item.name.toLowerCase()) &&
+          // The same bar the local half of this list is held to. Upstream's own
+          // equipment filter is a case-sensitive substring match and knows
+          // nothing about apparatus, so without this a home profile asking for
+          // a lat replacement gets offered Chin-Up.
+          isPerformable(asExternalCandidate(item), availableEquipment)
       )
       .slice(0, limit)
       .map((item) => ({

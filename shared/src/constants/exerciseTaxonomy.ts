@@ -106,10 +106,14 @@ export type ExerciseCategory = (typeof EXERCISE_CATEGORIES)[number];
  * This is not fixable by filter logic. The pinned vocabulary has no
  * `pull-up bar` or `bench` value, so "needs a bar" is simply not expressible
  * — the fix is richer equipment metadata than free-exercise-db ships, which
- * means diverging from the upstream enum. That is a blueprint-level call and
- * belongs with the generation engine (W4), where suggesting an unperformable
- * exercise actually costs the user something; here it only means an
- * occasional unusable row in a search list.
+ * means diverging from the upstream enum.
+ *
+ * That divergence now exists, in `exerciseApparatus.ts`, and the recommendation
+ * engine applies it (`isPerformable`): there, prescribing an unperformable
+ * exercise costs the user a set. It is deliberately NOT applied to search,
+ * which is what this list still governs — a search result the user can look at
+ * and ignore is cheap, and the vocabulary here has to stay byte-identical to
+ * upstream for `?|` to match anything at all.
  */
 export const ALWAYS_AVAILABLE_EQUIPMENT: readonly Equipment[] = ["body only"];
 

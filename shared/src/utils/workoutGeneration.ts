@@ -5,6 +5,15 @@ import {
   normalizeMuscleName,
   type Muscle,
 } from "../constants/exerciseTaxonomy.ts";
+import {
+  isApparatusAvailable,
+  isOptInEquipment,
+  requiredApparatus,
+} from "../constants/exerciseApparatus.ts";
+import {
+  resolveExerciseModality,
+  type ExerciseModality,
+} from "../constants/exercise.ts";
 import { DEFAULT_SET_TYPE, isWarmupSetType } from "../constants/setTypes.ts";
 import { quantizeLoadKg } from "./strengthMath.ts";
 import type { MuscleFreshness } from "./muscleRecovery.ts";
@@ -61,10 +70,25 @@ export const GENERATION_TUNABLES = {
   levelMatchBonus: 1,
   /** Penalty for an exercise the current workout already used (Swap). */
   swapPenalty: -3,
+  /**
+   * Penalty for a mobility movement competing for a training slot.
+   *
+   * Sized to lose to any real movement, including an unfamiliar one: it has to
+   * beat `familiarityBonus + levelMatchBonus`, or a stretch the user has done
+   * before would outrank a press they have not. Not a hard exclusion, so a
+   * muscle whose catalog offers nothing else still gets something — programmed
+   * as a hold, which is what {@link isMobilityExercise} is really for.
+   */
+  mobilityPenalty: -4,
 
   /** Working sets per exercise; strength trades reps for one more set. */
   workingSetsDefault: 3,
   workingSetsStrength: 4,
+
+  /** Mobility work: holds, not sets of reps, and fewer of them. */
+  mobilitySets: 2,
+  mobilityHoldSeconds: 30,
+  restMobility: 30,
 
   /** Rep target per goal. */
   repTargetStrength: 5,
@@ -184,6 +208,18 @@ export interface CandidateExercise {
   id: string;
   name: string;
   modality: string;
+  /**
+   * `exercises.category` — the free-exercise-db vocabulary (`strength`,
+   * `stretching`, `plyometrics`, …), which the row already carries and which
+   * until now only fed the modality derivation. It is what separates a hamstring
+   * *stretch* from a hamstring *exercise*: both are `body only`, both name
+   * hamstrings as the primary mover, and only one of them is three sets of ten.
+   */
+  category: string | null;
+  /** `exercises.source` — which catalog the row came from. */
+  source: string;
+  /** `exercises.source_id` — the upstream id, and the apparatus override key. */
+  sourceId: string | null;
   primaryMuscles: string[];
   secondaryMuscles: string[];
   equipment: string[];
@@ -258,6 +294,17 @@ export interface Prescription {
   workingWeightKg: number | null;
   /** The load multiplier applied to the last session; 1 when holding. */
   appliedMultiplier: number;
+  /**
+   * The modality the sets were actually built as — what the payload has to
+   * carry, which is not always the catalog's stored value. A stretch is stored
+   * `weight_reps` and programmed as a hold; publishing the stored value would
+   * hand the client duration sets under a weight-and-reps editor, which is
+   * exactly the "right in JSON, nonsense on screen" failure this function
+   * exists to avoid.
+   */
+  modality: ExerciseModality;
+  /** True when this was programmed as mobility work rather than a training set. */
+  mobility: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -371,16 +418,68 @@ export function isEquipmentAvailable(
   exerciseEquipment: readonly string[],
   availableEquipment: readonly string[] | null,
 ): boolean {
-  if (availableEquipment === null) return true;
   const required = exerciseEquipment
     .map(normalizeEquipmentName)
     .filter((value) => value.length > 0);
   if (required.length === 0) return true;
+  // Opt-in equipment is the one thing "no gym profile" does not admit. See
+  // OPT_IN_EQUIPMENT: `other` is a strongman yard, not an unclassified value,
+  // and not having said where you train is not a claim to own one.
+  if (availableEquipment === null) return !required.some(isOptInEquipment);
   const available = new Set([
     ...availableEquipment.map(normalizeEquipmentName),
     ...ALWAYS_AVAILABLE_EQUIPMENT.map(normalizeEquipmentName),
   ]);
   return required.every((item) => available.has(item));
+}
+
+/**
+ * Whether this exercise can actually be performed where the user is training —
+ * the equipment test above, plus the apparatus its stated equipment omits.
+ *
+ * The second half exists because `body only` is a lie for 21 rows: `Chin-Up`
+ * needs something to hang from and the vocabulary has no word for it
+ * (`exerciseApparatus.ts` carries the list and the reasoning). Availability is
+ * inferred from the profile — a bar and a bench come with a barbell, a cable
+ * stack or a machine — so it is a guess where the equipment test is a fact, and
+ * having logged the exercise before overrides the guess. Somebody who has done
+ * ten sessions of pull-ups owns a bar, whatever their profile implies.
+ *
+ * The familiarity escape deliberately does NOT extend to the equipment test:
+ * that one is the user's own statement of what is in the room, and a barbell
+ * squat logged at the gym last month is still not doable in a dumbbell-only
+ * garage today.
+ */
+export function isPerformable(
+  candidate: CandidateExercise,
+  availableEquipment: readonly string[] | null,
+): boolean {
+  if (!isEquipmentAvailable(candidate.equipment, availableEquipment)) {
+    return false;
+  }
+  const apparatus = requiredApparatus(candidate.source, candidate.sourceId);
+  if (apparatus.length === 0) return true;
+  if (candidate.timesPerformed > 0) return true;
+  return isApparatusAvailable(apparatus, availableEquipment);
+}
+
+/**
+ * Whether this row is mobility work rather than a training movement.
+ *
+ * Category, not modality: the catalog stores a stretch as `weight_reps` because
+ * `deriveExerciseModality` only knows `cardio` and `isometric`, and that value
+ * is shared with the diary and the set editors and pinned by a backfill
+ * migration — changing it would re-render sets a user already logged. So the
+ * engine reads the category the row has always carried and decides the shape of
+ * its own prescription from it, leaving the stored modality alone.
+ *
+ * `isometric`/`isometrics` are NOT mobility: a plank is a training set that
+ * happens to be timed, and it already resolves to the `duration` modality.
+ */
+export function isMobilityExercise(
+  candidate: Pick<CandidateExercise, "category">,
+): boolean {
+  return candidate.category?.trim().toLowerCase() === "stretching";
 }
 
 /**
@@ -455,6 +554,9 @@ function scoreCandidate(
   if (excludeIds.has(candidate.id)) {
     score += GENERATION_TUNABLES.swapPenalty;
   }
+  if (isMobilityExercise(candidate)) {
+    score += GENERATION_TUNABLES.mobilityPenalty;
+  }
   return score;
 }
 
@@ -516,7 +618,7 @@ export function planWorkout(
 
   const eligible = candidates.filter(
     (candidate) =>
-      isEquipmentAvailable(candidate.equipment, options.availableEquipment) &&
+      isPerformable(candidate, options.availableEquipment) &&
       !isExcludedByLimitations(candidate, options.limitations),
   );
 
@@ -771,6 +873,41 @@ export function prescribeSets(
 ): Prescription {
   const repTarget = repTargetFor(options.goal);
   const restSeconds = restSecondsFor(slot, exercise.modality, options.goal);
+  const modality = resolveExerciseModality(
+    exercise.modality,
+    exercise.category,
+  );
+
+  // Mobility first, ahead of the modality branches: a stretch is stored
+  // `weight_reps` like everything else, so reading modality alone programs
+  // "Chin To Chest Stretch" as three sets of ten with a cold-start load on it.
+  // A stretch is a hold — a short one, twice, with no load and no progression
+  // to make. The last session's hold is honoured if there is one, so a user who
+  // logs 45 s keeps 45 s.
+  if (isMobilityExercise(exercise)) {
+    const duration =
+      lastDurationSeconds(history) ?? GENERATION_TUNABLES.mobilityHoldSeconds;
+    return {
+      sets: Array.from(
+        { length: GENERATION_TUNABLES.mobilitySets },
+        (_, index) => ({
+          set_number: index + 1,
+          set_type: DEFAULT_SET_TYPE,
+          reps: null,
+          weight: null,
+          duration,
+          distance: null,
+          rest_time: GENERATION_TUNABLES.restMobility,
+        }),
+      ),
+      restSeconds: GENERATION_TUNABLES.restMobility,
+      progression: "hold",
+      workingWeightKg: null,
+      appliedMultiplier: 1,
+      modality: "duration",
+      mobility: true,
+    };
+  }
 
   if (exercise.modality === "duration_distance") {
     // Cardio is one block, not a set scheme.
@@ -792,6 +929,8 @@ export function prescribeSets(
       progression: history?.lastSessions.length ? "hold" : "cold-start",
       workingWeightKg: null,
       appliedMultiplier: 1,
+      modality,
+      mobility: false,
     };
   }
 
@@ -815,6 +954,8 @@ export function prescribeSets(
       progression: history?.lastSessions.length ? "hold" : "cold-start",
       workingWeightKg: null,
       appliedMultiplier: 1,
+      modality,
+      mobility: false,
     };
   }
 
@@ -862,6 +1003,8 @@ export function prescribeSets(
     progression: decision,
     workingWeightKg,
     appliedMultiplier,
+    modality,
+    mobility: false,
   };
 }
 
@@ -882,6 +1025,10 @@ export function rationaleFor(
     const delta = Math.round(Math.abs(multiplier - 1) * 1000) / 10;
     return `${delta}%`;
   };
+  // Mobility work has no load to explain, so none of the progression sentences
+  // below say anything true about it: "first time — starting light" reads as a
+  // conservative weight on a movement that has no weight.
+  if (prescription.mobility) return `${fresh} · mobility hold`;
   switch (prescription.progression) {
     case "cold-start":
       return `${fresh} · first time — starting light`;
