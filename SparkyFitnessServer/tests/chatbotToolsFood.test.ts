@@ -82,6 +82,7 @@ vi.mock('../models/foodRepository', () => ({
     getFoodVariantsByFoodId: vi.fn(),
     getRecentFoodEntries: vi.fn(),
     getFoodUsage: vi.fn(),
+    getFoodEntryById: vi.fn(),
   },
 }));
 vi.mock('../models/foodEntryMealRepository', () => ({
@@ -1407,10 +1408,23 @@ describe('log_food', () => {
     expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
   });
 
-  // Live failure this quartet guards: a reply's "1,008 kcal" total leaked into
+  // Live failure this block guards: a reply's "1,008 kcal" total leaked into
   // the quantity field and 1008 slices of cheese (~110,000 kcal) were logged
   // without complaint. Counted units cap at 100; measurable at 10 kg / 10 L.
-  it('refuses an absurd count-unit quantity before touching the diary', async () => {
+  // The guard judges the EFFECTIVE (quantity, unit) after variant resolution
+  // and serving conversion, not the requested pair.
+  it('refuses an absurd count-unit quantity after variant resolution', async () => {
+    vi.mocked(foodRepository.getFoodById).mockResolvedValue({
+      ...eggsRow,
+      name: 'Cheese',
+      default_variant: {
+        ...eggsRow.default_variant,
+        serving_size: 1,
+        serving_unit: 'slice',
+      },
+    });
+    vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+
     const result = await tools.sparky_manage_food.execute!(
       {
         action: 'log_food',
@@ -1427,6 +1441,16 @@ describe('log_food', () => {
   });
 
   it('refuses a measurable quantity above the 10 kg ceiling', async () => {
+    vi.mocked(foodRepository.getFoodById).mockResolvedValue({
+      ...eggsRow,
+      default_variant: {
+        ...eggsRow.default_variant,
+        serving_size: 100,
+        serving_unit: 'g',
+      },
+    });
+    vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+
     const result = await tools.sparky_manage_food.execute!(
       {
         action: 'log_food',
@@ -1442,7 +1466,10 @@ describe('log_food', () => {
     expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
   });
 
-  it('accepts a large but plausible gram amount', async () => {
+  // The reviewer-caught regression: an omitted unit resolves to the variant's
+  // own unit, so "quantity: 500" against a gram variant is 500 g — a fine
+  // amount that a requested-pair guard would have refused as 500 counts.
+  it('accepts a large gram amount even when the unit is omitted', async () => {
     vi.mocked(foodRepository.getFoodById).mockResolvedValue({
       ...eggsRow,
       default_variant: {
@@ -1462,7 +1489,6 @@ describe('log_food', () => {
         action: 'log_food',
         food_id: FOOD_ID,
         quantity: 500,
-        unit: 'g',
         meal_type: 'breakfast',
         entry_date: '2026-06-10',
       },
@@ -1474,17 +1500,53 @@ describe('log_food', () => {
     );
   });
 
-  it('refuses an absurd quantity on update_entry and log_external_food too', async () => {
-    const updated = await tools.sparky_manage_food.execute!(
+  it('judges a unit-less update against the entry’s own stored unit', async () => {
+    vi.mocked(foodRepository.getFoodEntryById).mockResolvedValue({
+      id: ENTRY_ID,
+      quantity: 2,
+      unit: 'slice',
+    });
+
+    const refused = await tools.sparky_manage_food.execute!(
       {
         action: 'update_entry',
-        food_name: 'Cheese',
+        entry_id: ENTRY_ID,
+        entry_type: 'food_entry',
         quantity: 1008,
       },
       opts
     );
-    expect(updated).toContain('Error [VALIDATION]: Refusing to log 1008');
+    expect(refused).toContain('Error [VALIDATION]: Refusing to log 1008');
+    expect(foodEntryService.updateFoodEntry).not.toHaveBeenCalled();
 
+    vi.mocked(foodRepository.getFoodEntryById).mockResolvedValue({
+      id: ENTRY_ID,
+      quantity: 100,
+      unit: 'g',
+    });
+    vi.mocked(foodEntryService.updateFoodEntry).mockResolvedValue({
+      id: ENTRY_ID,
+    });
+
+    const accepted = await tools.sparky_manage_food.execute!(
+      {
+        action: 'update_entry',
+        entry_id: ENTRY_ID,
+        entry_type: 'food_entry',
+        quantity: 500,
+      },
+      opts
+    );
+    expect(accepted).not.toContain('Refusing to log');
+    expect(foodEntryService.updateFoodEntry).toHaveBeenCalledWith(
+      'user-1',
+      'user-1',
+      ENTRY_ID,
+      { quantity: 500, unit: undefined }
+    );
+  });
+
+  it('refuses an absurd requested count on log_external_food before the lookup', async () => {
     const logged = await tools.sparky_manage_food.execute!(
       {
         action: 'log_external_food',
@@ -1496,6 +1558,38 @@ describe('log_food', () => {
       opts
     );
     expect(logged).toContain('Error [VALIDATION]: Refusing to log 500 slice');
+    expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
+  });
+
+  // The reviewer-caught gap: 100 servings passes the requested-pair check
+  // (100 is exactly the count ceiling), then serving conversion multiplies by
+  // the variant's serving_size and 50 kg reaches the write. The effective
+  // pair must be re-validated after conversion.
+  it('refuses a serving count that converts past the measurable ceiling', async () => {
+    vi.mocked(foodRepository.getFoodsWithPagination).mockResolvedValue([
+      {
+        ...eggsRow,
+        default_variant: {
+          ...eggsRow.default_variant,
+          serving_size: 500,
+          serving_unit: 'g',
+        },
+      },
+    ]);
+    vi.mocked(foodRepository.getFoodVariantsByFoodId).mockResolvedValue([]);
+
+    const result = await tools.sparky_manage_food.execute!(
+      {
+        action: 'log_external_food',
+        food_name: 'Eggs',
+        quantity: 100,
+        unit: 'serving',
+        meal_type: 'snacks',
+      },
+      opts
+    );
+
+    expect(result).toContain('Error [VALIDATION]: Refusing to log 50000 g');
     expect(foodEntryService.createFoodEntry).not.toHaveBeenCalled();
   });
 

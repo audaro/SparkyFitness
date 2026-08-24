@@ -1876,13 +1876,6 @@ Actions:
             }
 
             case 'log_food': {
-              const insaneQuantity = quantitySanityError(
-                args.quantity,
-                args.unit
-              );
-              if (insaneQuantity) {
-                return ERRORS.VALIDATION(insaneQuantity);
-              }
               const mealType = await resolveMealType(
                 userId,
                 args.meal_type_id,
@@ -1924,6 +1917,18 @@ Actions:
               });
               if (!resolvedLog.ok) {
                 return ERRORS.VALIDATION(resolvedLog.message);
+              }
+              // Validate the EFFECTIVE pair, after variant resolution: an
+              // omitted unit legitimately resolves to the variant's own unit
+              // (500 with no unit against a gram variant is 500 g, not 500
+              // counts), and a converted amount can balloon past what the
+              // requested pair suggested.
+              const insaneQuantity = quantitySanityError(
+                resolvedLog.quantity,
+                resolvedLog.unit
+              );
+              if (insaneQuantity) {
+                return ERRORS.VALIDATION(insaneQuantity);
               }
 
               const entryDate = args.entry_date || todayInZone(tz);
@@ -2036,6 +2041,16 @@ Actions:
                   return ERRORS.VALIDATION(
                     `Cannot log ${quantity} ${args.unit} of "${match.name}" — its serving is measured as ${chosenVariant?.serving_size ?? 1}${chosenVariant?.serving_unit ?? 'serving'} and '${args.unit}' has no automatic conversion. Retry with quantity in ${chosenVariant?.serving_unit ?? 'serving'} or in whole servings (unit: "serving").`
                   );
+                }
+                // Serving-count conversion can balloon a plausible request
+                // (100 servings of a 500 g variant is 50 kg) — validate what
+                // will actually be written, not what was asked for.
+                const insaneInternal = quantitySanityError(
+                  logged.quantity,
+                  logged.unit
+                );
+                if (insaneInternal) {
+                  return ERRORS.VALIDATION(insaneInternal);
                 }
                 const entry = await foodEntryService.createFoodEntry(
                   userId,
@@ -2198,6 +2213,15 @@ Actions:
                 return ERRORS.VALIDATION(
                   `Saved "${food.name}" to the food database, but cannot log ${quantity} ${args.unit} of it — its serving is measured as ${chosenVariant?.serving_size ?? 1}${chosenVariant?.serving_unit ?? 'serving'} and '${args.unit}' has no automatic conversion. Retry log_food with food_name "${food.name}" and quantity in ${chosenVariant?.serving_unit ?? 'serving'} or in whole servings (unit: "serving").`
                 );
+              }
+              // Same post-conversion check as the already-saved branch: the
+              // food is saved either way, but the diary write is refused.
+              const insaneImported = quantitySanityError(
+                logged.quantity,
+                logged.unit
+              );
+              if (insaneImported) {
+                return ERRORS.VALIDATION(insaneImported);
               }
 
               await foodEntryService.createFoodEntry(userId, userId, {
@@ -2994,18 +3018,6 @@ Actions:
             }
 
             case 'update_entry': {
-              if (args.quantity !== undefined) {
-                // With no unit stated the count-unit ceiling applies — the
-                // model restates the unit on retry if the amount is genuinely
-                // a large measurable one.
-                const insaneQuantity = quantitySanityError(
-                  args.quantity,
-                  args.unit
-                );
-                if (insaneQuantity) {
-                  return ERRORS.VALIDATION(insaneQuantity);
-                }
-              }
               // Name resolution never narrows by meal_type here: for updates
               // the meal selector is the TARGET the entry moves to, not a
               // filter on the source.
@@ -3052,6 +3064,25 @@ Actions:
               let mealTypeChanged = mealType !== undefined;
               try {
                 if (entryType === 'food_entry') {
+                  if (args.quantity !== undefined) {
+                    // Judge the quantity against the unit it will be stored
+                    // with — the entry's own unit when the call omits one. A
+                    // bare "quantity: 500" on a gram entry is fine; the same
+                    // number on a slices entry is a data error.
+                    let effectiveUnit: string | null | undefined = args.unit;
+                    if (!effectiveUnit) {
+                      const existingEntry =
+                        await foodRepository.getFoodEntryById(entryId, userId);
+                      effectiveUnit = existingEntry?.unit;
+                    }
+                    const insaneQuantity = quantitySanityError(
+                      args.quantity,
+                      effectiveUnit
+                    );
+                    if (insaneQuantity) {
+                      return ERRORS.VALIDATION(insaneQuantity);
+                    }
+                  }
                   await foodEntryService.updateFoodEntry(
                     userId,
                     userId,
@@ -3107,6 +3138,18 @@ Actions:
                     return formatConfirmation(
                       'Entry already has the requested values.'
                     );
+                  }
+
+                  // Same effective-unit check as the food_entry branch, using
+                  // the meal container's own unit when the call omits one.
+                  if (args.quantity !== undefined) {
+                    const insaneQuantity = quantitySanityError(
+                      args.quantity,
+                      args.unit ?? existingMeta.unit
+                    );
+                    if (insaneQuantity) {
+                      return ERRORS.VALIDATION(insaneQuantity);
+                    }
                   }
 
                   // Real quantity/unit change: round-trip the template link and
