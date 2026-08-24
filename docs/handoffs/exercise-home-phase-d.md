@@ -147,8 +147,9 @@ Carried forward unchanged from C4, none introduced by Phase D:
 - **Two competing equipment stores** (`coach_profiles.equipment`, AI-chat-only and not read by the
   generator, vs `gym_equipment_profiles.equipment`, which is what the generator reads). Do not add
   a third, and do not unify them here — that is its own migration.
-- **The branch is unpushed.** Eleven commits ahead as of D4. Push to the fork (`origin` =
-  `audaro/SparkyFitness`) only, never upstream.
+- ~~The branch is unpushed.~~ **Resolved:** `feat/ai-coach` was pushed to the fork at `d28ea26d`,
+  carrying Phases C4 and D (eleven commits). Push to the fork (`origin` = `audaro/SparkyFitness`)
+  only, never upstream.
 
 ## Device testing
 
