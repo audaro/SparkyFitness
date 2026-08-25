@@ -10,6 +10,9 @@ repo; phases at "Phasing"). Previous step: `docs/handoffs/medication-autofill-ph
 | `5a91bf18c` | Rank the medication catalog against a typed query (`searchCatalog`) |
 | `e6eeb5813` | Autofill the name field from the cabinet and catalog (web + mobile) |
 | `4ab3f1551` | Localize the reconstitution refusals and warnings (closes open risk 2) |
+| `f362c2319` | Remember how a vial was mixed and derive its draw (`shared`) |
+| `e6b2b3fb3` | Persist the mix and show the draw on the web form (closes open risk 3) |
+| `28443f502` | Persist the mix and show the draw on the mobile form |
 
 ### The search primitive
 
@@ -78,25 +81,68 @@ would attribute the wrong drug's data to it. Tested on both platforms.
 `source` (`'catalog'` / `'manual'`) and `route_id` are now written too. Both were already in the
 schema and unused. No migration was needed and none was added.
 
+### Reconstitution persistence and the draw
+
+Phase 2 shipped a calculator that computed the right answer and then threw it away. Applying it
+wrote a concentration into `strength` and nothing else, so the derivation was gone: a 30 mg vial in
+3 mL and a 10 mg vial in 1 mL are the same strength and a different bottle, an edit reopened on an
+empty form, and the number the user actually acts on — 0.2 mL, 20 marks on a U-100 — existed only
+inside a calculator they had to re-run from memory.
+
+`shared/src/medications/reconstitutionRecord.ts` closes both halves.
+
+**`ReconstitutionRecord`** is the mix as entered, under one `custom_fields` key — no migration.
+`readReconstitutionRecord` returns null for anything that is not complete and valid, because
+`custom_fields` is free-form JSONB that older rows, other clients and hand edits all write into,
+and half a mix repopulating a syringe calculator is how someone draws to the wrong mark.
+
+**`concentrationDraw` derives the draw from the medication's own `strength` and `dose` columns, not
+from the record.** This is the load-bearing decision of the step. The record only repopulates the
+calculator; if it fed the readout as well, a hand-edited strength and the marks shown beside it
+would disagree, and the marks would win. Only the syringe standard comes from the record, because
+0.2 mL is 20 marks on a U-100 and 8 on a U-40 and reading one against the other is a 2.5x error.
+
+It deliberately does **not** reuse `reconstitute()`, which refuses `dose_exceeds_vial` when the
+dose exceeds the *concentration* — 20 mg at 10 mg/mL is a valid 2 mL draw, not an error. Like
+`reconstitute()` it returns nothing rather than a guess wherever the answer is not knowable: no
+concentration (a 500 mg tablet has no draw volume), no dose, or IU against a mass vial, for which
+there is no general factor.
+
+Both forms now save the mix on apply, reopen the calculator on it when editing, and render the draw
+next to the two fields it comes from.
+
+**The web `custom_fields` write changed from wholesale replace to merge** (open risk 3). The
+consequence is easy to miss and is the thing to remember here: *once a form merges, absent stops
+meaning cleared*. Every key the dialog owns — the six GLP-1 fields, `units_per_serving`, the record
+— is now written explicitly `null` when off. `NO_GLP1_FIELDS` is a module constant spread **first**
+and then overridden, because a literal null property placed before a spread that redeclares it is a
+TS2783 error.
+
 ## Gate status
 
 Run on the committed state, all green:
 
-- Server: `pnpm run validate` pass; `pnpm test` — **4266 passed**, 2 skipped (295 files).
-- Frontend: `pnpm run validate` pass; `pnpm test` — **1096 passed** (113 suites).
-- Mobile: `pnpm run validate` pass (incl. i18n audit, EN + PL); `pnpm exec jest` — **6109 passed**
+- Server: `pnpm run validate` pass; `pnpm test` — **4306 passed**, 2 skipped (296 files).
+- Frontend: `pnpm run validate` pass; `pnpm test` — **1106 passed** (113 suites).
+- Mobile: `pnpm run validate` pass (incl. i18n audit, EN + PL); `pnpm exec jest` — **6119 passed**
   (378 suites).
 
-34 new tests. The retatrutide example runs end to end in both suites: pick "Reta" →
+74 new tests across the phase. The retatrutide example runs end to end in both suites: pick "Reta" →
 `catalog_id: retatrutide`, `route_id: subcutaneous`, `type_id: injection`, no ladder, calculator
 opens; 10 mg + 2 mL, 2 mg dose → **40 units (U-100)**.
 
-One caveat on the mobile suite: during the localization commit's gate run, one full-suite run
-reported a single failure that three subsequent full runs did not reproduce, and the failing test
-was not captured. Nothing in that commit touches timers or shared mutable state across suites (the
-new test mutates the i18n singleton but restores the language in `afterEach`, and Jest gives each
-suite its own module registry). Treat it as an unidentified flake, not a known-good result — if it
-recurs, capture the `FAIL` line rather than only the summary counts.
+The retatrutide round trip is covered end to end on both platforms too: apply 30 mg + 3 mL at a
+2 mg dose, save, reopen — the calculator comes back on 30/3/2 and the form reads
+**Draw 0.2 mL — 20 units on a U-100 syringe**. Editing the strength to 20 mg/mL moves it to
+0.1 mL / 10 units; the same mix read against a U-40 reads 8.
+
+One caveat, in the same shape on two suites now. During the localization commit's gate run, one
+full mobile run reported a single failure that three subsequent runs did not reproduce; during this
+step's gate run the same thing happened on the **server** suite, with four clean full runs around
+it. Neither failing test name was captured. The two steps have no code in common, which points at
+worker distribution rather than any one diff — adding a test file reshuffles it. Treat a lone
+failure here as unproven, not as a known-good result: re-run before believing it, and **capture the `FAIL` line rather than only the summary counts**,
+which is what both of these runs failed to do.
 
 ## Found in self-audit (fixed before commit)
 
@@ -114,7 +160,13 @@ recurs, capture the `FAIL` line rather than only the summary counts.
 ## Next step
 
 **Phase 3 — the content pass.** Populate `strengths` and `vialSizes` across the catalog and widen
-it beyond the six PK-registry drugs. It is blocked on open risk 1 below.
+it beyond the six PK-registry drugs. It is blocked on open risk 1 below, which is a product
+decision rather than an implementation one — the chip UI and the calculator fallback are both
+built and gated on `strengths`, so populating the data is the only work left once the
+brand-vs-generic shape is chosen.
+
+Phase 2 is otherwise complete: the catalog link, the name autofill, the dosage step, the localized
+refusals and the reconstitution round trip are all shipped and covered.
 
 ## Open risks and deliberate skips
 
@@ -136,11 +188,11 @@ it beyond the six PK-registry drugs. It is blocked on open risk 1 below.
    no i18n, and is what nothing in the app renders. One reason was split out while doing it:
    `diluentForTargetUnits` was reporting a bad target-units input as `invalid_syringe_capacity`,
    so one reason carried two different sentences; it is now `invalid_target_units`.
-3. **Web and mobile disagree on `custom_fields` merge semantics.** Mobile spreads the existing
-   object and adds `catalog_id`; web replaces it wholesale (pre-existing behaviour — web already
-   sent `{}` for a non-GLP-1 medication). So editing on web a row that mobile enriched drops keys
-   web does not know about. Not introduced here, but phase 2 is the first change that puts a
-   *shared* key in there, which makes it matter. Fix by spreading `editMed.custom_fields` on web.
+3. ~~**Web and mobile disagree on `custom_fields` merge semantics.**~~ **Fixed in `e6b2b3fb3`.**
+   Web now spreads `editMed.custom_fields` before its own keys, so a row mobile enriched survives a
+   web edit. The cost of the fix is that absent no longer means cleared on that form — see the
+   reconstitution section above for which keys now have to be written explicitly `null`, and why
+   `NO_GLP1_FIELDS` is spread first rather than written as literal properties.
 4. **`vialSizes` is empty on every entry**, so the calculator's vial chips never render yet. Valid
    working state — the field is a suggestion, never a constraint, because grey-market vial sizes
    vary by vendor. Phase 3 content work.
@@ -148,3 +200,10 @@ it beyond the six PK-registry drugs. It is blocked on open risk 1 below.
    is one muted ghost line and it is the only way a user with no catalog match reaches the
    calculator, which is the case that matters most here. Revisit if it reads as noise.
 6. **`listInjections` is still capped at `limit: 60`.** Pre-existing, untouched.
+7. **There is no way to clear a saved mix except by picking a different name.** Edit a
+   reconstituted vial's strength back to a plain `500 mg` and the draw correctly disappears — it is
+   derived from the columns — but `custom_fields.reconstitution` stays, so the calculator still
+   reopens on the old vial. Harmless today (the record is prefill only, and it is the user's own
+   last mix) and deliberately not solved with a "this is no longer a vial" affordance nobody asked
+   for. If it starts to matter, clear the record when the strength unit stops being a
+   concentration, not on every strength edit.
