@@ -942,7 +942,8 @@
       "fromCatalog": "Matched to {{drug}} in the built-in list. Every field below stays yours to change.",
       "labelStrengths": "Label strengths",
       "labelStrengthsHint": "From the approved label. Type your own above if yours differs.",
-      "openCalculator": "Reconstituting a vial? Work out the syringe units"
+      "openCalculator": "Reconstituting a vial? Work out the syringe units",
+      "draw": "Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe"
     },
     "detail": {
       "deleteTitle": "Delete Medication",

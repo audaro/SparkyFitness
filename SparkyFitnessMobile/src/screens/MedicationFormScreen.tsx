@@ -8,7 +8,16 @@ import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import BottomSheetPicker from '../components/BottomSheetPicker';
 import MedicationNameSuggestions, { type MedicationNamePick } from '../components/MedicationNameSuggestions';
 import ReconstitutionCalculator from '../components/ReconstitutionCalculator';
-import { resolveCatalogDrug, type MedicationRouteId } from '@workspace/shared';
+import {
+  concentrationDraw,
+  readReconstitutionRecord,
+  RECONSTITUTION_FIELD,
+  resolveCatalogDrug,
+  concentrationUnitLabel,
+  type MedicationRouteId,
+  type ReconstitutionRecord,
+  type ReconstitutionUnit,
+} from '@workspace/shared';
 import { useMedications, useMedicationDetail, useCreateMedication, useUpdateMedication } from '../hooks/useMedications';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
@@ -51,6 +60,8 @@ interface FormState {
   routeId: string | null;
   /** Which bundled catalog row this medication is, when it came from one. */
   catalogId: string | null;
+  /** How this vial was mixed, when it was. Null for anything that is not a reconstituted vial. */
+  reconstitution: ReconstitutionRecord | null;
 }
 
 const EMPTY_FORM: FormState = {
@@ -67,6 +78,7 @@ const EMPTY_FORM: FormState = {
   isActive: true,
   routeId: null,
   catalogId: null,
+  reconstitution: null,
 };
 
 const hasDetailsContent = (form: FormState): boolean =>
@@ -95,6 +107,9 @@ function baseFromMed(
       typeof existingMed.custom_fields?.['catalog_id'] === 'string'
         ? (existingMed.custom_fields['catalog_id'] as string)
         : null,
+    // Null for anything that is not a complete, valid record — `custom_fields` is free-form
+    // JSONB, and half a mix is worse than none when it repopulates a syringe calculator.
+    reconstitution: readReconstitutionRecord(existingMed.custom_fields),
   };
 }
 
@@ -135,19 +150,56 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
   // open — the hook refetches on focus, and an edit that never touches the name should not pay
   // for a list read it will not show.
   const { data: ownMedications } = useMedications({ enabled: suggestionsOpen });
-  const [showCalculator, setShowCalculator] = useState(false);
+  // null until the user toggles, same as the details section: a medication saved with a mix
+  // opens on it, rather than hiding the user's own numbers behind a ghost link.
+  const [calculatorToggle, setCalculatorToggle] = useState<boolean | null>(null);
+  const showCalculator = calculatorToggle ?? form.reconstitution !== null;
+  // Bumped on every name pick to remount the calculator on the new medication's numbers.
+  const [calcSeed, setCalcSeed] = useState(0);
 
   const catalogDrug = useMemo(
     () => (form.catalogId ? (resolveCatalogDrug(form.catalogId) ?? null) : null),
     [form.catalogId],
   );
 
+  // The dose as the calculator understands it. 'tablet' and friends have no draw volume, so
+  // only a mass or IU dose seeds the calculator's third field.
+  const savedDose = useMemo((): { amount: number; unit: ReconstitutionUnit } | null => {
+    const amount = parseFloat(form.doseAmount);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    const unit = form.doseUnit.trim().toLowerCase();
+    if (unit !== 'mg' && unit !== 'mcg' && unit !== 'iu') return null;
+    return { amount, unit };
+  }, [form.doseAmount, form.doseUnit]);
+
+  // Derived from the strength and dose on the form, never from the stored mix: the marks shown
+  // have to agree with the strength shown even after the user edits it by hand. Null whenever
+  // the answer is not knowable — a strength that is not a concentration, or a dose that cannot
+  // be converted to it.
+  const draw = useMemo(
+    () =>
+      concentrationDraw({
+        strengthValue: parseFloat(form.strengthValue),
+        strengthUnit: form.strengthUnit,
+        doseAmount: parseFloat(form.doseAmount),
+        doseUnit: form.doseUnit.trim().toLowerCase(),
+        syringe: form.reconstitution?.syringe ?? null,
+      }),
+    [form.strengthValue, form.strengthUnit, form.doseAmount, form.doseUnit, form.reconstitution],
+  );
+
   const handleNamePick = useCallback(
     (pick: MedicationNamePick) => {
       setSuggestionsOpen(false);
+      // The calculator seeds its fields once, at mount. A pick that leaves it open — a drug with
+      // no strength ladder, picked while it was already showing — would otherwise keep the
+      // previous vial's numbers prefilled under a different medication's name.
+      setCalcSeed((seed) => seed + 1);
       if (pick.kind === 'custom') {
-        setEdits((prev) => ({ ...prev, name: pick.name, catalogId: null }));
-        setShowCalculator(false);
+        // The mix describes a vial, not a form. Carrying it onto a different drug would prefill
+        // the calculator with someone else's numbers and pick their syringe for the draw.
+        setEdits((prev) => ({ ...prev, name: pick.name, catalogId: null, reconstitution: null }));
+        setCalculatorToggle(false);
         return;
       }
       if (pick.kind === 'existing') {
@@ -166,8 +218,11 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
           doseAmount: med.dose_amount != null ? String(med.dose_amount) : '',
           doseUnit: med.dose_unit ?? EMPTY_FORM.doseUnit,
           catalogId: typeof savedCatalogId === 'string' ? savedCatalogId : null,
+          // The copied row's own mix, so the strength above and the vial behind it stay the same
+          // medication's. Null when it has none — never the mix that was on screen a moment ago.
+          reconstitution: readReconstitutionRecord(med.custom_fields),
         }));
-        setShowCalculator(false);
+        setCalculatorToggle(false);
         return;
       }
       // `matchedOn`, not `displayName`: someone who typed "Wegovy" gets a row named Wegovy
@@ -179,10 +234,12 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
         catalogId: drug.id,
         typeId: CATALOG_ROUTE_TYPE[drug.routes[0] ?? 'other'] ?? 'other',
         routeId: drug.routes[0] ?? null,
+        reconstitution: null,
       }));
       // No approved label means no strength ladder, so the only honest source for a dose is the
-      // vial the user is holding.
-      setShowCalculator(drug.strengths === null);
+      // vial the user is holding — and the calculator opens empty, because the mix that was on
+      // screen belonged to whatever this row used to be.
+      setCalculatorToggle(drug.strengths === null);
     },
     [],
   );
@@ -226,6 +283,9 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
       custom_fields: {
         ...(existingMed?.custom_fields ?? {}),
         catalog_id: form.catalogId,
+        // The mix behind the strength. Explicitly null when there is none, so a vial edited
+        // back into a plain strength stops claiming a draw it can no longer justify.
+        [RECONSTITUTION_FIELD]: form.reconstitution,
       },
     };
 
@@ -361,6 +421,19 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
             </View>
           </View>
 
+          {/* The number the user actually acts on, sitting with the two fields it comes from.
+              A strength in mg/mL is not something anyone draws — marks on a barrel are. */}
+          {draw && (
+            <Text testID="med-draw" className="text-text-muted text-sm">
+              {t('medications.form.draw', {
+                defaultValue: 'Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe',
+                volume: draw.drawVolumeMl,
+                units: draw.syringeUnits,
+                syringe: draw.syringe,
+              })}
+            </Text>
+          )}
+
           {/* The dosage step. A drug with an approved label offers its ladder; one without gets
               the calculator, because the only honest source for its strength is the vial the
               user is actually holding. */}
@@ -404,19 +477,25 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
 
           {showCalculator ? (
             <ReconstitutionCalculator
+              key={calcSeed}
               vialSuggestions={catalogDrug?.vialSizes ?? []}
               intervalDays={
                 catalogDrug?.cadence === 'weekly' ? 7 : catalogDrug?.cadence === 'daily' ? 1 : null
               }
+              initialRecord={form.reconstitution}
+              initialDose={savedDose}
               onApply={(applied) => {
                 // A reconstituted vial's "strength" is what a millilitre of it contains, which
-                // is what makes the dose in units meaningful later.
+                // is what makes the dose in units meaningful later. The mix itself is kept
+                // alongside it: a concentration cannot say which vial and how much water it
+                // came from, and without that the calculator reopens empty.
                 setEdits((prev) => ({
                   ...prev,
                   strengthValue: String(applied.concentration),
-                  strengthUnit: `${applied.concentrationUnit}/mL`,
+                  strengthUnit: concentrationUnitLabel(applied.concentrationUnit),
                   doseAmount: String(applied.doseAmount),
                   doseUnit: applied.doseUnit,
+                  reconstitution: applied.record,
                 }));
               }}
             />
@@ -425,7 +504,7 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
               accessibilityRole="button"
               testID="open-recon-calculator"
               className="self-start py-2"
-              onPress={() => setShowCalculator(true)}
+              onPress={() => setCalculatorToggle(true)}
             >
               <Text className="text-text-muted text-sm">
                 {t('medications.form.openCalculator', {

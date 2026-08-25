@@ -944,7 +944,8 @@
       "fromCatalog": "Dopasowano do {{drug}} z wbudowanej listy. Każde pole poniżej możesz zmienić.",
       "labelStrengths": "Moce z ulotki",
       "labelStrengthsHint": "Z zatwierdzonej ulotki. Jeśli Twoja jest inna, wpisz ją powyżej.",
-      "openCalculator": "Rozpuszczasz fiolkę? Oblicz jednostki na strzykawce"
+      "openCalculator": "Rozpuszczasz fiolkę? Oblicz jednostki na strzykawce",
+      "draw": "Nabierz {{volume}} ml — {{units}} jednostek na strzykawce {{syringe}}"
     },
     "detail": {
       "deleteTitle": "Usuń lek",
