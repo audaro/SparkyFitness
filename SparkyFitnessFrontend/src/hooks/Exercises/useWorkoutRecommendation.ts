@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   generateWorkoutRecommendation,
   getWorkoutRecommendation,
+  updateWorkoutRecommendationStatus,
 } from '@/api/Exercises/workoutRecommendations';
 import { workoutRecommendationKeys } from '@/api/keys/exercises';
 
@@ -11,6 +12,7 @@ import { workoutRecommendationKeys } from '@/api/keys/exercises';
 export type {
   WorkoutRecommendation,
   GenerateRecommendationPayload,
+  RecommendationStatus,
 } from '@/api/Exercises/workoutRecommendations';
 
 /**
@@ -62,6 +64,34 @@ export const useGenerateWorkoutRecommendationMutation = () => {
     },
     meta: {
       errorMessage: t('upNext.generateError', 'Could not build a workout.'),
+    },
+  });
+};
+
+/**
+ * Mark the stored workout's lifecycle status — today only `started`, set when
+ * the user begins playback.
+ *
+ * A best-effort marker, and callers must not gate anything on it: it is fired
+ * alongside a navigation that has already happened, and nothing server-side
+ * branches on the status yet, so losing one costs nothing and must never unwind
+ * a workout the user has already started. Mobile's `handleStart` treats it the
+ * same way.
+ *
+ * No `errorMessage` meta, because a failure is already reported — `apiCall`
+ * raises its own toast on any non-suppressed error, and a second one restating
+ * it would be the only thing the user could see about a background marker.
+ */
+export const useUpdateWorkoutRecommendationStatusMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateWorkoutRecommendationStatus,
+    onSuccess: (recommendation) => {
+      queryClient.setQueryData(
+        workoutRecommendationKeys.current(),
+        recommendation
+      );
     },
   });
 };

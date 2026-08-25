@@ -3,12 +3,14 @@ import type {
   GenerateWorkoutRecommendationRequest,
   MuscleRecoveryResponse,
   WorkoutRecommendationResponse,
+  WorkoutRecommendationStatus,
 } from '@workspace/shared';
 
 export type WorkoutRecommendation = WorkoutRecommendationResponse;
 export type GenerateRecommendationPayload =
   GenerateWorkoutRecommendationRequest;
 export type MuscleRecovery = MuscleRecoveryResponse;
+export type RecommendationStatus = WorkoutRecommendationStatus;
 
 /**
  * Today's per-muscle recovery, freshest first.
@@ -56,5 +58,21 @@ export const generateWorkoutRecommendation = async (
   return apiCall('/workout-recommendations/generate', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+};
+
+/**
+ * Move the stored workout through its lifecycle — the only field a client may
+ * PATCH. The payload itself is engine-owned and never client-edited.
+ *
+ * The response is the updated row, so callers can cache it rather than refetch.
+ */
+export const updateWorkoutRecommendationStatus = async (variables: {
+  id: string;
+  status: RecommendationStatus;
+}): Promise<WorkoutRecommendation> => {
+  return apiCall(`/workout-recommendations/${variables.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: variables.status }),
   });
 };

@@ -1,15 +1,26 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Dumbbell, Loader2, RefreshCw, Sparkles, Timer } from 'lucide-react';
+import {
+  Dumbbell,
+  Loader2,
+  Play,
+  RefreshCw,
+  Sparkles,
+  Timer,
+} from 'lucide-react';
 import {
   isCardioModality,
   isWarmupSetType,
+  todayInZone,
   type RecommendedExercise,
+  type WorkoutRecommendationPayload,
 } from '@workspace/shared';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import ConfirmationDialog from '@/components/ui/ConfirmationDialog';
 import {
   Select,
   SelectContent,
@@ -21,10 +32,15 @@ import { usePreferences } from '@/contexts/PreferencesContext';
 import { useCoachingContextAvailable } from '@/hooks/Exercises/useCoachingContextAvailable';
 import {
   useGenerateWorkoutRecommendationMutation,
+  useUpdateWorkoutRecommendationStatusMutation,
   useWorkoutRecommendation,
 } from '@/hooks/Exercises/useWorkoutRecommendation';
 import { useGymProfiles } from '@/hooks/Exercises/useGymProfiles';
 import { titleCaseCanonical } from '@/utils/canonicalVocabulary';
+import {
+  createRecommendationPlaybackRouteState,
+  loadWorkoutPlaybackDraftFromStorage,
+} from '@/utils/workoutPlayback';
 
 /** The durations the engine accepts, inside the wire's 15–180 bound. */
 const DURATION_CHOICES = [20, 30, 45, 60, 90, 120] as const;
@@ -100,8 +116,10 @@ function formatRecommendedSets(
  */
 const UpNextCard: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const available = useCoachingContextAvailable();
-  const { weightUnit, convertWeight, distanceUnit, convertDistance } =
+  const { weightUnit, convertWeight, distanceUnit, convertDistance, timezone } =
     usePreferences();
 
   const { data, isLoading, isError, refetch } =
@@ -109,8 +127,10 @@ const UpNextCard: React.FC = () => {
   const { profiles } = useGymProfiles(available);
   const { mutate: generate, isPending: isGenerating } =
     useGenerateWorkoutRecommendationMutation();
+  const { mutate: markStatus } = useUpdateWorkoutRecommendationStatusMutation();
 
   const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
+  const [pendingStartDate, setPendingStartDate] = useState<string | null>(null);
 
   // A `disabled` prop follows a render and loses to a fast double-tap, so the
   // in-flight check is a ref — the same guard the mobile pickers use.
@@ -162,6 +182,51 @@ const UpNextCard: React.FC = () => {
         },
       }
     );
+  };
+
+  /**
+   * Hand the generated workout to the playback page.
+   *
+   * The date is today in the user's timezone, never the `?date=` this page uses
+   * for browsing past days: the workout was programmed against today's recovery,
+   * so starting it while looking back at last Tuesday would log it to a day it
+   * was not built for.
+   */
+  const goToPlayback = (
+    startPayload: WorkoutRecommendationPayload,
+    entryDate: string
+  ) => {
+    const routeState = createRecommendationPlaybackRouteState(
+      startPayload,
+      entryDate,
+      t('upNext.sessionName', 'Up Next workout'),
+      `${location.pathname}${location.search}`
+    );
+
+    navigate(`/workout-playback?date=${entryDate}`, { state: routeState });
+
+    // Fired after navigating, and nothing waits on it — see the hook. A start
+    // the marker never records is still a start.
+    if (recommendation) {
+      markStatus({ id: recommendation.id, status: 'started' });
+    }
+  };
+
+  const handleStart = () => {
+    if (!payload) return;
+
+    const entryDate = todayInZone(timezone);
+
+    // A route-state draft replaces whatever is in storage for that day, so a
+    // workout already in progress would vanish without this. The preset entry
+    // points have the same hazard and no such prompt; this one is the door
+    // being added today.
+    if (loadWorkoutPlaybackDraftFromStorage(entryDate)) {
+      setPendingStartDate(entryDate);
+      return;
+    }
+
+    goToPlayback(payload, entryDate);
   };
 
   if (!available) {
@@ -339,10 +404,52 @@ const UpNextCard: React.FC = () => {
               )}
               {t('upNext.refresh', 'New workout')}
             </Button>
+            <Button
+              onClick={handleStart}
+              disabled={isGenerating}
+              className="shrink-0"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              {t('upNext.start', 'Start workout')}
+            </Button>
           </div>
         )}
       </CardHeader>
       <CardContent>{renderBody()}</CardContent>
+      <ConfirmationDialog
+        open={pendingStartDate !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingStartDate(null);
+        }}
+        title={t(
+          'upNext.replaceInProgressTitle',
+          'Workout already in progress'
+        )}
+        description={t(
+          'upNext.replaceInProgressDescription',
+          'You have an unfinished workout for today. Starting this one replaces it, and anything you logged in the unfinished workout is lost.'
+        )}
+        variant="destructive"
+        confirmLabel={t('upNext.replaceInProgressConfirm', 'Start new workout')}
+        onConfirm={() => {
+          const entryDate = pendingStartDate;
+          setPendingStartDate(null);
+          if (payload && entryDate) {
+            goToPlayback(payload, entryDate);
+          }
+        }}
+        secondaryActionLabel={t('upNext.resumeInProgress', 'Resume it')}
+        onSecondaryAction={() => {
+          const entryDate = pendingStartDate;
+          setPendingStartDate(null);
+          if (!entryDate) return;
+          // No route state: the playback page falls back to the stored draft,
+          // which is exactly the unfinished workout being resumed.
+          navigate(`/workout-playback?date=${entryDate}`, {
+            state: { returnTo: `${location.pathname}${location.search}` },
+          });
+        }}
+      />
     </Card>
   );
 };

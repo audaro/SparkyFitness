@@ -1192,7 +1192,13 @@
     "exerciseCount_one": "{{count}} exercise",
     "exerciseCount_other": "{{count}} exercises",
     "estimatedMinutes": "~{{minutes}} min",
-    "restChip": "{{rest}} rest"
+    "restChip": "{{rest}} rest",
+    "start": "Start workout",
+    "sessionName": "Up Next workout",
+    "replaceInProgressTitle": "Workout already in progress",
+    "replaceInProgressDescription": "You have an unfinished workout for today. Starting this one replaces it, and anything you logged in the unfinished workout is lost.",
+    "replaceInProgressConfirm": "Start new workout",
+    "resumeInProgress": "Resume it"
   },
   "gymProfilesManager": {
     "cardTitle": "Gym Profiles",

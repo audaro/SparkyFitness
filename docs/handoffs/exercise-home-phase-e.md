@@ -69,38 +69,61 @@ Green, run per the blueprint's validation matrix. Only `SparkyFitnessFrontend/` 
 | Package                  | Command             | Result                        |
 | ------------------------ | ------------------- | ----------------------------- |
 | `SparkyFitnessFrontend/` | `pnpm run validate` | clean (tsc, eslint, prettier) |
-| `SparkyFitnessFrontend/` | `pnpm test`         | **1051 passed, 108 suites**   |
+| `SparkyFitnessFrontend/` | `pnpm test`         | **1066 passed, 108 suites**   |
 
 Baseline before E4 was 1045 passed / 105 suites; E4 adds two suites (6 tests) plus two cases on
-`dashboardLayout.test.ts`.
+`dashboardLayout.test.ts`, and the start-workout work below adds 15 more across the existing
+`workoutPlayback` and `UpNextCard` suites.
 
 ## Exact next step
 
-**The blueprint is finished.** There is no E5. What is left is the standing backlog below; nothing
-in it blocks anything else, and none of it is on a critical path.
+**The blueprint is finished**, and the one gap it left that was a broken promise rather than a
+missing feature — a generated workout you could look at but not start — is closed too (see below).
+What is left is the standing backlog; nothing in it blocks anything else, and none of it is on a
+critical path.
+
+## E5 — Start workout on the web Up Next card (**closed 2026-08-24**, after this phase shipped)
+
+This was open item 1 and is now done; it is written up here rather than deleted because the
+diagnosis it corrects is the reusable part.
+
+`createWorkoutPlaybackDraftFromRecommendation` in `utils/workoutPlayback.ts` maps the payload to a
+playback draft, `UpNextCard` gained a Start workout button, and
+`useUpdateWorkoutRecommendationStatusMutation` marks the row `started` the way mobile does. The
+payload already arrives in the draft's own units (kg, km, whole seconds) and in the set-type
+vocabulary the web writes, so the mapping is a rename with three decisions in it: order by
+`sort_order` rather than array position (Replace rewrites a row in place), cardio keeps `distance`
+and zeroes `rest_time` while everything else does the reverse, and a set with no `rest_time` of its
+own falls back to the exercise's `rest_seconds` — the number the card showed as its rest chip.
+
+**The blocker this was originally filed under did not exist.** `WorkoutPlaybackDraft.preset_id` reads
+like a hard constraint — required `string`, and a recommendation is not a preset — but it was written
+once and read once, by the draft's own type guard. Nothing resolves a preset through it, drafts are
+keyed in storage by `entry_date`, and `buildPresetSessionCreateRequestFromDraft` never sends it. It
+is now `string | null`, null for a generated workout, with the guard widened to match. Generalize
+this: **a required field with no reader is a storage artifact, not a contract** — grep for its
+consumers before designing around it. The cost of not doing so here was a plan involving a synthetic
+preset and a `shared/` extraction, neither of which was needed.
+
+Mobile's `buildRecommendationDraftExercises` was a reference, not a donor, as expected: it targets
+the preset _form_ type (display strings in the user's units, mobile's set-type vocabulary, client
+ids), so only its field-by-field decisions carried over.
+
+**One hazard was found and fenced.** A route-state draft _replaces_ whatever is in `localStorage` for
+that day, so starting a workout on a day that already has an unfinished one silently discards it.
+Start now prompts, offering Resume (navigate with no draft, so the page falls back to the stored one)
+or Start new. **The two preset entry points — `ExerciseCard.handleWorkoutPresetSelected` and
+`WorkoutPresetsManager.handleStartWorkoutPlayback` — have the same hazard and no such prompt.** That
+is pre-existing and was left alone, but it is a real data-loss path and the fix is now sitting in
+`UpNextCard` ready to be reused.
+
+Also worth knowing: the workout is always logged to **today in the user's timezone**, never the
+`?date=` the Exercise page browses with, because it was programmed against today's recovery. And
+`ConfirmationDialog` hardcodes English "Cancel" / "Warning" for every caller, so the new dialog's
+Cancel button is untranslated like the rest.
 
 ## Open items
 
-Two the reviewer of this phase should see first, because they are the honest gaps in "web parity":
-
-- **There is no start-workout button on the web Up Next card.** The card renders the generated
-  workout and can regenerate it, but cannot begin it. What is missing is a
-  `WorkoutRecommendationPayload → WorkoutPlaybackExerciseDraft[]` mapping — the recommendation
-  analogue of `buildWorkoutPlaybackDraft`, which today only maps a preset.
-  **`preset_id` is not the blocker it looks like.** It is on `WorkoutPlaybackDraft` as a required
-  `string`, but grep says it is written once (`workoutPlayback.ts:335`) and read once, in
-  `isWorkoutPlaybackDraft`'s type guard — nothing looks a preset up by it, and the draft is keyed in
-  localStorage by `entry_date`. A recommendation's own UUID satisfies it. Do not build a
-  synthetic-preset story to get past this field; if it should be nullable for a recommendation-sourced
-  draft, widen the type and the guard together.
-  **Mobile's mapping is not liftable as-is either.** `buildRecommendationDraftExercises`
-  (`SparkyFitnessMobile/src/utils/workoutSession.ts`) targets `WorkoutDraftExercise`, the _preset
-  form_ type: display strings converted to the user's units, mobile's set-type vocabulary via
-  `CANONICAL_TO_MOBILE_SET_TYPE`, and mobile client ids. Web's playback draft holds numbers in
-  canonical units and has no client ids. It is a useful reference for the field-by-field decisions
-  (cardio zeroes `rest_time`, `supersetGroup` is never stored on a payload) and a poor donor for the
-  code. So: a web-local mapping beside `buildWorkoutPlaybackDraft`, not a `shared/` extraction —
-  which makes this a well-scoped task, not the multi-day one an earlier draft of this doc implied.
 - **The web weekly-targets card is linear bars where mobile draws a Skia hexagon.**
   `WeeklySetTargetsCard.tsx` renders one `h-2` bar per training group;
   `HexagonProgressRing.tsx` on mobile draws a radial hexagon. Feature parity yes, visual parity no —

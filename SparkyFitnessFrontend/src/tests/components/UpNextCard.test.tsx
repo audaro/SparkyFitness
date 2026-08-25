@@ -4,9 +4,15 @@ import UpNextCard from '@/pages/Exercises/UpNextCard';
 import type { RecommendedExercise } from '@workspace/shared';
 import type { WorkoutRecommendation } from '@/hooks/Exercises/useWorkoutRecommendation';
 import type { GymProfile } from '@/hooks/Exercises/useGymProfiles';
+import {
+  createWorkoutPlaybackDraftFromRecommendation,
+  saveWorkoutPlaybackDraftToStorage,
+} from '@/utils/workoutPlayback';
 
 const mockGenerate = jest.fn();
 const mockRefetch = jest.fn();
+const mockMarkStatus = jest.fn();
+const mockNavigate = jest.fn();
 
 let mockIsActingOnBehalf = false;
 let mockRecommendation: WorkoutRecommendation | null = null;
@@ -14,6 +20,7 @@ let mockProfiles: GymProfile[] = [];
 let mockQueryState = { isLoading: false, isError: false };
 let mockWeightUnit: 'kg' | 'lbs' = 'kg';
 let mockDistanceUnit: 'km' | 'miles' = 'km';
+let mockTimezone = 'UTC';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -47,10 +54,16 @@ jest.mock('@/contexts/ActiveUserContext', () => ({
   useActiveUser: () => ({ isActingOnBehalf: mockIsActingOnBehalf }),
 }));
 
+jest.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({ pathname: '/exercises', search: '?date=2026-08-18' }),
+}));
+
 jest.mock('@/contexts/PreferencesContext', () => ({
   usePreferences: () => ({
     weightUnit: mockWeightUnit,
     distanceUnit: mockDistanceUnit,
+    timezone: mockTimezone,
     convertWeight: (value: number, from: string, to: string) =>
       from === to ? value : value * 2.20462,
     convertDistance: (value: number, from: string, to: string) =>
@@ -72,6 +85,9 @@ jest.mock('@/hooks/Exercises/useWorkoutRecommendation', () => ({
   useGenerateWorkoutRecommendationMutation: () => ({
     mutate: mockGenerate,
     isPending: false,
+  }),
+  useUpdateWorkoutRecommendationStatusMutation: () => ({
+    mutate: mockMarkStatus,
   }),
 }));
 
@@ -146,10 +162,16 @@ describe('UpNextCard', () => {
     mockQueryState = { isLoading: false, isError: false };
     mockWeightUnit = 'kg';
     mockDistanceUnit = 'km';
+    mockTimezone = 'UTC';
+    window.localStorage.clear();
     // Resolve the mutation so the in-flight guard clears between assertions.
     mockGenerate.mockImplementation((_payload, options) =>
       options?.onSettled?.()
     );
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('renders nothing while acting on behalf of another user', () => {
@@ -340,5 +362,134 @@ describe('UpNextCard', () => {
 
     fireEvent.click(screen.getByText('Retry'));
     expect(mockRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no way to start before a workout has been generated', () => {
+    render(<UpNextCard />);
+
+    expect(screen.queryByText('Start workout')).not.toBeInTheDocument();
+  });
+
+  it('hands the generated workout to playback and returns to this page', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-24T12:00:00.000Z'));
+    mockRecommendation = makeRecommendation();
+
+    render(<UpNextCard />);
+    fireEvent.click(screen.getByText('Start workout'));
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    const [path, options] = mockNavigate.mock.calls[0];
+    expect(path).toBe('/workout-playback?date=2026-08-24');
+    expect(options.state.returnTo).toBe('/exercises?date=2026-08-18');
+
+    const draft = options.state.draft;
+    expect(draft.name).toBe('Up Next workout');
+    expect(draft.entry_date).toBe('2026-08-24');
+    expect(draft.exercises).toHaveLength(1);
+    expect(draft.exercises[0].exercise_name).toBe('Barbell Bench Press');
+    // The whole prescription is played, warm-up ramp included.
+    expect(draft.exercises[0].sets).toHaveLength(3);
+  });
+
+  it('marks the recommendation started', () => {
+    mockRecommendation = makeRecommendation();
+
+    render(<UpNextCard />);
+    fireEvent.click(screen.getByText('Start workout'));
+
+    expect(mockMarkStatus).toHaveBeenCalledWith({
+      id: '22222222-2222-4222-8222-222222222222',
+      status: 'started',
+    });
+  });
+
+  it("logs the workout to today in the user's timezone, not the browsed day", () => {
+    // 06:00 UTC on the 24th is still the 23rd in Los Angeles. The page is also
+    // showing 2026-08-18 through its `?date=`, and neither of those is the day
+    // this workout belongs to.
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-24T06:00:00.000Z'));
+    mockTimezone = 'America/Los_Angeles';
+    mockRecommendation = makeRecommendation();
+
+    render(<UpNextCard />);
+    fireEvent.click(screen.getByText('Start workout'));
+
+    expect(mockNavigate.mock.calls[0][0]).toBe(
+      '/workout-playback?date=2026-08-23'
+    );
+    expect(mockNavigate.mock.calls[0][1].state.draft.entry_date).toBe(
+      '2026-08-23'
+    );
+  });
+
+  it('asks before replacing a workout already in progress for the day', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-24T12:00:00.000Z'));
+    mockRecommendation = makeRecommendation();
+    saveWorkoutPlaybackDraftToStorage(
+      createWorkoutPlaybackDraftFromRecommendation(
+        makeRecommendation().payload,
+        '2026-08-24',
+        'Half-finished workout'
+      )
+    );
+
+    render(<UpNextCard />);
+    fireEvent.click(screen.getByText('Start workout'));
+
+    // A route-state draft overwrites the stored one, so navigating here would
+    // silently discard the unfinished workout.
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.getByText('Workout already in progress')).toBeInTheDocument();
+  });
+
+  it('replaces the unfinished workout only once confirmed', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-24T12:00:00.000Z'));
+    mockRecommendation = makeRecommendation();
+    saveWorkoutPlaybackDraftToStorage(
+      createWorkoutPlaybackDraftFromRecommendation(
+        makeRecommendation().payload,
+        '2026-08-24',
+        'Half-finished workout'
+      )
+    );
+
+    render(<UpNextCard />);
+    fireEvent.click(screen.getByText('Start workout'));
+    fireEvent.click(screen.getByText('Start new workout'));
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    expect(mockNavigate.mock.calls[0][1].state.draft.name).toBe(
+      'Up Next workout'
+    );
+  });
+
+  it('resumes the unfinished workout without a draft to overwrite it', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-24T12:00:00.000Z'));
+    mockRecommendation = makeRecommendation();
+    saveWorkoutPlaybackDraftToStorage(
+      createWorkoutPlaybackDraftFromRecommendation(
+        makeRecommendation().payload,
+        '2026-08-24',
+        'Half-finished workout'
+      )
+    );
+
+    render(<UpNextCard />);
+    fireEvent.click(screen.getByText('Start workout'));
+    fireEvent.click(screen.getByText('Resume it'));
+
+    // No draft in the route state is what makes the playback page fall back to
+    // the stored one — that fallback IS the resume.
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/workout-playback?date=2026-08-24',
+      { state: { returnTo: '/exercises?date=2026-08-18' } }
+    );
+    // Resuming is not starting the generated workout.
+    expect(mockMarkStatus).not.toHaveBeenCalled();
   });
 });

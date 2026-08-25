@@ -108,6 +108,13 @@ card per reading under `pages/Exercises/`. Four rules, each of which has already
   and stays available to a delegate who has it (so its cache key is scoped by acting user);
   everything else on that page is owner-only and hides itself through
   `hooks/Exercises/useCoachingContextAvailable.ts`, with its query disabled so no request is made.
+- **Starting a generated workout goes through playback, not the preset path.** "Start workout" builds
+  a `WorkoutPlaybackDraft` with `createWorkoutPlaybackDraftFromRecommendation` and hands it to
+  `/workout-playback` in route state. Two things to know before touching it: a route-state draft
+  **replaces** whatever is in `localStorage` for that day, so any new entry point needs the
+  in-progress prompt `UpNextCard` uses; and the day is always today in the user's timezone, never the
+  page's `?date=`, because the workout was programmed against today's recovery. `preset_id` is null
+  on such a draft — a recommendation is not a preset, and nothing resolves one through that field.
 
 ## Translations (i18n)
 

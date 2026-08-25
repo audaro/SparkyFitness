@@ -1,10 +1,16 @@
 import type { WorkoutPreset } from '@/types/workout';
+import type {
+  RecommendedExercise,
+  WorkoutRecommendationPayload,
+} from '@workspace/shared';
 import {
   addWorkoutSetToExercise,
   clearWorkoutPlaybackDraftFromStorage,
   buildPresetSessionCreateRequestFromDraft,
   completeCurrentWorkoutSet,
+  createRecommendationPlaybackRouteState,
   createWorkoutPlaybackDraftFromPreset,
+  createWorkoutPlaybackDraftFromRecommendation,
   createWorkoutPlaybackRouteState,
   getCurrentWorkoutSetPointer,
   getWorkoutPlaybackStats,
@@ -41,6 +47,50 @@ const createPresetFixture = (): WorkoutPreset =>
     ],
   }) as unknown as WorkoutPreset;
 
+const createRecommendedExercise = (
+  overrides: Partial<RecommendedExercise> = {}
+): RecommendedExercise => ({
+  exercise_id: 'exercise-1',
+  exercise_name: 'Bench Press',
+  modality: 'weight_reps',
+  primary_muscles: ['chest'],
+  secondary_muscles: ['triceps'],
+  equipment: ['barbell'],
+  images: ['bench.png', 'bench-2.png'],
+  sort_order: 0,
+  rest_seconds: 120,
+  rationale: 'Fresh chest',
+  sets: [
+    {
+      set_number: 1,
+      set_type: 'Warmup',
+      reps: 10,
+      weight: 40,
+      duration: null,
+      distance: null,
+      rest_time: 60,
+    },
+    {
+      set_number: 2,
+      set_type: 'Working Set',
+      reps: 8,
+      weight: 60,
+      duration: null,
+      distance: null,
+      rest_time: null,
+    },
+  ],
+  ...overrides,
+});
+
+const createRecommendationFixture = (
+  exercises: RecommendedExercise[] = [createRecommendedExercise()]
+): WorkoutRecommendationPayload => ({
+  muscle_groups: ['chest', 'triceps'],
+  estimated_duration_minutes: 44,
+  exercises,
+});
+
 describe('workoutPlayback utils', () => {
   it('creates a local draft from a workout preset', () => {
     const draft = createWorkoutPlaybackDraftFromPreset(
@@ -69,6 +119,185 @@ describe('workoutPlayback utils', () => {
     expect(routeState.returnTo).toBe('/diary');
     expect(routeState.draft?.entry_date).toBe('2026-04-27');
     expect(routeState.draft?.name).toBe('Upper Body');
+  });
+
+  it('creates a playable draft from a generated workout', () => {
+    const draft = createWorkoutPlaybackDraftFromRecommendation(
+      createRecommendationFixture(),
+      '2026-04-27',
+      'Up Next workout'
+    );
+
+    expect(draft.name).toBe('Up Next workout');
+    expect(draft.entry_date).toBe('2026-04-27');
+    // A recommendation is not a preset and has no id to borrow.
+    expect(draft.preset_id).toBeNull();
+    expect(draft.exercises).toHaveLength(1);
+    expect(draft.exercises[0]?.exercise_name).toBe('Bench Press');
+    // The first image is the thumbnail; the rest are other angles.
+    expect(draft.exercises[0]?.image_url).toBe('bench.png');
+    // The warm-up ramp is part of the prescription and is played, not dropped.
+    expect(draft.exercises[0]?.sets.map((set) => set.set_type)).toEqual([
+      'Warmup',
+      'Working Set',
+    ]);
+    expect(draft.exercises[0]?.sets.every((set) => !set.completed)).toBe(true);
+    // Nothing is carried that the engine does not program.
+    expect(draft.exercises[0]?.sets.every((set) => set.rpe === null)).toBe(
+      true
+    );
+  });
+
+  it('falls back to the exercise rest chip for a set with no rest of its own', () => {
+    const draft = createWorkoutPlaybackDraftFromRecommendation(
+      createRecommendationFixture(),
+      '2026-04-27',
+      'Up Next workout'
+    );
+
+    // The played workout has to agree with the card the user started it from,
+    // and the card shows the exercise-level `rest_seconds`.
+    expect(draft.exercises[0]?.sets[0]?.rest_time).toBe(60);
+    expect(draft.exercises[0]?.sets[1]?.rest_time).toBe(120);
+  });
+
+  it('plays a generated workout in sort order, not array order', () => {
+    const draft = createWorkoutPlaybackDraftFromRecommendation(
+      createRecommendationFixture([
+        createRecommendedExercise({
+          exercise_id: 'exercise-2',
+          exercise_name: 'Barbell Row',
+          sort_order: 1,
+        }),
+        createRecommendedExercise({
+          exercise_id: 'exercise-1',
+          exercise_name: 'Bench Press',
+          sort_order: 0,
+        }),
+      ]),
+      '2026-04-27',
+      'Up Next workout'
+    );
+
+    // Replace rewrites a row in place, so the stored array is not reliably in
+    // training order — `sort_order` is.
+    expect(draft.exercises.map((exercise) => exercise.exercise_name)).toEqual([
+      'Bench Press',
+      'Barbell Row',
+    ]);
+  });
+
+  it('keeps distance and drops rest on cardio, and the reverse elsewhere', () => {
+    const draft = createWorkoutPlaybackDraftFromRecommendation(
+      createRecommendationFixture([
+        createRecommendedExercise({
+          exercise_id: 'exercise-cardio',
+          exercise_name: 'Running',
+          modality: 'duration_distance',
+          rest_seconds: 0,
+          sets: [
+            {
+              set_number: 1,
+              set_type: 'Working Set',
+              reps: null,
+              weight: null,
+              duration: 1800,
+              distance: 5,
+              rest_time: 90,
+            },
+          ],
+        }),
+        createRecommendedExercise({
+          exercise_id: 'exercise-lift',
+          sort_order: 1,
+          sets: [
+            {
+              set_number: 1,
+              set_type: 'Working Set',
+              reps: 8,
+              weight: 60,
+              duration: null,
+              // Junk for this modality: a lift set has no distance, and one
+              // carried through would reach the set editors, which cannot show
+              // it, and then the logged entry.
+              distance: 12,
+              rest_time: 90,
+            },
+          ],
+        }),
+      ]),
+      '2026-04-27',
+      'Up Next workout'
+    );
+
+    const cardioSet = draft.exercises[0]?.sets[0];
+    expect(cardioSet?.distance).toBe(5);
+    expect(cardioSet?.rest_time).toBe(0);
+
+    const liftSet = draft.exercises[1]?.sets[0];
+    expect(liftSet?.distance).toBeNull();
+    expect(liftSet?.rest_time).toBe(90);
+  });
+
+  it('starts a generated workout on its first set, with that exercise clocked', () => {
+    const draft = createWorkoutPlaybackDraftFromRecommendation(
+      createRecommendationFixture(),
+      '2026-04-27',
+      'Up Next workout'
+    );
+
+    expect(getCurrentWorkoutSetPointer(draft)).toEqual({
+      exerciseIndex: 0,
+      setIndex: 0,
+    });
+    expect(draft.exercises[0]?.started_at).toBe(draft.started_at);
+    expect(draft.exercises[0]?.ended_at).toBeNull();
+  });
+
+  it('round-trips a recommendation draft through storage', () => {
+    const draft = createWorkoutPlaybackDraftFromRecommendation(
+      createRecommendationFixture(),
+      '2026-04-27',
+      'Up Next workout'
+    );
+
+    saveWorkoutPlaybackDraftToStorage(draft);
+
+    // A null `preset_id` is a valid draft, not a corrupt one — the type guard
+    // must not throw the workout away on reload.
+    expect(loadWorkoutPlaybackDraftFromStorage('2026-04-27')).toEqual(draft);
+
+    clearWorkoutPlaybackDraftFromStorage('2026-04-27');
+  });
+
+  it('builds a recommendation route state that carries the draft and return path', () => {
+    const routeState = createRecommendationPlaybackRouteState(
+      createRecommendationFixture(),
+      '2026-04-27',
+      'Up Next workout',
+      '/exercises'
+    );
+
+    expect(routeState.returnTo).toBe('/exercises');
+    expect(routeState.draft?.name).toBe('Up Next workout');
+    expect(routeState.draft?.entry_date).toBe('2026-04-27');
+  });
+
+  it('logs a played generated workout as a freeform session', () => {
+    let draft = createWorkoutPlaybackDraftFromRecommendation(
+      createRecommendationFixture(),
+      '2026-04-27',
+      'Up Next workout'
+    );
+    draft = completeCurrentWorkoutSet(draft);
+
+    const request = buildPresetSessionCreateRequestFromDraft(draft, 'UTC');
+
+    expect(request.name).toBe('Up Next workout');
+    expect(request.exercises).toHaveLength(1);
+    // The wire's `workout_preset_id` is an integer and a recommendation has no
+    // preset, so a generated workout logs as a freeform session.
+    expect(request).not.toHaveProperty('workout_preset_id');
   });
 
   it('saves, loads, and clears a persisted draft by date', () => {

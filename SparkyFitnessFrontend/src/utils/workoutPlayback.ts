@@ -1,9 +1,11 @@
 import {
   instantHourMinute,
+  isCardioModality,
   resolveExerciseModality,
   setsDurationMinutes,
   type CreatePresetSessionRequest,
   type ExerciseModality,
+  type WorkoutRecommendationPayload,
 } from '@workspace/shared';
 import type { WorkoutPreset, WorkoutPresetSet } from '@/types/workout';
 
@@ -41,7 +43,19 @@ export interface WorkoutPlaybackExerciseDraft {
 
 export interface WorkoutPlaybackDraft {
   version: 1;
-  preset_id: string;
+  /**
+   * The preset this playback came from, or null when it came from the generated
+   * workout instead — a recommendation is not a preset and has no integer id to
+   * borrow.
+   *
+   * Nothing resolves a preset through this field: it is written when a draft is
+   * built, checked by {@link isWorkoutPlaybackDraft}, and never read again.
+   * `buildPresetSessionCreateRequestFromDraft` does not send it, so the session
+   * a draft creates is a freeform one either way. Keep it that way — if a
+   * `workout_preset_id` is ever wanted on the create request, note that the wire
+   * field is an **integer** and this is a string.
+   */
+  preset_id: string | null;
   name: string;
   description: string | null;
   entry_date: string;
@@ -96,7 +110,10 @@ function isWorkoutPlaybackDraft(value: unknown): value is WorkoutPlaybackDraft {
   const draft = value as WorkoutPlaybackDraft;
   return (
     draft.version === 1 &&
-    typeof draft.preset_id === 'string' &&
+    // Null is a recommendation-sourced draft, not a corrupt one. Drafts written
+    // before that case existed always carry a string, so both shapes are valid
+    // and neither gets thrown away on load.
+    (typeof draft.preset_id === 'string' || draft.preset_id === null) &&
     typeof draft.entry_date === 'string' &&
     typeof draft.started_at === 'string' &&
     Array.isArray(draft.exercises)
@@ -293,6 +310,33 @@ export function isWorkoutPlaybackComplete(
   return stats.totalSets > 0 && stats.completedSets === stats.totalSets;
 }
 
+/**
+ * Point a freshly built draft at its first real set and start that exercise's
+ * clock.
+ *
+ * Shared by both builders because "the first exercise with sets" is not always
+ * index 0 — a preset can carry an exercise with no sets at all, and landing the
+ * pointer on it would show an empty exercise and leave `deriveExerciseDuration`
+ * timing a set nobody can complete.
+ */
+function startDraftAtFirstSet(
+  draft: WorkoutPlaybackDraft,
+  createdAt: string
+): WorkoutPlaybackDraft {
+  const pointer = fallbackPointer(draft);
+
+  return {
+    ...draft,
+    active_exercise_index: pointer.exerciseIndex,
+    active_set_index: pointer.setIndex,
+    exercises: draft.exercises.map((exercise, index) =>
+      index === pointer.exerciseIndex
+        ? { ...exercise, started_at: createdAt, ended_at: null }
+        : exercise
+    ),
+  };
+}
+
 export function createWorkoutPlaybackDraftFromPreset(
   preset: WorkoutPreset,
   entryDate: string
@@ -346,16 +390,85 @@ export function createWorkoutPlaybackDraftFromPreset(
     updated_at: createdAt,
   };
 
-  const pointer = fallbackPointer(draft);
-  draft.active_exercise_index = pointer.exerciseIndex;
-  draft.active_set_index = pointer.setIndex;
-  draft.exercises = draft.exercises.map((exercise, index) =>
-    index === pointer.exerciseIndex
-      ? { ...exercise, started_at: createdAt, ended_at: null }
-      : exercise
-  );
+  return startDraftAtFirstSet(draft, createdAt);
+}
 
-  return draft;
+/**
+ * Turn the generated workout into a playable draft — the recommendation
+ * analogue of {@link createWorkoutPlaybackDraftFromPreset}.
+ *
+ * The payload arrives in the same units the draft stores (kilograms,
+ * kilometres, whole seconds) and in the same set-type vocabulary the web
+ * writes, so this is a rename, not a conversion. Two things it does decide,
+ * both matching what mobile's start payload decides:
+ *
+ * - **Order comes from `sort_order`, not array position.** Replace rewrites one
+ *   row in place, so the stored array is not reliably in training order.
+ * - **Cardio drops rest and keeps distance; everything else does the opposite.**
+ *   The engine nulls the fields a modality gives no meaning, and a value that
+ *   survives into the wrong modality is junk the set editors cannot show.
+ *
+ * `name` is passed in rather than derived so the caller owns the translated
+ * string; it becomes the session's name when the workout is saved.
+ */
+export function createWorkoutPlaybackDraftFromRecommendation(
+  payload: WorkoutRecommendationPayload,
+  entryDate: string,
+  name: string
+): WorkoutPlaybackDraft {
+  const createdAt = nowIso();
+
+  const exercises: WorkoutPlaybackExerciseDraft[] = [...payload.exercises]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((exercise) => {
+      const cardio = isCardioModality(exercise.modality);
+
+      return {
+        exercise_id: exercise.exercise_id,
+        exercise_name: exercise.exercise_name,
+        image_url: exercise.images[0],
+        modality: exercise.modality,
+        notes: null,
+        started_at: null,
+        ended_at: null,
+        sets: exercise.sets.map((set) => ({
+          set_number: set.set_number,
+          set_type: set.set_type,
+          reps: set.reps,
+          weight: set.weight,
+          duration: set.duration,
+          distance: cardio ? set.distance : null,
+          // The exercise-level `rest_seconds` is the same number the card shows
+          // as its rest chip, so falling back to it keeps the played workout
+          // agreeing with the workout the user looked at before starting it.
+          rest_time: cardio ? 0 : (set.rest_time ?? exercise.rest_seconds),
+          notes: null,
+          // The engine programs load and volume, never perceived exertion —
+          // RPE is something the user reports during the set.
+          rpe: null,
+          completed: false,
+          completed_at: null,
+        })),
+      };
+    });
+
+  const draft: WorkoutPlaybackDraft = {
+    version: 1,
+    preset_id: null,
+    name,
+    description: null,
+    entry_date: entryDate,
+    notes: null,
+    source: 'sparky',
+    active_exercise_index: 0,
+    active_set_index: 0,
+    rest_timer: DEFAULT_REST_TIMER,
+    exercises,
+    started_at: createdAt,
+    updated_at: createdAt,
+  };
+
+  return startDraftAtFirstSet(draft, createdAt);
 }
 
 export function createWorkoutPlaybackRouteState(
@@ -366,6 +479,22 @@ export function createWorkoutPlaybackRouteState(
   return {
     returnTo,
     draft: createWorkoutPlaybackDraftFromPreset(preset, entryDate),
+  };
+}
+
+export function createRecommendationPlaybackRouteState(
+  payload: WorkoutRecommendationPayload,
+  entryDate: string,
+  name: string,
+  returnTo?: string
+): WorkoutPlaybackRouteState {
+  return {
+    returnTo,
+    draft: createWorkoutPlaybackDraftFromRecommendation(
+      payload,
+      entryDate,
+      name
+    ),
   };
 }
 
