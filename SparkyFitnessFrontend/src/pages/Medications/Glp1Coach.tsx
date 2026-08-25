@@ -138,10 +138,17 @@ export default function Glp1Coach({ med }: Glp1CoachProps) {
         <CardContent>
           {chartData.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              {t(
-                'medications.glp1.pkEmpty',
-                'Log injections to model your serum level. (Needs a recognized GLP-1 drug — set it on the medication.)'
-              )}
+              {/* A custom drug with no half-life gets no curve at all — the model will not
+                  default one. Say that, rather than asking for injections they already logged. */}
+              {curveQ.data?.unavailableReason === 'no_half_life'
+                ? t(
+                    'medications.glp1.pkNoHalfLife',
+                    'No serum curve: this custom drug has no half-life set. Add its half-life on the medication to model a level — the chart is left blank rather than guessing one.'
+                  )
+                : t(
+                    'medications.glp1.pkEmpty',
+                    'Log injections to model your serum level. (Needs a recognized GLP-1 drug — set it on the medication.)'
+                  )}
             </p>
           ) : (
             <>

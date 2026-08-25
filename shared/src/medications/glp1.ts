@@ -76,12 +76,30 @@ export const GLP1_DRUG_PROFILES: Record<string, Glp1DrugProfile> = {
   },
 };
 
+/**
+ * Why a serum curve could not be modeled. `null` on a successful curve.
+ *
+ * `no_half_life` exists so the UI can say what is actually missing: a custom drug with no
+ * half-life gets no curve at all rather than one built on a default, and telling the user to
+ * "log injections" when they already have would be wrong.
+ */
+export type SerumCurveUnavailableReason =
+  | "no_profile"
+  | "no_half_life"
+  | "no_injections";
+
 /** Resolve a drug profile by id or (case-insensitive) brand name. */
 export function resolveGlp1Profile(
   idOrBrand: string,
 ): Glp1DrugProfile | undefined {
   const key = idOrBrand.trim().toLowerCase();
-  const byId = GLP1_DRUG_PROFILES[key];
+  if (!key) return undefined;
+  // `hasOwn`, not a bare index: a plain object inherits `constructor`, `toString` and friends,
+  // so a medication literally named "constructor" would resolve to a truthy Function whose
+  // `halfLifeDays` is undefined — and an undefined half-life makes the whole curve NaN.
+  const byId = Object.hasOwn(GLP1_DRUG_PROFILES, key)
+    ? GLP1_DRUG_PROFILES[key]
+    : undefined;
   if (byId) return byId;
   return Object.values(GLP1_DRUG_PROFILES).find(
     (p) =>

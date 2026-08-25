@@ -5,6 +5,7 @@
 import type {
   FoodVariantNutrientField,
   MedicationWithMeal,
+  SerumCurveUnavailableReason,
 } from '@workspace/shared';
 
 /**
@@ -132,6 +133,11 @@ export interface SerumCurveResponse {
    * plot real dates instead of day offsets. Null when there is no curve to anchor.
    */
   anchorDate: string | null;
+  /**
+   * Why there is no curve. `no_half_life` means the medication is a custom GLP-1 with no
+   * half-life set — the model refuses to default one rather than draw a fabricated curve.
+   */
+  unavailableReason?: SerumCurveUnavailableReason | null;
   disclaimer: string;
 }
 
