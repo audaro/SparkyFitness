@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,10 @@ interface ConfirmationDialogProps {
   description: React.ReactNode;
   warning?: React.ReactNode;
   variant?: 'default' | 'destructive';
+  /** Already translated by the caller; defaults to `common.confirm`. */
   confirmLabel?: string;
+  /** Already translated by the caller; defaults to `common.cancel`. */
+  cancelLabel?: string;
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
 }
@@ -32,9 +36,12 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   warning,
   variant = 'default',
   confirmLabel,
+  cancelLabel,
   secondaryActionLabel,
   onSecondaryAction,
 }) => {
+  const { t } = useTranslation();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -45,13 +52,13 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
         {warning && (
           <Alert variant="destructive">
             <Terminal className="h-4 w-4" />
-            <AlertTitle>Warning</AlertTitle>
+            <AlertTitle>{t('common.warning', 'Warning')}</AlertTitle>
             <AlertDescription>{warning}</AlertDescription>
           </Alert>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {cancelLabel ?? t('common.cancel', 'Cancel')}
           </Button>
           {secondaryActionLabel && onSecondaryAction && (
             <Button variant="secondary" onClick={onSecondaryAction}>
@@ -62,7 +69,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
             variant={variant === 'destructive' ? 'destructive' : 'default'}
             onClick={onConfirm}
           >
-            {confirmLabel || 'Confirm'}
+            {confirmLabel || t('common.confirm', 'Confirm')}
           </Button>
         </DialogFooter>
       </DialogContent>
