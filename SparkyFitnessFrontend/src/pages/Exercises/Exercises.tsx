@@ -39,6 +39,7 @@ import { useAuth } from '@/hooks/useAuth';
 import type { ExerciseOwnershipFilter } from '@/types/exercises';
 import WorkoutPresetsManager from './WorkoutPresetsManager';
 import WorkoutPlansManager from '@/pages/Exercises/WorkoutPlansManager';
+import GymProfilesManager from '@/pages/Exercises/GymProfilesManager';
 import {
   useExercises,
   useUpdateExerciseShareStatusMutation,
@@ -652,6 +653,10 @@ const ExerciseDatabaseManager = () => {
 
       {/* Workout Plans Section */}
       <WorkoutPlansManager />
+
+      {/* Gym Profiles Section — the equipment sets that constrain suggested
+          workouts. Hides itself while acting on behalf of another user. */}
+      <GymProfilesManager />
 
       <AddExerciseDialog
         open={isAddExerciseDialogOpen}

@@ -33,6 +33,13 @@ export const presetKeys = {
     [...presetKeys.lists(), 'search', { searchTerm, userId, limit }] as const,
 };
 
+// There is no per-profile detail endpoint — the list is the whole surface, and
+// activation flips two rows, so every mutation invalidates the one list key.
+export const gymProfileKeys = {
+  all: ['gymProfiles'] as const,
+  lists: () => [...gymProfileKeys.all, 'list'] as const,
+};
+
 export const exerciseSearchKeys = {
   all: ['exerciseSearch'] as const,
   providers: ['exerciseSearch', 'providers'] as const,
