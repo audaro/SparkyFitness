@@ -13,6 +13,15 @@ now says the same thing mobile's does: food is one place, training is another.
 | E3   | `d8c5d292`  | Recovery and weekly set targets                                    |
 | E4   | this commit | The nav restructure, the `AGENTS.md` pass, and this handoff        |
 
+Then, after the phase closed (see E5 and E6 below):
+
+| Task | Commit      | What it added                                                          |
+| ---- | ----------- | ---------------------------------------------------------------------- |
+| E5   | `77a88c900` | Start workout on the Up Next card                                      |
+| E5   | `f232deda7` | The in-progress guard, extracted and applied to all three entry points |
+| E6   | `56480410a` | `ConfirmationDialog` translates its own labels                         |
+| E6   | `ff65d9f87` | `ConfirmationDialog` announces its description                         |
+
 ### What E4 restructured, and the four calls behind it
 
 The blueprint gives E4 one line — "web nav restructure mirroring Phase A". Web's information
@@ -75,6 +84,10 @@ Baseline before E4 was 1045 passed / 105 suites; E4 adds two suites (6 tests) pl
 `dashboardLayout.test.ts`, and the start-workout work below adds 15 more across the existing
 `workoutPlayback` and `UpNextCard` suites.
 
+**After E5 and E6 the gate stands at 1081 passed / 111 suites**, still clean. Those add
+`useWorkoutPlaybackStart.test.tsx` (6), `ExerciseCard.test.tsx` (2, its first suite),
+`ConfirmationDialog.test.tsx` (5, also its first) and two cases on `WorkoutPresetsManager.test.tsx`.
+
 ## Exact next step
 
 **The blueprint is finished**, and the one gap it left that was a broken promise rather than a
@@ -133,9 +146,30 @@ the deliberate exception: it starts on the day being viewed (`selectedDate`), be
 day view.
 
 Also worth knowing: the workout is always logged to **today in the user's timezone**, never the
-`?date=` the Exercise page browses with, because it was programmed against today's recovery. And
-`ConfirmationDialog` hardcodes English "Cancel" / "Warning" for every caller, so the new dialog's
-Cancel button is untranslated like the rest.
+`?date=` the Exercise page browses with, because it was programmed against today's recovery.
+
+### E6 — `ConfirmationDialog`, fixed on the way past (**2026-08-24**)
+
+Two defects the new prompt inherited, both pre-existing, both affecting all six callers rather than
+just this one.
+
+**It was half translated.** Callers passed a translated title, description and action labels into a
+dialog that then rendered its own "Cancel", "Confirm" and "Warning" in English regardless of locale.
+Those come from `common.cancel` / `common.confirm` / a new `common.warning` now, and `cancelLabel`
+joins `confirmLabel` as an override for the dialog where "Cancel" is the wrong word.
+
+**The description was never announced.** It rendered in a plain `div`, so it was not wired to the
+dialog's `aria-describedby` — a screen reader read the title and the buttons but not the sentence
+explaining what confirming does, which on a destructive dialog is the part that matters. Radix warned
+about it on every mount; that warning is now absent from the whole test run. The fix is
+`DialogDescription` with **`asChild` over a `div`**, not its default `<p>`: `description` is typed
+`React.ReactNode` and callers pass lists and stacked paragraphs, which a `<p>` cannot legally
+contain — React would hoist them out of the very element `aria-describedby` points at, breaking the
+fix in exactly the cases where the description is long enough to need it.
+
+`src/tests/components/ConfirmationDialog.test.tsx` covers both: `t` is mocked to return the **key**,
+so any English prose reaching the DOM is a string that skipped i18n, and the aria cases assert the
+described element resolves, is a `DIV`, and keeps a list intact inside it.
 
 ## Open items
 
@@ -183,3 +217,12 @@ added is a new file, which historically has cost nothing.
 The tab lists were **not** extracted into a helper, on purpose. Doing so would read as cleaner and
 would make every future upstream nav change conflict against an array that no longer exists in the
 file they edited. In-place edits are the cheaper trade here.
+
+E5 and E6 add little to that surface, but not nothing. `utils/workoutPlayback.ts`,
+`pages/Diary/ExerciseCard.tsx` and `pages/Exercises/WorkoutPresetsManager.tsx` are upstream files
+edited in place; the guard itself is a new file. **`components/ui/ConfirmationDialog.tsx` is the one
+to watch** — it is a shared primitive with six callers, so an upstream change to it conflicts against
+fork edits in the exact lines most likely to be touched (the footer buttons). The edits are small and
+defensible enough to re-apply by hand, and they are the kind of fix upstream would plausibly make
+too, which would resolve the conflict by convergence. This fork does not PR out, so that is the only
+way it converges.
