@@ -84,14 +84,23 @@ in it blocks anything else, and none of it is on a critical path.
 Two the reviewer of this phase should see first, because they are the honest gaps in "web parity":
 
 - **There is no start-workout button on the web Up Next card.** The card renders the generated
-  workout and can regenerate it, but cannot begin it. The blocker is structural, not cosmetic:
-  web playback runs off a `WorkoutPlaybackDraft`, which requires a `preset_id: string`, and a
-  recommendation is not a preset. Mobile bridges that gap with
-  `buildRecommendationDraftExercises` in `SparkyFitnessMobile/src/utils/workoutSession.ts` — a
-  recommendation → draft-exercise mapping that exists **only in mobile**, is not in `shared/`, and
-  has no web equivalent. Closing this is either a lift of that mapping into `shared/` plus a
-  synthetic-preset story for `preset_id`, or a server-side "start this recommendation" endpoint. It
-  is a real piece of work, not a wiring task.
+  workout and can regenerate it, but cannot begin it. What is missing is a
+  `WorkoutRecommendationPayload → WorkoutPlaybackExerciseDraft[]` mapping — the recommendation
+  analogue of `buildWorkoutPlaybackDraft`, which today only maps a preset.
+  **`preset_id` is not the blocker it looks like.** It is on `WorkoutPlaybackDraft` as a required
+  `string`, but grep says it is written once (`workoutPlayback.ts:335`) and read once, in
+  `isWorkoutPlaybackDraft`'s type guard — nothing looks a preset up by it, and the draft is keyed in
+  localStorage by `entry_date`. A recommendation's own UUID satisfies it. Do not build a
+  synthetic-preset story to get past this field; if it should be nullable for a recommendation-sourced
+  draft, widen the type and the guard together.
+  **Mobile's mapping is not liftable as-is either.** `buildRecommendationDraftExercises`
+  (`SparkyFitnessMobile/src/utils/workoutSession.ts`) targets `WorkoutDraftExercise`, the _preset
+  form_ type: display strings converted to the user's units, mobile's set-type vocabulary via
+  `CANONICAL_TO_MOBILE_SET_TYPE`, and mobile client ids. Web's playback draft holds numbers in
+  canonical units and has no client ids. It is a useful reference for the field-by-field decisions
+  (cardio zeroes `rest_time`, `supersetGroup` is never stored on a payload) and a poor donor for the
+  code. So: a web-local mapping beside `buildWorkoutPlaybackDraft`, not a `shared/` extraction —
+  which makes this a well-scoped task, not the multi-day one an earlier draft of this doc implied.
 - **The web weekly-targets card is linear bars where mobile draws a Skia hexagon.**
   `WeeklySetTargetsCard.tsx` renders one `h-2` bar per training group;
   `HexagonProgressRing.tsx` on mobile draws a radial hexagon. Feature parity yes, visual parity no —
