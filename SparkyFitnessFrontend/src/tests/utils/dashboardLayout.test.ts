@@ -26,6 +26,18 @@ describe('buildWidgetKeys', () => {
       'exercise',
     ]);
   });
+
+  // The diary only renders the exercise widget while acting on behalf of
+  // another user; everyone else logs exercise on the Exercise page.
+  it('leaves exercise out when the widget is not rendered', () => {
+    expect(buildWidgetKeys(['a'], true, false)).toEqual([
+      'energy',
+      'nutrition',
+      'water',
+      'healthMetrics',
+      'meal:a',
+    ]);
+  });
 });
 
 describe('generateDefaultLayouts', () => {
@@ -38,6 +50,19 @@ describe('generateDefaultLayouts', () => {
     (['lg', 'md', 'sm', 'xs'] as const).forEach((bp) => {
       const present = layouts[bp].map((it) => it.i).sort();
       expect(present).toEqual([...keys].sort());
+    });
+  });
+
+  // `reconcileLayouts` returns defaults verbatim when nothing is saved, so a
+  // default tile for a widget the page does not render would put a phantom
+  // entry in every new user's layout.
+  it('omits the exercise tile on every breakpoint when it is excluded', () => {
+    const keys = buildWidgetKeys(['a'], true, false);
+    const layouts = generateDefaultLayouts([mealWidgetKey('a')], false);
+    (['lg', 'md', 'sm', 'xs'] as const).forEach((bp) => {
+      const present = layouts[bp].map((it) => it.i);
+      expect(present).not.toContain('exercise');
+      expect([...present].sort()).toEqual([...keys].sort());
     });
   });
 });

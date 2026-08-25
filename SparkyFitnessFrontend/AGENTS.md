@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-07-08_
+_Last updated: 2026-08-24_
 
 SparkyFitness Frontend is the React web app for the SparkyFitness monorepo. Use this file as the primary guide for work inside `SparkyFitnessFrontend/`.
 
@@ -65,6 +65,50 @@ Features are organized by domain, and the same domain folder name appears in `sr
 
 When searching, ignore `node_modules/`, `dist/`, and every locale except `public/locales/en/`.
 
+## Navigation Shape
+
+The top nav is deliberate, not an accumulation. Two rules shape it, and one thing breaks it.
+
+**Food and Exercise are the two destinations.** `/` is the day's food; `/exercises` is everything
+about training. Neither leaks into the other: the day's logged exercise lives on `/exercises`
+(`pages/Exercises/ExerciseDayCard.tsx`), not in the diary's widget grid.
+
+**A library is not a tab.** `/foods` is still a route but not a nav entry — it is reached from the
+Food page (`pages/Diary/FoodLibraryCard.tsx`) and from the "+" menu on small screens. That is a
+cold-load decision as much as an IA one: mounting the foods table, meals and the meal-plan calendar
+on `/` would put three more list queries on the route every session starts on. The exercise library
+is the exception that proves it — it is already inline on `/exercises`, which is its own page.
+
+Both nav lists live in `layouts/MainLayout.tsx` (`availableTabs` for desktop,
+`availableMobileTabs` for the bottom bar) and **both must be edited together**; nothing asserts that
+they agree.
+
+**Acting on behalf is a different nav, and it is the trap here.** A delegate's tab list is a small
+subset that has never included `/exercises` — the recommendation, gym-profile and weekly-target
+tables are owner-only at the RLS layer. `isCurrentPathAllowed` redirects them off any route not in
+their list, so _anything moved onto `/exercises` becomes unreachable for a delegate_. That is why
+the diary keeps its exercise widget while `isActingOnBehalf` and drops it otherwise, and why the
+diary's `/` tab keeps the Diary label for them. Check that branch whenever you move a surface
+between pages.
+
+## Coaching Surfaces (`/exercises`)
+
+The suggested-workout family — Up Next, muscle recovery, weekly set targets, gym profiles — is
+`api/Exercises/{workoutRecommendations,weeklySetTargets,gymProfiles}.ts`,
+`hooks/Exercises/use{WorkoutRecommendation,MuscleRecovery,WeeklySetTargets,GymProfiles}.ts` and one
+card per reading under `pages/Exercises/`. Four rules, each of which has already cost something:
+
+- **Nothing about a workout's content is decided on the client.** The engine is server-side and
+  deterministic; the web sends parameters and renders what comes back.
+- **`freshness` is 0.0-1.0, not a percentage.** Convert exactly once, in the hook's `select`
+  (`useMuscleRecovery`). A second `×100` anywhere is a bug waiting to be a display of 1%.
+- **`isError` does not mean "no data".** It is also true when a _refetch_ fails over cached data, so
+  hide a section on `isError && !data`, never on `isError` alone.
+- **Owner-only vs delegatable is per-surface, not per-page.** Recovery rides the `diary` permission
+  and stays available to a delegate who has it (so its cache key is scoped by acting user);
+  everything else on that page is owner-only and hides itself through
+  `hooks/Exercises/useCoachingContextAvailable.ts`, with its query disabled so no request is made.
+
 ## Translations (i18n)
 
 - Only ever edit `public/locales/en/translation.json`. The other 27 locales are machine-synced through the `sync-translations.yml` workflow and a separate SparkyFitnessTranslations repo; hand-editing them creates conflicts with that pipeline.
@@ -90,7 +134,9 @@ When searching, ignore `node_modules/`, `dist/`, and every locale except `public
 
 ## Quick Routing
 
-- Routing/navigation/permission issue: `src/App.tsx` (router, `PrivateRoute`, `PermissionRoute`) and `src/layouts/MainLayout.tsx`.
+- Routing/navigation/permission issue: `src/App.tsx` (router, `PrivateRoute`, `PermissionRoute`) and `src/layouts/MainLayout.tsx`. Read "Navigation Shape" above first — the desktop and mobile tab lists are two arrays that must move together, and the acting-on-behalf branch is a different nav.
+- Suggested workouts / recovery / weekly targets / gym profiles: "Coaching Surfaces" above, then `src/pages/Exercises/` and the matching `src/api/Exercises/` + `src/hooks/Exercises/`.
+- Diary widget missing, duplicated, or in the wrong place: `src/pages/Diary/Diary.tsx` builds the widget registry, `src/utils/dashboardLayout.ts` supplies the keys and default tiles for it, and the two must agree — a default tile for a widget the page does not render is a phantom entry in every new user's saved layout.
 - API/error-toast issue: `src/api/api.ts`, then the domain client in `src/api/<Domain>/`, then the query/mutation `meta` in the calling hook.
 - Auth/session issue: `src/lib/auth-client.ts`, `src/hooks/useAuth.tsx`, `src/pages/Auth/`, and the server's `auth.ts` if it crosses packages.
 - Family-access/acting-user issue: `src/contexts/ActiveUserContext.tsx` and the hooks consuming it.

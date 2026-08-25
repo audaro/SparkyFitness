@@ -562,6 +562,8 @@
   },
   "nav": {
     "diary": "Diary",
+    "food": "Food",
+    "exercise": "Exercise",
     "checkin": "Check-In",
     "reports": "Reports",
     "foods": "Foods",
@@ -4865,5 +4867,9 @@
     "moveImageEarlier": "Move image left",
     "moveImageLater": "Move image right",
     "imagesReorderHint": "Drag to reorder. The first image is used as the thumbnail."
+  },
+  "foodLibrary": {
+    "title": "Food library",
+    "description": "Foods, meals and meal plans you can log from"
   }
 }

@@ -109,7 +109,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     const items: AddCompItem[] = [];
     if (!isActingOnBehalf) {
       // Keep this order consistent with the desktop tab order in availableTabs:
-      // Check-In, Cycle, Medications, Foods, Exercises, Goals.
+      // Check-In, Cycle, Medications, Goals. Exercises is not here — it is a
+      // top-level tab of its own now; Foods is, because the food library stopped
+      // being a tab and this is its only entry point away from the Food page.
       items.push({ value: 'checkin', label: 'Check-In', icon: Activity });
       if (cycleSettings?.enabled) {
         items.push({
@@ -129,11 +131,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           icon: Pill,
         },
         { value: 'foods', label: 'Foods', icon: Utensils },
-        {
-          value: 'exercises',
-          label: t('exercise.title', 'Exercises'),
-          icon: Dumbbell,
-        },
         { value: 'goals', label: 'Goals', icon: Target },
         {
           value: 'foodlog',
@@ -217,8 +214,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     });
     const tabs = [];
     if (!isActingOnBehalf) {
+      // Food and Exercise lead, and they are the whole shape of this nav: the
+      // day's food lives on `/`, everything about training lives on
+      // `/exercises`, and neither one leaks into the other. The food library is
+      // deliberately not a tab — it is reached from the Food page (and from the
+      // "+" menu on small screens), the way the exercise library is reached
+      // from the Exercise page rather than from here.
       tabs.push(
-        { value: '/', label: t('nav.diary'), icon: Home },
+        { value: '/', label: t('nav.food', 'Food'), icon: Utensils },
+        {
+          value: '/exercises',
+          label: t('nav.exercise', 'Exercise'),
+          icon: Dumbbell,
+        },
         { value: '/checkin', label: t('nav.checkin'), icon: Activity }
       );
       if (cycleSettings?.enabled) {
@@ -239,16 +247,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           icon: Pill,
         },
         { value: '/reports', label: t('nav.reports'), icon: BarChart3 },
-        { value: '/foods', label: t('nav.foods'), icon: Utensils },
-        {
-          value: '/exercises',
-          label: t('exercise.title', 'Exercises'),
-          icon: Dumbbell,
-        },
         { value: '/goals', label: t('nav.goals'), icon: Target },
         { value: '/settings', label: t('nav.settings'), icon: SettingsIcon }
       );
     } else {
+      // A delegate has no Exercise tab — `/exercises` is built on owner-only
+      // tables — so for them `/` really is still the whole diary, exercise
+      // entries included (see the Diary page, which keeps its exercise widget
+      // while acting on behalf). It keeps the Diary label to match.
       if (hasWritePermission('diary')) {
         tabs.push({ value: '/', label: t('nav.diary'), icon: Home });
       }
@@ -299,14 +305,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     // Cycle/Pregnancy and Medications live in the "+" Add menu on mobile
     // (see addCompItems), not the bottom bar, to keep the bar uncluttered.
     if (!isActingOnBehalf) {
+      // Exercise earns a slot here for the same reason it leads the desktop
+      // nav: it is a destination now, not a library. "Add" stays in the middle.
       mobileTabs.push(
-        { value: '/', label: t('nav.diary'), icon: Home },
-        { value: '/reports', label: t('nav.reports'), icon: BarChart3 },
+        { value: '/', label: t('nav.food', 'Food'), icon: Utensils },
+        {
+          value: '/exercises',
+          label: t('nav.exercise', 'Exercise'),
+          icon: Dumbbell,
+        },
         {
           value: 'Add',
           label: t('common.add', 'Add'),
           icon: isAddCompOpen ? X : Plus,
         },
+        { value: '/reports', label: t('nav.reports'), icon: BarChart3 },
         { value: '/settings', label: t('nav.settings'), icon: SettingsIcon }
       );
     } else {

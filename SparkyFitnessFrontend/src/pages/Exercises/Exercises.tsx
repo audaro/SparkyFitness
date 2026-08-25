@@ -43,6 +43,7 @@ import GymProfilesManager from '@/pages/Exercises/GymProfilesManager';
 import UpNextCard from '@/pages/Exercises/UpNextCard';
 import WeeklySetTargetsCard from '@/pages/Exercises/WeeklySetTargetsCard';
 import MuscleRecoveryCard from '@/pages/Exercises/MuscleRecoveryCard';
+import ExerciseDayCard from '@/pages/Exercises/ExerciseDayCard';
 import {
   useExercises,
   useUpdateExerciseShareStatusMutation,
@@ -429,6 +430,10 @@ const ExerciseDatabaseManager = () => {
           gate themselves differently. */}
       <WeeklySetTargetsCard />
       <MuscleRecoveryCard />
+
+      {/* What has actually been done, on this page's own day. Moved off the
+          diary, which is now about food. */}
+      <ExerciseDayCard />
 
       {/* Exercises Section */}
       <Card>

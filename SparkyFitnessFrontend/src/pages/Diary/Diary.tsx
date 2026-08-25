@@ -10,6 +10,7 @@ import WaterIntake from './WaterIntake';
 import MealCard from './MealCard';
 import ExerciseCard from './ExerciseCard';
 import DiaryWidgetGrid, { type DiaryWidget } from './DiaryWidgetGrid';
+import FoodLibraryCard from './FoodLibraryCard';
 import { mealWidgetKey } from '@/utils/dashboardLayout';
 import {
   Flame,
@@ -58,7 +59,7 @@ import { useDailySummary } from '@/hooks/Diary/useDailyProgress';
 
 const Diary = () => {
   const { t } = useTranslation();
-  const { activeUserId } = useActiveUser();
+  const { activeUserId, isActingOnBehalf } = useActiveUser();
   const location = useLocation();
   const navigate = useNavigate();
   const { timezone, loggingLevel, energyUnit, convertEnergy } =
@@ -359,8 +360,9 @@ const Diary = () => {
   );
 
   // Build the ordered widget registry: energy, nutrition, water, one card per
-  // visible meal type, then exercise. Keys match buildWidgetKeys() so the saved
-  // grid layout reconciles cleanly against the user's current meal types.
+  // visible meal type, then exercise while acting on behalf. Keys match
+  // buildWidgetKeys() so the saved grid layout reconciles cleanly against the
+  // user's current meal types.
   const widgets: DiaryWidget[] = useMemo(() => {
     if (!effectiveGoals) return [];
     const list: DiaryWidget[] = [
@@ -454,18 +456,25 @@ const Diary = () => {
       });
     }
 
-    list.push({
-      key: 'exercise',
-      title: t('diary.exercise', 'Exercise'),
-      icon: Dumbbell,
-      render: () => (
-        <ExerciseCard
-          selectedDate={selectedDate}
-          initialExercisesToLog={exercisesToLogFromPreset}
-          onExercisesLogged={() => setExercisesToLogFromPreset(undefined)}
-        />
-      ),
-    });
+    // The day's exercise moved to the Exercise page, which is where the rest of
+    // training now lives. A delegate is the exception and keeps it here: the
+    // Exercise page is built on owner-only tables and has no tab while acting
+    // on behalf, so dropping the widget for them would take exercise entries
+    // away from the only nav they have.
+    if (isActingOnBehalf) {
+      list.push({
+        key: 'exercise',
+        title: t('diary.exercise', 'Exercise'),
+        icon: Dumbbell,
+        render: () => (
+          <ExerciseCard
+            selectedDate={selectedDate}
+            initialExercisesToLog={exercisesToLogFromPreset}
+            onExercisesLogged={() => setExercisesToLogFromPreset(undefined)}
+          />
+        ),
+      });
+    }
 
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -483,6 +492,7 @@ const Diary = () => {
     hasDisplayableHealthMetrics,
     todaysHealthMetrics,
     loadingHealthMetrics,
+    isActingOnBehalf,
     t,
   ]);
 
@@ -513,6 +523,10 @@ const Diary = () => {
           toolbarContainer={toolbarContainer}
         />
       )}
+
+      {/* The way into the food library, which stopped being a nav tab. Outside
+          the widget grid on purpose: the grid is the day, and this is not. */}
+      <FoodLibraryCard />
 
       {/* Food Unit Selector Dialog */}
       {selectedFood && (

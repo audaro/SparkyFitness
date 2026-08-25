@@ -275,6 +275,15 @@ export const mealTypeIdFromKey = (key: string) =>
   key.slice(MEAL_KEY_PREFIX.length);
 
 /**
+ * The diary's exercise widget. It is only rendered while acting on behalf of
+ * another user — for everyone else the day's exercise lives on the Exercise
+ * page — so both the key list and the default layout have to be able to leave
+ * it out. A default tile for a widget nobody renders reserves nothing today,
+ * but it is a claim about the grid that is not true.
+ */
+export const EXERCISE_WIDGET_KEY = 'exercise';
+
+/**
  * Build the ordered list of widget keys for the current user state:
  * fixed top widgets, then one per visible meal type, then exercise.
  */
@@ -283,7 +292,8 @@ export function buildWidgetKeys(
   // Diary.tsx only renders the health-metrics widget when there is wearable
   // data to show; reserving its key unconditionally left a hole in the grid
   // for users with none.
-  hasDisplayableHealthMetrics = true
+  hasDisplayableHealthMetrics = true,
+  includeExercise = true
 ): string[] {
   return [
     'energy',
@@ -291,7 +301,7 @@ export function buildWidgetKeys(
     'water',
     ...(hasDisplayableHealthMetrics ? ['healthMetrics'] : []),
     ...visibleMealTypeIds.map(mealWidgetKey),
-    'exercise',
+    ...(includeExercise ? [EXERCISE_WIDGET_KEY] : []),
   ];
 }
 
@@ -300,7 +310,10 @@ export function buildWidgetKeys(
  * actual meal widget keys (count varies per user). Used for first-time users
  * and as the source of default tiles when reconciling newly-added widgets.
  */
-export function generateDefaultLayouts(mealKeys: string[]): DashboardLayouts {
+export function generateDefaultLayouts(
+  mealKeys: string[],
+  includeExercise = true
+): DashboardLayouts {
   // lg (12 cols): energy / nutrition / water across the top, then full-width
   // meal cards and exercise stacked below.
   const lg: WidgetLayout[] = [
@@ -314,7 +327,17 @@ export function generateDefaultLayouts(mealKeys: string[]): DashboardLayouts {
     lg.push({ i: key, x: 0, y: lgY, w: 12, h: 4, minW: 3, minH: 3 });
     lgY += 4;
   }
-  lg.push({ i: 'exercise', x: 0, y: lgY, w: 12, h: 4, minW: 3, minH: 3 });
+  if (includeExercise) {
+    lg.push({
+      i: EXERCISE_WIDGET_KEY,
+      x: 0,
+      y: lgY,
+      w: 12,
+      h: 4,
+      minW: 3,
+      minH: 3,
+    });
+  }
 
   // md (10 cols): energy + nutrition top row, water below, then meals.
   const md: WidgetLayout[] = [
@@ -328,7 +351,17 @@ export function generateDefaultLayouts(mealKeys: string[]): DashboardLayouts {
     md.push({ i: key, x: 0, y: mdY, w: 10, h: 4, minW: 3, minH: 3 });
     mdY += 4;
   }
-  md.push({ i: 'exercise', x: 0, y: mdY, w: 10, h: 4, minW: 3, minH: 3 });
+  if (includeExercise) {
+    md.push({
+      i: EXERCISE_WIDGET_KEY,
+      x: 0,
+      y: mdY,
+      w: 10,
+      h: 4,
+      minW: 3,
+      minH: 3,
+    });
+  }
 
   // sm / xs: single column, everything stacked.
   const stacked = (cols: number): WidgetLayout[] => {
@@ -344,7 +377,7 @@ export function generateDefaultLayouts(mealKeys: string[]): DashboardLayouts {
     push('water', 8, 5);
     push('healthMetrics', 6, 4);
     for (const key of mealKeys) push(key, 4, 3);
-    push('exercise', 4, 3);
+    if (includeExercise) push(EXERCISE_WIDGET_KEY, 4, 3);
     return out;
   };
 
