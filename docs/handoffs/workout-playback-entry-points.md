@@ -35,6 +35,8 @@ changed.
 | `1c41fcae4` | mobile  | Three copies of the MFA error ladder collapsed; code carried on `LoginError` |
 | `8d9ab63c9` | docs    | Handoff records the MFA consolidation                                        |
 | `2067f1803` | mobile  | Pick Muscles tiles draw real anatomy, generated from the web body-map SVG    |
+| `76aad4f67` | docs    | Handoff records the generated art                                            |
+| `f2fd45d80` | mobile  | Pick Muscles becomes a tappable anatomical figure; tile grid removed         |
 
 The long-form write-up for the web half lives in `exercise-home-phase-e.md` under E5 and E6, because
 the diagnosis it corrects belongs next to the phase that filed it. What follows is what a fresh
@@ -133,18 +135,20 @@ first) and two cases on `WorkoutPresetsManager.test.tsx`.
 `ExerciseCard.test.tsx` covers the preset-playback path only. The component is ~600 lines and the
 rest of it is still untested; the suite exists as a place to add to, not as coverage.
 
-Mobile, run from `SparkyFitnessMobile/`. Green at `2067f1803`.
+Mobile, run from `SparkyFitnessMobile/`. Green at `f2fd45d80`.
 
 | Command                                                        | Result                        |
 | -------------------------------------------------------------- | ----------------------------- |
 | `pnpm run validate`                                            | clean (tsc, lint, i18n audit) |
-| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6144 passed, 377 suites**   |
+| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6087 passed, 376 suites**   |
 
 Up from 5971 / 371. The delta is four new suites — `utils/workoutSupersets` (41),
 `hooks/useWorkoutRecommendation` (19), `hooks/useGymProfiles` (17), `hooks/useUpdateFoodEntryMeal`
 (4) — plus one misclassification case appended to each of the four suites `55d5d8894` touched, and
 `services/api/authErrors` (18) with four transport cases added to `authService` in `1c41fcae4`, and
-`constants/muscleArt` (66) in `2067f1803`.
+`constants/muscleArt` in `2067f1803`. `f2fd45d80` then replaced the tile grid with the body map,
+which is why the totals went _down_: `MuscleTile` and its suite were deleted, and `muscleArt` was
+rewritten from 66 geometry cases to 12 that describe the figure instead.
 
 The three health files were run at `Pacific/Midway` (UTC-11), `America/Los_Angeles`, `UTC`,
 `Europe/London`, `Asia/Tokyo` and `Pacific/Kiritimati` (UTC+14), and then the **whole** suite was run
@@ -189,28 +193,39 @@ that pair are worth keeping:
   read. And the _fixtures_ were load-bearing both times: suites that threw bare `Error`s with
   status-shaped messages had been pinning the broken behaviour all along.
 
-`2067f1803` did the muscle art. The task had been filed as "someone has to draw seventeen muscles";
-in fact the artwork was already in the repo — `SparkyFitnessFrontend/public/images/muscle-male.svg`,
-which the web body map renders, labels each path with its muscle. It is now extracted into
-`SparkyFitnessMobile/src/constants/muscleArt.generated.ts` by `pnpm run muscle-art:generate`. Four
-things to know before touching it:
+`2067f1803` and `f2fd45d80` did the muscle art, and the second reversed the shape of the first. The
+task had been filed as "someone has to draw seventeen muscles"; in fact the artwork was already in
+the repo — `SparkyFitnessFrontend/public/images/muscle-male.svg`, which the web body map renders,
+labels every path with its muscle. `2067f1803` cropped it into per-muscle tiles; `f2fd45d80` threw
+the cropping away and renders the illustration whole, front figure beside back, with each labelled
+region tappable. **The body map is the simpler of the two** — no bounding boxes, no squaring, no
+deciding which of the two bodies a muscle reads best in — so the cropping work is gone rather than
+sitting unused. What to know now:
 
-1. **The generated file is generated.** Do not hand-edit it; re-run the script. It is a script rather
-   than a pasted constant precisely because the SVG is upstream's and will be redrawn.
-2. **Coverage is twelve of seventeen.** `abductors`, `adductors`, `lats`, `middle back` and `neck`
-   are not in the illustration, so their tiles keep the labelled colour block. **Back is the one that
-   matters** — it covers `lats` + `middle back`, it is picked often, and it is the most visible
-   remaining gap. Closing it needs either art for those two muscles or a different source
-   illustration; it is the only part of this that still wants a human.
-3. **The illustration draws the body twice, front beside back.** Five muscles are labelled in both.
-   Measuring them together frames the whole canvas — two shrunken half-figures in a tile — so the
-   generator splits at the midline and keeps one view. It throws if any path crosses the midline,
-   which is how a re-laid-out SVG announces itself instead of quietly producing nonsense.
-4. **Which view a muscle uses is a heuristic, and is pinned.** More paths wins, ties to the front.
-   Picking by area instead put the abs on someone's back — obliques wrap further round the back than
-   the abs reach across the front. `__tests__/constants/muscleArt.test.ts` asserts the chosen view
-   per muscle and that every viewBox actually contains its path's ink, so a regeneration that flips
-   one or clips one fails there.
+1. **`src/constants/muscleArt.generated.ts` is generated.** Do not hand-edit it; run
+   `pnpm run muscle-art:generate`. It is a script rather than a pasted constant precisely because
+   the SVG is upstream's and will be redrawn.
+2. **Document order is render order.** The array carries the layering — pale silhouette first,
+   muscles over it, outline detail last. Sorting or grouping it while rendering puts the head and
+   hands underneath the muscles. A test asserts the ordering.
+3. **Coverage is twelve of seventeen, and the gap moved from cosmetic to structural.** `abductors`,
+   `adductors`, `lats`, `middle back` and `neck` have no region on the figure. In the grid they were
+   plain tiles; on a body map they would simply be untappable, so they are chips beneath the figure.
+   **Back is the one that matters** — picked often, and neither muscle it covers is drawn. Closing it
+   needs art for those two or a different source illustration; it is the only part of this still
+   wanting a human.
+4. **The body map selects muscles; the screen's state is tiles.** `tileForMuscle` bridges them, and
+   it is unambiguous only because the single multi-muscle tile (Back) is off the figure. The test
+   asserting no tile is half-drawn is what keeps that true.
+5. **One muscle is many paths** — eight for the quads. All are pressable, but only the first carries
+   the testID and the accessibility label: `react-native-svg` passes only `accessible` and
+   `accessibilityLabel` through to a path, with no role or checked state, so selection and recovery
+   are spoken in the label text. Labelling every path would read the same control out eight times.
+
+**Not verified visually.** The tests prove the geometry, layering and reachability; nobody has looked
+at the rendered figure. Tap-target size on the smaller regions (lower back is two paths) and how the
+selection stroke reads against the recovery fill are the two things a screenshot would settle and a
+test cannot.
 
 One method note that outlived all three: **a green first run on a suite for previously untested code
 is evidence of nothing.** Every suite in this stretch was verified by breaking the source instead —
