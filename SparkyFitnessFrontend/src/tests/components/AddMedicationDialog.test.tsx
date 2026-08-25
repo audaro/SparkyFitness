@@ -8,6 +8,7 @@ import {
 import '@testing-library/jest-dom';
 import AddMedicationDialog from '@/pages/Medications/AddMedicationDialog';
 import type { Medication } from '@/types/medications';
+import type { RxTermsProduct } from '@workspace/shared';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -73,6 +74,17 @@ jest.mock('@/contexts/ActiveUserContext', () => ({
     activeUserId: 'user-1',
     activeUserName: 'Test User',
     isActingOnBehalf: false,
+  }),
+}));
+
+// Tier 3 of the name combobox is react-query backed, and this suite renders the dialog
+// without a QueryClientProvider. Mocked to a fixed answer so the tests below drive it
+// directly instead of through a debounce and a request.
+let mockCatalogProducts: RxTermsProduct[] = [];
+jest.mock('@/hooks/useMedicationCatalogSearch', () => ({
+  useMedicationCatalogSearch: () => ({
+    products: mockCatalogProducts,
+    isFetching: false,
   }),
 }));
 
@@ -753,6 +765,151 @@ describe('AddMedicationDialog dose fields', () => {
       expect(fields['glp1_drug']).toBeNull();
       expect(fields['custom_glp1_name']).toBeNull();
       expect(fields['reconstitution']).toBeNull();
+    });
+  });
+});
+
+/**
+ * What a US-catalog pick actually fills in.
+ *
+ * The interesting cases are all about restraint: a product with eight strengths fills none of
+ * them, a strength the parser refused fills no number, and the RXCUI — the one field here that
+ * claims to identify a specific product — is dropped the moment the name stops matching it.
+ */
+describe('AddMedicationDialog US drug catalog picks', () => {
+  const rxStrength = (
+    raw: string,
+    value: number | null,
+    unit: string | null,
+    rxcui: string | null
+  ): RxTermsProduct['strengths'][number] => ({
+    raw,
+    rxcui,
+    value,
+    unit,
+    unparsedReason: value === null ? 'unrecognised' : null,
+  });
+
+  const testosterone: RxTermsProduct = {
+    displayName: 'Testosterone (Injectable)',
+    baseName: 'Testosterone',
+    doseForm: 'Injectable',
+    strengths: [
+      rxStrength('100 mg/ml Injection 1 ml', 100, 'mg/ml', 'rxcui-100'),
+      rxStrength('200 mg/ml Injection 1 ml', 200, 'mg/ml', 'rxcui-200'),
+    ],
+  };
+
+  const levothyroxine: RxTermsProduct = {
+    displayName: 'Levothyroxine (Oral Pill)',
+    baseName: 'Levothyroxine',
+    doseForm: 'Oral Pill',
+    strengths: [rxStrength('0.025 mg Tab', 0.025, 'mg', 'rxcui-lt')],
+  };
+
+  // Neither of these drugs is in the bundled catalog and the cabinet is empty, so the first row
+  // in the dropdown is the tier 3 one. (The always-last custom row repeats the typed name, which
+  // is why it cannot be found by name.)
+  const pickCatalogRow = (name: string) => {
+    setField('Name', name);
+    const [firstRow] = screen.getAllByRole('option');
+    if (!firstRow) throw new Error('the dropdown offered no rows');
+    fireEvent.mouseDown(firstRow);
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockOwnMedications = [];
+    mockCatalogProducts = [];
+  });
+
+  it('fills the name, form and lone strength, and records the RxCUI', () => {
+    mockCatalogProducts = [levothyroxine];
+    render(<AddMedicationDialog />);
+    openDialog();
+    pickCatalogRow('Levothyroxine');
+    save();
+
+    expect(lastCreateBody()).toMatchObject({
+      // The base name, not `Levothyroxine (Oral Pill)` — nobody calls their medication that.
+      name: 'Levothyroxine',
+      type_id: 'pill',
+      strength_value: 0.025,
+      strength_unit: 'mg',
+      rxnorm_rxcui: 'rxcui-lt',
+    });
+  });
+
+  it('asks which strength rather than choosing one', async () => {
+    mockCatalogProducts = [testosterone];
+    render(<AddMedicationDialog />);
+    openDialog();
+    pickCatalogRow('Testosterone');
+
+    // Two concentrations, and only the person holding the vial knows which. Guessing here would
+    // write a plausible number that is wrong by a factor of two.
+    expect(screen.getByText('Which strength do you have?')).toBeInTheDocument();
+    save();
+    expect(lastCreateBody()).toMatchObject({
+      name: 'Testosterone',
+      type_id: 'injection',
+      strength_value: null,
+      rxnorm_rxcui: null,
+    });
+  });
+
+  it('takes the strength the user picks, with its own RxCUI', async () => {
+    mockCatalogProducts = [testosterone];
+    render(<AddMedicationDialog />);
+    openDialog();
+    pickCatalogRow('Testosterone');
+
+    fireEvent.click(screen.getByRole('combobox', { name: /Which strength/ }));
+    fireEvent.click(
+      await screen.findByRole('option', { name: '200 mg/ml Injection 1 ml' })
+    );
+    save();
+
+    // The RXCUI belongs to the strength, not the drug: 100 mg/ml and 200 mg/ml are different
+    // products with different identifiers.
+    expect(lastCreateBody()).toMatchObject({
+      strength_value: 200,
+      strength_unit: 'mg/ml',
+      rxnorm_rxcui: 'rxcui-200',
+    });
+  });
+
+  it('drops the RxCUI when the name is typed over', () => {
+    mockCatalogProducts = [levothyroxine];
+    render(<AddMedicationDialog />);
+    openDialog();
+    pickCatalogRow('Levothyroxine');
+    // Renamed to their own shorthand. The identifier described the row it no longer is.
+    setField('Name', 'Levo (morning)');
+    save();
+
+    expect(lastCreateBody()).toMatchObject({
+      name: 'Levo (morning)',
+      rxnorm_rxcui: null,
+    });
+  });
+
+  it('keeps an existing RxCUI through an edit that never touches the name', () => {
+    const identified = {
+      ...mirroredMed,
+      id: 'med-rx',
+      rxnorm_rxcui: 'rxcui-existing',
+    } as unknown as Medication;
+
+    render(<AddMedicationDialog editMed={identified} />);
+    openDialog();
+    // Editing something else entirely. The identifier still describes this row, so a save that
+    // never mentioned it must not be the thing that erases it.
+    setField('Strength', '850');
+    save();
+
+    expect(lastUpdateArgs().body).toMatchObject({
+      rxnorm_rxcui: 'rxcui-existing',
     });
   });
 });

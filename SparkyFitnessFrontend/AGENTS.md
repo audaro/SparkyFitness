@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-08-24_
+_Last updated: 2026-08-25_
 
 SparkyFitness Frontend is the React web app for the SparkyFitness monorepo. Use this file as the primary guide for work inside `SparkyFitnessFrontend/`.
 
@@ -121,6 +121,35 @@ card per reading under `pages/Exercises/`. Four rules, each of which has already
   draft any other way reintroduces the data loss. Pass `createDraft` as a callback, not a built draft
   — building one stamps `started_at`, which must not happen for a start the user cancels.
 
+## Medication Name Search (`/medications`)
+
+`MedicationNameCombobox.tsx` is a **three-tier** search, ranked by how much each tier knows about
+this user: tier 1 is their own cabinet (`useMedications`), tier 2 the bundled catalog in
+`@workspace/shared` (`searchCatalog`, offline), tier 3 the US drug catalog (NLM RxTerms) over the
+network. The combobox reports a `MedicationNamePick` and applies nothing —
+`AddMedicationDialog.handleNamePick` owns which fields a pick fills in, which is what makes the
+dialog testable without a dropdown in the way. Mobile mirrors the same pick type in
+`MedicationNameSuggestions.tsx`; a change to one is a change to both.
+
+- **Tier 3 is opt-in and silent.** `hooks/useMedicationCatalogSearch.ts` gates every request on the
+  `medicationCatalogLookupEnabled` preference, a 250 ms debounce and `RXTERMS_MIN_TERM_LENGTH`. The
+  server gate is the binding one; the client not asking is what keeps the medication name on the
+  machine. It sets no `meta.errorMessage` and the API client is called with `suppressErrorToast`,
+  so a failed lookup is invisible — tiers 1-2 have already rendered, and adding a medication must
+  never depend on the NIH being reachable. The `active` flag is the dropdown's open state, because
+  the edit dialog mounts with a name already in the box and `useDebounce` seeds from it.
+- **The highlight resets on any change to the row set**, and the stored index is keyed by query
+  _and row count_: tier 3 arrives late and inserts rows above the custom one, so a still-in-range
+  index can point at a different drug than it did a keystroke ago.
+- Where the two catalogs overlap, **tier 2 wins** (the server drops any RxTerms product the curated
+  catalog resolves). Tier 1 suppression is the client's job and matches on `baseName`.
+- A tier 3 row is a **product**, not a strength: one row with a hint from `rxTermsStrengthHint`
+  (shared, so web and mobile make the same call), and a product with several strengths asks in the
+  dialog rather than guessing. `rxnorm_rxcui` is stored from the strength picked, never the
+  product, and is cleared the moment the name stops describing it.
+- The opt-in is `pages/Settings/MedicationSettings.tsx` (wellness tab). There is deliberately no
+  nudge inside the dropdown.
+
 ## Translations (i18n)
 
 - Only ever edit `public/locales/en/translation.json`. The other 27 locales are machine-synced through the `sync-translations.yml` workflow and a separate SparkyFitnessTranslations repo; hand-editing them creates conflicts with that pipeline.
@@ -154,6 +183,7 @@ card per reading under `pages/Exercises/`. Four rules, each of which has already
 - Family-access/acting-user issue: `src/contexts/ActiveUserContext.tsx` and the hooks consuming it.
 - Chat (Sparky) issue: `src/pages/Chat/`, `src/components/ai/`, `src/api/Chatbot/`.
 - Theme/preferences issue: `src/contexts/ThemeContext.tsx`, `src/contexts/PreferencesContext.tsx`, `src/services/preferenceService.ts`, `src/utils/userPreferences.ts`.
+- Medication autofill issue (a suggestion missing, a wrong strength, a name that should not have been sent): "Medication Name Search" above, then `src/pages/Medications/MedicationNameCombobox.tsx`, `src/hooks/useMedicationCatalogSearch.ts`, and `AddMedicationDialog.handleNamePick`. Tier 3's _content_ is decided in `shared/src/medications/rxterms.ts` and on the server, not here.
 - Missing/wrong UI text: the i18n key in `public/locales/en/translation.json` and the `t('...')` call site.
 - Chart issue: Recharts usage in the domain page plus `src/components/ExerciseCharts/` or `ZoomableChart.tsx`.
 

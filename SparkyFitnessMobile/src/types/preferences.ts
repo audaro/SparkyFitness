@@ -42,4 +42,8 @@ export interface UserPreferences {
   /** AI-Assisted Unit Conversions toggle (server default: true). Gates the AI
    *  estimate path inside the unit selector sheet for cross-category swaps. */
   ai_assisted_conversions?: boolean;
+  /** Opt-in for tier 3 of the medication name search (server default: false). While it is off,
+   *  no medication name is sent to the server's US drug catalog lookup at all — the server
+   *  refuses the query too, but the client not asking is what keeps the name on the device. */
+  medication_catalog_lookup_enabled?: boolean;
 }

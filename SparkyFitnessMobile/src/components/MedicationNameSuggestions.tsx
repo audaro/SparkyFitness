@@ -4,10 +4,13 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import {
   catalogRowSubtitle,
+  rxTermsStrengthHint,
   searchCatalog,
   type CatalogDrug,
   type Medication,
+  type RxTermsProduct,
 } from '@workspace/shared';
+import { useMedicationCatalogSearch } from '../hooks/useMedicationCatalogSearch';
 import Icon from './Icon';
 
 /**
@@ -17,19 +20,29 @@ import Icon from './Icon';
 export type MedicationNamePick =
   | { kind: 'existing'; medication: Medication }
   | { kind: 'catalog'; drug: CatalogDrug; matchedOn: string }
+  | { kind: 'rxterms'; product: RxTermsProduct }
   | { kind: 'custom'; name: string };
 
 type Row =
   | { key: string; kind: 'existing'; medication: Medication }
   | { key: string; kind: 'catalog'; drug: CatalogDrug; matchedOn: string; viaAlias: boolean }
+  | { key: string; kind: 'rxterms'; product: RxTermsProduct }
   | { key: string; kind: 'custom' };
 
 const MAX_OWN = 3;
 const MAX_CATALOG = 5;
 
 /**
+ * Tier 3 is capped hardest of the three. It is the least specific to this user — a list of every
+ * US product, where the two tiers above are their own cabinet and a hand-curated list — so it gets
+ * the fewest rows and always sits below them.
+ */
+const MAX_RXTERMS = 5;
+
+/**
  * Suggestions under the medication name field: the user's own cabinet first, then the bundled
- * catalog, then an always-present row for a name neither list has.
+ * catalog, then the US drug catalog if the user opted in, then an always-present row for a name
+ * none of them has.
  *
  * Deliberately an inline list rather than a floating dropdown. The form is a scroll view over a
  * keyboard, and an absolutely-positioned popover there fights the keyboard avoider on both
@@ -46,6 +59,15 @@ export default function MedicationNameSuggestions({
 }) {
   const { t } = useTranslation();
   const [textMuted] = useCSSVariable(['--color-text-muted']) as [string];
+
+  // Tier 3: the US drug catalog, over the network, only if the user opted in. The hook owns the
+  // debounce, the character threshold and the opt-in check, and answers with an empty list for
+  // every failure — so nothing below has to think about the NIH being down.
+  //
+  // No `active` flag is passed because this component *is* the flag: the form mounts it only
+  // while the suggestion list is open, so an edit that never touches the name never renders it
+  // and never asks.
+  const { products: rxTermsProducts } = useMedicationCatalogSearch(query, { limit: MAX_RXTERMS });
 
   const rows = useMemo<Row[]>(() => {
     const trimmed = query.trim();
@@ -75,13 +97,39 @@ export default function MedicationNameSuggestions({
         viaAlias: hit.viaAlias,
       }));
 
-    return [...own, ...catalog, { key: 'custom', kind: 'custom' }];
-  }, [ownMedications, query]);
+    // The server already drops any tier 3 product the curated catalog covers. What it cannot know
+    // is what the user has in their own cabinet, so the tier 1 filter is repeated here — matched
+    // on the base name, since RxTerms displays `Testosterone (Injectable)` where their row says
+    // `Testosterone`.
+    const rxTerms = rxTermsProducts
+      .filter((product) => !ownNames.has(product.baseName.trim().toLowerCase()))
+      .slice(0, MAX_RXTERMS)
+      .map<Row>((product) => ({
+        key: `rxterms:${product.displayName}`,
+        kind: 'rxterms',
+        product,
+      }));
+
+    return [...own, ...catalog, ...rxTerms, { key: 'custom', kind: 'custom' }];
+  }, [ownMedications, query, rxTermsProducts]);
 
   if (rows.length === 0) return null;
 
   const firstCatalogIndex = rows.findIndex((row) => row.kind === 'catalog');
+  const firstRxTermsIndex = rows.findIndex((row) => row.kind === 'rxterms');
   const hasOwn = rows.some((row) => row.kind === 'existing');
+
+  /** The right-hand hint on a tier 3 row, in words. Which case a product is in is shared logic. */
+  const strengthHintText = (product: RxTermsProduct): string => {
+    const hint = rxTermsStrengthHint(product);
+    if (!hint) return '';
+    return hint.kind === 'single'
+      ? `${hint.value} ${hint.unit}`
+      : t('medications.search.strengthCount', {
+          defaultValue: '{{count}} strengths',
+          count: hint.count,
+        });
+  };
 
   return (
     <View className="rounded-lg border border-border-subtle overflow-hidden">
@@ -97,6 +145,19 @@ export default function MedicationNameSuggestions({
               {t('medications.search.known', { defaultValue: 'Known drugs' })}
             </Text>
           )}
+          {index === firstRxTermsIndex && firstRxTermsIndex >= 0 && (
+            <View className="flex-row items-center gap-1.5 px-3 pt-2 pb-1">
+              <Text className="text-text-muted text-xs font-semibold uppercase">
+                {t('medications.search.usCatalog', { defaultValue: 'US drug catalog' })}
+              </Text>
+              {/* Named, not just styled. These rows come from someone else's data — the NIH's —
+                  and a user comparing a row against their own label deserves to know which list
+                  said it. */}
+              <Text className="rounded border border-border-subtle px-1 text-text-muted text-[10px] font-medium">
+                {t('medications.search.nlmTag', { defaultValue: 'NLM' })}
+              </Text>
+            </View>
+          )}
           <TouchableOpacity
             accessibilityRole="button"
             testID={`med-suggestion-${row.key}`}
@@ -106,6 +167,8 @@ export default function MedicationNameSuggestions({
                 onPick({ kind: 'existing', medication: row.medication });
               } else if (row.kind === 'catalog') {
                 onPick({ kind: 'catalog', drug: row.drug, matchedOn: row.matchedOn });
+              } else if (row.kind === 'rxterms') {
+                onPick({ kind: 'rxterms', product: row.product });
               } else {
                 onPick({ kind: 'custom', name: query.trim() });
               }
@@ -117,7 +180,9 @@ export default function MedicationNameSuggestions({
                   ? 'medication'
                   : row.kind === 'catalog'
                     ? 'sparkles'
-                    : 'add'
+                    : row.kind === 'rxterms'
+                      ? 'globe'
+                      : 'add'
               }
               size={18}
               color={textMuted}
@@ -127,10 +192,23 @@ export default function MedicationNameSuggestions({
                 ? row.medication.display_name || row.medication.name
                 : row.kind === 'catalog'
                   ? row.matchedOn
-                  : t('medications.search.addCustom', {
-                      defaultValue: 'Add "{{name}}" as a custom medication',
-                      name: query.trim(),
-                    })}
+                  : row.kind === 'rxterms'
+                    ? // The dose form is part of the identity, not decoration: RxTerms lists
+                      // Testosterone as an injectable, a topical and a patch, and the three rows
+                      // are otherwise the same word.
+                      <>
+                        {row.product.baseName}
+                        {row.product.doseForm && (
+                          <Text className="text-text-muted text-xs">
+                            {' '}
+                            {row.product.doseForm}
+                          </Text>
+                        )}
+                      </>
+                    : t('medications.search.addCustom', {
+                        defaultValue: 'Add "{{name}}" as a custom medication',
+                        name: query.trim(),
+                      })}
             </Text>
             {row.kind === 'catalog' && catalogRowSubtitle(row.drug, row.viaAlias) && (
               <Text className="text-text-muted text-xs">
@@ -142,6 +220,12 @@ export default function MedicationNameSuggestions({
                 {row.medication.strength_value}
                 {row.medication.strength_unit ?? ''}
               </Text>
+            )}
+            {/* What the pick is worth, said before it is made. One strength fills the field
+                outright; several mean a choice follows, and the count is the honest way to say so
+                without listing eight products under one name. */}
+            {row.kind === 'rxterms' && (
+              <Text className="text-text-muted text-xs">{strengthHintText(row.product)}</Text>
             )}
           </TouchableOpacity>
         </View>

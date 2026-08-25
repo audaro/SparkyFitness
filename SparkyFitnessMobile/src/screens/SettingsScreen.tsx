@@ -224,6 +224,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                 onPress={() => navigation.navigate('WorkoutSettings')}
                 iconColor={catBlue}
               />
+              {isConnected && (
+                <SettingsRow
+                  icon="medication"
+                  title={t('settings.rows.medications', { defaultValue: 'Medications' })}
+                  onPress={() => navigation.navigate('MedicationSettings')}
+                  iconColor={catViolet}
+                />
+              )}
             </SettingsRowGroup>
 
             <SettingsRowGroup>

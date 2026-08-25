@@ -10,6 +10,7 @@ import type {
   UpdateMedicationEntryInput,
   CreateScheduleInput,
   UpdateScheduleInput,
+  MedicationCatalogSearchResponse,
 } from '@workspace/shared';
 
 const SERVICE_NAME = 'Medications API';
@@ -133,3 +134,23 @@ export const deleteEntry = (id: string): Promise<void> =>
     operation: 'delete entry',
     method: 'DELETE',
   });
+
+/**
+ * Search the US drug catalog (NLM RxTerms) through our own server — tier 3 of the medication
+ * name search.
+ *
+ * Never called directly from a screen: `useMedicationCatalogSearch` owns the debounce, the
+ * character threshold and the opt-in check that decide whether a name is worth sending at all.
+ */
+export const searchMedicationCatalog = async (
+  q: string,
+  limit?: number,
+): Promise<MedicationCatalogSearchResponse> => {
+  const params = new URLSearchParams({ q });
+  if (limit != null) params.set('limit', String(limit));
+  return apiFetch<MedicationCatalogSearchResponse>({
+    endpoint: `/api/v2/medications/catalog-search?${params.toString()}`,
+    serviceName: SERVICE_NAME,
+    operation: 'search drug catalog',
+  });
+};

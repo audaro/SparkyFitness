@@ -3,6 +3,8 @@ import {
   parseRxTermsStrength,
   parseRxTermsResponse,
   catalogCoversRxTermsProduct,
+  rxTermsStrengthHint,
+  type RxTermsProduct,
 } from '@workspace/shared';
 import { RXTERMS_FIXTURES } from './fixtures/rxtermsResponses.js';
 
@@ -291,5 +293,59 @@ describe('parseRxTermsResponse', () => {
     for (const payload of Object.values(RXTERMS_FIXTURES)) {
       expect(() => parseRxTermsResponse(payload)).not.toThrow();
     }
+  });
+});
+
+/**
+ * The row hint both clients render. It lives in `shared/` and is asserted here because `shared/`
+ * has no runner of its own — and because what must not drift is which of the three cases a
+ * product is in, not the words either platform wraps around it.
+ */
+describe('rxTermsStrengthHint', () => {
+  const product = (strengths: RxTermsProduct['strengths']): RxTermsProduct => ({
+    displayName: 'Widgetol (Injectable)',
+    baseName: 'Widgetol',
+    doseForm: 'Injectable',
+    strengths,
+  });
+
+  const strength = (
+    raw: string,
+    value: number | null,
+    unit: string | null
+  ): RxTermsProduct['strengths'][number] => ({
+    raw,
+    rxcui: '1',
+    value,
+    unit,
+    unparsedReason: value === null ? 'unrecognised' : null,
+  });
+
+  it('states a lone strength, because that is the number the pick will write', () => {
+    expect(
+      rxTermsStrengthHint(
+        product([strength('200 mg/ml Injection 1 ml', 200, 'mg/ml')])
+      )
+    ).toEqual({ kind: 'single', value: 200, unit: 'mg/ml' });
+  });
+
+  it('counts several rather than listing them', () => {
+    const several = product([
+      strength('100 mg/ml Injection 1 ml', 100, 'mg/ml'),
+      strength('200 mg/ml Injection 1 ml', 200, 'mg/ml'),
+    ]);
+    // One row per strength would put eight testosterone entries above the user's own cabinet.
+    expect(rxTermsStrengthHint(several)).toEqual({ kind: 'count', count: 2 });
+  });
+
+  it('says nothing about a lone strength the parser refused', () => {
+    // Rather than a number derived from a string nobody vouched for.
+    expect(
+      rxTermsStrengthHint(product([strength('1% Gel', null, null)]))
+    ).toBeNull();
+  });
+
+  it('says nothing about a product with no strengths at all', () => {
+    expect(rxTermsStrengthHint(product([]))).toBeNull();
   });
 });

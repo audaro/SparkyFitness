@@ -110,6 +110,7 @@ interface PreferencesContextType {
   includeBmrInNetCalories: boolean;
   showNetCarbs: boolean;
   aiAssistedConversions: boolean;
+  medicationCatalogLookupEnabled: boolean;
   fatBreakdownAlgorithm: FatBreakdownAlgorithm;
   mineralCalculationAlgorithm: MineralCalculationAlgorithm;
   vitaminCalculationAlgorithm: VitaminCalculationAlgorithm;
@@ -158,6 +159,7 @@ interface PreferencesContextType {
   setIncludeBmrInNetCalories: (include: boolean) => void;
   setShowNetCarbs: (show: boolean) => void;
   setAiAssistedConversions: (enabled: boolean) => void;
+  setMedicationCatalogLookupEnabled: (enabled: boolean) => void;
   setFatBreakdownAlgorithm: (algorithm: FatBreakdownAlgorithm) => void;
   setMineralCalculationAlgorithm: (
     algorithm: MineralCalculationAlgorithm
@@ -229,6 +231,7 @@ export interface DefaultPreferences {
   include_bmr_in_net_calories: boolean;
   show_net_carbs: boolean;
   ai_assisted_conversions: boolean;
+  medication_catalog_lookup_enabled: boolean;
   fat_breakdown_algorithm: FatBreakdownAlgorithm;
   mineral_calculation_algorithm: MineralCalculationAlgorithm;
   vitamin_calculation_algorithm: VitaminCalculationAlgorithm;
@@ -323,6 +326,13 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
   // estimate path. Default true matches the server migration (DEFAULT TRUE).
   const [aiAssistedConversions, setAiAssistedConversionsState] =
     useState<boolean>(true);
+  // US drug catalog (NLM RxTerms) lookups in the medication name search. Default false, and the
+  // default is the feature: this one sends a medication name off the user's own server, so it is
+  // off until they say otherwise. Never flip this default to true.
+  const [
+    medicationCatalogLookupEnabled,
+    setMedicationCatalogLookupEnabledState,
+  ] = useState<boolean>(false);
   const [fatBreakdownAlgorithm, setFatBreakdownAlgorithmState] =
     useState<FatBreakdownAlgorithm>(FatBreakdownAlgorithm.AHA_GUIDELINES);
   const [mineralCalculationAlgorithm, setMineralCalculationAlgorithmState] =
@@ -718,6 +728,9 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
           data.add_exercise_water_to_goal ?? false
         );
         setAiAssistedConversionsState(data.ai_assisted_conversions ?? true);
+        setMedicationCatalogLookupEnabledState(
+          data.medication_catalog_lookup_enabled ?? false
+        );
         setFatBreakdownAlgorithmState(
           data.fat_breakdown_algorithm || FatBreakdownAlgorithm.AHA_GUIDELINES
         );
@@ -902,6 +915,9 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
           newPrefs?.addExerciseWaterToGoal ?? addExerciseWaterToGoal,
         ai_assisted_conversions:
           newPrefs?.aiAssistedConversions ?? aiAssistedConversions,
+        medication_catalog_lookup_enabled:
+          newPrefs?.medicationCatalogLookupEnabled ??
+          medicationCatalogLookupEnabled,
         fat_breakdown_algorithm:
           newPrefs?.fatBreakdownAlgorithm ?? fatBreakdownAlgorithm,
         mineral_calculation_algorithm:
@@ -972,6 +988,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
       includeBmrInNetCalories,
       showNetCarbs,
       aiAssistedConversions,
+      medicationCatalogLookupEnabled,
       fatBreakdownAlgorithm,
       mineralCalculationAlgorithm,
       vitaminCalculationAlgorithm,
@@ -1220,6 +1237,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
       includeBmrInNetCalories,
       showNetCarbs,
       aiAssistedConversions,
+      medicationCatalogLookupEnabled,
       fatBreakdownAlgorithm,
       mineralCalculationAlgorithm,
       vitaminCalculationAlgorithm,
@@ -1265,6 +1283,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
       setIncludeBmrInNetCalories: setIncludeBmrInNetCaloriesState,
       setShowNetCarbs: setShowNetCarbsState,
       setAiAssistedConversions: setAiAssistedConversionsState,
+      setMedicationCatalogLookupEnabled: setMedicationCatalogLookupEnabledState,
       setFatBreakdownAlgorithm: setFatBreakdownAlgorithmState,
       setMineralCalculationAlgorithm: setMineralCalculationAlgorithmState,
       setVitaminCalculationAlgorithm: setVitaminCalculationAlgorithmState,
@@ -1315,6 +1334,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
       includeBmrInNetCalories,
       showNetCarbs,
       aiAssistedConversions,
+      medicationCatalogLookupEnabled,
       fatBreakdownAlgorithm,
       mineralCalculationAlgorithm,
       vitaminCalculationAlgorithm,

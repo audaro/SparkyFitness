@@ -73,6 +73,7 @@ import {
   SafeDashboardSettings,
   SafeDiarySettings,
   SafeWorkoutSettings,
+  SafeMedicationSettings,
   SafeGymProfiles,
   SafeExercisePacks,
   SafeWeeklySetTargets,
@@ -649,6 +650,11 @@ function AppContent() {
             name="WorkoutSettings"
             component={SafeWorkoutSettings}
             options={createStackScreenOptions(t('screens.workoutSettings', { defaultValue: 'Workout Settings' }), { headerBackTitle: t('navigation.settings', { defaultValue: 'Settings' }) })}
+          />
+          <Stack.Screen
+            name="MedicationSettings"
+            component={SafeMedicationSettings}
+            options={createStackScreenOptions(t('screens.medicationSettings', { defaultValue: 'Medication Settings' }), { headerBackTitle: t('navigation.settings', { defaultValue: 'Settings' }) })}
           />
           <Stack.Screen
             name="GymProfiles"

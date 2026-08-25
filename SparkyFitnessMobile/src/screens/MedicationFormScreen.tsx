@@ -15,7 +15,10 @@ import {
   catalogOpensCalculator,
   resolveCatalogDrug,
   concentrationUnitLabel,
+  rxTermsTypeIdForDoseForm,
   type MedicationRouteId,
+  type RxTermsProduct,
+  type RxTermsStrength,
   type ReconstitutionRecord,
   type ReconstitutionUnit,
 } from '@workspace/shared';
@@ -61,6 +64,14 @@ interface FormState {
   routeId: string | null;
   /** Which bundled catalog row this medication is, when it came from one. */
   catalogId: string | null;
+  /**
+   * The RXCUI to persist — the durable record of a US-catalog strength pick.
+   *
+   * Rehydrated on edit so a save that never touches the name keeps it, and cleared the moment the
+   * name stops describing the drug it identified: an RXCUI left behind on a renamed row is a
+   * precise-looking claim about the wrong medication.
+   */
+  rxcui: string | null;
   /** How this vial was mixed, when it was. Null for anything that is not a reconstituted vial. */
   reconstitution: ReconstitutionRecord | null;
 }
@@ -79,6 +90,7 @@ const EMPTY_FORM: FormState = {
   isActive: true,
   routeId: null,
   catalogId: null,
+  rxcui: null,
   reconstitution: null,
 };
 
@@ -108,6 +120,7 @@ function baseFromMed(
       typeof existingMed.custom_fields?.['catalog_id'] === 'string'
         ? (existingMed.custom_fields['catalog_id'] as string)
         : null,
+    rxcui: existingMed.rxnorm_rxcui ?? null,
     // Null for anything that is not a complete, valid record — `custom_fields` is free-form
     // JSONB, and half a mix is worse than none when it repopulates a syringe calculator.
     reconstitution: readReconstitutionRecord(existingMed.custom_fields),
@@ -158,6 +171,40 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
   // Bumped on every name pick to remount the calculator on the new medication's numbers.
   const [calcSeed, setCalcSeed] = useState(0);
 
+  // The US-catalog product behind this row, when the name came off tier 3. Held for the life of
+  // this screen only, to populate the strength picker below — the durable record of that pick is
+  // `rxcui` above, so an edit rehydrates the identifier and not the product.
+  const [rxTermsProduct, setRxTermsProduct] = useState<RxTermsProduct | null>(null);
+  // Which of that product's strengths is selected, by its raw label. The raw string is the key
+  // because it is the one thing every strength has: two entries can share a parsed value and unit
+  // (different pack sizes) and an unparsed one has neither.
+  const [rxTermsStrengthRaw, setRxTermsStrengthRaw] = useState<string | null>(null);
+
+  /**
+   * Take one RxTerms strength as the row's strength.
+   *
+   * The raw label and the RXCUI are recorded whatever happens; the numeric fields are only touched
+   * when the parser actually read them. A strength it refused — a percentage, a combination —
+   * leaves the value blank for the user to type rather than filling it with something derived from
+   * a string nobody vouched for.
+   */
+  const applyRxTermsStrength = useCallback((choice: RxTermsStrength) => {
+    setRxTermsStrengthRaw(choice.raw);
+    setEdits((prev) => ({
+      ...prev,
+      rxcui: choice.rxcui,
+      ...(choice.value !== null && choice.unit !== null
+        ? { strengthValue: String(choice.value), strengthUnit: choice.unit }
+        : { strengthValue: '' }),
+    }));
+  }, []);
+
+  /** Detach the row from whatever tier 3 last said about it. */
+  const clearRxTerms = useCallback(() => {
+    setRxTermsProduct(null);
+    setRxTermsStrengthRaw(null);
+  }, []);
+
   const catalogDrug = useMemo(
     () => (form.catalogId ? (resolveCatalogDrug(form.catalogId) ?? null) : null),
     [form.catalogId],
@@ -196,10 +243,18 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
       // no strength ladder, picked while it was already showing — would otherwise keep the
       // previous vial's numbers prefilled under a different medication's name.
       setCalcSeed((seed) => seed + 1);
+      // Every pick but a tier 3 one detaches the row from whatever the US catalog last said.
+      if (pick.kind !== 'rxterms') clearRxTerms();
       if (pick.kind === 'custom') {
         // The mix describes a vial, not a form. Carrying it onto a different drug would prefill
         // the calculator with someone else's numbers and pick their syringe for the draw.
-        setEdits((prev) => ({ ...prev, name: pick.name, catalogId: null, reconstitution: null }));
+        setEdits((prev) => ({
+          ...prev,
+          name: pick.name,
+          catalogId: null,
+          rxcui: null,
+          reconstitution: null,
+        }));
         setCalculatorToggle(false);
         return;
       }
@@ -219,9 +274,40 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
           doseAmount: med.dose_amount != null ? String(med.dose_amount) : '',
           doseUnit: med.dose_unit ?? EMPTY_FORM.doseUnit,
           catalogId: typeof savedCatalogId === 'string' ? savedCatalogId : null,
+          // Copying a row that was itself identified against the US catalog carries the identifier
+          // with it — it names the same product, and re-deriving it would need another lookup.
+          rxcui: med.rxnorm_rxcui ?? null,
           // The copied row's own mix, so the strength above and the vial behind it stay the same
           // medication's. Null when it has none — never the mix that was on screen a moment ago.
           reconstitution: readReconstitutionRecord(med.custom_fields),
+        }));
+        setCalculatorToggle(false);
+        return;
+      }
+      if (pick.kind === 'rxterms') {
+        // The base name, not the display name: `Testosterone (Injectable)` is how a catalog
+        // disambiguates its own rows, not what anyone calls their medication. The dose form it
+        // holds goes to `type_id`, where it is actually used.
+        const { product } = pick;
+        setRxTermsProduct(product);
+        const typeFromForm = rxTermsTypeIdForDoseForm(product.doseForm);
+        // One strength is not a choice, so it is applied outright. Several are left for the picker
+        // below: guessing which of eight testosterone concentrations someone holds is exactly the
+        // kind of plausible-looking wrong number this whole tier is written to avoid.
+        const [only] = product.strengths;
+        const lone = product.strengths.length === 1 ? only : undefined;
+        setRxTermsStrengthRaw(lone?.raw ?? null);
+        setEdits((prev) => ({
+          ...prev,
+          name: product.baseName,
+          catalogId: null,
+          ...(typeFromForm ? { typeId: typeFromForm } : {}),
+          rxcui: lone?.rxcui ?? null,
+          ...(lone && lone.value !== null && lone.unit !== null
+            ? { strengthValue: String(lone.value), strengthUnit: lone.unit }
+            : { strengthValue: '' }),
+          // The mix on screen described whatever this row used to be; see the custom branch above.
+          reconstitution: null,
         }));
         setCalculatorToggle(false);
         return;
@@ -234,6 +320,7 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
         ...prev,
         name: pick.matchedOn,
         catalogId: drug.id,
+        rxcui: null,
         typeId: CATALOG_ROUTE_TYPE[drug.routes[0] ?? 'other'] ?? 'other',
         routeId: drug.routes[0] ?? null,
         reconstitution: null,
@@ -244,7 +331,7 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
       // ladder gets neither; see `catalogOpensCalculator`.
       setCalculatorToggle(catalogOpensCalculator(drug));
     },
-    [],
+    [clearRxTerms],
   );
 
   const handleSave = useCallback(() => {
@@ -275,6 +362,9 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
       pharmacy: form.pharmacy.trim() || null,
       notes: form.notes.trim() || null,
       route_id: form.routeId,
+      // The US-catalog identifier for this exact product and strength, when one was picked.
+      // Explicitly null otherwise, so a row renamed off the catalog stops claiming an identity.
+      rxnorm_rxcui: form.rxcui,
       // Provenance, not a label: 'catalog' is what makes `catalog_id` below meaningful. A row
       // whose name was hand-typed keeps whatever it already said.
       source: form.catalogId ? 'catalog' : (existingMed?.source ?? 'manual'),
@@ -349,10 +439,11 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
               value={form.name}
               onChangeText={(v) => {
                 setSuggestionsOpen(true);
-                // Typing over a matched name detaches the row from the catalog: leaving
-                // `catalog_id` on a medication renamed to something else would attribute the
-                // wrong drug's data to it.
-                setEdits((prev) => ({ ...prev, name: v, catalogId: null }));
+                // Typing over a matched name detaches the row from both catalogs: leaving
+                // `catalog_id` or an RXCUI on a medication renamed to something else would
+                // attribute the wrong drug's data to it.
+                clearRxTerms();
+                setEdits((prev) => ({ ...prev, name: v, catalogId: null, rxcui: null }));
               }}
               autoCapitalize="words"
             />
@@ -373,6 +464,44 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
               </Text>
             )}
           </View>
+
+          {/* A product with more than one strength asks rather than assumes. The options are the
+              label text RxTerms publishes, unedited, so they can be read against the box in the
+              user's hand — the parsed number goes in the strength field below, not here. */}
+          {rxTermsProduct && rxTermsProduct.strengths.length > 1 && (
+            <View className="gap-1.5">
+              <Text className="text-text-secondary text-sm font-medium">
+                {t('medications.form.rxTermsStrength', {
+                  defaultValue: 'Which strength do you have?',
+                })}
+              </Text>
+              <BottomSheetPicker
+                value={rxTermsStrengthRaw ?? ''}
+                options={rxTermsProduct.strengths.map((choice) => ({
+                  label: choice.raw,
+                  value: choice.raw,
+                }))}
+                onSelect={(raw) => {
+                  const choice = rxTermsProduct.strengths.find(
+                    (candidate) => candidate.raw === raw,
+                  );
+                  if (choice) applyRxTermsStrength(choice);
+                }}
+                title={t('medications.form.rxTermsStrengthTitle', { defaultValue: 'Strength' })}
+                placeholder={t('medications.form.rxTermsStrengthPlaceholder', {
+                  defaultValue: 'Choose a strength',
+                })}
+              />
+              {rxTermsStrengthRaw !== null && !form.strengthValue && (
+                <Text className="text-text-muted text-xs">
+                  {t('medications.form.rxTermsStrengthUnread', {
+                    defaultValue:
+                      'That strength could not be read as a single number — enter it below.',
+                  })}
+                </Text>
+              )}
+            </View>
+          )}
 
           <View className="gap-1.5">
             <Text className="text-text-secondary text-sm font-medium">{t('medications.form.type', { defaultValue: 'Type' })}</Text>

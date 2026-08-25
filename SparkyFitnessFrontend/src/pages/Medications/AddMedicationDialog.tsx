@@ -13,8 +13,11 @@ import {
   concentrationUnitLabel,
   readReconstitutionRecord,
   RECONSTITUTION_FIELD,
+  rxTermsTypeIdForDoseForm,
   type CatalogDrug,
   type MedicationRouteId,
+  type RxTermsProduct,
+  type RxTermsStrength,
   type ReconstitutionRecord,
   type ReconstitutionUnit,
 } from '@workspace/shared';
@@ -306,6 +309,25 @@ export default function AddMedicationDialog({
   // row already had, so an edit never silently rewrites a route set elsewhere.
   const [routeId, setRouteId] = useState<string | null>(
     editMed?.route_id ?? null
+  );
+
+  // The US-catalog product behind this row, when the name came off tier 3. Held for the life of
+  // the dialog only, to populate the strength picker below — the durable record of that pick is
+  // `rxnorm_rxcui` on the saved row, so an edit rehydrates the identifier and not the product.
+  const [rxTermsProduct, setRxTermsProduct] = useState<RxTermsProduct | null>(
+    null
+  );
+  // Which of that product's strengths is selected, by its raw label. The raw string is the key
+  // because it is the one thing every strength has: two entries can share a parsed value and
+  // unit (different pack sizes) and an unparsed one has neither.
+  const [rxTermsStrengthRaw, setRxTermsStrengthRaw] = useState<string | null>(
+    null
+  );
+  // The RXCUI to persist. Rehydrated on edit so a save that never touches the name keeps it, and
+  // cleared the moment the name stops describing the drug it identified — an RXCUI left behind on
+  // a renamed row is a precise-looking claim about the wrong medication.
+  const [rxcui, setRxcui] = useState<string | null>(
+    editMed?.rxnorm_rxcui ?? null
   );
 
   const createMutation = useCreateMedicationMutation();
@@ -678,6 +700,10 @@ export default function AddMedicationDialog({
       effectiveness_rating: effectiveness > 0 ? effectiveness : null,
       photo_path: photoPath || null,
       route_id: routeId,
+      // Only ever set from a strength the user picked off the US catalog, which they only ever
+      // see if they opted the lookup in — so this column stays null for anyone who did not, as
+      // its migration intended. A supplement never carries one: RxTerms is prescription drugs.
+      rxnorm_rxcui: isSupplement ? null : rxcui,
       // Provenance, not a label: 'catalog' means the name came off the bundled list, which is
       // what makes `catalog_id` below meaningful. An edit that keeps a hand-typed name keeps
       // whatever the row already said rather than being relabelled by this save.
@@ -778,11 +804,38 @@ export default function AddMedicationDialog({
    * touches a field the user has already typed into. That rule is what makes the autofill safe
    * to be wrong — the catalog suggests a shape, the user owns the numbers.
    */
+  /**
+   * Take one RxTerms strength as the row's strength.
+   *
+   * The raw label and the RXCUI are recorded whatever happens; the numeric fields are only
+   * touched when the parser actually read them. A strength it refused — a percentage, a
+   * combination — leaves the value blank for the user to type rather than filling it with
+   * something derived from a string nobody vouched for.
+   */
+  const applyRxTermsStrength = (choice: RxTermsStrength) => {
+    setRxTermsStrengthRaw(choice.raw);
+    setRxcui(choice.rxcui);
+    if (choice.value !== null && choice.unit !== null) {
+      setStrength(String(choice.value));
+      setStrengthUnit(choice.unit);
+    } else {
+      setStrength('');
+    }
+  };
+
+  /** Detach the row from whatever tier 3 last said about it. Every pick starts here. */
+  const clearRxTerms = () => {
+    setRxTermsProduct(null);
+    setRxTermsStrengthRaw(null);
+    setRxcui(null);
+  };
+
   const handleNamePick = (pick: MedicationNamePick) => {
     // The calculator seeds its fields once, at mount. A pick that leaves it open — a drug with
     // no strength ladder, picked while it was already showing — would otherwise keep the
     // previous vial's numbers prefilled under a different medication's name.
     setCalcSeed((seed) => seed + 1);
+    if (pick.kind !== 'rxterms') clearRxTerms();
     if (pick.kind === 'custom') {
       setName(pick.name);
       setCatalogDrug(null);
@@ -820,6 +873,37 @@ export default function AddMedicationDialog({
       // The copied row's own mix, so the strength above and the vial behind it stay the same
       // medication's. Null when it has none — never the mix that was on screen a moment ago.
       setReconRecord(readReconstitutionRecord(med.custom_fields));
+      // Copying a row that was itself identified against the US catalog carries the identifier
+      // with it — it names the same product, and re-deriving it would need another lookup.
+      setRxcui(med.rxnorm_rxcui ?? null);
+      return;
+    }
+
+    if (pick.kind === 'rxterms') {
+      // The base name, not the display name: `Testosterone (Injectable)` is how a catalog
+      // disambiguates its own rows, not what anyone calls their medication. The dose form it
+      // holds goes to `type_id` below, where it is actually used.
+      const { product } = pick;
+      setName(product.baseName);
+      setCatalogDrug(null);
+      setRxTermsProduct(product);
+      const typeFromForm = rxTermsTypeIdForDoseForm(product.doseForm);
+      if (typeFromForm) setTypeId(typeFromForm);
+
+      // One strength is not a choice, so it is applied outright. Several are left for the picker
+      // below: guessing which of eight testosterone concentrations someone holds is exactly the
+      // kind of plausible-looking wrong number this whole tier is written to avoid.
+      const [only] = product.strengths;
+      if (product.strengths.length === 1 && only) {
+        applyRxTermsStrength(only);
+      } else {
+        setRxTermsStrengthRaw(null);
+        setRxcui(null);
+        setStrength('');
+      }
+      setShowCalculator(false);
+      // The mix on screen described whatever this row used to be; see the custom branch above.
+      setReconRecord(null);
       return;
     }
 
@@ -880,6 +964,10 @@ export default function AddMedicationDialog({
                 // `catalog_id` on a medication the user has since renamed to something else
                 // would attribute the wrong drug's data to it.
                 if (catalogDrug) setCatalogDrug(null);
+                // Same for the US catalog, and one degree more important: what it leaves behind
+                // is an RXCUI, which reads as a precise identification of a drug this row may no
+                // longer be.
+                if (rxTermsProduct || rxcui) clearRxTerms();
               }}
               onPick={handleNamePick}
               placeholder={
@@ -899,6 +987,52 @@ export default function AddMedicationDialog({
                   { drug: catalogDrug.displayName }
                 )}
               </p>
+            )}
+            {/* A product with more than one strength asks rather than assumes. The list is the
+                label text RxTerms publishes, unedited, so it can be read against the box in the
+                user's hand — the parsed number goes in the strength field, not here. */}
+            {rxTermsProduct && rxTermsProduct.strengths.length > 1 && (
+              <div className="space-y-2 pt-1">
+                <Label htmlFor="med-rxterms-strength">
+                  {t(
+                    'medications.cabinet.rxTermsStrength',
+                    'Which strength do you have?'
+                  )}
+                </Label>
+                <Select
+                  value={rxTermsStrengthRaw ?? ''}
+                  onValueChange={(raw) => {
+                    const choice = rxTermsProduct.strengths.find(
+                      (candidate) => candidate.raw === raw
+                    );
+                    if (choice) applyRxTermsStrength(choice);
+                  }}
+                >
+                  <SelectTrigger id="med-rxterms-strength">
+                    <SelectValue
+                      placeholder={t(
+                        'medications.cabinet.rxTermsStrengthPlaceholder',
+                        'Choose a strength'
+                      )}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rxTermsProduct.strengths.map((choice) => (
+                      <SelectItem key={choice.raw} value={choice.raw}>
+                        {choice.raw}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {rxTermsStrengthRaw !== null && !strength && (
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      'medications.cabinet.rxTermsStrengthUnread',
+                      'That strength could not be read as a single number — enter it below.'
+                    )}
+                  </p>
+                )}
+              </div>
             )}
           </div>
           {isSupplement ? (

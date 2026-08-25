@@ -1,4 +1,5 @@
 import { apiCall } from '@/api/api';
+import type { MedicationCatalogSearchResponse } from '@workspace/shared';
 import type {
   Medication,
   MedicationDetail,
@@ -156,4 +157,27 @@ export const getSiteSuggestion = (
 ): Promise<SiteSuggestionResponse> =>
   apiCall(`/v2/medications/${medicationId}/glp1/site-suggestion`, {
     method: 'GET',
+  });
+
+// --- Drug catalog search (tier 3) -----------------------------------------
+
+/**
+ * Search the US drug catalog (NLM RxTerms) through our own server.
+ *
+ * Never called directly from a component — `useMedicationCatalogSearch` owns the debounce and the
+ * character threshold that keep this from firing on every keystroke.
+ *
+ * `suppressErrorToast` is the point of this wrapper. The server already answers 200 with an
+ * `unavailableReason` when NLM itself is unreachable, so a rejection here means our own backend is
+ * down or the session has expired — and neither is worth an error toast thrown over a half-typed
+ * medication name. The caller treats a rejection as "no suggestions".
+ */
+export const searchMedicationCatalog = (
+  q: string,
+  limit?: number
+): Promise<MedicationCatalogSearchResponse> =>
+  apiCall('/v2/medications/catalog-search', {
+    method: 'GET',
+    params: { q, limit },
+    suppressErrorToast: true,
   });

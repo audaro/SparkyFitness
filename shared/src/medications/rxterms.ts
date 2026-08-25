@@ -95,6 +95,17 @@ export interface MedicationCatalogSearchResponse {
 }
 
 /**
+ * The shortest term worth a network round trip.
+ *
+ * Tiers 1 and 2 render from the first character because they are free. This one costs a request
+ * and a third party's attention, so it waits. It lives here rather than in the server's integration
+ * because the clients enforce it too — a client that fired at two characters would spend the trip
+ * to be told `term_too_short`, and one that waited for four would silently never search a
+ * three-letter drug name.
+ */
+export const RXTERMS_MIN_TERM_LENGTH = 3;
+
+/**
  * The response envelope, validated rather than trusted.
  *
  * RxTerms answers with a positional tuple, not an object: `[total, names, extras, displays]`.
@@ -202,7 +213,10 @@ export function parseRxTermsStrength(
   if (value === null) return unparsed(text, rxcui, "unrecognised");
 
   const [numerator, denominator] = unitToken.split("/");
-  if (numerator === undefined || !NUMERATOR_UNITS.has(numerator.toLowerCase())) {
+  if (
+    numerator === undefined ||
+    !NUMERATOR_UNITS.has(numerator.toLowerCase())
+  ) {
     return unparsed(text, rxcui, "unrecognised");
   }
   if (denominator !== undefined) {
@@ -237,6 +251,72 @@ function splitDisplayName(displayName: string): {
     return { baseName: trimmed, doseForm: null };
   }
   return { baseName, doseForm: match?.[2]?.trim() || null };
+}
+
+/**
+ * RxTerms dose form → the `type_id` the medication form already offers (`MED_TYPES`).
+ *
+ * Deliberately partial. Every entry below is a form whose translation is unambiguous; anything
+ * RxTerms carries that is not here — `Implant`, `Rectal`, `Vaginal`, `Mucous Membrane` — resolves
+ * to null and leaves the field alone for the user to set. A guess here is not a small cosmetic
+ * error: `type_id` drives whether a dose is counted in tablets or measured in millilitres, so a
+ * wrong one changes what the numbers next to it mean.
+ *
+ * `Topical` → `cream` matches how the bundled catalog already maps its topical route, so the two
+ * tiers do not disagree about the same drug.
+ */
+const RXTERMS_DOSE_FORM_TYPE_ID: Readonly<Record<string, string>> = {
+  "Oral Pill": "pill",
+  "Oral Liquid": "liquid",
+  Injectable: "injection",
+  Topical: "cream",
+  Nasal: "nasal_spray",
+  Inhalant: "inhaler",
+  Patch: "patch",
+  Ophthalmic: "drops",
+  Otic: "drops",
+};
+
+/** The medication `type_id` for an RxTerms dose form, or null when it has no safe equivalent. */
+export function rxTermsTypeIdForDoseForm(
+  doseForm: string | null,
+): string | null {
+  if (!doseForm) return null;
+  return RXTERMS_DOSE_FORM_TYPE_ID[doseForm] ?? null;
+}
+
+/**
+ * What a tier 3 row should say about its strengths, before the pick is made.
+ *
+ * The three cases are a rule, not a formatting detail, and both clients have to agree on them:
+ *
+ * - one strength → say it, because that is the number the pick will put in the field;
+ * - several → say how many, because listing them means one row per strength, and eight
+ *   testosterone rows above the user's own cabinet buries the two tiers that know them;
+ * - a lone strength the parser refused, or none at all → say nothing, rather than a number
+ *   nobody vouched for.
+ *
+ * Returns the decision, not the words: the count is a plural and belongs to each platform's
+ * i18n catalog. What must not drift between web and mobile is which of the three cases a
+ * product is in.
+ */
+export type RxTermsStrengthHint =
+  | { kind: "single"; value: number; unit: string }
+  | { kind: "count"; count: number };
+
+export function rxTermsStrengthHint(
+  product: RxTermsProduct,
+): RxTermsStrengthHint | null {
+  const [only] = product.strengths;
+  if (product.strengths.length === 1 && only) {
+    return only.value !== null && only.unit !== null
+      ? { kind: "single", value: only.value, unit: only.unit }
+      : null;
+  }
+  if (product.strengths.length > 1) {
+    return { kind: "count", count: product.strengths.length };
+  }
+  return null;
 }
 
 /**

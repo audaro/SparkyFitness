@@ -101,7 +101,8 @@
       "whatsNew": "What's New",
       "logs": "View Logs",
       "about": "About",
-      "shareReport": "Share Diagnostic Report"
+      "shareReport": "Share Diagnostic Report",
+      "medications": "Medications"
     },
     "theme": {
       "title": "Theme",
@@ -409,7 +410,8 @@
       "failedRecentItems": "Failed to load recent items.",
       "noRecentItems": "No recent items yet",
       "recentItemsHint": "Foods, meals, and exercises you log will appear here for quick access."
-    }
+    },
+    "medicationSettings": "Medication Settings"
   },
   "healthMetrics": {
     "steps": "Steps",
@@ -943,7 +945,11 @@
       "labelStrengths": "Label strengths",
       "labelStrengthsHint": "From the approved label. Type your own above if yours differs.",
       "openCalculator": "Reconstituting a vial? Work out the syringe units",
-      "draw": "Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe"
+      "draw": "Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe",
+      "rxTermsStrength": "Which strength do you have?",
+      "rxTermsStrengthTitle": "Strength",
+      "rxTermsStrengthPlaceholder": "Choose a strength",
+      "rxTermsStrengthUnread": "That strength could not be read as a single number — enter it below."
     },
     "detail": {
       "deleteTitle": "Delete Medication",
@@ -1127,7 +1133,11 @@
     "search": {
       "yours": "Your medications",
       "known": "Known drugs",
-      "addCustom": "Add \"{{name}}\" as a custom medication"
+      "addCustom": "Add \"{{name}}\" as a custom medication",
+      "usCatalog": "US drug catalog",
+      "nlmTag": "NLM",
+      "strengthCount_one": "{{count}} strength",
+      "strengthCount_other": "{{count}} strengths"
     },
     "recon": {
       "title": "Reconstitution calculator",
@@ -4604,5 +4614,14 @@
     "records_few": "{{count}} records",
     "records_many": "{{count}} records",
     "records_other": "{{count}} records"
+  },
+  "medicationSettings": {
+    "title": "Medication Settings",
+    "saveFailed": "That setting could not be saved. It is unchanged.",
+    "catalogLookup": {
+      "title": "Search the US drug catalog",
+      "description": "Adds around 20,000 US prescription products to the suggestions when you type a medication name, with their strengths and forms. Off by default.",
+      "privacy": "What this sends: the name you are typing, from this server to the US National Library of Medicine. Your account, your medication list and everything else about you stay here. Your own medications and the built-in drug list are searched offline either way."
+    }
   }
 }

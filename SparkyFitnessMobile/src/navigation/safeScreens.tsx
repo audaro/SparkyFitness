@@ -39,6 +39,7 @@ import FoodSettingsScreen from '../screens/FoodSettingsScreen';
 import DashboardSettingsScreen from '../screens/DashboardSettingsScreen';
 import DiarySettingsScreen from '../screens/DiarySettingsScreen';
 import WorkoutSettingsScreen from '../screens/WorkoutSettingsScreen';
+import MedicationSettingsScreen from '../screens/MedicationSettingsScreen';
 import GymProfilesScreen from '../screens/GymProfilesScreen';
 import ExercisePacksScreen from '../screens/ExercisePacksScreen';
 import WeeklySetTargetsScreen from '../screens/WeeklySetTargetsScreen';
@@ -111,6 +112,7 @@ export const SafeFoodSettings = withErrorBoundary(FoodSettingsScreen, 'FoodSetti
 export const SafeDashboardSettings = withErrorBoundary(DashboardSettingsScreen, 'DashboardSettings', { canGoBack: true });
 export const SafeDiarySettings = withErrorBoundary(DiarySettingsScreen, 'DiarySettings', { canGoBack: true });
 export const SafeWorkoutSettings = withErrorBoundary(WorkoutSettingsScreen, 'WorkoutSettings', { canGoBack: true });
+export const SafeMedicationSettings = withErrorBoundary(MedicationSettingsScreen, 'MedicationSettings', { canGoBack: true });
 export const SafeGymProfiles = withErrorBoundary(GymProfilesScreen, 'GymProfiles', { canGoBack: true });
 export const SafeExercisePacks = withErrorBoundary(ExercisePacksScreen, 'ExercisePacks', { canGoBack: true });
 export const SafeWeeklySetTargets = withErrorBoundary(WeeklySetTargetsScreen, 'WeeklySetTargets', { canGoBack: true });

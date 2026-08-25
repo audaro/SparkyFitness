@@ -101,7 +101,8 @@
       "whatsNew": "Co nowego",
       "logs": "Wyświetl logi",
       "about": "Informacje",
-      "shareReport": "Udostępnij raport diagnostyczny"
+      "shareReport": "Udostępnij raport diagnostyczny",
+      "medications": "Leki"
     },
     "theme": {
       "title": "Motyw",
@@ -409,7 +410,8 @@
       "failedRecentItems": "Nie udało się załadować ostatnich elementów.",
       "noRecentItems": "Brak ostatnich elementów",
       "recentItemsHint": "Zapisane produkty, posiłki i ćwiczenia pojawią się tutaj, aby ułatwić dostęp."
-    }
+    },
+    "medicationSettings": "Ustawienia leków"
   },
   "healthMetrics": {
     "steps": "Kroki",
@@ -945,7 +947,11 @@
       "labelStrengths": "Moce z ulotki",
       "labelStrengthsHint": "Z zatwierdzonej ulotki. Jeśli Twoja jest inna, wpisz ją powyżej.",
       "openCalculator": "Rozpuszczasz fiolkę? Oblicz jednostki na strzykawce",
-      "draw": "Nabierz {{volume}} ml — {{units}} jednostek na strzykawce {{syringe}}"
+      "draw": "Nabierz {{volume}} ml — {{units}} jednostek na strzykawce {{syringe}}",
+      "rxTermsStrength": "Którą moc masz?",
+      "rxTermsStrengthTitle": "Moc",
+      "rxTermsStrengthPlaceholder": "Wybierz moc",
+      "rxTermsStrengthUnread": "Nie udało się odczytać tej mocy jako pojedynczej liczby — wpisz ją poniżej."
     },
     "detail": {
       "deleteTitle": "Usuń lek",
@@ -1139,7 +1145,13 @@
     "search": {
       "yours": "Twoje leki",
       "known": "Znane leki",
-      "addCustom": "Dodaj „{{name}}” jako lek niestandardowy"
+      "addCustom": "Dodaj „{{name}}” jako lek niestandardowy",
+      "usCatalog": "Amerykański katalog leków",
+      "nlmTag": "NLM",
+      "strengthCount_one": "{{count}} moc",
+      "strengthCount_few": "{{count}} moce",
+      "strengthCount_many": "{{count}} mocy",
+      "strengthCount_other": "{{count}} mocy"
     },
     "recon": {
       "title": "Kalkulator rozpuszczania",
@@ -4718,5 +4730,14 @@
     "records_many": "{{count}} rekordów",
     "records_other": "{{count}} rekordów",
     "error": "Błąd"
+  },
+  "medicationSettings": {
+    "title": "Ustawienia leków",
+    "saveFailed": "Nie udało się zapisać tego ustawienia. Pozostaje bez zmian.",
+    "catalogLookup": {
+      "title": "Szukaj w amerykańskim katalogu leków",
+      "description": "Dodaje około 20 000 amerykańskich leków na receptę do podpowiedzi podczas wpisywania nazwy leku, wraz z ich mocami i postaciami. Domyślnie wyłączone.",
+      "privacy": "Co jest wysyłane: wpisywana nazwa, z tego serwera do amerykańskiej National Library of Medicine. Twoje konto, lista leków i wszystko inne pozostaje tutaj. Twoje własne leki i wbudowana lista leków są przeszukiwane offline niezależnie od tego ustawienia."
+    }
   }
 }

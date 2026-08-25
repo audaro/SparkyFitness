@@ -2,6 +2,7 @@ import axios from 'axios';
 import NodeCache from 'node-cache';
 import {
   parseRxTermsResponse,
+  RXTERMS_MIN_TERM_LENGTH,
   type MedicationCatalogSearchResponse,
   type RxTermsProduct,
 } from '@workspace/shared';
@@ -77,12 +78,6 @@ function rememberProducts(cacheKey: string, products: RxTermsProduct[]): void {
  * rendered, so a slow NLM must cost the user a suggestion, never a usable search box.
  */
 const REQUEST_TIMEOUT_MS = 3000;
-
-/**
- * Tiers 1 and 2 render from the first character because they are free. This one costs a network
- * round trip and a third party's attention, so it waits until the term is worth sending.
- */
-export const RXTERMS_MIN_TERM_LENGTH = 3;
 
 const DEFAULT_LIMIT = 8;
 

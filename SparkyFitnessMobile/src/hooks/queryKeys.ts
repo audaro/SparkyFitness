@@ -181,3 +181,7 @@ export const medicationDetailQueryKey = (id: string) =>
   ['medications', 'detail', id] as const;
 export const medicationEntriesQueryKey = (opts?: { fromDate?: string; toDate?: string; medicationId?: string }) =>
   ['medications', 'entries', opts ?? {}] as const;
+// Keyed by the lowercased term because RxTerms is case-insensitive, so `Metformin` and
+// `metformin` are one answer and must not be two requests.
+export const medicationCatalogSearchQueryKey = (term: string, limit?: number) =>
+  ['medications', 'catalog-search', term.toLowerCase(), limit ?? null] as const;

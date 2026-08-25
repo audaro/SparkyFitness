@@ -40,6 +40,10 @@ export interface Medication {
   nutrients: MedicationNutrients;
   notes: string | null;
   source: string;
+  // RxNorm concept id for the exact product+strength, when the row was identified against the
+  // US drug catalog. Null for everything else, which is most rows — see the medication catalog
+  // opt-in. Optional here because older list responses predate it.
+  rxnorm_rxcui?: string | null;
   prescriber?: string | null;
   pharmacy?: string | null;
   rx_number?: string | null;

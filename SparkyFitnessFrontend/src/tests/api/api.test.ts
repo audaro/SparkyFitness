@@ -124,3 +124,45 @@ describe('apiCall gateway interception handling', () => {
     expect(mockReload).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * `suppressErrorToast` exists for background enhancements the user never asked for by name — the
+ * medication catalog lookup is the first. A dead backend there should cost a suggestion, not an
+ * error dialog thrown across a half-typed medication name.
+ */
+describe('apiCall suppressErrorToast', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    sessionStorage.clear();
+    global.fetch = jest.fn();
+  });
+
+  it('raises no toast for an HTTP error, and still rejects', async () => {
+    jest
+      .mocked(global.fetch)
+      .mockResolvedValue(makeResponse({ status: 500, body: '{}' }));
+
+    await expect(
+      apiCall('/test', { suppressErrorToast: true })
+    ).rejects.toThrow();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('raises no toast when the request never reaches the server', async () => {
+    jest.mocked(global.fetch).mockRejectedValue(new Error('offline'));
+
+    await expect(
+      apiCall('/test', { suppressErrorToast: true })
+    ).rejects.toThrow();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('still toasts without it, so nothing else quietly changed', async () => {
+    jest
+      .mocked(global.fetch)
+      .mockResolvedValue(makeResponse({ status: 500, body: '{}' }));
+
+    await expect(apiCall('/test')).rejects.toThrow();
+    expect(mockToast).toHaveBeenCalled();
+  });
+});

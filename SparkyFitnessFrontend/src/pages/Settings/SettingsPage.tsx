@@ -39,6 +39,7 @@ import { AccountSecurity } from './AccountSecurity';
 import { ApiSettings } from './ApiSettings';
 import { WaterTrackingSettings } from './WaterTrackingSettings';
 import CycleSettings from './CycleSettings';
+import MedicationSettings from './MedicationSettings';
 import { PreferenceSettings } from './PreferenceSettings';
 import { ProfileInformation } from './ProfileInformation';
 import { DataManagementSettings } from './DataManagementSettings';
@@ -63,6 +64,7 @@ const SECTION_TO_TAB_MAP: Record<string, string> = {
   'calculation-settings': 'nutrition-diet',
   'water-tracking': 'nutrition-diet',
   'cycle-settings': 'wellness',
+  'medication-settings': 'wellness',
   'custom-categories': 'wellness',
   'food-and-exercise-data-providers': 'developer-integrations',
   'ai-service': 'developer-integrations',
@@ -356,6 +358,12 @@ const Settings = () => {
               className="border rounded-lg mb-4"
             >
               <CycleSettings />
+            </AccordionItem>
+            <AccordionItem
+              value="medication-settings"
+              className="border rounded-lg mb-4"
+            >
+              <MedicationSettings />
             </AccordionItem>
             <AccordionItem
               value="custom-categories"

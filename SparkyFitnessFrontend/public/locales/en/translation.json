@@ -396,7 +396,11 @@
       "known": "Known drugs",
       "weekly": "weekly",
       "daily": "daily",
-      "addCustom": "Add \"{{name}}\" as a custom medication"
+      "addCustom": "Add \"{{name}}\" as a custom medication",
+      "usCatalog": "US drug catalog",
+      "nlmTag": "NLM",
+      "strengthCount_one": "{{count}} strength",
+      "strengthCount_other": "{{count}} strengths"
     },
     "recon": {
       "title": "Reconstitution calculator",
@@ -513,7 +517,10 @@
       "notesPlaceholder": "Take with water before breakfast. Avoid alcohol.",
       "photoPath": "Pill / Label Photo URL (optional)",
       "showAdvanced": "Show Advanced Options",
-      "draw": "Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe"
+      "draw": "Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe",
+      "rxTermsStrength": "Which strength do you have?",
+      "rxTermsStrengthPlaceholder": "Choose a strength",
+      "rxTermsStrengthUnread": "That strength could not be read as a single number — enter it below."
     },
     "subtype": {
       "all": "All",
@@ -2097,6 +2104,14 @@
       "customFloorActive": "A custom safety floor is active; recommended limits are still shown above.",
       "raisedToSafetyFloor": "⚠️ Daily budget was automatically raised to the safety-floor limit.",
       "safetyFloorDisabled": "Automatic safety-floor clamping is disabled; recommended limits are still shown above."
+    },
+    "medications": {
+      "title": "Medications",
+      "description": "Drug name lookups for the medication cabinet",
+      "catalogLookupLabel": "Search the US drug catalog",
+      "catalogLookupDescription": "Adds around 20,000 US prescription products to the suggestions when you type a medication name, with their strengths and forms. Off by default.",
+      "catalogLookupPrivacy": "What this sends: the name you are typing, from this server to the US National Library of Medicine. Your account, your medication list and everything else about you stay here. Your own medications and the built-in drug list are searched offline either way.",
+      "saveFailed": "That setting could not be saved. It is unchanged."
     }
   },
   "admin": {

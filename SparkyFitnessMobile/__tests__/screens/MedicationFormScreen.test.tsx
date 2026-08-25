@@ -9,7 +9,7 @@ import {
   useCreateMedication,
   useUpdateMedication,
 } from '../../src/hooks/useMedications';
-import type { MedicationDetail } from '@workspace/shared';
+import type { MedicationDetail, RxTermsProduct } from '@workspace/shared';
 import type { RootStackScreenProps } from '../../src/types/navigation';
 
 type ScreenProps = RootStackScreenProps<'MedicationForm'>;
@@ -21,6 +21,14 @@ jest.mock('../../src/hooks/useMedications', () => ({
   // Tier 1 of the name suggestions. Empty here so these tests are not competing with a
   // dropdown; the catalog suite below supplies its own rows.
   useMedications: jest.fn(() => ({ data: [] })),
+}));
+
+// Tier 3 of the name suggestions reaches the server through React Query, and this suite renders
+// the screen without a QueryClientProvider on purpose — the form's own data comes from the mocked
+// hooks above. `mock`-prefixed so the factory below may close over it.
+let mockCatalogProducts: RxTermsProduct[] = [];
+jest.mock('../../src/hooks/useMedicationCatalogSearch', () => ({
+  useMedicationCatalogSearch: () => ({ products: mockCatalogProducts, isFetching: false }),
 }));
 
 jest.mock('../../src/components/Icon', () => {
@@ -580,5 +588,172 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
 
     // 10 mg of Lisinopril is a tablet, not something with a draw volume.
     expect(screen.queryByTestId('med-draw')).toBeNull();
+  });
+});
+
+/**
+ * Tier 3 — the US drug catalog. What a pick from it is allowed to write onto the row: a name, a
+ * type, one strength when there is only one, and an RXCUI that must never outlive the name it
+ * identifies.
+ */
+describe('MedicationFormScreen — US catalog autofill', () => {
+  const createMutate = jest.fn();
+  const updateMutate = jest.fn();
+  const mockUseMedications = useMedications as jest.MockedFunction<typeof useMedications>;
+
+  const strength = (
+    raw: string,
+    rxcui: string,
+    value: number | null,
+    unit: string | null,
+  ): RxTermsProduct['strengths'][number] => ({
+    raw,
+    rxcui,
+    value,
+    unit,
+    unparsedReason: value === null ? 'unrecognised' : null,
+  });
+
+  const product = (
+    baseName: string,
+    strengths: RxTermsProduct['strengths'],
+  ): RxTermsProduct => ({
+    displayName: `${baseName} (Injectable)`,
+    baseName,
+    doseForm: 'Injectable',
+    strengths,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCatalogProducts = [];
+    mockUseMedications.mockReturnValue(
+      { data: [] } as unknown as ReturnType<typeof useMedications>,
+    );
+    mockUseMedicationDetail.mockReturnValue(
+      { data: undefined } as unknown as ReturnType<typeof useMedicationDetail>,
+    );
+    mockUseCreateMedication.mockReturnValue(
+      { mutate: createMutate, isPending: false } as unknown as ReturnType<typeof useCreateMedication>,
+    );
+    mockUseUpdateMedication.mockReturnValue(
+      { mutate: updateMutate, isPending: false } as unknown as ReturnType<typeof useUpdateMedication>,
+    );
+  });
+
+  it('takes a lone strength and the RXCUI that identifies it', () => {
+    mockCatalogProducts = [
+      product('Levothyroxine', [strength('0.025 mg Tab', '892245', 0.025, 'mg')]),
+    ];
+    const screen = renderScreen();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Levo');
+    fireEvent.press(screen.getByTestId('med-suggestion-rxterms:Levothyroxine (Injectable)'));
+
+    pressAction(screen, mockNavigation, 'Save');
+
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // The base name, not `Levothyroxine (Injectable)` — the parenthetical is how a catalog
+        // disambiguates its own rows, not what anyone calls their medication.
+        name: 'Levothyroxine',
+        type_id: 'injection',
+        strength_value: 0.025,
+        strength_unit: 'mg',
+        rxnorm_rxcui: '892245',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('asks which strength rather than choosing one', () => {
+    mockCatalogProducts = [
+      product('Testosterone', [
+        strength('100 mg/ml Injection 1 ml', '1111', 100, 'mg/ml'),
+        strength('200 mg/ml Injection 1 ml', '2222', 200, 'mg/ml'),
+      ]),
+    ];
+    const screen = renderScreen();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Testo');
+    fireEvent.press(screen.getByTestId('med-suggestion-rxterms:Testosterone (Injectable)'));
+
+    expect(screen.getByText('Which strength do you have?')).toBeTruthy();
+
+    pressAction(screen, mockNavigation, 'Save');
+
+    // Nothing guessed: no strength, and no identifier for a product-and-strength nobody picked.
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Testosterone',
+        strength_value: null,
+        rxnorm_rxcui: null,
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('takes the picked strength and its own RXCUI', () => {
+    mockCatalogProducts = [
+      product('Testosterone', [
+        strength('100 mg/ml Injection 1 ml', '1111', 100, 'mg/ml'),
+        strength('200 mg/ml Injection 1 ml', '2222', 200, 'mg/ml'),
+      ]),
+    ];
+    const screen = renderScreen();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Testo');
+    fireEvent.press(screen.getByTestId('med-suggestion-rxterms:Testosterone (Injectable)'));
+    fireEvent.press(screen.getByText('opt-200 mg/ml Injection 1 ml'));
+
+    pressAction(screen, mockNavigation, 'Save');
+
+    // The RXCUI belongs to the strength, not the product: 200 mg/ml is a different code from
+    // 100 mg/ml, and storing the wrong one names a vial the user does not have.
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        strength_value: 200,
+        strength_unit: 'mg/ml',
+        rxnorm_rxcui: '2222',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('drops the RXCUI when the name is typed over', () => {
+    mockCatalogProducts = [
+      product('Levothyroxine', [strength('0.025 mg Tab', '892245', 0.025, 'mg')]),
+    ];
+    const screen = renderScreen();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Levo');
+    fireEvent.press(screen.getByTestId('med-suggestion-rxterms:Levothyroxine (Injectable)'));
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Something else');
+
+    pressAction(screen, mockNavigation, 'Save');
+
+    // An identifier left on a renamed row is a precise-looking claim about the wrong drug.
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Something else', rxnorm_rxcui: null }),
+      expect.anything(),
+    );
+  });
+
+  it('keeps a saved RXCUI through an edit that never touches the name', () => {
+    mockUseMedicationDetail.mockReturnValue(
+      {
+        data: { ...baseMed, rxnorm_rxcui: '892245' },
+      } as unknown as ReturnType<typeof useMedicationDetail>,
+    );
+    const screen = renderScreen('med-1');
+
+    fireEvent.changeText(screen.getByPlaceholderText('Blood pressure'), 'Thyroid');
+
+    pressAction(screen, mockNavigation, 'Save');
+
+    expect(updateMutate).toHaveBeenCalledWith(
+      { id: 'med-1', body: expect.objectContaining({ rxnorm_rxcui: '892245' }) },
+      expect.anything(),
+    );
   });
 });
