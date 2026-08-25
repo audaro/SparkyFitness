@@ -26,6 +26,16 @@ export function hasApiStatus(error: unknown, statusCode: number): boolean {
   return error instanceof ApiError && error.statusCode === statusCode;
 }
 
+/**
+ * The server's two ways of saying "not yours": a straight refusal, or a row
+ * scoped to another user and therefore invisible rather than forbidden. Both
+ * mean the same thing to the person reading the toast, so the mutation hooks
+ * that own someone else's food, exercise or preset treat them alike.
+ */
+export function isAuthzError(error: unknown): boolean {
+  return hasApiStatus(error, 403) || hasApiStatus(error, 404);
+}
+
 export function getApiErrorMessage(error: unknown): string | null {
   if (error instanceof TimeoutError) {
     return i18n.t('common.requestTimedOut', { defaultValue: 'Request timed out. Check your server connection.' });

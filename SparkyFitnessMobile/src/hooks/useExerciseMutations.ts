@@ -16,6 +16,7 @@ import {
   type CreateExerciseEntryPayload,
   type UpdateExercisePayload,
 } from '../services/api/exerciseApi';
+import { isAuthzError } from '../services/api/errors';
 import { normalizeDate } from '../utils/dateUtils';
 import { invalidateExerciseCache } from './invalidateExerciseCache';
 import { syncExerciseSessionInCache } from './syncExerciseSessionInCache';
@@ -60,11 +61,6 @@ function translateExerciseConfirmMessage(key: string, fallback: string): string 
     default: return fallback;
   }
 }
-
-const isAuthzError = (error: unknown): boolean => {
-  if (!(error instanceof Error)) return false;
-  return error.message.includes('403') || error.message.includes('404');
-};
 
 // ---------------------------------------------------------------------------
 // Internal factories

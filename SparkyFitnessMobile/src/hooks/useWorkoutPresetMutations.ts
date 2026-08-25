@@ -9,13 +9,9 @@ import {
   type WorkoutPresetCreatePayload,
   type WorkoutPresetUpdatePayload,
 } from '../services/api/workoutPresetsApi';
+import { isAuthzError } from '../services/api/errors';
 import { workoutPresetsQueryKey } from './queryKeys';
 import type { WorkoutPreset } from '../types/workoutPresets';
-
-const isAuthzError = (error: unknown): boolean => {
-  if (!(error instanceof Error)) return false;
-  return error.message.includes('403') || error.message.includes('404');
-};
 
 function invalidateWorkoutPresetCaches(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: workoutPresetsQueryKey });

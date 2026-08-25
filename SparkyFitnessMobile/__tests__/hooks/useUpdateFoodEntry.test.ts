@@ -4,6 +4,7 @@ import { useUpdateFoodEntry } from '../../src/hooks/useUpdateFoodEntry';
 import { updateFoodEntry } from '../../src/services/api/foodEntriesApi';
 import { dailySummaryQueryKey } from '../../src/hooks/queryKeys';
 import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import { apiError } from '../helpers/apiError';
 
 jest.mock('../../src/services/api/foodEntriesApi', () => ({
   updateFoodEntry: jest.fn(),
@@ -84,7 +85,7 @@ describe('useUpdateFoodEntry', () => {
   });
 
   test('shows permission error on 403', async () => {
-    mockUpdateFoodEntry.mockRejectedValue(new Error('Server error: 403 - Forbidden'));
+    mockUpdateFoodEntry.mockRejectedValue(apiError(403, 'Forbidden'));
 
     const { result } = renderHook(
       () => useUpdateFoodEntry({ entryId: 'entry-1', entryDate: '2026-03-01' }),
@@ -101,6 +102,29 @@ describe('useUpdateFoodEntry', () => {
         text1: 'Failed to save changes',
         text2: "You don't have permission to edit this entry.",
       });
+    });
+  });
+
+  test('a non-403 whose body merely contains "403" is not a permission error', async () => {
+    // The classifier reads ApiError.statusCode. It used to match the digits in
+    // the message, which `apiClient` builds as `Server error: ${status} -
+    // ${body}` — so a body carrying them told the user they lacked permission
+    // for an entry that was theirs, and pointed them at nothing they could fix.
+    mockUpdateFoodEntry.mockRejectedValue(apiError(500, 'entry 403abc-dead-beef is corrupt'));
+
+    const { result } = renderHook(
+      () => useUpdateFoodEntry({ entryId: 'entry-1', entryDate: '2026-03-01' }),
+      { wrapper: createQueryWrapper(queryClient) },
+    );
+
+    await act(async () => {
+      result.current.updateEntry({ quantity: 200 });
+    });
+
+    await waitFor(() => {
+      expect(Toast.show).toHaveBeenCalledWith(
+        expect.objectContaining({ text2: 'Please try again.' }),
+      );
     });
   });
 

@@ -12,6 +12,7 @@ import {
   deleteWorkoutPreset,
 } from '../../src/services/api/workoutPresetsApi';
 import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import { apiError } from '../helpers/apiError';
 
 jest.mock('../../src/services/api/workoutPresetsApi', () => ({
   createWorkoutPreset: jest.fn(),
@@ -112,7 +113,7 @@ describe('useWorkoutPresetMutations', () => {
     });
 
     it('shows a permission toast on a 403 error', async () => {
-      mockUpdate.mockRejectedValue(new Error('Request failed: 403 Forbidden'));
+      mockUpdate.mockRejectedValue(apiError(403, 'Forbidden'));
 
       const { result } = renderHook(() => useUpdateWorkoutPreset(), { wrapper });
 
@@ -128,6 +129,27 @@ describe('useWorkoutPresetMutations', () => {
           text1: 'Failed to update preset',
           text2: "You don't have permission to edit this preset.",
         });
+      });
+    });
+
+    it('does not read the status out of the message text', async () => {
+      // 403 and 404 both mean "not yours" here, so both are matched — but on
+      // the status field. Matching the digits in `Server error: ${status} -
+      // ${body}` also fired on a body that merely contained them.
+      mockUpdate.mockRejectedValue(apiError(500, 'preset 403 of 404 failed to write'));
+
+      const { result } = renderHook(() => useUpdateWorkoutPreset(), { wrapper });
+
+      await act(async () => {
+        await expect(
+          result.current.updatePresetAsync({ id: 'p1', payload: {} as never }),
+        ).rejects.toThrow();
+      });
+
+      await waitFor(() => {
+        expect(Toast.show).toHaveBeenCalledWith(
+          expect.objectContaining({ text2: 'Please try again.' }),
+        );
       });
     });
 
@@ -221,7 +243,7 @@ describe('useWorkoutPresetMutations', () => {
     });
 
     it('shows a permission toast on a 404 error', async () => {
-      mockDelete.mockRejectedValue(new Error('404 Not Found'));
+      mockDelete.mockRejectedValue(apiError(404, 'Not Found'));
 
       const { result } = renderHook(
         () => useDeleteWorkoutPreset({ presetId: 'p1' }),

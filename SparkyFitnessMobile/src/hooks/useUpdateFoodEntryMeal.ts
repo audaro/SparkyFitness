@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import i18n from '../localization/i18n';
 import { updateFoodEntryMeal } from '../services/api/foodEntryMealsApi';
+import { hasApiStatus } from '../services/api/errors';
 import type {
   FoodEntryMeal,
   FoodEntryMealUpdateData,
@@ -34,7 +35,7 @@ export function useUpdateFoodEntryMeal({
       onSuccess?.(meal);
     },
     onError: (error) => {
-      const message = error instanceof Error && error.message.includes('403')
+      const message = hasApiStatus(error, 403)
         ? i18n.t('editLoggedMeal.errors.permission', { defaultValue: "You don't have permission to edit this meal." })
         : i18n.t('common.tryAgain', { defaultValue: 'Please try again.' });
       Toast.show({ type: 'error', text1: i18n.t('editLoggedMeal.errors.saveFailed', { defaultValue: 'Failed to save meal' }), text2: message });

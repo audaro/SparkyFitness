@@ -10,8 +10,8 @@ import {
   updateGymProfile,
   type GymProfile,
 } from '../../src/services/api/gymProfilesApi';
-import { ApiError } from '../../src/services/api/errors';
 import { gymProfilesQueryKey } from '../../src/hooks/queryKeys';
+import { apiError as serverError } from '../helpers/apiError';
 import { createQueryWrapper, createTestQueryClient, type QueryClient } from './queryTestUtils';
 
 jest.mock('../../src/services/api/gymProfilesApi', () => ({
@@ -46,15 +46,6 @@ const profile = (overrides?: Partial<GymProfile>): GymProfile => ({
   updated_at: '2026-08-01T00:00:00Z',
   ...overrides,
 });
-
-/**
- * What `apiFetch` actually throws — an `ApiError` whose message happens to
- * embed the status, which is exactly the ambiguity the classifier must not
- * depend on. Built the same way `apiClient` builds it, message included, so a
- * classifier that went back to reading the text would still be caught here.
- */
-const serverError = (status: number, body = 'nope') =>
-  new ApiError(`Server error: ${status} - ${body}`, status, body);
 
 function renderWithClient<T>(hook: () => T, client: QueryClient = createTestQueryClient()) {
   const rendered = renderHook(hook, { wrapper: createQueryWrapper(client) });

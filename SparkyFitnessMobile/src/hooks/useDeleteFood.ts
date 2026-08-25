@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { deleteFood } from '../services/api/foodsApi';
+import { hasApiStatus } from '../services/api/errors';
 import { favoritesQueryKey, foodVariantsQueryKey, foodsQueryKey } from './queryKeys';
 
 interface UseDeleteFoodOptions {
@@ -20,7 +21,7 @@ export function useDeleteFood({ foodId, onSuccess }: UseDeleteFoodOptions) {
       onSuccess?.();
     },
     onError: (error) => {
-      const message = error instanceof Error && error.message.includes('403')
+      const message = hasApiStatus(error, 403)
         ? "You don't have permission to delete this food."
         : 'Please try again.';
       Toast.show({ type: 'error', text1: t('foodDelete.failed', { defaultValue: 'Failed to delete food' }), text2: message });

@@ -15,13 +15,13 @@ import {
   replaceRecommendationExercise,
   type WorkoutRecommendation,
 } from '../../src/services/api/workoutRecommendationsApi';
-import { ApiError } from '../../src/services/api/errors';
 import { useRefetchOnFocus } from '../../src/hooks/useRefetchOnFocus';
 import {
   exerciseAlternativesQueryKey,
   workoutRecommendationQueryKey,
 } from '../../src/hooks/queryKeys';
 import { createQueryWrapper, createTestQueryClient, type QueryClient } from './queryTestUtils';
+import { apiError as rawApiError, apiErrorWithMessage } from '../helpers/apiError';
 
 jest.mock('../../src/services/api/workoutRecommendationsApi', () => ({
   fetchRecommendation: jest.fn(),
@@ -96,7 +96,7 @@ const recommendation = (overrides?: Partial<WorkoutRecommendation>): WorkoutReco
 
 /** A 422 carrying a server message, the shape `getApiErrorMessage` can read. */
 const apiError = (statusCode: number, message?: string) =>
-  new ApiError('request failed', statusCode, message ? JSON.stringify({ error: message }) : undefined);
+  message ? apiErrorWithMessage(statusCode, message) : rawApiError(statusCode, '');
 
 function renderWithClient<T>(hook: () => T, client: QueryClient = createTestQueryClient()) {
   const rendered = renderHook(hook, { wrapper: createQueryWrapper(client) });

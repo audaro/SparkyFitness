@@ -14,6 +14,7 @@ import {
 } from '../../src/hooks/useExerciseMutations';
 import { createTestQueryClient, createQueryWrapper } from './queryTestUtils';
 import type { QueryClient } from './queryTestUtils';
+import { apiError } from '../helpers/apiError';
 
 // Mock API functions
 jest.mock('../../src/services/api/exerciseApi', () => ({
@@ -343,7 +344,7 @@ describe('useExerciseMutations', () => {
     });
 
     it('shows permission toast on 403', async () => {
-      mockUpdateExercise.mockRejectedValue(new Error('Server error: 403 - Forbidden'));
+      mockUpdateExercise.mockRejectedValue(apiError(403, 'Forbidden'));
 
       const { result } = renderHook(() => useUpdateExercise(), { wrapper });
 
@@ -364,8 +365,31 @@ describe('useExerciseMutations', () => {
       });
     });
 
+    it('does not read the status out of the message text', async () => {
+      // 403 and 404 both mean "not yours" here, so both are matched — but on
+      // the status field. Matching the digits in `Server error: ${status} -
+      // ${body}` also fired on a body that merely contained them.
+      mockUpdateExercise.mockRejectedValue(apiError(500, 'exercise 403 of 404 failed to write'));
+
+      const { result } = renderHook(() => useUpdateExercise(), { wrapper });
+
+      await act(async () => {
+        try {
+          await result.current.updateExerciseAsync({ id: 'ex-1', payload: { name: 'X' } });
+        } catch {
+          // expected
+        }
+      });
+
+      await waitFor(() => {
+        expect(Toast.show).toHaveBeenCalledWith(
+          expect.objectContaining({ text2: 'Please try again.' }),
+        );
+      });
+    });
+
     it('shows permission toast on 404', async () => {
-      mockUpdateExercise.mockRejectedValue(new Error('Server error: 404 - not authorized'));
+      mockUpdateExercise.mockRejectedValue(apiError(404, 'not authorized'));
 
       const { result } = renderHook(() => useUpdateExercise(), { wrapper });
 
@@ -433,7 +457,7 @@ describe('useExerciseMutations', () => {
 
     it('shows permission toast on 403', async () => {
       mockDeleteExerciseFromLibrary.mockRejectedValue(
-        new Error('Server error: 403 - Forbidden'),
+        apiError(403, 'Forbidden'),
       );
 
       const { result } = renderHook(
