@@ -24,6 +24,8 @@ changed.
 | `7ddf36da2` | mobile  | The remaining two health test files made timezone-independent               |
 | `6312d587e` | docs    | This handoff extended to cover the mobile half                              |
 | `8ba95ec91` | mobile  | First suite for `utils/workoutSupersets.ts`, the superset algebra           |
+| `19b095ec6` | docs    | Handoff records the superset suite; timezone sweep claim corrected          |
+| `e6ee3ccc0` | mobile  | First suite for `hooks/useWorkoutRecommendation.ts`                         |
 
 The long-form write-up for the web half lives in `exercise-home-phase-e.md` under E5 and E6, because
 the diagnosis it corrects belongs next to the phase that filed it. What follows is what a fresh
@@ -127,9 +129,10 @@ Mobile, run from `SparkyFitnessMobile/`. Green at `7ddf36da2`.
 | Command                                                        | Result                        |
 | -------------------------------------------------------------- | ----------------------------- |
 | `pnpm run validate`                                            | clean (tsc, lint, i18n audit) |
-| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6012 passed, 372 suites**   |
+| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6031 passed, 373 suites**   |
 
-Up from 5971 / 371; the delta is `__tests__/utils/workoutSupersets.test.ts`.
+Up from 5971 / 371; the delta is `__tests__/utils/workoutSupersets.test.ts` (41) and
+`__tests__/hooks/useWorkoutRecommendation.test.tsx` (19).
 
 The three health files were run at `Pacific/Midway` (UTC-11), `America/Los_Angeles`, `UTC`,
 `Europe/London`, `Asia/Tokyo` and `Pacific/Kiritimati` (UTC+14), and then the **whole** suite was run
@@ -164,9 +167,12 @@ them is only as tested as the screens that happen to use them:
    while pinning the accessors not at all. And every case was checked by breaking the source in the
    way it claims to catch — one of them passed under its own mutation and had to be rewritten, which
    a green first run would never have revealed.
-2. **`hooks/useWorkoutRecommendation.ts`** — now carries the `useRefetchOnFocus` call added in
-   `ee7c7531a`, still with no direct coverage. Note the mock trap: a suite for it needs
-   `useFocusEffect` stubbed, exactly as `PickMusclesScreen` and `OnDemandWorkoutsScreen` now do.
+2. ~~`hooks/useWorkoutRecommendation.ts`~~ — **done in `e6ee3ccc0`**, 19 cases, mutation-checked
+   seven ways. It mocks `useRefetchOnFocus` outright rather than stubbing `useFocusEffect` as this
+   doc previously suggested: what the hook owns is that it hands its refetch to the shared focus
+   hook gated on `enabled`, and how React Navigation delivers focus belongs to that hook's own
+   suite. The `useFocusEffect` stub is still what a _screen_ suite needs, since those render real
+   trees.
 3. **`hooks/useGymProfiles.ts`** — activation is a dedicated endpoint rather than a field on the
    `PUT`, and equipment values are canonical lowercase because the catalog filter is case-sensitive.
    Both are the kind of invariant a suite should pin.
