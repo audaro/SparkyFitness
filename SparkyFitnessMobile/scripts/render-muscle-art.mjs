@@ -46,17 +46,16 @@ const COLOURS = {
  */
 function figure(view, { selected = [], showAuthored = false } = {}) {
   const picked = new Set(selected);
-  const dimmed = picked.size > 0;
   const parts = [];
 
   for (const path of paths) {
     if (path.view !== view) continue;
     if (path.kind === 'silhouette') {
-      parts.push(`<path d="${path.d}" fill="${COLOURS.silhouette}" opacity="${dimmed ? 0.6 : 1}"/>`);
+      parts.push(`<path d="${path.d}" fill="${COLOURS.silhouette}"/>`);
       continue;
     }
     if (path.kind === 'detail') {
-      parts.push(`<path d="${path.d}" fill="${COLOURS.detail}" opacity="${dimmed ? 0.3 : 0.55}"/>`);
+      parts.push(`<path d="${path.d}" fill="${COLOURS.detail}" opacity="0.55"/>`);
       continue;
     }
     const isSelected = picked.has(path.muscle);

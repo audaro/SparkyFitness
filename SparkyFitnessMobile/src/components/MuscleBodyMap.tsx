@@ -59,10 +59,17 @@ function figure(view: BodyView): Figure {
 
 /** Anatomy reads at a low opacity; a pick reads at full strength. */
 const UNSELECTED_OPACITY = 0.45;
-/** How far the silhouette and the outline detail step back once anything is picked. */
-const DIMMED_SILHOUETTE_OPACITY = 0.6;
+/**
+ * The head, the hands and the feet, which hold still.
+ *
+ * They used to dim along with the silhouette once anything was picked, on the
+ * theory that the body should step back for a selection. What it actually
+ * looked like was the figure's skin going grey the moment you tapped a muscle —
+ * a change in the wrong place, since none of it is pickable. The accent fill,
+ * the halo and everything unpicked sitting at `UNSELECTED_OPACITY` already give
+ * a pick all the contrast it needs.
+ */
 const DETAIL_OPACITY = 0.55;
-const DIMMED_DETAIL_OPACITY = 0.3;
 /**
  * The seam between the pieces a muscle is drawn in, in viewBox units — about
  * 2pt at the size a phone renders this.
@@ -137,8 +144,6 @@ const MuscleBodyMap: React.FC<MuscleBodyMapProps> = ({
   const toneColors = useFreshnessToneColors();
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const { paths, speaker } = FIGURES[view];
-  // Picks only lift off the body if the body steps back for them.
-  const anySelected = selected.length > 0;
 
   return (
     // The figure keeps the illustration's own proportions; without an explicit
@@ -147,24 +152,10 @@ const MuscleBodyMap: React.FC<MuscleBodyMapProps> = ({
       <Svg width="100%" height="100%" viewBox={BODY_VIEWS[view].viewBox}>
         {paths.map((path, index) => {
           if (path.kind === 'silhouette') {
-            return (
-              <Path
-                key={index}
-                d={path.d}
-                fill={silhouetteColor}
-                opacity={anySelected ? DIMMED_SILHOUETTE_OPACITY : 1}
-              />
-            );
+            return <Path key={index} d={path.d} fill={silhouetteColor} />;
           }
           if (path.kind === 'detail') {
-            return (
-              <Path
-                key={index}
-                d={path.d}
-                fill={detailColor}
-                opacity={anySelected ? DIMMED_DETAIL_OPACITY : DETAIL_OPACITY}
-              />
-            );
+            return <Path key={index} d={path.d} fill={detailColor} opacity={DETAIL_OPACITY} />;
           }
 
           const entry = recoveryByMuscle.get(path.muscle);

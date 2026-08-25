@@ -42,7 +42,10 @@ canonical list out of `shared/src/constants/exerciseTaxonomy.ts` rather than har
 **Phase 3 — a selection you cannot miss.** Unselected regions: recovery tone at `0.45`. Selected:
 accent fill at full strength under a halo — the same path redrawn beneath itself with a `9`-unit
 accent stroke at `0.3` opacity, `pointerEvents="none"` so the glow cannot steal taps from the region
-next door. The silhouette and the outline detail dim whenever anything is selected.
+next door. The silhouette and the outline detail hold still: they dimmed while anything was selected
+in the first version, on the theory that the body should step back for a pick, and what that looked
+like on a phone was the figure's face, hands and feet going grey the moment you tapped a muscle.
+Nothing in that layer is pickable, so nothing in it should react.
 
 Selected paths also draw their own edge back in, in the silhouette's colour at `1.6` units
 (`SEAM_STROKE_WIDTH`). **This illustration has no lines of its own** — what separates the eight
