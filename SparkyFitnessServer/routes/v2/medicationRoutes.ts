@@ -12,6 +12,7 @@ import {
   UpdateTitrationStepBodySchema,
   MedicationIdParamSchema,
   ListMedicationsQuerySchema,
+  SearchDrugCatalogQuerySchema,
   SerumCurveQuerySchema,
   CreateMedicationEntryBodySchema,
   UpdateMedicationEntryBodySchema,
@@ -31,6 +32,7 @@ import titrationRepository from '../../models/titrationRepository.js';
 import glp1Service from '../../services/glp1Service.js';
 import medicationEntryRepository from '../../models/medicationEntryRepository.js';
 import medicationDisplayPreferenceRepository from '../../models/medicationDisplayPreferenceRepository.js';
+import medicationCatalogService from '../../services/medicationCatalogService.js';
 import { loadUserTimezone } from '../../utils/timezoneLoader.js';
 import { instantToDay, todayInZone } from '@workspace/shared';
 
@@ -472,6 +474,41 @@ function badRequest(res: express.Response, error: unknown): void {
 
 // --- Medications ----------------------------------------------------------
 
+/**
+ * @openapi
+ * /api/v2/medications/catalog-search:
+ *   get:
+ *     summary: Search the public US drug catalog (NLM RxTerms) for medications to add
+ *     description: >
+ *       Tier 3 of the medication search, proxied so the query never leaves the user's own
+ *       server directly. Requires the owner's `medication_catalog_lookup_enabled` preference;
+ *       without it the response is an empty list with `unavailableReason: lookup_disabled`.
+ *       Products the bundled catalog already describes are omitted. Never returns an error for
+ *       an unreachable upstream — an empty list with a reason is the failure mode.
+ *     tags: [Medications & GLP-1]
+ *     security: [{ cookieAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: q, required: true, schema: { type: string, maxLength: 100 } }
+ *       - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 20 } }
+ *     responses: { 200: { description: Matching products, possibly empty. }, 400: { description: Invalid request. } }
+ */
+const searchDrugCatalog: RequestHandler = async (req, res, next) => {
+  try {
+    const query = SearchDrugCatalogQuerySchema.safeParse(req.query);
+    if (!query.success) return badRequest(res, query.error);
+    // `req.userId` is the record's owner — see `searchMedicationCatalog` on why the opt-in that
+    // matters is theirs and not the caller's.
+    const result = await medicationCatalogService.searchMedicationCatalog(
+      req.userId,
+      query.data.q,
+      query.data.limit
+    );
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const listMedications: RequestHandler = async (req, res, next) => {
   try {
     const query = ListMedicationsQuerySchema.safeParse(req.query);
@@ -639,6 +676,9 @@ const deleteEntry: RequestHandler = async (req, res, next) => {
 };
 
 router.get('/', listMedications);
+// Before '/:id', or Express reads "catalog-search" as a medication id — the same reason
+// '/entries' and '/display-preferences' are registered up here rather than beside their peers.
+router.get('/catalog-search', searchDrugCatalog);
 router.post(
   '/',
   stripNutrientFieldsWithoutDiaryAccess({ keepSupplementFlag: true }),

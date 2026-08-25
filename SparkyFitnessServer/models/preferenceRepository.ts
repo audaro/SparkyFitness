@@ -47,6 +47,7 @@ async function updateUserPreferences(userId: any, preferenceData: any) {
         added_sugar_algorithm = COALESCE($43, added_sugar_algorithm),
         calorie_safety_floor_mode = COALESCE($45, calorie_safety_floor_mode),
         calorie_safety_floor_value = COALESCE($46, calorie_safety_floor_value),
+        medication_catalog_lookup_enabled = COALESCE($47, medication_catalog_lookup_enabled),
         updated_at = now()
       WHERE user_id = $28
       RETURNING *`,
@@ -97,6 +98,7 @@ async function updateUserPreferences(userId: any, preferenceData: any) {
         preferenceData.time_format,
         preferenceData.calorie_safety_floor_mode,
         preferenceData.calorie_safety_floor_value,
+        preferenceData.medication_catalog_lookup_enabled,
       ]
     );
     return result.rows[0];
@@ -185,6 +187,7 @@ async function upsertUserPreferences(preferenceData: any) {
        added_sugar_algorithm,
        calorie_safety_floor_mode,
        calorie_safety_floor_value,
+       medication_catalog_lookup_enabled,
        created_at, updated_at
      ) VALUES (
        $1, COALESCE($2, 'yyyy-MM-dd'), COALESCE($44, 'HH:mm'), COALESCE($3, 'lbs'), COALESCE($4, 'in'), COALESCE($5, 'km'),
@@ -212,6 +215,7 @@ async function upsertUserPreferences(preferenceData: any) {
        COALESCE($43, 'WHO_IDEAL'),
        COALESCE($45, 'standard'),
        COALESCE($46, 1200),
+       COALESCE($47, false),
        now(), now()
      )
      ON CONFLICT (user_id) DO UPDATE SET
@@ -257,6 +261,7 @@ async function upsertUserPreferences(preferenceData: any) {
        calorie_safety_floor_mode = COALESCE($45, user_preferences.calorie_safety_floor_mode),
        calorie_safety_floor_value = COALESCE($46, user_preferences.calorie_safety_floor_value),
        time_format = COALESCE($44, user_preferences.time_format),
+       medication_catalog_lookup_enabled = COALESCE($47, user_preferences.medication_catalog_lookup_enabled),
        updated_at = now()
      RETURNING *`,
       [
@@ -306,6 +311,7 @@ async function upsertUserPreferences(preferenceData: any) {
         preferenceData.time_format,
         preferenceData.calorie_safety_floor_mode,
         preferenceData.calorie_safety_floor_value,
+        preferenceData.medication_catalog_lookup_enabled,
       ]
     );
     return result.rows[0];

@@ -134,6 +134,7 @@ export * from "./ai/confidenceLabels.ts";
 export * from "./medications/contracts.ts";
 export * from "./medications/glp1.ts";
 export * from "./medications/catalog.ts";
+export * from "./medications/rxterms.ts";
 export * from "./medications/reconstitution.ts";
 export * from "./medications/reconstitutionRecord.ts";
 export * from "./medications/schedules.ts";

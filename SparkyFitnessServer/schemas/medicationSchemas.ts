@@ -221,6 +221,19 @@ export const ListMedicationsQuerySchema = z
   .loose();
 export type ListMedicationsQuery = z.infer<typeof ListMedicationsQuerySchema>;
 
+export const SearchDrugCatalogQuerySchema = z
+  .object({
+    // The term itself is validated, not sanitised: it is passed to NLM as a query parameter by
+    // axios, which encodes it. The bounds are there so an absurd term cannot be turned into an
+    // outbound request — 100 characters is far past the longest drug name RxTerms carries.
+    q: z.string().trim().min(1).max(100),
+    limit: z.coerce.number().int().min(1).max(20).optional(),
+  })
+  .loose();
+export type SearchDrugCatalogQuery = z.infer<
+  typeof SearchDrugCatalogQuerySchema
+>;
+
 export const SerumCurveQuerySchema = z
   .object({
     fromDay: z.coerce.number().optional(),

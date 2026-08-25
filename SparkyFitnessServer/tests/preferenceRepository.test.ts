@@ -183,3 +183,59 @@ describe('preferenceRepository bootstrapUserTimezoneIfUnset', () => {
     );
   });
 });
+
+/**
+ * Both preference writers are single statements with ~47 positional parameters, and the values
+ * array is a flat list whose order is the only thing binding it to the SQL. Adding a column means
+ * touching the SET/VALUES clause and the array in step; miss one and the mismatch is silent —
+ * Postgres happily binds $47 to whatever sits in slot 47, so one preference starts overwriting
+ * another with no error anywhere. These tests are the parity check for that.
+ */
+describe('preferenceRepository parameter parity', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockClient: any;
+  beforeEach(() => {
+    mockClient = { query: vi.fn(), release: vi.fn() };
+    // @ts-expect-error the pool manager is mocked above
+    getClient.mockResolvedValue(mockClient);
+    mockClient.query.mockResolvedValue({ rows: [{}] });
+  });
+  afterEach(() => vi.clearAllMocks());
+
+  const highestPlaceholder = (sql: string): number =>
+    Math.max(...[...sql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+
+  it('binds exactly as many values as updateUserPreferences references', async () => {
+    await preferenceRepository.updateUserPreferences('user-1', {});
+    const [sql, values] = mockClient.query.mock.calls[0];
+    expect(values).toHaveLength(highestPlaceholder(sql));
+  });
+
+  it('binds exactly as many values as upsertUserPreferences references', async () => {
+    await preferenceRepository.upsertUserPreferences({ user_id: 'user-1' });
+    const [sql, values] = mockClient.query.mock.calls[0];
+    expect(values).toHaveLength(highestPlaceholder(sql));
+  });
+
+  it('writes the medication catalog opt-in through both paths', async () => {
+    // Readable but not writable was the actual gap: the column existed and the service read it,
+    // while the fixed parameter list meant the settings toggle would have saved nothing.
+    await preferenceRepository.updateUserPreferences('user-1', {
+      medication_catalog_lookup_enabled: true,
+    });
+    const [updateSql, updateValues] = mockClient.query.mock.calls[0];
+    expect(updateSql).toContain(
+      'medication_catalog_lookup_enabled = COALESCE('
+    );
+    expect(updateValues).toContain(true);
+
+    mockClient.query.mockClear();
+    await preferenceRepository.upsertUserPreferences({
+      user_id: 'user-1',
+      medication_catalog_lookup_enabled: true,
+    });
+    const [upsertSql, upsertValues] = mockClient.query.mock.calls[0];
+    expect(upsertSql).toContain('medication_catalog_lookup_enabled');
+    expect(upsertValues).toContain(true);
+  });
+});
