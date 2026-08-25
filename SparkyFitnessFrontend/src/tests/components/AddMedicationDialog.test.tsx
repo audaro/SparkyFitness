@@ -456,10 +456,19 @@ describe('AddMedicationDialog dose fields', () => {
       render(<AddMedicationDialog />);
       openDialog();
       setField('Name', 'Wegovy');
-      // Anchored: the "Add \"Wegovy\" as a custom medication" row also contains the word.
-      const row = screen.getByRole('option', { name: /^Wegovy/ });
+      // Anchored on the subtitle, not just the name: "Wegovy" now matches three rows — the
+      // injection, the tablet Novo labels under the same brand, and the "Add \"Wegovy\" as a
+      // custom medication" row. Only the molecule under the title tells the first two apart.
+      // `\s*` because the title and its subtitle are adjacent inline spans, so whether the
+      // accessible name puts a space between them is an implementation detail of the a11y
+      // name computation, not something this test is about.
+      const row = screen.getByRole('option', { name: /^Wegovy\s*Semaglutide/ });
       // The row names its molecule, so Wegovy and Ozempic do not read as unrelated drugs.
       expect(within(row).getByText('Semaglutide')).toBeInTheDocument();
+      // ...and the tablet is offered alongside it rather than collapsed into it.
+      expect(
+        screen.getByRole('option', { name: /^Wegovy tablets/ })
+      ).toBeInTheDocument();
       fireEvent.mouseDown(row);
 
       // Wegovy's own ladder, not Ozempic's — the two are separate entries precisely because

@@ -3,6 +3,7 @@ import {
   MEDICATION_CATALOG,
   GLP1_DRUG_PROFILES,
   catalogGenericOf,
+  catalogOpensCalculator,
   catalogRowSubtitle,
   resolveCatalogDrug,
   resolveGlp1Profile,
@@ -39,6 +40,40 @@ describe('medication catalog — shape invariants', () => {
   it('gives every entry at least one route', () => {
     for (const drug of Object.values(MEDICATION_CATALOG)) {
       expect(drug.routes.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('cites a label for every number it did not originate, and only those', () => {
+    // The provenance invariant. A ladder or a vial hint with no `labelSource` is a number
+    // nobody can re-verify and a label revision nobody will notice; a `labelSource` on an
+    // entry carrying neither is a citation for nothing, which rots just as quietly.
+    for (const drug of Object.values(MEDICATION_CATALOG)) {
+      const hasLabelData = drug.strengths !== null || drug.vialSizes.length > 0;
+      expect(drug.labelSource !== undefined).toBe(hasLabelData);
+      if (!drug.labelSource) continue;
+      expect(drug.labelSource.document.length).toBeGreaterThan(0);
+      // A day string, so "when was this last checked" is answerable by comparison.
+      expect(drug.labelSource.reviewed).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it('has entries in more categories than the incretins it started as', () => {
+    // Phase 3's content pass. Guards against the file quietly reverting to the six PK-registry
+    // drugs; the specific categories are asserted rather than a count, because a count passes
+    // on six more incretins.
+    const categories = new Set(
+      Object.values(MEDICATION_CATALOG).map((drug) => drug.category)
+    );
+    for (const category of [
+      'incretin',
+      'gh-secretagogue',
+      'repair',
+      'melanocortin',
+      'metabolic',
+      'immune',
+      'androgen',
+    ]) {
+      expect(categories).toContain(category);
     }
   });
 });
@@ -100,6 +135,91 @@ describe('medication catalog — the peptide case the split exists for', () => {
       if (drug.strengths === null) continue;
       expect(drug.strengths.source).toBe('label');
     }
+  });
+
+  it('leaves the research peptides with no ladder, no PK and no cadence', () => {
+    // The wide half of the catalog. These are the entries `unlabelled()` builds: nothing about
+    // them is sourced, so nothing about them may be stated. A regression here is the failure
+    // mode the whole split exists to prevent — a confident number in front of someone holding
+    // a grey-market vial.
+    for (const id of [
+      'bpc_157',
+      'tb_500',
+      'ghk_cu',
+      'ipamorelin',
+      'cjc_1295_dac',
+      'cjc_1295_no_dac',
+      'melanotan_ii',
+      'aod_9604',
+      'kpv',
+      'll_37',
+      'cagrilintide',
+    ]) {
+      const drug = MEDICATION_CATALOG[id];
+      expect(drug, id).toBeDefined();
+      expect(drug.strengths).toBeNull();
+      expect(drug.pk).toBeNull();
+      expect(drug.glp1ProfileId).toBeUndefined();
+      expect(drug.cadence).toBeNull();
+      expect(drug.vialSizes).toEqual([]);
+    }
+  });
+
+  it('prefills the calculator only for products whose label states a vial', () => {
+    // `vialSizes` is populated on exactly the entries whose approved product ships as a
+    // lyophilized vial the user reconstitutes. Everything else is grey-market packaging with
+    // no authoritative size, and an invented hint would prefill the calculator with a number
+    // the vendor never supplied.
+    const withVials = Object.values(MEDICATION_CATALOG)
+      .filter((drug) => drug.vialSizes.length > 0)
+      .map((drug) => drug.id)
+      .sort();
+    expect(withVials).toEqual([
+      'hcg',
+      'menotropins',
+      'tesamorelin',
+      'thymosin_alpha_1',
+    ]);
+
+    // ...and each of those still has no ladder, so the calculator is what actually opens.
+    for (const id of withVials) {
+      expect(MEDICATION_CATALOG[id].strengths).toBeNull();
+    }
+    // IU never converts to mass, so an IU vial has to survive as IU all the way through.
+    expect(MEDICATION_CATALOG.hcg.vialSizes).toEqual([
+      { amount: 10000, unit: 'iu' },
+    ]);
+  });
+});
+
+describe('catalogOpensCalculator', () => {
+  it('opens for an injectable with no ladder — the case it was built for', () => {
+    expect(catalogOpensCalculator(MEDICATION_CATALOG.retatrutide)).toBe(true);
+    expect(catalogOpensCalculator(MEDICATION_CATALOG.tesamorelin)).toBe(true);
+    expect(catalogOpensCalculator(MEDICATION_CATALOG.hcg)).toBe(true);
+  });
+
+  it('stays shut for an oral drug with no ladder', () => {
+    // Before the content pass every ladder-less entry was injectable, so `strengths === null`
+    // was the whole test. These three are the reason it no longer is: a syringe-unit
+    // calculator is not an answer to "how much of this capsule".
+    for (const id of ['ibutamoren', 'amino_1mq', 'enclomiphene']) {
+      expect(MEDICATION_CATALOG[id].strengths, id).toBeNull();
+      expect(catalogOpensCalculator(MEDICATION_CATALOG[id]), id).toBe(false);
+    }
+  });
+
+  it('stays shut wherever a label ladder exists', () => {
+    for (const id of ['wegovy', 'rybelsus', 'vyleesi']) {
+      expect(catalogOpensCalculator(MEDICATION_CATALOG[id]), id).toBe(false);
+    }
+  });
+
+  it('opens for a drug that is injectable among other routes', () => {
+    // BPC-157 is logged both ways; the injection is the one that needs arithmetic, and the
+    // link is still there for anyone whose supply does not match.
+    expect(MEDICATION_CATALOG.bpc_157.routes).toContain('oral');
+    expect(catalogOpensCalculator(MEDICATION_CATALOG.bpc_157)).toBe(true);
   });
 });
 
@@ -165,11 +285,53 @@ describe('medication catalog — brands are their own entries', () => {
       0.25, 0.5, 1, 2,
     ]);
     expect(MEDICATION_CATALOG.wegovy.strengths?.values).toEqual([
-      0.25, 0.5, 1, 1.7, 2.4,
+      0.25, 0.5, 1, 1.7, 2.4, 7.2,
     ]);
     expect(MEDICATION_CATALOG.ozempic.glp1ProfileId).toBe(
       MEDICATION_CATALOG.wegovy.glp1ProfileId
     );
+  });
+
+  it('gives one brand name to two products when the label does', () => {
+    // Ozempic and Wegovy each label an injection and a tablet, on one FDA document apiece.
+    // Same brand name, different molecule, different ladder, different route — so different
+    // entries. Collapsing either pair would put an oral ladder on an injection record.
+    expect(MEDICATION_CATALOG.wegovy.genericId).toBe('semaglutide');
+    expect(MEDICATION_CATALOG.wegovy_tablets.genericId).toBe(
+      'oral_semaglutide'
+    );
+    expect(MEDICATION_CATALOG.wegovy_tablets.strengths?.values).toEqual([
+      1.5, 4, 9, 25,
+    ]);
+    expect(MEDICATION_CATALOG.ozempic_tablets.strengths?.values).toEqual([
+      1.5, 4, 9,
+    ]);
+    // Rybelsus shares the tablets' document and molecule but not its ladder, which is the
+    // reason it is a third entry rather than an alias.
+    expect(MEDICATION_CATALOG.rybelsus.strengths?.values).toEqual([3, 7, 14]);
+    expect(MEDICATION_CATALOG.rybelsus.genericId).toBe('oral_semaglutide');
+  });
+
+  it('splits a brand outside the incretins on exactly the same rule', () => {
+    // Vyleesi is the melanocortin case: a one-value ladder is still a ladder, so the brand is
+    // an entry and the chip row replaces the calculator. Someone holding a grey-market PT-141
+    // vial picks the molecule and gets the calculator instead.
+    expect(MEDICATION_CATALOG.vyleesi.strengths?.values).toEqual([1.75]);
+    expect(MEDICATION_CATALOG.vyleesi.genericId).toBe('bremelanotide');
+    expect(MEDICATION_CATALOG.bremelanotide.strengths).toBeNull();
+    // Neither has PK: the registry is GLP-1 only, and a melanocortin must not draw a curve.
+    expect(MEDICATION_CATALOG.vyleesi.pk).toBeNull();
+  });
+
+  it('keeps a brand without a ladder as an alias rather than a second entry', () => {
+    // Egrifta's label adds a vial size, not a ladder, and a vial size is the same fact
+    // whoever supplied the powder — so splitting it would buy a duplicate row and nothing.
+    expect(MEDICATION_CATALOG.egrifta).toBeUndefined();
+    expect(resolveCatalogDrug('Egrifta')?.id).toBe('tesamorelin');
+    expect(MEDICATION_CATALOG.tesamorelin.vialSizes).toEqual([
+      { amount: 2, unit: 'mg' },
+      { amount: 11.6, unit: 'mg' },
+    ]);
   });
 
   it("never lets one entry answer to another entry's name", () => {
@@ -296,10 +458,42 @@ describe('searchCatalog', () => {
   });
 
   it('offers one row per brand, not a brand and a molecule pretending to be it', () => {
-    // The bug this guards: leaving 'Wegovy' on semaglutide's aliases returns two rows for one
+    // The bug this guards: leaving 'Zepbound' on tirzepatide's aliases returns two rows for one
     // query — the brand, and the molecule wearing the brand's name.
+    const ids = searchCatalog('Zepbound').map((hit) => hit.drug.id);
+    expect(ids).toEqual(['zepbound']);
+  });
+
+  it('offers both products when one brand name really covers two', () => {
+    // Not the bug above: Novo labels a Wegovy injection and a Wegovy tablet, so a user typing
+    // the name genuinely has two things to choose between and has to pick the one they hold.
+    // The injection outranks the tablet because its name matches exactly.
     const ids = searchCatalog('Wegovy').map((hit) => hit.drug.id);
-    expect(ids).toEqual(['wegovy']);
+    expect(ids).toEqual(['wegovy', 'wegovy_tablets']);
+    expect(searchCatalog('Ozempic').map((hit) => hit.drug.id)).toEqual([
+      'ozempic',
+      'ozempic_tablets',
+    ]);
+    // Their subtitles are what tell the two apart in the list.
+    expect(catalogRowSubtitle(MEDICATION_CATALOG.wegovy, false)).toBe(
+      'Semaglutide'
+    );
+    expect(catalogRowSubtitle(MEDICATION_CATALOG.wegovy_tablets, false)).toBe(
+      'Semaglutide (oral)'
+    );
+  });
+
+  it('finds the peptides the content pass added, by name and by synonym', () => {
+    expect(searchCatalog('BPC-157')[0]?.drug.id).toBe('bpc_157');
+    expect(searchCatalog('MK-677')[0]?.drug.id).toBe('ibutamoren');
+    expect(searchCatalog('PT-141')[0]?.drug.id).toBe('bremelanotide');
+    expect(searchCatalog('hCG')[0]?.drug.id).toBe('hcg');
+    // A synonym match names the drug under the row, so the row is not left unexplained.
+    const [mk] = searchCatalog('MK-677');
+    expect(mk?.viaAlias).toBe(true);
+    expect(catalogRowSubtitle(mk!.drug, mk!.viaAlias)).toBe(
+      'Ibutamoren (MK-677)'
+    );
   });
 
   it('matches a partial name as the user types it', () => {

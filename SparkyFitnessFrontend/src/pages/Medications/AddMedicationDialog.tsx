@@ -7,6 +7,7 @@ import {
   GLP1_DRUG_PROFILES,
   normalizeNutrientName,
   resolveMacroFieldKey,
+  catalogOpensCalculator,
   resolveCatalogDrug,
   concentrationDraw,
   concentrationUnitLabel,
@@ -835,10 +836,11 @@ export default function AddMedicationDialog({
       setIsGlp1(true);
       setGlp1Drug(drug.glp1ProfileId);
     }
-    // No label, no ladder: the drug's dose has to be computed from a vial the user actually
-    // holds, so the calculator opens instead of an empty strength field — empty, because the
-    // mix that was on screen belonged to whatever this row used to be.
-    setShowCalculator(drug.strengths === null);
+    // No label, no ladder: an injectable drug's dose has to be computed from a vial the user
+    // actually holds, so the calculator opens instead of an empty strength field — empty,
+    // because the mix that was on screen belonged to whatever this row used to be. An oral
+    // drug with no ladder gets neither; see `catalogOpensCalculator`.
+    setShowCalculator(catalogOpensCalculator(drug));
     setReconRecord(null);
   };
 

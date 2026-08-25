@@ -12,6 +12,7 @@ import {
   concentrationDraw,
   readReconstitutionRecord,
   RECONSTITUTION_FIELD,
+  catalogOpensCalculator,
   resolveCatalogDrug,
   concentrationUnitLabel,
   type MedicationRouteId,
@@ -237,10 +238,11 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
         routeId: drug.routes[0] ?? null,
         reconstitution: null,
       }));
-      // No approved label means no strength ladder, so the only honest source for a dose is the
-      // vial the user is holding — and the calculator opens empty, because the mix that was on
-      // screen belonged to whatever this row used to be.
-      setCalculatorToggle(drug.strengths === null);
+      // No approved label means no strength ladder, so for an injectable the only honest source
+      // for a dose is the vial the user is holding — and the calculator opens empty, because the
+      // mix that was on screen belonged to whatever this row used to be. An oral drug with no
+      // ladder gets neither; see `catalogOpensCalculator`.
+      setCalculatorToggle(catalogOpensCalculator(drug));
     },
     [],
   );
