@@ -11,6 +11,22 @@ jest.mock('../../../src/services/LogService', () => ({
   addLog: jest.fn(),
 }));
 
+/**
+ * The local calendar day an instant falls on, worked out from `Date` directly
+ * rather than through the helper under test.
+ *
+ * Records are dated by their **device-local** day, so an expected date can only
+ * be written as a literal when the instant lands on the same day in every zone
+ * — and no instant does: UTC-11 and UTC+14 are 25 hours apart. Picking a
+ * "safe-looking" time only moves which machines the test fails on. Both of the
+ * cases using this were literals that passed in UTC, where CI runs.
+ */
+const localDay = (iso: string): string => {
+  const at = new Date(iso);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+};
+
 describe('transformHealthRecords', () => {
   describe('basic validation', () => {
     test('returns empty array for empty array input', () => {
@@ -38,7 +54,7 @@ describe('transformHealthRecords', () => {
       const result = transformHealthRecords(records, { recordType: 'HeartRate', unit: 'bpm', type: 'heart_rate' });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({ date: '2024-01-15', value: 72, type: 'heart_rate' });
+      expect(result[0]).toMatchObject({ date: localDay('2024-01-15T08:00:00Z'), value: 72, type: 'heart_rate' });
     });
 
     test('transforms raw HeartRateVariabilityRmssd records via value transformer', () => {
@@ -48,7 +64,7 @@ describe('transformHealthRecords', () => {
       const result = transformHealthRecords(records, { recordType: 'HeartRateVariabilityRmssd', unit: 'ms', type: 'HRV' });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({ date: '2024-01-15', value: 48, type: 'HRV' });
+      expect(result[0]).toMatchObject({ date: localDay('2024-01-15T08:00:00Z'), value: 48, type: 'HRV' });
     });
 
     test('passes through ActiveCaloriesBurned aggregated records', () => {
@@ -88,7 +104,7 @@ describe('transformHealthRecords', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].value).toBe(75.5);
-      expect(result[0].date).toBe('2024-01-15');
+      expect(result[0].date).toBe(localDay('2024-01-15T08:00:00Z'));
       expect(result[0].type).toBe('weight');
     });
 
@@ -121,7 +137,7 @@ describe('transformHealthRecords', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].value).toBe(1.75);
-      expect(result[0].date).toBe('2024-01-15');
+      expect(result[0].date).toBe(localDay('2024-01-15T08:00:00Z'));
     });
 
     test('skips when height data is missing', () => {
@@ -143,7 +159,7 @@ describe('transformHealthRecords', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].value).toBe(5000);
-      expect(result[0].date).toBe('2024-01-15');
+      expect(result[0].date).toBe(localDay('2024-01-15T08:00:00Z'));
     });
 
     test('skips when distance data is missing', () => {
@@ -165,7 +181,7 @@ describe('transformHealthRecords', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].value).toBe(10);
-      expect(result[0].date).toBe('2024-01-15');
+      expect(result[0].date).toBe(localDay('2024-01-15T08:00:00Z'));
     });
 
     test('skips when floors is not a number', () => {
@@ -190,8 +206,8 @@ describe('transformHealthRecords', () => {
       const result = transformHealthRecords(records, { recordType: 'BloodPressure', unit: 'mmHg', type: 'blood_pressure' });
 
       expect(result).toHaveLength(2);
-      expect(result[0]).toMatchObject({ value: 120.5, type: 'blood_pressure_systolic', date: '2024-01-15' });
-      expect(result[1]).toMatchObject({ value: 80.3, type: 'blood_pressure_diastolic', date: '2024-01-15' });
+      expect(result[0]).toMatchObject({ value: 120.5, type: 'blood_pressure_systolic', date: localDay('2024-01-15T08:00:00Z') });
+      expect(result[1]).toMatchObject({ value: 80.3, type: 'blood_pressure_diastolic', date: localDay('2024-01-15T08:00:00Z') });
     });
 
     test('creates only systolic when diastolic missing', () => {
@@ -234,6 +250,9 @@ describe('transformHealthRecords', () => {
   });
 
   describe('SleepSession records', () => {
+    // A sleep session is dated by the local day it *ends* on, so a session that
+    // crosses midnight can never have a literal expected date: this one is the
+    // 16th in UTC and the 15th anywhere west of UTC-6.
     test('creates rich sleep object with all required fields', () => {
       const records = [
         {
@@ -247,12 +266,34 @@ describe('transformHealthRecords', () => {
       expect(result[0]).toMatchObject({
         type: 'SleepSession',
         source: 'Health Connect',
-        entry_date: '2024-01-16',
+        entry_date: localDay('2024-01-16T06:00:00Z'),
         bedtime: '2024-01-15T22:00:00Z',
         wake_time: '2024-01-16T06:00:00Z',
         duration_in_seconds: 28800, // 8 hours
         time_asleep_in_seconds: 28800,
       });
+    });
+
+    test('dates a session by when it ended, not when it began', () => {
+      // The rule that matters, and the one a literal date string cannot state:
+      // a night's sleep belongs to the morning you wake up, so an 8pm-to-4am
+      // session is logged against the second day, never the first.
+      const records = [
+        {
+          startTime: '2024-03-10T20:00:00Z',
+          endTime: '2024-03-11T04:00:00Z',
+        },
+      ];
+      const result = transformHealthRecords(records, { recordType: 'SleepSession', unit: '', type: 'sleep' }) as AggregatedSleepSession[];
+
+      expect(result[0].entry_date).toBe(localDay('2024-03-11T04:00:00Z'));
+      // Guard the assertion itself: in a zone where both ends land on one local
+      // day this proves nothing, and should say so rather than pass silently.
+      const spansTwoLocalDays =
+        localDay('2024-03-10T20:00:00Z') !== localDay('2024-03-11T04:00:00Z');
+      if (spansTwoLocalDays) {
+        expect(result[0].entry_date).not.toBe(localDay('2024-03-10T20:00:00Z'));
+      }
     });
 
     test('calculates duration correctly', () => {
@@ -853,9 +894,11 @@ describe('transformHealthRecords', () => {
     });
 
     test('tries multiple date fields (time, startTime, timestamp, date)', () => {
-      // Use noon timestamps to avoid timezone boundary issues (toLocalDateString uses local time)
-      // For the date-only field, use a timestamp format since toLocalDateString converts
-      // date-only strings as UTC midnight which shifts in negative UTC offset timezones
+      // Noon was picked to dodge timezone boundaries, and it does for most of
+      // them — but not UTC+13/+14, where noon UTC is already the next morning.
+      // The expectation is derived per-zone instead. Full timestamps rather
+      // than date-only strings on purpose: `toLocalDateString` reads a bare
+      // `YYYY-MM-DD` as UTC midnight, which shifts a day in negative offsets.
       const testCases = [
         { time: '2024-01-15T12:00:00Z', basalMetabolicRate: 1500 },
         { startTime: '2024-01-16T12:00:00Z', basalMetabolicRate: 1500 },
@@ -866,7 +909,7 @@ describe('transformHealthRecords', () => {
       testCases.forEach((record, index) => {
         const result = transformHealthRecords([record], { recordType: 'BasalMetabolicRate', unit: 'kcal', type: 'bmr' }) as TransformedRecord[];
         expect(result).toHaveLength(1);
-        expect(result[0].date).toBe(`2024-01-${15 + index}`);
+        expect(result[0].date).toBe(localDay(`2024-01-${15 + index}T12:00:00Z`));
       });
     });
   });
@@ -1223,7 +1266,7 @@ describe('transformHealthRecords', () => {
       expect(result[0].value).toBe(80);
       expect(result[1].value).toBe(85);
       expect(result[2].value).toBe(90);
-      expect(result.every(r => r.date === '2024-01-15')).toBe(true);
+      expect(result.every(r => r.date === localDay('2024-01-15T08:00:00Z'))).toBe(true);
     });
 
     test('StepsCadence creates record for each sample', () => {
@@ -1391,7 +1434,7 @@ describe('transformHealthRecords', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].value).toBe(1);
-      expect(result[0].date).toBe('2024-01-15');
+      expect(result[0].date).toBe(localDay('2024-01-15T08:00:00Z'));
     });
   });
 
@@ -1446,7 +1489,7 @@ describe('transformHealthRecords', () => {
       const result = transformHealthRecords([badRecord, goodRecord], { recordType: 'Weight', unit: 'kg', type: 'weight' }) as TransformedRecord[];
 
       expect(result).toHaveLength(1);
-      expect(result[0].date).toBe('2024-01-16');
+      expect(result[0].date).toBe(localDay('2024-01-16T08:00:00Z'));
     });
   });
 
