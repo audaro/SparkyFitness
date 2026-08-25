@@ -1,5 +1,7 @@
 import { MUSCLES, type Muscle } from '@workspace/shared';
 
+import { MUSCLE_ART, type MuscleArt } from './muscleArt.generated';
+
 /**
  * How the 17 canonical muscles are grouped into tiles on the muscle grid.
  *
@@ -83,6 +85,23 @@ export const MUSCLE_TILES: readonly MuscleTileDefinition[] =
  * reordered itself would make two identical picks look like two different
  * workouts in the logs.
  */
+/**
+ * The anatomical art for a tile, or `undefined` when the illustration does not
+ * draw it.
+ *
+ * A tile can stand for more than one muscle, so this takes the first of them
+ * the illustration knows. Today that never has to choose: the only multi-muscle
+ * tile is Back (`lats` + `middle back`) and the illustration draws neither, so
+ * Back is one of the five that keep the labelled colour block.
+ */
+export function artForTile(tile: MuscleTileDefinition): MuscleArt | undefined {
+  for (const muscle of tile.muscles) {
+    const art = MUSCLE_ART[muscle];
+    if (art) return art;
+  }
+  return undefined;
+}
+
 export function musclesForTiles(
   tileIds: readonly string[],
 ): Muscle[] {

@@ -17,7 +17,7 @@ import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import { useGenerateAndShowWorkout } from '../hooks/useGenerateAndShowWorkout';
 import { useMuscleRecovery, type MuscleRecoveryItem } from '../hooks/useMuscleRecovery';
-import { MUSCLE_TILE_SECTIONS, musclesForTiles, type MuscleTileDefinition } from '../constants/muscleTiles';
+import { MUSCLE_TILE_SECTIONS, artForTile, musclesForTiles, type MuscleTileDefinition } from '../constants/muscleTiles';
 import { titleCaseCanonical } from '../utils/workoutSession';
 import type { RootStackScreenProps } from '../types/navigation';
 
@@ -267,6 +267,8 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                         tone={entry?.tone ?? null}
                         selected={selectedTileIds.includes(tile.id)}
                         onPress={() => toggleTile(tile.id)}
+                        svgPath={artForTile(tile)?.d}
+                        svgViewBox={artForTile(tile)?.viewBox}
                         className="w-[30%]"
                         testID={`pick-muscles-tile-${tile.id}`}
                       />

@@ -14,6 +14,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "i18n:audit": "node scripts/audit-mobile-i18n.mjs",
+    "muscle-art:generate": "node scripts/generate-muscle-art.mjs",
     "prebuild": "expo prebuild --clean",
     "lint": "expo lint src App.tsx index.js __tests__ --max-warnings 0",
     "lint:compiler": "eslint --no-config-lookup --config eslint.compiler.config.js src App.tsx",

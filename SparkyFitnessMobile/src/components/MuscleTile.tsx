@@ -23,13 +23,13 @@ export interface MuscleTileProps {
   selected: boolean;
   onPress: () => void;
   /**
-   * Anatomical art for this muscle: the `d` attribute of the matching path in
-   * `muscle-male.svg`.
+   * Anatomical art for this muscle — every path `muscle-male.svg` draws for it,
+   * concatenated. Comes from `MUSCLE_ART`; see `artForTile`.
    *
-   * Optional because the art does not cover the whole vocabulary yet — five of
-   * the seventeen muscles have no path, and adding them is a human task. Given
-   * no path the tile draws a labelled colour block instead, which is what lets
-   * the grid ship before the art does.
+   * Still optional, because the illustration covers twelve of the seventeen
+   * canonical muscles. `abductors`, `adductors`, `lats`, `middle back` and
+   * `neck` have no path, so Back — the only tile of the five a user picks
+   * often — keeps the labelled colour block this falls back to.
    */
   svgPath?: string;
   /** Viewport the `svgPath` coordinates are expressed in. */
