@@ -63,8 +63,21 @@ const UNSELECTED_OPACITY = 0.45;
 const DIMMED_SILHOUETTE_OPACITY = 0.6;
 const DETAIL_OPACITY = 0.55;
 const DIMMED_DETAIL_OPACITY = 0.3;
-/** In viewBox units: ~535 units render into ~360pt, so 3.5 is about 2.4pt. */
-const SELECTED_STROKE_WIDTH = 3.5;
+/**
+ * The seam between the pieces a muscle is drawn in, in viewBox units — about
+ * 2pt at the size a phone renders this.
+ *
+ * The illustration has no lines of its own: what separates the eight paths of
+ * the quads is the silhouette showing through the gaps between them. A selected
+ * region is opaque, so it loses that, and a muscle picked at full strength went
+ * flat — one blue slab where the anatomy used to be. Drawing each path's own
+ * edge back in, in the silhouette's colour, is the seam the gap used to be.
+ *
+ * It replaced an accent-coloured stroke, which made the flatness rather than
+ * fixing it: same colour as the fill, and wide enough to close the seams it was
+ * drawn over.
+ */
+const SEAM_STROKE_WIDTH = 1.6;
 const HALO_STROKE_WIDTH = 9;
 const HALO_OPACITY = 0.3;
 
@@ -98,6 +111,11 @@ export interface MuscleBodyMapProps {
  * is the cheapest way to get a glow given SVG cannot union paths — and the
  * exact recovery percentage moved to the readout beneath the figure, where it
  * can actually be read. Hue still carries recovery for everything unpicked.
+ *
+ * An opaque fill costs the anatomy, though: the illustration separates the
+ * pieces of a muscle by leaving gaps for the silhouette to show through, and
+ * covering those turns a pick into a flat slab. So each selected path also
+ * draws its own edge back in — see `SEAM_STROKE_WIDTH`.
  *
  * Selection state is shared across the two views: a muscle simply appears on
  * whichever figure draws it.
@@ -161,8 +179,8 @@ const MuscleBodyMap: React.FC<MuscleBodyMapProps> = ({
               // of a region the illustration draws in pieces picks the whole
               // muscle.
               onPress={() => onToggle(path.muscle)}
-              stroke={isSelected ? accentPrimary : undefined}
-              strokeWidth={isSelected ? SELECTED_STROKE_WIDTH : 0}
+              stroke={isSelected ? silhouetteColor : undefined}
+              strokeWidth={isSelected ? SEAM_STROKE_WIDTH : 0}
               strokeLinejoin="round"
               opacity={isSelected ? 1 : UNSELECTED_OPACITY}
               accessible={speaks}

@@ -40,10 +40,18 @@ canonical list out of `shared/src/constants/exerciseTaxonomy.ts` rather than har
 `TILES_OFF_BODY`, the chips row, and the on/off-body partition assertions are deleted.
 
 **Phase 3 — a selection you cannot miss.** Unselected regions: recovery tone at `0.45`. Selected:
-accent fill at full strength, a `3.5`-unit round-join stroke, and a halo — the same path redrawn
-beneath itself with a `9`-unit accent stroke at `0.3` opacity, `pointerEvents="none"` so the glow
-cannot steal taps from the region next door. The silhouette and the outline detail dim whenever
-anything is selected.
+accent fill at full strength under a halo — the same path redrawn beneath itself with a `9`-unit
+accent stroke at `0.3` opacity, `pointerEvents="none"` so the glow cannot steal taps from the region
+next door. The silhouette and the outline detail dim whenever anything is selected.
+
+Selected paths also draw their own edge back in, in the silhouette's colour at `1.6` units
+(`SEAM_STROKE_WIDTH`). **This illustration has no lines of its own** — what separates the eight
+paths of the quads or the segments of the abs is the silhouette showing through the *gaps* between
+them, so an opaque fill destroys the anatomy and a pick reads as one flat slab. The first version
+shipped with a `3.5`-unit *accent* stroke instead, which made the flatness rather than fixing it:
+same colour as the fill, and wide enough to close the very seams it was drawn over. Raising the
+`detail` layer does nothing for this — the definition is not in that layer, which is only the head,
+hands and body outline.
 
 **Phase 4 — a readout naming what is picked.** Under the figure: `Selected (n)`, one row per pick
 reading `Chest · 100% recovered` with the recovery half tinted the same tone the figure fills that

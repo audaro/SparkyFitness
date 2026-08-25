@@ -41,7 +41,8 @@ const COLOURS = {
 /**
  * The same treatment `MuscleBodyMap` renders: an unselected region is anatomy
  * at low opacity, a selected one is a full-strength accent fill under a thick,
- * low-opacity halo of itself.
+ * low-opacity halo of itself, with its own edge drawn back in so the pieces a
+ * muscle is built from stay separate once the fill turns opaque.
  */
 function figure(view, { selected = [], showAuthored = false } = {}) {
   const picked = new Set(selected);
@@ -70,7 +71,7 @@ function figure(view, { selected = [], showAuthored = false } = {}) {
     parts.push(
       `<path d="${path.d}" fill="${fill}" opacity="${isSelected ? 1 : 0.45}"` +
         (isSelected
-          ? ` stroke="${COLOURS.accent}" stroke-width="3.5" stroke-linejoin="round"`
+          ? ` stroke="${COLOURS.silhouette}" stroke-width="1.6" stroke-linejoin="round"`
           : '') +
         '/>',
     );
