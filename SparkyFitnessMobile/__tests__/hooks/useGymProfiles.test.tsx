@@ -10,6 +10,7 @@ import {
   updateGymProfile,
   type GymProfile,
 } from '../../src/services/api/gymProfilesApi';
+import { ApiError } from '../../src/services/api/errors';
 import { gymProfilesQueryKey } from '../../src/hooks/queryKeys';
 import { createQueryWrapper, createTestQueryClient, type QueryClient } from './queryTestUtils';
 
@@ -46,9 +47,14 @@ const profile = (overrides?: Partial<GymProfile>): GymProfile => ({
   ...overrides,
 });
 
-/** What `apiFetch` throws: the status is embedded in the message text. */
+/**
+ * What `apiFetch` actually throws — an `ApiError` whose message happens to
+ * embed the status, which is exactly the ambiguity the classifier must not
+ * depend on. Built the same way `apiClient` builds it, message included, so a
+ * classifier that went back to reading the text would still be caught here.
+ */
 const serverError = (status: number, body = 'nope') =>
-  new Error(`Server error: ${status} - ${body}`);
+  new ApiError(`Server error: ${status} - ${body}`, status, body);
 
 function renderWithClient<T>(hook: () => T, client: QueryClient = createTestQueryClient()) {
   const rendered = renderHook(hook, { wrapper: createQueryWrapper(client) });
@@ -284,6 +290,42 @@ describe('mutation failures', () => {
   test('any other create failure gets the generic retry copy', async () => {
     mockFetch.mockResolvedValue([]);
     mockCreate.mockRejectedValue(serverError(500));
+
+    const { mutations } = renderBoth();
+
+    await act(async () => {
+      await expect(
+        mutations.result.current.createProfileAsync({ name: 'Home Gym', equipment: [] }),
+      ).rejects.toThrow();
+    });
+
+    await expectToast('Could not create gym profile', 'Please try again.');
+  });
+
+  test('a non-409 whose body merely contains "409" is not a duplicate name', async () => {
+    // The regression this classifier was rewritten for. It used to test
+    // `error.message.includes('409')` against `Server error: ${status} -
+    // ${body}`, so a body carrying those digits — an id, a count, a quoted
+    // value — told the user to rename a profile that was fine.
+    mockFetch.mockResolvedValue([]);
+    mockCreate.mockRejectedValue(serverError(500, 'profile 409abc-dead-beef could not be written'));
+
+    const { mutations } = renderBoth();
+
+    await act(async () => {
+      await expect(
+        mutations.result.current.createProfileAsync({ name: 'Home Gym', equipment: [] }),
+      ).rejects.toThrow();
+    });
+
+    await expectToast('Could not create gym profile', 'Please try again.');
+  });
+
+  test('a plain Error is never mistaken for a status the classifier screens for', async () => {
+    // Nothing below `apiFetch` promises an ApiError — a timeout or a thrown
+    // parse failure arrives as a bare Error, and must land on the generic copy.
+    mockFetch.mockResolvedValue([]);
+    mockCreate.mockRejectedValue(new Error('Server error: 409 - duplicate'));
 
     const { mutations } = renderBoth();
 

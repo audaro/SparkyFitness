@@ -12,6 +12,20 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * True when `error` is an `ApiError` carrying exactly this HTTP status.
+ *
+ * The alternative callers reach for is `error.message.includes('409')`, which
+ * reads the status out of the human-readable message `apiFetch` builds as
+ * `Server error: ${status} - ${body}`. That also matches when the *body* merely
+ * contains those digits — an id, a count, a quoted value — and an unrelated
+ * failure is then reported to the user as the specific one it was screening
+ * for. The status is a field on the error; read the field.
+ */
+export function hasApiStatus(error: unknown, statusCode: number): boolean {
+  return error instanceof ApiError && error.statusCode === statusCode;
+}
+
 export function getApiErrorMessage(error: unknown): string | null {
   if (error instanceof TimeoutError) {
     return i18n.t('common.requestTimedOut', { defaultValue: 'Request timed out. Check your server connection.' });

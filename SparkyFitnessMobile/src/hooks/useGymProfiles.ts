@@ -10,14 +10,16 @@ import {
   type GymProfileCreatePayload,
   type GymProfileUpdatePayload,
 } from '../services/api/gymProfilesApi';
+import { hasApiStatus } from '../services/api/errors';
 import { gymProfilesQueryKey } from './queryKeys';
 
 /**
  * A duplicate profile name is the one failure the user can fix themselves, so
- * it gets its own message instead of the generic retry copy.
+ * it gets its own message instead of the generic retry copy. Matched on the
+ * status field rather than the message text — see {@link hasApiStatus}.
  */
 function isDuplicateNameError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('409');
+  return hasApiStatus(error, 409);
 }
 
 function errorToast(title: string, error: unknown): void {
