@@ -5,6 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -47,7 +48,15 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <div className="text-sm text-muted-foreground">{description}</div>
+          {/*
+            `asChild` over a div rather than the default `<p>`: this is what
+            wires the description to the dialog's `aria-describedby`, but
+            callers pass arbitrary nodes here — lists, stacked paragraphs — and
+            a `<p>` cannot legally contain them.
+          */}
+          <DialogDescription asChild>
+            <div>{description}</div>
+          </DialogDescription>
         </DialogHeader>
         {warning && (
           <Alert variant="destructive">
