@@ -6,26 +6,11 @@ import type {
   AggregatedSleepSession,
   TransformedExerciseSession,
 } from '../../../src/types/healthRecords';
+import { localDay } from '../../helpers/localDay';
 
 jest.mock('../../../src/services/LogService', () => ({
   addLog: jest.fn(),
 }));
-
-/**
- * The local calendar day an instant falls on, worked out from `Date` directly
- * rather than through the helper under test.
- *
- * Records are dated by their **device-local** day, so an expected date can only
- * be written as a literal when the instant lands on the same day in every zone
- * — and no instant does: UTC-11 and UTC+14 are 25 hours apart. Picking a
- * "safe-looking" time only moves which machines the test fails on. Both of the
- * cases using this were literals that passed in UTC, where CI runs.
- */
-const localDay = (iso: string): string => {
-  const at = new Date(iso);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
-};
 
 describe('transformHealthRecords', () => {
   describe('basic validation', () => {

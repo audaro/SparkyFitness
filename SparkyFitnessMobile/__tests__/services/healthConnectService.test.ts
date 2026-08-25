@@ -318,11 +318,17 @@ describe('healthConnectService.ts (Android)', () => {
     });
 
     test('HeartRate records are aggregated with min/max/avg by date', async () => {
+      // Local-naive timestamps, for the reason spelled out in the
+      // spanning-midnight test below: what is under test here is that three
+      // readings on ONE day collapse to one min/max/avg, and instants written
+      // with a `Z` fall on two different local days somewhere between UTC-11
+      // and UTC+14 — splitting the fixture into two buckets and handing
+      // `find()` the wrong one.
       mockReadRecords.mockResolvedValue({
         records: [
-          { startTime: '2024-01-15T08:00:00Z', samples: [{ beatsPerMinute: 60 }] },
-          { startTime: '2024-01-15T12:00:00Z', samples: [{ beatsPerMinute: 80 }] },
-          { startTime: '2024-01-15T18:00:00Z', samples: [{ beatsPerMinute: 70 }] },
+          { startTime: '2024-01-15T08:00:00', samples: [{ beatsPerMinute: 60 }] },
+          { startTime: '2024-01-15T12:00:00', samples: [{ beatsPerMinute: 80 }] },
+          { startTime: '2024-01-15T18:00:00', samples: [{ beatsPerMinute: 70 }] },
         ],
       });
 
@@ -374,11 +380,12 @@ describe('healthConnectService.ts (Android)', () => {
     });
 
     test('HeartRateVariabilityRmssd records are aggregated with min/max/avg by date', async () => {
+      // Local-naive, same reason as the HeartRate aggregation test above.
       mockReadRecords.mockResolvedValue({
         records: [
-          { time: '2024-01-15T08:00:00Z', heartRateVariabilityMillis: 40 },
-          { time: '2024-01-15T12:00:00Z', heartRateVariabilityMillis: 60 },
-          { time: '2024-01-15T18:00:00Z', heartRateVariabilityMillis: 50 },
+          { time: '2024-01-15T08:00:00', heartRateVariabilityMillis: 40 },
+          { time: '2024-01-15T12:00:00', heartRateVariabilityMillis: 60 },
+          { time: '2024-01-15T18:00:00', heartRateVariabilityMillis: 50 },
         ],
       });
 

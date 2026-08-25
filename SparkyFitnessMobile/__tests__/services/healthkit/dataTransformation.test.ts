@@ -1,6 +1,7 @@
 import { transformHealthRecords, extractTimezoneMetadata, setOwnBundleId, mapDietarySample } from '../../../src/services/healthkit/dataTransformation';
 
 import type { TransformOutput, TransformedRecord, TransformedExerciseSession, AggregatedSleepSession, TransformedNutritionEntry } from '../../../src/types/healthRecords';
+import { localDay } from '../../helpers/localDay';
 
 jest.mock('../../../src/services/LogService', () => ({
   addLog: jest.fn(),
@@ -43,7 +44,7 @@ describe('transformHealthRecords', () => {
 
       expect(result).toHaveLength(1);
       expect((result[0] as TransformOutput & { value: number }).value).toBe(75.5);
-      expect((result[0] as TransformOutput & { date: string }).date).toBe('2024-01-15');
+      expect((result[0] as TransformOutput & { date: string }).date).toBe(localDay('2024-01-15T08:00:00Z'));
     });
 
     test('skips record when weight data is missing', () => {
@@ -78,8 +79,8 @@ describe('transformHealthRecords', () => {
       const result = transformHealthRecords(records, { recordType: 'BloodPressure', unit: 'mmHg', type: 'blood_pressure' });
 
       expect(result).toHaveLength(2);
-      expect(result[0]).toMatchObject({ value: 120.5, type: 'blood_pressure_systolic', date: '2024-01-15' });
-      expect(result[1]).toMatchObject({ value: 80.3, type: 'blood_pressure_diastolic', date: '2024-01-15' });
+      expect(result[0]).toMatchObject({ value: 120.5, type: 'blood_pressure_systolic', date: localDay('2024-01-15T08:00:00Z') });
+      expect(result[1]).toMatchObject({ value: 80.3, type: 'blood_pressure_diastolic', date: localDay('2024-01-15T08:00:00Z') });
     });
 
     test('creates only systolic when diastolic missing', () => {
@@ -201,7 +202,7 @@ describe('transformHealthRecords', () => {
 
       expect(result).toHaveLength(1);
       expect((result[0] as TransformOutput & { value: number }).value).toBe(42);
-      expect((result[0] as TransformOutput & { date: string }).date).toBe('2024-01-15');
+      expect((result[0] as TransformOutput & { date: string }).date).toBe(localDay('2024-01-15T08:00:00Z'));
       expect((result[0] as TransformOutput & { type: string }).type).toBe('HRV_SDNN');
     });
 
@@ -433,7 +434,7 @@ describe('transformHealthRecords', () => {
       ];
       const result = transformHealthRecords(records, { recordType: 'Weight', unit: 'kg', type: 'weight' });
 
-      expect((result[0] as TransformOutput & { date: string }).date).toBe('2024-01-15');
+      expect((result[0] as TransformOutput & { date: string }).date).toBe(localDay('2024-01-15T08:00:00Z'));
     });
 
     test('uses record.startTime for session-type records (Distance)', () => {
@@ -442,7 +443,7 @@ describe('transformHealthRecords', () => {
       ];
       const result = transformHealthRecords(records, { recordType: 'Distance', unit: 'm', type: 'distance' });
 
-      expect((result[0] as TransformOutput & { date: string }).date).toBe('2024-01-15');
+      expect((result[0] as TransformOutput & { date: string }).date).toBe(localDay('2024-01-15T08:00:00Z'));
     });
 
     test('skips record when date extraction returns null', () => {
