@@ -4,6 +4,7 @@ import {
   GLP1_DRUG_PROFILES,
   resolveCatalogDrug,
   resolveGlp1Profile,
+  searchCatalog,
 } from '@workspace/shared';
 
 describe('medication catalog — shape invariants', () => {
@@ -141,5 +142,53 @@ describe('resolveCatalogDrug', () => {
         expect(drug.glp1ProfileId).toBe(profile.id);
       }
     }
+  });
+});
+
+describe('searchCatalog', () => {
+  it('finds a drug by an exact brand the user is likelier to know', () => {
+    const [hit] = searchCatalog('Wegovy');
+    expect(hit?.drug.id).toBe('semaglutide');
+    // The row shows what they typed, not a rename to the generic name.
+    expect(hit?.matchedOn).toBe('Wegovy');
+    expect(hit?.viaAlias).toBe(true);
+  });
+
+  it('matches a partial name as the user types it', () => {
+    const ids = searchCatalog('reta').map((hit) => hit.drug.id);
+    expect(ids).toContain('retatrutide');
+  });
+
+  it('ranks the drug name above a brand at the same tier', () => {
+    // 'Semaglutide' is a prefix match on the name; nothing else may outrank it.
+    const [first] = searchCatalog('semaglutide');
+    expect(first?.drug.id).toBe('semaglutide');
+    expect(first?.viaAlias).toBe(false);
+  });
+
+  it('is case-insensitive and ignores surrounding whitespace', () => {
+    expect(searchCatalog('  OZEMPIC ')[0]?.drug.id).toBe('semaglutide');
+  });
+
+  it('returns nothing for a blank query rather than the whole catalog', () => {
+    expect(searchCatalog('')).toEqual([]);
+    expect(searchCatalog('   ')).toEqual([]);
+  });
+
+  it('honours the limit and never returns more rows than asked for', () => {
+    expect(searchCatalog('a', 2).length).toBeLessThanOrEqual(2);
+    expect(searchCatalog('a', 0)).toEqual([]);
+  });
+
+  it('never surfaces an inherited Object property as a drug', () => {
+    for (const term of ['constructor', 'toString', '__proto__', 'valueOf']) {
+      expect(searchCatalog(term)).toEqual([]);
+    }
+  });
+
+  it('is stable across the same query', () => {
+    expect(searchCatalog('tide').map((hit) => hit.drug.id)).toEqual(
+      searchCatalog('tide').map((hit) => hit.drug.id)
+    );
   });
 });

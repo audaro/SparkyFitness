@@ -226,3 +226,82 @@ export function resolveCatalogDrug(
       drug.aliases.some((alias) => alias.toLowerCase() === key),
   );
 }
+
+export interface CatalogSearchResult {
+  drug: CatalogDrug;
+  /**
+   * The text that actually matched — the display name, or the alias the user typed. Lets the
+   * UI show "Wegovy" as the row and "Semaglutide" as its subtitle, rather than silently
+   * replacing what they typed with a generic name they may not recognise.
+   */
+  matchedOn: string;
+  /** True when `matchedOn` is a brand or synonym rather than the drug's own name. */
+  viaAlias: boolean;
+}
+
+/** Lower is better. Exact beats prefix beats substring; name beats alias at each tier. */
+function matchRank(candidate: string, query: string): number | null {
+  const value = candidate.toLowerCase();
+  if (value === query) return 0;
+  if (value.startsWith(query)) return 2;
+  if (value.includes(query)) return 4;
+  return null;
+}
+
+/**
+ * Rank the catalog against what the user has typed. Pure and synchronous — this is the local
+ * tier of the medication search, so it runs on every keystroke with no network and no debounce
+ * of its own.
+ *
+ * Matching is substring, not fuzzy: the catalog is small and the terms are drug names, where a
+ * near-miss suggestion is worse than none. Typo tolerance is a deliberate later step.
+ */
+export function searchCatalog(
+  query: string,
+  limit = 8,
+): CatalogSearchResult[] {
+  const key = query.trim().toLowerCase();
+  if (!key || limit <= 0) return [];
+
+  const scored: { result: CatalogSearchResult; rank: number }[] = [];
+
+  for (const drug of Object.values(MEDICATION_CATALOG)) {
+    let best: { rank: number; matchedOn: string; viaAlias: boolean } | null =
+      null;
+
+    const nameRank = matchRank(drug.displayName, key);
+    if (nameRank !== null) {
+      best = { rank: nameRank, matchedOn: drug.displayName, viaAlias: false };
+    }
+
+    for (const alias of drug.aliases) {
+      const aliasRank = matchRank(alias, key);
+      // +1 so a name match always outranks an alias match at the same tier.
+      if (aliasRank === null) continue;
+      if (best === null || aliasRank + 1 < best.rank) {
+        best = { rank: aliasRank + 1, matchedOn: alias, viaAlias: true };
+      }
+    }
+
+    if (best) {
+      scored.push({
+        rank: best.rank,
+        result: {
+          drug,
+          matchedOn: best.matchedOn,
+          viaAlias: best.viaAlias,
+        },
+      });
+    }
+  }
+
+  // Alphabetical within a rank, so the list is stable across keystrokes that do not change
+  // the ranking — a row must not move out from under a finger already on its way down.
+  scored.sort(
+    (a, b) =>
+      a.rank - b.rank ||
+      a.result.drug.displayName.localeCompare(b.result.drug.displayName),
+  );
+
+  return scored.slice(0, limit).map((entry) => entry.result);
+}
