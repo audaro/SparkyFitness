@@ -30,6 +30,7 @@ changed.
 | `ecdc227de` | mobile  | First suite for `hooks/useGymProfiles.ts` — closes the untested three       |
 | `a9764dba7` | docs    | Handoff records that suite; mobile `AGENTS.md` note retired                 |
 | `1f463cd8c` | mobile  | Duplicate-profile-name error classified by status, not by substring         |
+| `55d5d8894` | mobile  | The other five status-by-substring sites converted; one new suite           |
 
 The long-form write-up for the web half lives in `exercise-home-phase-e.md` under E5 and E6, because
 the diagnosis it corrects belongs next to the phase that filed it. What follows is what a fresh
@@ -128,15 +129,16 @@ first) and two cases on `WorkoutPresetsManager.test.tsx`.
 `ExerciseCard.test.tsx` covers the preset-playback path only. The component is ~600 lines and the
 rest of it is still untested; the suite exists as a place to add to, not as coverage.
 
-Mobile, run from `SparkyFitnessMobile/`. Green at `7ddf36da2`.
+Mobile, run from `SparkyFitnessMobile/`. Green at `55d5d8894`.
 
 | Command                                                        | Result                        |
 | -------------------------------------------------------------- | ----------------------------- |
 | `pnpm run validate`                                            | clean (tsc, lint, i18n audit) |
-| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6048 passed, 374 suites**   |
+| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6056 passed, 375 suites**   |
 
-Up from 5971 / 371. The delta is the three new suites: `utils/workoutSupersets` (41),
-`hooks/useWorkoutRecommendation` (19), `hooks/useGymProfiles` (15).
+Up from 5971 / 371. The delta is four new suites — `utils/workoutSupersets` (41),
+`hooks/useWorkoutRecommendation` (19), `hooks/useGymProfiles` (17), `hooks/useUpdateFoodEntryMeal`
+(4) — plus one misclassification case appended to each of the four suites `55d5d8894` touched.
 
 The three health files were run at `Pacific/Midway` (UTC-11), `America/Los_Angeles`, `UTC`,
 `Europe/London`, `Asia/Tokyo` and `Pacific/Kiritimati` (UTC+14), and then the **whole** suite was run
@@ -160,25 +162,37 @@ the fork has touched, at one upstream commit in six months.
 
 ## Exact next step
 
-**Decide whether the other five substring status matches follow the `409` fix.** `1f463cd8c`
-replaced `error.message.includes('409')` in `useGymProfiles.ts` with `hasApiStatus(error, 409)`,
-reading `ApiError.statusCode` instead of the message text, and put `hasApiStatus` in
-`services/api/errors.ts` so the rest have somewhere to land. Five call sites still match the old way
-and carry the same false positive — any failure whose **body** contains those digits is classified
-as the specific one it was screening for:
+**Nothing in this thread is open.** The status-by-substring sweep finished in `55d5d8894`: no site in
+`src/` now reads a status out of an error message. `grep -rn "message\.includes(" src/` returns nine
+hits and all nine are sentinel strings, not digits.
 
-| File                                 | Matches      |
-| ------------------------------------ | ------------ |
-| `hooks/useUpdateFoodEntry.ts`        | `403`        |
-| `hooks/useUpdateFoodEntryMeal.ts`    | `403`        |
-| `hooks/useDeleteFood.ts`             | `403`        |
-| `hooks/useWorkoutPresetMutations.ts` | `403`, `404` |
-| `hooks/useExerciseMutations.ts`      | `403`, `404` |
+The nearest live thread it _did_ expose, for a session looking for one:
 
-Not a mechanical sweep, which is why it did not ride along with the fix: each site has its own copy
-and its own callers, none of the five has a suite pinning the classification at all, and a 403 on a
-food shared with the user is a real flow whose message someone chose deliberately. Do them with a
-case each, the way `useGymProfiles` now has one.
+**Three copies of the same MFA-cookie check.** `OnboardingScreen.tsx:430`, `ReauthModal.tsx:298` and
+`ServerConfigModal.tsx:418` each match `INVALID_TWO_FACTOR_COOKIE` or `expired` in an error message
+by hand. That is past the rule of two, and unlike the status matches it is not a false-positive bug —
+a sentinel string is a deliberate contract, and `expired` is loose but has no digit-collision
+failure mode. So it is a duplication to collapse when something next touches one of the three, not a
+defect to go fix. If it moves, it belongs beside `hasApiStatus` in `services/api/errors.ts`.
+
+What `55d5d8894` settled, and the shape to reuse:
+
+- `hasApiStatus(error, status)` and `isAuthzError(error)` (403-or-404, which
+  `useWorkoutPresetMutations` and `useExerciseMutations` each had a private copy of) live in
+  `services/api/errors.ts`. New classification goes through them; nothing should re-derive a status.
+- **The test fixtures were the load-bearing half.** The four existing suites threw bare `Error`s
+  whose messages happened to contain the digits, which is why they had passed against the broken
+  classifier all along — a suite can pin the wrong behaviour just as firmly as the right one. They
+  now build a real `ApiError` through `__tests__/helpers/apiError.ts`, and deliberately keep the
+  status-shaped message, so a regression to text matching still fails. `useGymProfiles` and
+  `useWorkoutRecommendation` had grown their own local copies of that builder and were folded onto
+  the shared one in the same commit.
+- Each suite gained a case for a non-403 whose _body_ merely contains the digits. Mutation-checked
+  the same way as the suites below: reverting `hasApiStatus` to the substring form fails eight cases
+  across six suites.
+- A correction worth carrying, because it changed the size of the job: an earlier note in this doc
+  said none of the five had a suite pinning the classification. Four of the five do. Checking the
+  source without checking `__tests__/` is how that was got wrong.
 
 **The list below is closed** — the three modules `AGENTS.md` called out as having no suite of their
 own now have one, and that note has been retired. Kept for the pattern each established, since the
@@ -197,7 +211,9 @@ next untested module should follow them:
    hook gated on `enabled`, and how React Navigation delivers focus belongs to that hook's own
    suite. The `useFocusEffect` stub is still what a _screen_ suite needs, since those render real
    trees.
-3. ~~`hooks/useGymProfiles.ts`~~ — **done in `ecdc227de`**, 15 cases, mutation-checked seven ways.
+3. ~~`hooks/useGymProfiles.ts`~~ — **done in `ecdc227de`**, mutation-checked seven ways; 17 cases
+   after `55d5d8894` added the misclassification case and folded its local error builder onto the
+   shared one.
 
 All JS-only, including the `409` fix. **No native change, so no `expo prebuild` and no
 `expo run:ios`** — and Metro is
@@ -239,8 +255,8 @@ above.
 - Carried forward from Phase E, all still true and none blocking: the web weekly-targets card draws
   linear bars where mobile draws a Skia hexagon; C2's anatomical SVG paths remain the only
   human-blocked task and block nothing; muscle targeting (Pick Muscles, splits, On Demand) is
-  mobile-only and is a UI gap, not a contract one; the three untested mobile modules are promoted to
-  "Exact next step" above; the two web body-map implementations stay unconsolidated per blueprint
+  mobile-only and is a UI gap, not a contract one; the three untested mobile modules are closed, and so is
+  the status-by-substring sweep they led to; the two web body-map implementations stay unconsolidated per blueprint
   D10; health sync
   deliberately does not invalidate recovery; and the two equipment stores
   (`coach_profiles.equipment`, AI-chat-only, vs `gym_equipment_profiles.equipment`, what the
