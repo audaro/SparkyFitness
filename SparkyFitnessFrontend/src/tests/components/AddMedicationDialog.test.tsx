@@ -5,7 +5,17 @@ import type { Medication } from '@/types/medications';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, defaultValue?: string) => defaultValue,
+    // Interpolates like i18next so assertions can read the rendered sentence rather
+    // than a template. An unmatched {{placeholder}} is left in place deliberately —
+    // that is what a missing param looks like on screen.
+    t: (
+      _key: string,
+      defaultValue?: string,
+      params?: Record<string, unknown>
+    ) =>
+      (defaultValue ?? '').replace(/\{\{(\w+)\}\}/g, (match, name) =>
+        params && name in params ? String(params[name]) : match
+      ),
   }),
   initReactI18next: { type: '3rdParty', init: jest.fn() },
 }));
@@ -401,7 +411,7 @@ describe('AddMedicationDialog dose fields', () => {
       render(<AddMedicationDialog />);
       openDialog();
       setField('Name', 'Reta');
-      fireEvent.mouseDown(screen.getByRole('option', { name: /Reta/ }));
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Retatrutide/ }));
 
       save();
 
@@ -424,7 +434,7 @@ describe('AddMedicationDialog dose fields', () => {
       render(<AddMedicationDialog />);
       openDialog();
       setField('Name', 'Reta');
-      fireEvent.mouseDown(screen.getByRole('option', { name: /Reta/ }));
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Retatrutide/ }));
 
       // Retatrutide is investigational, so there is no ladder to offer.
       expect(screen.queryByText('Label strengths')).not.toBeInTheDocument();
@@ -440,7 +450,7 @@ describe('AddMedicationDialog dose fields', () => {
       render(<AddMedicationDialog />);
       openDialog();
       setField('Name', 'Reta');
-      fireEvent.mouseDown(screen.getByRole('option', { name: /Reta/ }));
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Retatrutide/ }));
       setField('Name', 'Grey vial #3');
 
       save();
@@ -481,6 +491,214 @@ describe('AddMedicationDialog dose fields', () => {
         dose_amount: 500,
         dose_unit: 'mg',
       });
+    });
+  });
+
+  // A concentration is not a number anyone draws. These cover the round trip that makes it
+  // one: apply writes the mix down, an edit reopens on it, and the draw sits on the form.
+  describe('reconstitution round trip', () => {
+    const reconMix = {
+      vial_amount: 30,
+      vial_unit: 'mg',
+      diluent_ml: 3,
+      syringe: 'U-100',
+    };
+
+    const vialMed = {
+      id: 'med-vial',
+      name: 'Retatrutide',
+      type_id: 'injection',
+      is_glp1: false,
+      strength_value: 10,
+      strength_unit: 'mg/mL',
+      dose_amount: 2,
+      dose_unit: 'mg',
+      custom_fields: { reconstitution: reconMix },
+    } as unknown as Medication;
+
+    function openCalculator() {
+      fireEvent.click(
+        screen.getByRole('button', { name: /Reconstituting a vial/ })
+      );
+    }
+
+    function fillCalculator() {
+      setField('Vial contains', '30');
+      setField('Bacteriostatic water (mL)', '3');
+      setField('Your dose', '2');
+    }
+
+    it('saves the mix alongside the concentration it produced', () => {
+      render(<AddMedicationDialog />);
+      openDialog();
+      setField('Name', 'Grey vial #3');
+      openCalculator();
+      fillCalculator();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Use these numbers' })
+      );
+
+      save();
+
+      const body = lastCreateBody();
+      // 30 mg in 3 mL: the strength is what a millilitre holds, not what the vial holds.
+      expect(body).toMatchObject({
+        strength_value: 10,
+        strength_unit: 'mg/mL',
+        dose_amount: 2,
+        dose_unit: 'mg',
+      });
+      // Without this the concentration is a dead end — nothing left to say which vial and
+      // how much water it came from.
+      expect(body.custom_fields).toMatchObject({ reconstitution: reconMix });
+    });
+
+    it('reopens the calculator on the saved mix when editing', () => {
+      render(<AddMedicationDialog editMed={vialMed} />);
+      openDialog();
+
+      // No "Reconstituting a vial?" button to press: a row that has a mix opens on it.
+      expect(screen.getByLabelText('Vial contains')).toHaveValue(30);
+      expect(screen.getByLabelText('Bacteriostatic water (mL)')).toHaveValue(3);
+      // Seeded from the medication's own dose, not from the record.
+      expect(screen.getByLabelText('Your dose')).toHaveValue(2);
+      // The answer is on screen without the user re-entering anything.
+      expect(screen.getByTestId('recon-units')).toHaveTextContent('20');
+    });
+
+    it('shows the draw next to the strength and dose it comes from', () => {
+      render(<AddMedicationDialog editMed={vialMed} />);
+      openDialog();
+
+      expect(screen.getByTestId('med-draw')).toHaveTextContent(
+        'Draw 0.2 mL — 20 units on a U-100 syringe'
+      );
+    });
+
+    it('follows a hand-edited strength rather than the saved mix', () => {
+      render(<AddMedicationDialog editMed={vialMed} />);
+      openDialog();
+      // The user got a different vial and typed the new concentration in directly.
+      setField('Strength', '20');
+
+      // 2 mg at 20 mg/mL is half of what it was. A draw derived from the stored 30 mg / 3 mL
+      // mix would still read 20 units and send them to twice their dose.
+      expect(screen.getByTestId('med-draw')).toHaveTextContent(
+        'Draw 0.1 mL — 10 units on a U-100 syringe'
+      );
+    });
+
+    it('reads the saved syringe rather than assuming U-100', () => {
+      const u40Med = {
+        ...vialMed,
+        custom_fields: {
+          reconstitution: { ...reconMix, syringe: 'U-40' },
+        },
+      } as unknown as Medication;
+      render(<AddMedicationDialog editMed={u40Med} />);
+      openDialog();
+
+      expect(screen.getByTestId('med-draw')).toHaveTextContent(
+        'Draw 0.2 mL — 8 units on a U-40 syringe'
+      );
+    });
+
+    // A mix describes a vial. Picking a different name is picking a different vial.
+    it('drops the mix when the name is picked off the catalog', () => {
+      render(<AddMedicationDialog editMed={vialMed} />);
+      openDialog();
+      setField('Name', 'Reta');
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Retatrutide/ }));
+
+      save();
+
+      expect(lastUpdateArgs().body.custom_fields).toMatchObject({
+        reconstitution: null,
+      });
+    });
+
+    it('reseeds the open calculator when the name is picked over', () => {
+      render(<AddMedicationDialog editMed={vialMed} />);
+      openDialog();
+      expect(screen.getByLabelText('Vial contains')).toHaveValue(30);
+
+      // Retatrutide has no label ladder, so the calculator stays open across this pick —
+      // which is exactly when a mounted component would keep the old vial on screen.
+      setField('Name', 'Reta');
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Retatrutide/ }));
+
+      expect(screen.getByLabelText('Vial contains')).toHaveValue(null);
+      expect(screen.getByLabelText('Bacteriostatic water (mL)')).toHaveValue(
+        null
+      );
+    });
+
+    it("takes the mix from the user's own row when one is copied", () => {
+      const otherVialMed = {
+        ...vialMed,
+        id: 'med-other',
+        name: 'Tirzepatide',
+        strength_value: 5,
+        custom_fields: {
+          reconstitution: { ...reconMix, vial_amount: 10, diluent_ml: 2 },
+        },
+      } as unknown as Medication;
+      mockOwnMedications = [otherVialMed];
+
+      render(<AddMedicationDialog editMed={vialMed} />);
+      openDialog();
+      setField('Name', 'Tirz');
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Tirzepatide/ }));
+
+      save();
+
+      // The copied row's mix, not the one that was on screen a moment ago — otherwise the
+      // strength comes from one medication and the vial behind it from another.
+      expect(lastUpdateArgs().body.custom_fields).toMatchObject({
+        reconstitution: { vial_amount: 10, diluent_ml: 2 },
+      });
+    });
+
+    it('claims no draw for a strength that is not a concentration', () => {
+      render(<AddMedicationDialog editMed={mirroredMed} />);
+      openDialog();
+
+      // 500 mg of Metformin is a tablet, not something with a draw volume.
+      expect(screen.queryByTestId('med-draw')).not.toBeInTheDocument();
+    });
+  });
+
+  // `custom_fields` is one JSONB column shared with mobile and with older rows, and the
+  // server replaces it wholesale. Everything this dialog does not name has to survive.
+  describe('custom_fields merge', () => {
+    it('preserves keys it does not own while clearing the ones it does', () => {
+      const enrichedMed = {
+        ...mirroredMed,
+        id: 'med-enriched',
+        is_glp1: false,
+        custom_fields: {
+          // Written by another surface; this dialog has no field for it.
+          pharmacy_note: 'blue lid',
+          // A leftover from when the row was marked GLP-1.
+          glp1_drug: 'semaglutide',
+          custom_glp1_name: 'old name',
+        },
+      } as unknown as Medication;
+
+      render(<AddMedicationDialog editMed={enrichedMed} />);
+      openDialog();
+      save();
+
+      const fields = lastUpdateArgs().body.custom_fields as Record<
+        string,
+        unknown
+      >;
+      expect(fields['pharmacy_note']).toBe('blue lid');
+      // Null rather than left behind: a merged object keeps whatever it is not told to change,
+      // so untoggling GLP-1 has to say so explicitly.
+      expect(fields['glp1_drug']).toBeNull();
+      expect(fields['custom_glp1_name']).toBeNull();
+      expect(fields['reconstitution']).toBeNull();
     });
   });
 });

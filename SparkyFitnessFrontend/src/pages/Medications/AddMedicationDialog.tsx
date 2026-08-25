@@ -8,8 +8,14 @@ import {
   normalizeNutrientName,
   resolveMacroFieldKey,
   resolveCatalogDrug,
+  concentrationDraw,
+  concentrationUnitLabel,
+  readReconstitutionRecord,
+  RECONSTITUTION_FIELD,
   type CatalogDrug,
   type MedicationRouteId,
+  type ReconstitutionRecord,
+  type ReconstitutionUnit,
 } from '@workspace/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,6 +86,29 @@ import type { UserCustomNutrient } from '@/types/customNutrient';
  * starting point the user can change — the two vocabularies overlap but are not the same thing
  * (a subcutaneous drug can be a pen or a vial), and only the user knows which they hold.
  */
+/**
+ * Every GLP-1 key this dialog owns, cleared.
+ *
+ * `custom_fields` is merged rather than replaced on save, so "absent" no longer means
+ * "cleared": a row that stops being a GLP-1 — or stops being a *custom* GLP-1 — has to say so
+ * explicitly, or the previous answer stands and the PK coach keeps reading it.
+ */
+const NO_GLP1_FIELDS: {
+  glp1_drug: string | null;
+  custom_glp1_name: string | null;
+  custom_half_life_days: number | null;
+  custom_t_max_days: number | null;
+  custom_cadence: string | null;
+  custom_is_oral: boolean | null;
+} = {
+  glp1_drug: null,
+  custom_glp1_name: null,
+  custom_half_life_days: null,
+  custom_t_max_days: null,
+  custom_cadence: null,
+  custom_is_oral: null,
+};
+
 const CATALOG_ROUTE_TYPE: Record<MedicationRouteId, string> = {
   oral: 'pill',
   subcutaneous: 'injection',
@@ -259,7 +288,19 @@ export default function AddMedicationDialog({
       ? (resolveCatalogDrug(savedId) ?? null)
       : null;
   });
-  const [showCalculator, setShowCalculator] = useState(false);
+  // How this vial was mixed, when it was. Null for anything that is not a reconstituted vial.
+  // Read strictly: `custom_fields` is free-form JSONB, and half a mix is worse than none when
+  // it repopulates a syringe calculator.
+  const [reconRecord, setReconRecord] = useState<ReconstitutionRecord | null>(
+    () => readReconstitutionRecord(editMed?.custom_fields)
+  );
+  // A medication saved with a mix opens on it, rather than hiding the user's own numbers
+  // behind a ghost link they have to find.
+  const [showCalculator, setShowCalculator] = useState(
+    () => readReconstitutionRecord(editMed?.custom_fields) !== null
+  );
+  // Bumped on every name pick to remount the calculator on the new medication's numbers.
+  const [calcSeed, setCalcSeed] = useState(0);
   // No control edits this yet; it is set by a catalog pick and otherwise carries whatever the
   // row already had, so an edit never silently rewrites a route set elsewhere.
   const [routeId, setRouteId] = useState<string | null>(
@@ -523,6 +564,41 @@ export default function AddMedicationDialog({
       ? doseUnit
       : strengthUnit;
 
+  // The dose as the calculator understands it. 'tablet' and friends have no draw volume, so
+  // only a mass or IU dose seeds the calculator's third field.
+  const savedDose = useMemo((): {
+    amount: number;
+    unit: ReconstitutionUnit;
+  } | null => {
+    const amount = parseFloat(displayedDoseAmount);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    const unit = displayedDoseUnit.trim().toLowerCase();
+    if (unit !== 'mg' && unit !== 'mcg' && unit !== 'iu') return null;
+    return { amount, unit };
+  }, [displayedDoseAmount, displayedDoseUnit]);
+
+  // Derived from the strength and dose on the form, never from the stored mix: the marks shown
+  // have to agree with the strength shown even after the user edits it by hand. Null whenever
+  // the answer is not knowable — a strength that is not a concentration, or a dose that cannot
+  // be converted to it.
+  const draw = useMemo(
+    () =>
+      concentrationDraw({
+        strengthValue: parseFloat(strength),
+        strengthUnit,
+        doseAmount: parseFloat(displayedDoseAmount),
+        doseUnit: displayedDoseUnit.trim().toLowerCase(),
+        syringe: reconRecord?.syringe ?? null,
+      }),
+    [
+      strength,
+      strengthUnit,
+      displayedDoseAmount,
+      displayedDoseUnit,
+      reconRecord,
+    ]
+  );
+
   const handleDoseAmountChange = (value: string) => {
     if (!doseTouched) {
       setDoseTouched(true);
@@ -608,6 +684,7 @@ export default function AddMedicationDialog({
       custom_fields: isGlp1
         ? glp1Drug === 'custom'
           ? {
+              ...NO_GLP1_FIELDS,
               glp1_drug: 'custom',
               custom_glp1_name: customName.trim() || null,
               custom_half_life_days: customHalfLife
@@ -617,28 +694,34 @@ export default function AddMedicationDialog({
               custom_cadence: customCadence,
               custom_is_oral: customIsOral,
             }
-          : { glp1_drug: glp1Drug }
-        : {},
+          : { ...NO_GLP1_FIELDS, glp1_drug: glp1Drug }
+        : NO_GLP1_FIELDS,
     };
-    // `catalog_id`, deliberately not `glp1_drug`: the latter gates the PK coach and only ever
-    // holds a profile the registry publishes, whereas this records which catalog row the user
-    // picked — including drugs that have no PK at all.
-    // Explicitly null rather than omitted when there is no match, so renaming a row off the
-    // catalog actually detaches it instead of leaving the old drug's id attached.
+    // The server replaces the whole `custom_fields` column rather than merging into it, so
+    // anything this dialog does not name is dropped on save. Start from what the row already
+    // had and overwrite only the keys above and below, or a medication enriched on mobile
+    // loses those keys the first time it is edited here.
+    body.custom_fields = {
+      ...(editMed?.custom_fields ?? {}),
+      ...body.custom_fields,
+      // `catalog_id`, deliberately not `glp1_drug`: the latter gates the PK coach and only ever
+      // holds a profile the registry publishes, whereas this records which catalog row the user
+      // picked — including drugs that have no PK at all.
+      // Explicitly null rather than omitted when there is no match, so renaming a row off the
+      // catalog actually detaches it instead of leaving the old drug's id attached.
+      catalog_id: catalogDrug?.id ?? null,
+      // The mix behind the strength, on the same terms: explicitly null when there is none, so
+      // a vial edited back into a plain strength stops claiming a draw it cannot justify.
+      [RECONSTITUTION_FIELD]: reconRecord,
+    };
+    // Explicitly null off a supplement, for the same reason the GLP-1 keys are: a merged
+    // object keeps whatever it is not told to change.
+    const units = Number(unitsPerServing);
     body.custom_fields = {
       ...body.custom_fields,
-      catalog_id: catalogDrug?.id ?? null,
+      units_per_serving:
+        isSupplement && Number.isFinite(units) && units > 0 ? units : null,
     };
-    // Supplements never carry GLP-1 metadata, so the branch above leaves them an empty
-    // object to extend.
-    if (isSupplement) {
-      const units = Number(unitsPerServing);
-      body.custom_fields = {
-        ...body.custom_fields,
-        units_per_serving:
-          Number.isFinite(units) && units > 0 ? units : undefined,
-      };
-    }
     if (isEdit && editMed) {
       updateMutation.mutate(
         { id: editMed.id, body },
@@ -695,10 +778,17 @@ export default function AddMedicationDialog({
    * to be wrong — the catalog suggests a shape, the user owns the numbers.
    */
   const handleNamePick = (pick: MedicationNamePick) => {
+    // The calculator seeds its fields once, at mount. A pick that leaves it open — a drug with
+    // no strength ladder, picked while it was already showing — would otherwise keep the
+    // previous vial's numbers prefilled under a different medication's name.
+    setCalcSeed((seed) => seed + 1);
     if (pick.kind === 'custom') {
       setName(pick.name);
       setCatalogDrug(null);
       setShowCalculator(false);
+      // The mix describes a vial, not a form. Carrying it onto a different drug would prefill
+      // the calculator with someone else's numbers and pick their syringe for the draw.
+      setReconRecord(null);
       return;
     }
 
@@ -726,6 +816,9 @@ export default function AddMedicationDialog({
           : null
       );
       setShowCalculator(false);
+      // The copied row's own mix, so the strength above and the vial behind it stay the same
+      // medication's. Null when it has none — never the mix that was on screen a moment ago.
+      setReconRecord(readReconstitutionRecord(med.custom_fields));
       return;
     }
 
@@ -742,8 +835,10 @@ export default function AddMedicationDialog({
       setGlp1Drug(drug.glp1ProfileId);
     }
     // No label, no ladder: the drug's dose has to be computed from a vial the user actually
-    // holds, so the calculator opens instead of an empty strength field.
+    // holds, so the calculator opens instead of an empty strength field — empty, because the
+    // mix that was on screen belonged to whatever this row used to be.
     setShowCalculator(drug.strengths === null);
+    setReconRecord(null);
   };
 
   return (
@@ -911,6 +1006,25 @@ export default function AddMedicationDialog({
                   </p>
                 )}
               </div>
+              {/* The number the user actually acts on, sitting with the two fields it comes
+                  from. A strength in mg/mL is not something anyone draws — marks on a barrel
+                  are. Spans both columns so it reads as belonging to the pair. */}
+              {draw && (
+                <p
+                  data-testid="med-draw"
+                  className="col-span-2 text-sm text-muted-foreground"
+                >
+                  {t(
+                    'medications.cabinet.draw',
+                    'Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe',
+                    {
+                      volume: draw.drawVolumeMl,
+                      units: draw.syringeUnits,
+                      syringe: draw.syringe,
+                    }
+                  )}
+                </p>
+              )}
             </div>
           )}
           {/* The dosage step. A drug with an approved label offers its ladder as chips; one
@@ -955,6 +1069,7 @@ export default function AddMedicationDialog({
             <div className="space-y-2">
               {showCalculator ? (
                 <ReconstitutionCalculator
+                  key={calcSeed}
                   vialSuggestions={catalogDrug?.vialSizes ?? []}
                   intervalDays={
                     catalogDrug?.cadence === 'weekly'
@@ -963,14 +1078,21 @@ export default function AddMedicationDialog({
                         ? 1
                         : null
                   }
+                  initialRecord={reconRecord}
+                  initialDose={savedDose}
                   onApply={(applied) => {
                     // A reconstituted vial's "strength" is what a millilitre of it contains,
-                    // which is what makes the dose in units meaningful later.
+                    // which is what makes the dose in units meaningful later. The mix itself is
+                    // kept alongside it: a concentration cannot say which vial and how much
+                    // water it came from, and without that the calculator reopens empty.
                     setStrength(String(applied.concentration));
-                    setStrengthUnit(`${applied.concentrationUnit}/mL`);
+                    setStrengthUnit(
+                      concentrationUnitLabel(applied.concentrationUnit)
+                    );
                     setDoseAmount(String(applied.doseAmount));
                     setDoseUnit(applied.doseUnit);
                     setDoseTouched(true);
+                    setReconRecord(applied.record);
                   }}
                 />
               ) : (

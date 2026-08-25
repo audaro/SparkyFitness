@@ -5,6 +5,7 @@ import {
   reconstitute,
   SYRINGE_UNITS_PER_ML,
   type CatalogVialSize,
+  type ReconstitutionRecord,
   type ReconstitutionUnit,
   type SyringeStandard,
 } from '@workspace/shared';
@@ -32,6 +33,12 @@ export interface ReconstitutionApplied {
   concentrationUnit: ReconstitutionUnit;
   doseAmount: number;
   doseUnit: ReconstitutionUnit;
+  /**
+   * The mix these numbers came out of, for the caller to persist. A concentration alone cannot
+   * say whether it was a 30 mg vial in 3 mL or a 10 mg vial in 1 mL, so without this the
+   * calculator opens blank on the next edit and the derivation is gone.
+   */
+  record: ReconstitutionRecord;
 }
 
 /**
@@ -44,21 +51,43 @@ export interface ReconstitutionApplied {
 export default function ReconstitutionCalculator({
   vialSuggestions = [],
   intervalDays,
+  initialRecord = null,
+  initialDose = null,
   onApply,
 }: {
   vialSuggestions?: CatalogVialSize[];
   /** Days between doses, when the schedule already knows. Drives "vial lasts". */
   intervalDays?: number | null;
+  /**
+   * The mix this medication was last saved with, so an edit reopens on the user's own numbers
+   * instead of an empty form. Read once, as the initial state — the user is free to change any
+   * of it afterwards, and a later save is what makes the change stick.
+   */
+  initialRecord?: ReconstitutionRecord | null;
+  /** The medication's saved dose, so the third field is filled in too. */
+  initialDose?: { amount: number; unit: ReconstitutionUnit } | null;
   /** Offered as "Use these numbers" when the caller can absorb them into a form. */
   onApply?: (applied: ReconstitutionApplied) => void;
 }) {
   const { t } = useTranslation();
-  const [vialAmount, setVialAmount] = useState('');
-  const [vialUnit, setVialUnit] = useState<ReconstitutionUnit>('mg');
-  const [diluentMl, setDiluentMl] = useState('');
-  const [doseAmount, setDoseAmount] = useState('');
-  const [doseUnit, setDoseUnit] = useState<ReconstitutionUnit>('mg');
-  const [syringe, setSyringe] = useState<SyringeStandard>('U-100');
+  const [vialAmount, setVialAmount] = useState(
+    initialRecord ? String(initialRecord.vial_amount) : ''
+  );
+  const [vialUnit, setVialUnit] = useState<ReconstitutionUnit>(
+    initialRecord?.vial_unit ?? 'mg'
+  );
+  const [diluentMl, setDiluentMl] = useState(
+    initialRecord ? String(initialRecord.diluent_ml) : ''
+  );
+  const [doseAmount, setDoseAmount] = useState(
+    initialDose ? String(initialDose.amount) : ''
+  );
+  const [doseUnit, setDoseUnit] = useState<ReconstitutionUnit>(
+    initialDose?.unit ?? 'mg'
+  );
+  const [syringe, setSyringe] = useState<SyringeStandard>(
+    initialRecord?.syringe ?? 'U-100'
+  );
 
   // Blank inputs are "not filled in yet", not zero: showing a refusal before the user has
   // typed anything would be shouting at them for a mistake they have not made. Only once all
@@ -290,6 +319,12 @@ export default function ReconstitutionCalculator({
                   concentrationUnit: result.concentrationUnit,
                   doseAmount: Number(doseAmount),
                   doseUnit,
+                  record: {
+                    vial_amount: Number(vialAmount),
+                    vial_unit: vialUnit,
+                    diluent_ml: Number(diluentMl),
+                    syringe,
+                  },
                 })
               }
             >

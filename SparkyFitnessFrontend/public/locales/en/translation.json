@@ -512,7 +512,8 @@
       "notes": "Notes",
       "notesPlaceholder": "Take with water before breakfast. Avoid alcohol.",
       "photoPath": "Pill / Label Photo URL (optional)",
-      "showAdvanced": "Show Advanced Options"
+      "showAdvanced": "Show Advanced Options",
+      "draw": "Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe"
     },
     "subtype": {
       "all": "All",
