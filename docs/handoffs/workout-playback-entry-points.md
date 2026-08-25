@@ -1,25 +1,31 @@
 # Handoff — Workout playback entry points, and the dialog behind them
 
 Branch `feat/ai-coach`. Previous step: `docs/handoffs/exercise-home-phase-e.md`, which closed the
-whole of `~/fitness/EXERCISE-HOME-BLUEPRINT.md`. This picks up its first open item and ends with the
-backlog untouched but measured.
+whole of `~/fitness/EXERCISE-HOME-BLUEPRINT.md`. This picks up its first open item, then its second,
+and ends with the backlog measured.
 
-Everything here is web-only (`SparkyFitnessFrontend/`). Nothing on the server, mobile, or `shared/`
+Two halves. The playback work is web-only (`SparkyFitnessFrontend/`); the staleness and timezone work
+that follows it is mobile-only (`SparkyFitnessMobile/`). Nothing on the server or in `shared/`
 changed.
 
 ## What shipped
 
-| Commit      | What it did                                                                 |
-| ----------- | --------------------------------------------------------------------------- |
-| `77a88c900` | Start workout on the Up Next card — the last "look but don't touch" surface |
-| `f232deda7` | The in-progress guard, extracted and applied to all three entry points      |
-| `56480410a` | `ConfirmationDialog` translates the labels it supplies itself               |
-| `ff65d9f87` | `ConfirmationDialog` announces its description to screen readers            |
-| `b0d18acbd` | Phase E handoff records the above                                           |
-| `3e576f1e4` | Phase E handoff's merge-exposure claim replaced with a measurement          |
+| Commit      | Package | What it did                                                                 |
+| ----------- | ------- | --------------------------------------------------------------------------- |
+| `77a88c900` | web     | Start workout on the Up Next card — the last "look but don't touch" surface |
+| `f232deda7` | web     | The in-progress guard, extracted and applied to all three entry points      |
+| `56480410a` | web     | `ConfirmationDialog` translates the labels it supplies itself               |
+| `ff65d9f87` | web     | `ConfirmationDialog` announces its description to screen readers            |
+| `b0d18acbd` | docs    | Phase E handoff records the above                                           |
+| `3e576f1e4` | docs    | Phase E handoff's merge-exposure claim replaced with a measurement          |
+| `7110066b8` | docs    | This handoff, at the point the web half closed                              |
+| `ee7c7531a` | mobile  | Day-scoped tabs refresh on foreground return and on day rollover            |
+| `b46644bcd` | mobile  | Health Connect transform tests stop depending on the runner's timezone      |
+| `7ddf36da2` | mobile  | The remaining two health test files made timezone-independent               |
 
-The long-form write-up lives in `exercise-home-phase-e.md` under E5 and E6, because the diagnosis it
-corrects belongs next to the phase that filed it. What follows is what a fresh session needs.
+The long-form write-up for the web half lives in `exercise-home-phase-e.md` under E5 and E6, because
+the diagnosis it corrects belongs next to the phase that filed it. What follows is what a fresh
+session needs.
 
 ## The one thing to know about playback
 
@@ -49,9 +55,58 @@ uses the diary's `selectedDate`, because the diary is a day view. `WorkoutPreset
 machine's local date for both starting and logging until this work; a user whose timezone differs
 from their laptop's could put the two on different days.
 
+## The mobile half: staleness, then the tests that hid behind a timezone
+
+**`ee7c7531a` — a screen only refetches on focus, and coming back from the background is not a
+focus event.** Both halves of the Phase E staleness item had the same root cause, so both were fixed
+at the shared-hook level rather than on `ExerciseHomeScreen`:
+
+- `hooks/useRefetchOnFocus.ts` now also listens on `AppState`, refetching when the app goes `active`
+  **while this screen is the focused one**. An unfocused screen deliberately does nothing — it
+  refetches when the user navigates to it, which is the focus path. Both paths share the one 30s
+  throttle, so a foreground return moments after a tab switch still costs one request. This hook has
+  24 callers; the fix reached all of them.
+- `hooks/useTodayRollover.ts` (new) is the same two triggers for the day stores, unthrottled.
+  `ExerciseHomeScreen`, `DashboardScreen` and `DiaryScreen` each dropped a local `useFocusEffect`
+  copy in favour of it. `syncTodayRollover` only moves the selection when the user was sitting on
+  today, so a day scrubbed back to is never yanked forward.
+- `weeklySetTargetsQueryKey` gained a root key (`weeklySetTargetsRootQueryKey`), and
+  `invalidateExerciseCache` invalidates by that prefix — the key is parameterised by `historyWeeks`,
+  so invalidating a reconstructed exact key would miss whatever window another screen had asked for.
+
+Adding `useRefetchOnFocus` to `useWorkoutRecommendation` broke two screen suites with _"Couldn't find
+a navigation object"_. That was the suites' mock, not the hook — they now stub `useFocusEffect`.
+Weakening the production hook to tolerate no navigation container would have been the wrong fix.
+
+**`b46644bcd` and `7ddf36da2` — the health test suites encoded the timezone they were written in.**
+Health records are dated by their **device-local** day, so an expected date can only be a literal
+when the fixture instant lands on that day in _every_ zone — and no instant does: UTC-11 and UTC+14
+are 25 hours apart. These passed in UTC, where CI runs, and failed on a machine outside it. Three
+files, two different defects:
+
+- **Literal date assertions** (`healthconnect/dataTransformation`, 12 assertions;
+  `healthkit/dataTransformation`, 5). They now derive the expected day from the fixture instant via
+  `__tests__/helpers/localDay.ts`. That helper is a deliberate second implementation on top of
+  `Date`, **not** a re-export of the production helper — importing the code under test would only
+  assert it agrees with itself. It lives outside any suite, so `"__tests__/helpers/"` is in
+  `testPathIgnorePatterns` (alongside the existing `__tests__/screens/helpers/`).
+- **Value assertions**, in `healthConnectService`. Its heart-rate and HRV fixtures put three readings
+  at 08:00Z / 12:00Z / 18:00Z and assert they collapse into one day's min/max/avg — but those
+  instants straddle a local midnight outside a narrow band of zones, so the aggregator produced two
+  day buckets and `find()` returned the wrong one. The failure was on the _value_, which is why it
+  did not look like a date bug. The fix is in the fixture: **local-naive timestamps**
+  (`'2024-01-15T08:00:00'`, no `Z`) pin all three to one local day anywhere. The spanning-midnight
+  test alongside them already used that idiom.
+
+`b46644bcd` also added a case asserting a sleep session is dated by when it **ended**, not when it
+began — the behaviour the original broken assertion was accidentally covering.
+
+**`TZ=UTC` was considered for the jest run and rejected.** It would make the suite green everywhere
+by making it blind to exactly the local-vs-user day distinction this app's correctness rests on.
+
 ## Gate status
 
-Run from `SparkyFitnessFrontend/`. Green at `3e576f1e4`.
+Web, run from `SparkyFitnessFrontend/`. Green at `3e576f1e4`.
 
 | Command             | Result                        |
 | ------------------- | ----------------------------- |
@@ -64,6 +119,19 @@ first) and two cases on `WorkoutPresetsManager.test.tsx`.
 
 `ExerciseCard.test.tsx` covers the preset-playback path only. The component is ~600 lines and the
 rest of it is still untested; the suite exists as a place to add to, not as coverage.
+
+Mobile, run from `SparkyFitnessMobile/`. Green at `7ddf36da2`.
+
+| Command                                                        | Result                        |
+| -------------------------------------------------------------- | ----------------------------- |
+| `pnpm run validate`                                            | clean (tsc, lint, i18n audit) |
+| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **5971 passed, 371 suites**   |
+
+The three health files were additionally run at `Pacific/Midway` (UTC-11), `America/Los_Angeles`,
+`UTC`, `Europe/London`, `Asia/Tokyo` and `Pacific/Kiritimati` (UTC+14) — green in all six, which is
+the point of the change. **The suite is now known-good only in the local zone plus those two
+extremes for those three files; the rest of the suite has never been swept.** A `TZ=Pacific/Midway`
+run is a cheap way to find the next one.
 
 ## Upstream state
 
@@ -81,23 +149,29 @@ the fork has touched, at one upstream commit in six months.
 
 ## Exact next step
 
-**Mobile Exercise-tab staleness. Two bugs, one surface, one session.** Both are carried-forward
-Phase E open items, both verified still true at `3e576f1e4`:
+**The three mobile recommendation-family modules with no suite of their own.** Carried forward from
+Phase E and still true at `7ddf36da2`; `AGENTS.md` calls them out by name, because a change to any of
+them is only as tested as the screens that happen to use them:
 
-1. **Nothing refetches on app foreground or day rollover.** An Exercise tab left open overnight shows
-   yesterday's numbers. `src/screens/ExerciseHomeScreen.tsx` has no `AppState` listener at all. The
-   pattern to copy is `src/hooks/useFasting.ts:296` — one `AppState.addEventListener('change', …)`
-   effect at screen level, not per-hook.
-2. **`weeklySetTargetsQueryKey` is never invalidated by an exercise write.** Nothing in `src/` calls
-   `invalidateQueries` against it. The key is a factory (`src/hooks/queryKeys.ts:120`, parameterised
-   by `historyWeeks`), so a fix invalidates by the `['weeklySetTargets']` prefix rather than
-   reconstructing the exact key.
+1. **`utils/workoutSupersets.ts`** — the highest value of the three, and the only pure module.
+   `supersetPlannedExercises` / `ungroupPlannedExercise` / `getPlannedSupersetRuns` operate on three
+   different shapes keyed on `exercise_id`/`superset_group`, and harmonize both `rest_seconds` and
+   every `sets[].rest_time` because two different surfaces read the two fields. It is exercised only
+   through `UpNextScreen` and `ActiveWorkoutScreen`.
+2. **`hooks/useWorkoutRecommendation.ts`** — now carries the `useRefetchOnFocus` call added in
+   `ee7c7531a`, still with no direct coverage. Note the mock trap: a suite for it needs
+   `useFocusEffect` stubbed, exactly as `PickMusclesScreen` and `OnDemandWorkoutsScreen` now do.
+3. **`hooks/useGymProfiles.ts`** — activation is a dedicated endpoint rather than a field on the
+   `PUT`, and equipment values are canonical lowercase because the catalog filter is case-sensitive.
+   Both are the kind of invariant a suite should pin.
 
-Both are JS-only. **No native change, so no `expo prebuild` and no `expo run:ios`** — and Metro is
+All JS-only. **No native change, so no `expo prebuild` and no `expo run:ios`** — and Metro is
 already running detached with `EXPO_PACKAGER_PROXY_URL`, so do not restart it with a bare
 `pnpm start`. Gate with `pnpm run validate` plus
 `pnpm exec jest --watchman=false --runInBand --coverage=false` from `SparkyFitnessMobile/`, and do
-not run Prettier on mobile files.
+not run Prettier on mobile files. Any new suite asserting a date must use
+`__tests__/helpers/localDay.ts` or a local-naive fixture rather than a literal — see the mobile half
+above.
 
 ## Open risks and items
 
@@ -110,15 +184,22 @@ not run Prettier on mobile files.
   the file.
 - **`ConfirmationDialog.cancelLabel` has no caller.** Added for symmetry with `confirmLabel` when the
   hardcoded strings came out. Defensible, but it is unused API until something needs "Keep editing".
+- **A literal date in a mobile test is a latent failure, not a passing assertion.** Three files were
+  fixed; the sweep stopped there deliberately rather than becoming a repo-wide pass. Everything the
+  app dates by device-local day is a candidate — the health suites were simply where it surfaced.
+  `TZ=Pacific/Midway pnpm exec jest …` finds the next one in one run.
+- **`useRefetchOnFocus` fires on foreground return only for the _focused_ screen.** That is the
+  design, not an oversight. Anyone "fixing" an unfocused screen to refetch on resume turns one
+  request into one per mounted screen, on every app switch.
 - **The `?date=` on `/exercises` and the day a workout logs to are deliberately different things.**
   Anyone "fixing" the coaching surfaces to respect the browsed date will be reintroducing a bug — the
   workout was programmed against today's recovery.
 - Carried forward from Phase E, all still true and none blocking: the web weekly-targets card draws
   linear bars where mobile draws a Skia hexagon; C2's anatomical SVG paths remain the only
   human-blocked task and block nothing; muscle targeting (Pick Muscles, splits, On Demand) is
-  mobile-only and is a UI gap, not a contract one; `utils/workoutSupersets.ts`,
-  `hooks/useWorkoutRecommendation.ts` and `hooks/useGymProfiles.ts` have no mobile suites of their
-  own; the two web body-map implementations stay unconsolidated per blueprint D10; health sync
+  mobile-only and is a UI gap, not a contract one; the three untested mobile modules are promoted to
+  "Exact next step" above; the two web body-map implementations stay unconsolidated per blueprint
+  D10; health sync
   deliberately does not invalidate recovery; and the two equipment stores
   (`coach_profiles.equipment`, AI-chat-only, vs `gym_equipment_profiles.equipment`, what the
   generator reads) must not become three.
