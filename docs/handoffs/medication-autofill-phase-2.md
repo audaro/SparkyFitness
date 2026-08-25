@@ -56,8 +56,10 @@ read it will never show.
 
 Splits on whether an approved label exists. `catalogDrug.strengths` non-null renders the ladder as
 chips; null renders `ReconstitutionCalculator`, because the only honest source for that drug's
-strength is the vial the user is holding. Every entry currently has `strengths: null`, so today
-every catalog pick routes to the calculator — that is correct, not a gap (see open risks).
+strength is the vial the user is holding. Every entry had `strengths: null` when this was written,
+so every catalog pick routed to the calculator and the chip row never rendered — correct, not a
+gap. The brand split in `docs/handoffs/medication-autofill-phase-3-brand-split.md` is what put a
+ladder behind that branch for the first time.
 
 Both platforms' calculators call the one `reconstitute()` in `shared`, so neither can drift into
 its own arithmetic. Blank inputs are "not filled in yet", not zero: the calculator has no opinion
@@ -160,24 +162,20 @@ which is what both of these runs failed to do.
 ## Next step
 
 **Phase 3 — the content pass.** Populate `strengths` and `vialSizes` across the catalog and widen
-it beyond the six PK-registry drugs. It is blocked on open risk 1 below, which is a product
-decision rather than an implementation one — the chip UI and the calculator fallback are both
-built and gated on `strengths`, so populating the data is the only work left once the
-brand-vs-generic shape is chosen.
+it beyond the six PK-registry drugs. This was blocked on open risk 1 below, a product decision
+rather than an implementation one; it has since been decided and shipped — see
+`docs/handoffs/medication-autofill-phase-3-brand-split.md`.
 
 Phase 2 is otherwise complete: the catalog link, the name autofill, the dosage step, the localized
 refusals and the reconstitution round trip are all shipped and covered.
 
 ## Open risks and deliberate skips
 
-1. **Strength ladders are brand-shaped; the catalog is generic-shaped.** Unchanged from phase 0 and
-   still the decision that blocks phase 3. One `CatalogDrug.semaglutide` cannot hold both Ozempic
-   (0.25/0.5/1/2 mg) and Wegovy (0.25/0.5/1/1.7/2.4 mg), and Mounjaro/Zepbound differ the same way.
-   Three ways out: split brands into their own entries sharing a `glp1ProfileId`; make `strengths` a
-   map keyed by brand; or take the union and let the user pick. Until then `strengths: null` is
-   correct everywhere and routes to the calculator, which is a working answer rather than a guessed
-   one. **Phase 2 makes this cheaper to decide**: the chip UI is already built and gated on
-   `strengths` being non-null, so populating the data is the only remaining work.
+1. ~~**Strength ladders are brand-shaped; the catalog is generic-shaped.**~~ **Decided and fixed
+   in `1848d8a60`** — the first of the three recorded ways out: brands are their own entries, linked
+   to their molecule by `genericId` and sharing its `glp1ProfileId`. See
+   `docs/handoffs/medication-autofill-phase-3-brand-split.md`. Phase 3's content pass is no longer
+   blocked.
 2. ~~**`reconstitute()`'s refusal and warning messages are English-only.**~~ **Fixed after this
    handoff was written.** Every failure and warning now also carries `details` — the values its
    sentence interpolates — and each UI rebuilds the sentence from `reason` / `code` + `details`
