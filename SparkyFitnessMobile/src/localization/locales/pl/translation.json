@@ -940,7 +940,11 @@
       "invalidNumber": "Nieprawidłowa liczba",
       "invalidNumberMessage": "Wpisz prawidłowe wartości liczbowe mocy i dawki.",
       "updateFailed": "Nie udało się zaktualizować leku: {{error}}",
-      "createFailed": "Nie udało się utworzyć leku: {{error}}"
+      "createFailed": "Nie udało się utworzyć leku: {{error}}",
+      "fromCatalog": "Dopasowano do {{drug}} z wbudowanej listy. Każde pole poniżej możesz zmienić.",
+      "labelStrengths": "Moce z ulotki",
+      "labelStrengthsHint": "Z zatwierdzonej ulotki. Jeśli Twoja jest inna, wpisz ją powyżej.",
+      "openCalculator": "Rozpuszczasz fiolkę? Oblicz jednostki na strzykawce"
     },
     "detail": {
       "deleteTitle": "Usuń lek",
@@ -1130,6 +1134,25 @@
     "inactiveCount_other": "Nieaktywnego ({{count}})",
     "mealRelation": {
       "awayFromMeals": "Z dala od posiłków"
+    },
+    "search": {
+      "yours": "Twoje leki",
+      "known": "Znane leki",
+      "addCustom": "Dodaj „{{name}}” jako lek niestandardowy"
+    },
+    "recon": {
+      "title": "Kalkulator rozpuszczania",
+      "commonVials": "Typowe fiolki:",
+      "vial": "Fiolka zawiera",
+      "diluent": "Woda bakteriostatyczna (ml)",
+      "dose": "Twoja dawka",
+      "syringe": "Strzykawka",
+      "unitsPerMl": "jednostek/ml",
+      "units": "jednostek",
+      "detail": "{{concentration}} {{unit}}/ml · nabierz {{volume}} ml · {{doses}} dawek z fiolki",
+      "lasts": "Fiolka wystarcza na około {{days}} dni",
+      "apply": "Użyj tych wartości",
+      "framing": "To przelicza wprowadzone przez Ciebie wartości. Nie zaleca dawki — sprawdź ją z własnym zapasem i lekarzem prowadzącym."
     }
   },
   "scheduleSummary": {

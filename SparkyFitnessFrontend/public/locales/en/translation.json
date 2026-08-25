@@ -390,6 +390,28 @@
       "suppository": "suppository",
       "other": "other"
     },
+    "search": {
+      "results": "Medication suggestions",
+      "yours": "Your medications",
+      "known": "Known drugs",
+      "weekly": "weekly",
+      "daily": "daily",
+      "addCustom": "Add \"{{name}}\" as a custom medication"
+    },
+    "recon": {
+      "title": "Reconstitution calculator",
+      "commonVials": "Common vials:",
+      "vial": "Vial contains",
+      "diluent": "Bacteriostatic water (mL)",
+      "dose": "Your dose",
+      "syringe": "Syringe",
+      "unitsPerMl": "units/mL",
+      "units": "units",
+      "detail": "{{concentration}} {{unit}}/mL · draw {{volume}} mL · {{doses}} doses per vial",
+      "lasts": "Vial lasts about {{days}} days",
+      "apply": "Use these numbers",
+      "framing": "This converts the numbers you entered. It does not recommend a dose — check it against your own supply and your prescriber."
+    },
     "cabinet": {
       "addMed": "Add medication",
       "editMed": "Edit medication",
@@ -398,6 +420,10 @@
       "name": "Name",
       "namePlaceholder": "e.g. Wegovy",
       "supplementNamePlaceholder": "e.g. Vitamin D3",
+      "fromCatalog": "Matched to {{drug}} in the built-in list. Every field below stays yours to change.",
+      "labelStrengths": "Label strengths",
+      "labelStrengthsHint": "From the approved label. Type your own above if yours differs.",
+      "openCalculator": "Reconstituting a vial? Work out the syringe units",
       "type": "Type",
       "doseForm": "Form",
       "strength": "Strength",

@@ -938,7 +938,11 @@
       "invalidNumber": "Invalid number",
       "invalidNumberMessage": "Please enter valid numeric values for strength and dose.",
       "updateFailed": "Failed to update medication: {{error}}",
-      "createFailed": "Failed to create medication: {{error}}"
+      "createFailed": "Failed to create medication: {{error}}",
+      "fromCatalog": "Matched to {{drug}} in the built-in list. Every field below stays yours to change.",
+      "labelStrengths": "Label strengths",
+      "labelStrengthsHint": "From the approved label. Type your own above if yours differs.",
+      "openCalculator": "Reconstituting a vial? Work out the syringe units"
     },
     "detail": {
       "deleteTitle": "Delete Medication",
@@ -1118,6 +1122,25 @@
     "inactiveCount_other": "Inactive ({{count}})",
     "mealRelation": {
       "awayFromMeals": "Away from meals"
+    },
+    "search": {
+      "yours": "Your medications",
+      "known": "Known drugs",
+      "addCustom": "Add \"{{name}}\" as a custom medication"
+    },
+    "recon": {
+      "title": "Reconstitution calculator",
+      "commonVials": "Common vials:",
+      "vial": "Vial contains",
+      "diluent": "Bacteriostatic water (mL)",
+      "dose": "Your dose",
+      "syringe": "Syringe",
+      "unitsPerMl": "units/mL",
+      "units": "units",
+      "detail": "{{concentration}} {{unit}}/mL · draw {{volume}} mL · {{doses}} doses per vial",
+      "lasts": "Vial lasts about {{days}} days",
+      "apply": "Use these numbers",
+      "framing": "This converts the numbers you entered. It does not recommend a dose — check it against your own supply and your prescriber."
     }
   },
   "scheduleSummary": {

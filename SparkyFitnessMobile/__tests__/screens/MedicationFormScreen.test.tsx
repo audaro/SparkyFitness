@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { pressAction } from './helpers/nativeHeaderTestUtils';
 import MedicationFormScreen from '../../src/screens/MedicationFormScreen';
 import {
+  useMedications,
   useMedicationDetail,
   useCreateMedication,
   useUpdateMedication,
@@ -17,6 +18,9 @@ jest.mock('../../src/hooks/useMedications', () => ({
   useMedicationDetail: jest.fn(),
   useCreateMedication: jest.fn(),
   useUpdateMedication: jest.fn(),
+  // Tier 1 of the name suggestions. Empty here so these tests are not competing with a
+  // dropdown; the catalog suite below supplies its own rows.
+  useMedications: jest.fn(() => ({ data: [] })),
 }));
 
 jest.mock('../../src/components/Icon', () => {
@@ -239,5 +243,90 @@ describe('MedicationFormScreen — optional text fields', () => {
       }),
       expect.anything(),
     );
+  });
+});
+
+describe('MedicationFormScreen — catalog autofill', () => {
+  const createMutate = jest.fn();
+  const mockUseMedications = useMedications as jest.MockedFunction<typeof useMedications>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUseMedications.mockReturnValue(
+      { data: [] } as unknown as ReturnType<typeof useMedications>,
+    );
+    mockUseMedicationDetail.mockReturnValue(
+      { data: undefined } as unknown as ReturnType<typeof useMedicationDetail>,
+    );
+    mockUseCreateMedication.mockReturnValue(
+      { mutate: createMutate, isPending: false } as unknown as ReturnType<typeof useCreateMedication>,
+    );
+    mockUseUpdateMedication.mockReturnValue(
+      { mutate: jest.fn(), isPending: false } as unknown as ReturnType<typeof useUpdateMedication>,
+    );
+  });
+
+  it('attaches the catalog id and route when a known drug is picked', () => {
+    const screen = renderScreen();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Reta');
+    fireEvent.press(screen.getByTestId('med-suggestion-catalog:retatrutide'));
+
+    pressAction(screen, mockNavigation, 'Save');
+
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // The alias the user typed, not a rename to the generic name.
+        name: 'Reta',
+        type_id: 'injection',
+        route_id: 'subcutaneous',
+        source: 'catalog',
+        custom_fields: expect.objectContaining({ catalog_id: 'retatrutide' }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('detaches the catalog id when the name is typed over', () => {
+    const screen = renderScreen();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Reta');
+    fireEvent.press(screen.getByTestId('med-suggestion-catalog:retatrutide'));
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Grey vial #3');
+
+    pressAction(screen, mockNavigation, 'Save');
+
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'manual',
+        custom_fields: expect.objectContaining({ catalog_id: null }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('keeps the typed name on the custom row', () => {
+    const screen = renderScreen();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'BPC-157');
+    fireEvent.press(screen.getByTestId('med-suggestion-custom'));
+
+    pressAction(screen, mockNavigation, 'Save');
+
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'BPC-157', source: 'manual' }),
+      expect.anything(),
+    );
+  });
+
+  it('converts a vial into syringe units in the calculator', () => {
+    const screen = renderScreen();
+
+    fireEvent.press(screen.getByTestId('open-recon-calculator'));
+    fireEvent.changeText(screen.getByTestId('recon-vial'), '10');
+    fireEvent.changeText(screen.getByTestId('recon-diluent'), '2');
+    fireEvent.changeText(screen.getByTestId('recon-dose'), '2');
+
+    expect(screen.getByTestId('recon-units')).toHaveTextContent(/^40 units/);
   });
 });

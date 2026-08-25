@@ -1,0 +1,306 @@
+import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { AlertTriangle, Syringe } from 'lucide-react';
+import {
+  reconstitute,
+  SYRINGE_UNITS_PER_ML,
+  type CatalogVialSize,
+  type ReconstitutionUnit,
+  type SyringeStandard,
+} from '@workspace/shared';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+const UNITS: ReconstitutionUnit[] = ['mg', 'mcg', 'iu'];
+const SYRINGES: SyringeStandard[] = ['U-100', 'U-40'];
+
+export interface ReconstitutionApplied {
+  /** Amount per mL after reconstitution — the medication's strength. */
+  concentration: number;
+  concentrationUnit: ReconstitutionUnit;
+  doseAmount: number;
+  doseUnit: ReconstitutionUnit;
+}
+
+/**
+ * Turns a vial, a diluent volume and a dose into units on an insulin syringe.
+ *
+ * It converts numbers the user entered. It does not recommend a dose, and it never fills its
+ * own inputs from the catalog — vial sizes arrive as tappable suggestions, and the field stays
+ * a free input, because grey-market vial sizes vary by vendor.
+ */
+export default function ReconstitutionCalculator({
+  vialSuggestions = [],
+  intervalDays,
+  onApply,
+}: {
+  vialSuggestions?: CatalogVialSize[];
+  /** Days between doses, when the schedule already knows. Drives "vial lasts". */
+  intervalDays?: number | null;
+  /** Offered as "Use these numbers" when the caller can absorb them into a form. */
+  onApply?: (applied: ReconstitutionApplied) => void;
+}) {
+  const { t } = useTranslation();
+  const [vialAmount, setVialAmount] = useState('');
+  const [vialUnit, setVialUnit] = useState<ReconstitutionUnit>('mg');
+  const [diluentMl, setDiluentMl] = useState('');
+  const [doseAmount, setDoseAmount] = useState('');
+  const [doseUnit, setDoseUnit] = useState<ReconstitutionUnit>('mg');
+  const [syringe, setSyringe] = useState<SyringeStandard>('U-100');
+
+  // Blank inputs are "not filled in yet", not zero: showing a refusal before the user has
+  // typed anything would be shouting at them for a mistake they have not made. Only once all
+  // three are non-empty does the calculator have an opinion.
+  const complete = vialAmount !== '' && diluentMl !== '' && doseAmount !== '';
+
+  const result = useMemo(() => {
+    if (!complete) return null;
+    return reconstitute({
+      vial: { amount: Number(vialAmount), unit: vialUnit },
+      diluentMl: Number(diluentMl),
+      dose: { amount: Number(doseAmount), unit: doseUnit },
+      syringe,
+      intervalDays: intervalDays ?? null,
+    });
+  }, [
+    complete,
+    vialAmount,
+    vialUnit,
+    diluentMl,
+    doseAmount,
+    doseUnit,
+    syringe,
+    intervalDays,
+  ]);
+
+  return (
+    <div className="space-y-4 rounded-md border p-3 bg-muted/20">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <Syringe className="h-4 w-4" />
+        {t('medications.recon.title', 'Reconstitution calculator')}
+      </div>
+
+      {vialSuggestions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {t('medications.recon.commonVials', 'Common vials:')}
+          </span>
+          {vialSuggestions.map((vial) => (
+            <Button
+              key={`${vial.amount}-${vial.unit}`}
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 rounded-full px-3 text-xs"
+              onClick={() => {
+                setVialAmount(String(vial.amount));
+                setVialUnit(vial.unit);
+              }}
+            >
+              {vial.amount} {vial.unit}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="recon-vial">
+            {t('medications.recon.vial', 'Vial contains')}
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              id="recon-vial"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              value={vialAmount}
+              onChange={(e) => setVialAmount(e.target.value)}
+              placeholder="10"
+            />
+            <Select
+              value={vialUnit}
+              onValueChange={(v) => setVialUnit(v as ReconstitutionUnit)}
+            >
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UNITS.map((unit) => (
+                  <SelectItem key={unit} value={unit}>
+                    {unit === 'iu' ? 'IU' : unit}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="recon-diluent">
+            {t('medications.recon.diluent', 'Bacteriostatic water (mL)')}
+          </Label>
+          <Input
+            id="recon-diluent"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.1"
+            value={diluentMl}
+            onChange={(e) => setDiluentMl(e.target.value)}
+            placeholder="2"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="recon-dose">
+            {t('medications.recon.dose', 'Your dose')}
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              id="recon-dose"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              value={doseAmount}
+              onChange={(e) => setDoseAmount(e.target.value)}
+              placeholder="2"
+            />
+            <Select
+              value={doseUnit}
+              onValueChange={(v) => setDoseUnit(v as ReconstitutionUnit)}
+            >
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UNITS.map((unit) => (
+                  <SelectItem key={unit} value={unit}>
+                    {unit === 'iu' ? 'IU' : unit}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="recon-syringe">
+            {t('medications.recon.syringe', 'Syringe')}
+          </Label>
+          <Select
+            value={syringe}
+            onValueChange={(v) => setSyringe(v as SyringeStandard)}
+          >
+            <SelectTrigger id="recon-syringe">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SYRINGES.map((standard) => (
+                <SelectItem key={standard} value={standard}>
+                  {standard} ({SYRINGE_UNITS_PER_ML[standard]}{' '}
+                  {t('medications.recon.unitsPerMl', 'units/mL')})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {result && !result.ok && (
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{result.message}</span>
+        </p>
+      )}
+
+      {result?.ok && (
+        <div className="space-y-3">
+          <div className="rounded-md border bg-background p-3">
+            <p
+              data-testid="recon-units"
+              className="text-2xl font-bold tabular-nums"
+            >
+              {result.syringeUnits}{' '}
+              <span className="text-base font-medium text-muted-foreground">
+                {t('medications.recon.units', 'units')} ({result.syringe})
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t(
+                'medications.recon.detail',
+                '{{concentration}} {{unit}}/mL · draw {{volume}} mL · {{doses}} doses per vial',
+                {
+                  concentration: result.concentration,
+                  unit:
+                    result.concentrationUnit === 'iu'
+                      ? 'IU'
+                      : result.concentrationUnit,
+                  volume: result.drawVolumeMl,
+                  doses: result.dosesPerVial,
+                }
+              )}
+            </p>
+            {result.vialLastsDays != null && (
+              <p className="text-sm text-muted-foreground">
+                {t(
+                  'medications.recon.lasts',
+                  'Vial lasts about {{days}} days',
+                  {
+                    days: result.vialLastsDays,
+                  }
+                )}
+              </p>
+            )}
+          </div>
+
+          {result.warnings.map((warning) => (
+            <p
+              key={warning.code}
+              className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm text-amber-700 dark:text-amber-400"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{warning.message}</span>
+            </p>
+          ))}
+
+          {onApply && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                onApply({
+                  concentration: result.concentration,
+                  concentrationUnit: result.concentrationUnit,
+                  doseAmount: Number(doseAmount),
+                  doseUnit,
+                })
+              }
+            >
+              {t('medications.recon.apply', 'Use these numbers')}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Adjacent, not buried: whatever else is on screen, the framing sits with the number. */}
+      <p className="text-xs text-muted-foreground">
+        {t(
+          'medications.recon.framing',
+          'This converts the numbers you entered. It does not recommend a dose — check it against your own supply and your prescriber.'
+        )}
+      </p>
+    </div>
+  );
+}

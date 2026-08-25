@@ -7,6 +7,9 @@ import {
   GLP1_DRUG_PROFILES,
   normalizeNutrientName,
   resolveMacroFieldKey,
+  resolveCatalogDrug,
+  type CatalogDrug,
+  type MedicationRouteId,
 } from '@workspace/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,12 +64,31 @@ import {
   type NutrientPick,
 } from './medicationUtils';
 import { NutrientPicker } from './NutrientPicker';
+import MedicationNameCombobox, {
+  type MedicationNamePick,
+} from './MedicationNameCombobox';
+import ReconstitutionCalculator from './ReconstitutionCalculator';
 import { useActiveUser } from '@/contexts/ActiveUserContext';
 import {
   useCreateCustomNutrientMutation,
   useEnsureCatalogNutrientsMutation,
 } from '@/hooks/Foods/useCustomNutrients';
 import type { UserCustomNutrient } from '@/types/customNutrient';
+
+/**
+ * A catalog route maps to the dose form this dialog's `type_id` select already offers. It is a
+ * starting point the user can change — the two vocabularies overlap but are not the same thing
+ * (a subcutaneous drug can be a pen or a vial), and only the user knows which they hold.
+ */
+const CATALOG_ROUTE_TYPE: Record<MedicationRouteId, string> = {
+  oral: 'pill',
+  subcutaneous: 'injection',
+  intramuscular: 'injection',
+  topical: 'cream',
+  inhaled: 'inhaler',
+  nasal: 'nasal_spray',
+  other: 'other',
+};
 
 export function MedTypeIcon({
   typeId,
@@ -227,6 +249,22 @@ export default function AddMedicationDialog({
   );
   const [photoPath, setPhotoPath] = useState(editMed?.photo_path ?? '');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // The catalog drug behind this row, when the name came off the bundled catalog. Held so the
+  // dosage step knows whether to offer a label-derived ladder or the reconstitution
+  // calculator, and so `catalog_id` / `source` are written on save. An edit rehydrates it from
+  // custom_fields rather than re-resolving the name, because the user may have renamed the row.
+  const [catalogDrug, setCatalogDrug] = useState<CatalogDrug | null>(() => {
+    const savedId = editMed?.custom_fields?.['catalog_id'];
+    return typeof savedId === 'string'
+      ? (resolveCatalogDrug(savedId) ?? null)
+      : null;
+  });
+  const [showCalculator, setShowCalculator] = useState(false);
+  // No control edits this yet; it is set by a catalog pick and otherwise carries whatever the
+  // row already had, so an edit never silently rewrites a route set elsewhere.
+  const [routeId, setRouteId] = useState<string | null>(
+    editMed?.route_id ?? null
+  );
 
   const createMutation = useCreateMedicationMutation();
   const updateMutation = useUpdateMedicationMutation();
@@ -562,6 +600,11 @@ export default function AddMedicationDialog({
       notes: notes.trim() || null,
       effectiveness_rating: effectiveness > 0 ? effectiveness : null,
       photo_path: photoPath || null,
+      route_id: routeId,
+      // Provenance, not a label: 'catalog' means the name came off the bundled list, which is
+      // what makes `catalog_id` below meaningful. An edit that keeps a hand-typed name keeps
+      // whatever the row already said rather than being relabelled by this save.
+      source: catalogDrug ? 'catalog' : (editMed?.source ?? 'manual'),
       custom_fields: isGlp1
         ? glp1Drug === 'custom'
           ? {
@@ -576,6 +619,15 @@ export default function AddMedicationDialog({
             }
           : { glp1_drug: glp1Drug }
         : {},
+    };
+    // `catalog_id`, deliberately not `glp1_drug`: the latter gates the PK coach and only ever
+    // holds a profile the registry publishes, whereas this records which catalog row the user
+    // picked — including drugs that have no PK at all.
+    // Explicitly null rather than omitted when there is no match, so renaming a row off the
+    // catalog actually detaches it instead of leaving the old drug's id attached.
+    body.custom_fields = {
+      ...body.custom_fields,
+      catalog_id: catalogDrug?.id ?? null,
     };
     // Supplements never carry GLP-1 metadata, so the branch above leaves them an empty
     // object to extend.
@@ -611,6 +663,11 @@ export default function AddMedicationDialog({
         setEffectiveness(0);
         setPhotoPath('');
         setIsSupplement(defaultIsSupplement);
+        // Same reasoning as the nutrient state below: a stale catalog match would attach the
+        // previous drug's id and route to the next medication added from this dialog.
+        setCatalogDrug(null);
+        setShowCalculator(false);
+        setRouteId(null);
         setSelectedNutrients([]);
         setPendingNutrients({});
         // These two belong with the nutrient state above. Left set, the next supplement
@@ -628,6 +685,65 @@ export default function AddMedicationDialog({
         );
       },
     });
+  };
+
+  /**
+   * Applies a pick from the name combobox.
+   *
+   * Everything here is a *prefill*: every field it writes stays editable, and a pick never
+   * touches a field the user has already typed into. That rule is what makes the autofill safe
+   * to be wrong — the catalog suggests a shape, the user owns the numbers.
+   */
+  const handleNamePick = (pick: MedicationNamePick) => {
+    if (pick.kind === 'custom') {
+      setName(pick.name);
+      setCatalogDrug(null);
+      setShowCalculator(false);
+      return;
+    }
+
+    if (pick.kind === 'existing') {
+      // Copying one of the user's own rows: their strength and dose are better data than
+      // anything the catalog holds, so they win outright.
+      const med = pick.medication;
+      setName(med.name);
+      setTypeId(med.type_id || typeId);
+      setRouteId(med.route_id ?? null);
+      if (med.strength_value != null) setStrength(String(med.strength_value));
+      if (med.strength_unit) setStrengthUnit(med.strength_unit);
+      if (med.dose_amount != null) {
+        setDoseAmount(String(med.dose_amount));
+        setDoseUnit(med.dose_unit ?? '');
+        setDoseTouched(true);
+      }
+      setIsGlp1(med.is_glp1);
+      const savedGlp1 = med.custom_fields?.['glp1_drug'];
+      if (typeof savedGlp1 === 'string') setGlp1Drug(savedGlp1);
+      const savedCatalogId = med.custom_fields?.['catalog_id'];
+      setCatalogDrug(
+        typeof savedCatalogId === 'string'
+          ? (resolveCatalogDrug(savedCatalogId) ?? null)
+          : null
+      );
+      setShowCalculator(false);
+      return;
+    }
+
+    // A catalog pick. `matchedOn` rather than `displayName`: someone who typed "Wegovy" gets a
+    // row named Wegovy, because replacing it with "Semaglutide" is a rename they did not ask
+    // for and may not recognise in their cabinet.
+    const { drug } = pick;
+    setName(pick.matchedOn);
+    setCatalogDrug(drug);
+    setTypeId(CATALOG_ROUTE_TYPE[drug.routes[0] ?? 'other'] ?? 'other');
+    setRouteId(drug.routes[0] ?? null);
+    if (drug.glp1ProfileId) {
+      setIsGlp1(true);
+      setGlp1Drug(drug.glp1ProfileId);
+    }
+    // No label, no ladder: the drug's dose has to be computed from a vial the user actually
+    // holds, so the calculator opens instead of an empty strength field.
+    setShowCalculator(drug.strengths === null);
   };
 
   return (
@@ -657,10 +773,17 @@ export default function AddMedicationDialog({
             <Label htmlFor="med-name">
               {t('medications.cabinet.name', 'Name')}
             </Label>
-            <Input
-              id="med-name"
+            <MedicationNameCombobox
+              inputId="med-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(next) => {
+                setName(next);
+                // Typing over a filled-in name detaches the row from the catalog: leaving
+                // `catalog_id` on a medication the user has since renamed to something else
+                // would attribute the wrong drug's data to it.
+                if (catalogDrug) setCatalogDrug(null);
+              }}
+              onPick={handleNamePick}
               placeholder={
                 isSupplement
                   ? t(
@@ -670,6 +793,15 @@ export default function AddMedicationDialog({
                   : t('medications.cabinet.namePlaceholder', 'e.g. Wegovy')
               }
             />
+            {catalogDrug && (
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  'medications.cabinet.fromCatalog',
+                  'Matched to {{drug}} in the built-in list. Every field below stays yours to change.',
+                  { drug: catalogDrug.displayName }
+                )}
+              </p>
+            )}
           </div>
           {isSupplement ? (
             /* Supplements: a single dose-form select (repurposed med type). No strength —
@@ -779,6 +911,82 @@ export default function AddMedicationDialog({
                   </p>
                 )}
               </div>
+            </div>
+          )}
+          {/* The dosage step. A drug with an approved label offers its ladder as chips; one
+              without gets the calculator, because the only honest source for its strength is
+              the vial the user is actually holding. */}
+          {!isSupplement && catalogDrug?.strengths && (
+            <div className="space-y-2">
+              <Label>
+                {t('medications.cabinet.labelStrengths', 'Label strengths')}
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {catalogDrug.strengths.values.map((value) => {
+                  const unit = catalogDrug.strengths?.unit ?? '';
+                  const selected =
+                    strength === String(value) && strengthUnit === unit;
+                  return (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant={selected ? 'default' : 'outline'}
+                      className="h-8 rounded-full px-3"
+                      onClick={() => {
+                        setStrength(String(value));
+                        setStrengthUnit(unit);
+                      }}
+                    >
+                      {value} {unit}
+                    </Button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  'medications.cabinet.labelStrengthsHint',
+                  'From the approved label. Type your own above if yours differs.'
+                )}
+              </p>
+            </div>
+          )}
+          {!isSupplement && (
+            <div className="space-y-2">
+              {showCalculator ? (
+                <ReconstitutionCalculator
+                  vialSuggestions={catalogDrug?.vialSizes ?? []}
+                  intervalDays={
+                    catalogDrug?.cadence === 'weekly'
+                      ? 7
+                      : catalogDrug?.cadence === 'daily'
+                        ? 1
+                        : null
+                  }
+                  onApply={(applied) => {
+                    // A reconstituted vial's "strength" is what a millilitre of it contains,
+                    // which is what makes the dose in units meaningful later.
+                    setStrength(String(applied.concentration));
+                    setStrengthUnit(`${applied.concentrationUnit}/mL`);
+                    setDoseAmount(String(applied.doseAmount));
+                    setDoseUnit(applied.doseUnit);
+                    setDoseTouched(true);
+                  }}
+                />
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="px-0 text-muted-foreground"
+                  onClick={() => setShowCalculator(true)}
+                >
+                  {t(
+                    'medications.cabinet.openCalculator',
+                    'Reconstituting a vial? Work out the syringe units'
+                  )}
+                </Button>
+              )}
             </div>
           )}
           {/* GLP-1 is a medication concept — hidden on the dedicated supplement form. */}

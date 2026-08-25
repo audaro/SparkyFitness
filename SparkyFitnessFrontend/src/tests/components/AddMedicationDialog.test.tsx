@@ -18,6 +18,7 @@ const mockUpdateMutate = jest.fn(
   (_args: unknown, options?: { onSuccess?: () => void }) =>
     options?.onSuccess?.()
 );
+let mockOwnMedications: Medication[] = [];
 // The nutrition editor's catalog hooks are react-query backed; this suite renders the
 // dialog without a QueryClientProvider.
 jest.mock('@/hooks/Foods/useCustomNutrients', () => ({
@@ -68,6 +69,9 @@ jest.mock('@/hooks/useMedications', () => ({
     mutate: mockUpdateMutate,
     isPending: false,
   }),
+  // Tier 1 of the name combobox. Empty by default so these tests exercise the catalog and
+  // custom rows without a cabinet in the way; the suite below overrides it where it matters.
+  useMedications: () => ({ data: mockOwnMedications, isError: false }),
 }));
 
 const mirroredMed = {
@@ -114,7 +118,10 @@ function lastUpdateArgs(): { id: string; body: Partial<Medication> } {
 }
 
 describe('AddMedicationDialog dose fields', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockOwnMedications = [];
+  });
 
   it('mirrors strength into the dose when untouched (add)', () => {
     render(<AddMedicationDialog />);
@@ -387,6 +394,93 @@ describe('AddMedicationDialog dose fields', () => {
     expect(body).toMatchObject({
       dose_amount: 1.7,
       dose_unit: 'mg',
+    });
+  });
+  describe('catalog autofill (phase 2)', () => {
+    it('attaches the catalog id and route when a known drug is picked', () => {
+      render(<AddMedicationDialog />);
+      openDialog();
+      setField('Name', 'Reta');
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Reta/ }));
+
+      save();
+
+      const body = lastCreateBody();
+      expect(body).toMatchObject({
+        name: 'Reta',
+        // The alias the user typed, not a rename to the generic name.
+        type_id: 'injection',
+        route_id: 'subcutaneous',
+        source: 'catalog',
+        is_glp1: true,
+      });
+      expect(body.custom_fields).toMatchObject({
+        catalog_id: 'retatrutide',
+        glp1_drug: 'retatrutide',
+      });
+    });
+
+    it('opens the calculator for a drug with no label strengths and converts a vial', () => {
+      render(<AddMedicationDialog />);
+      openDialog();
+      setField('Name', 'Reta');
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Reta/ }));
+
+      // Retatrutide is investigational, so there is no ladder to offer.
+      expect(screen.queryByText('Label strengths')).not.toBeInTheDocument();
+
+      setField('Vial contains', '10');
+      setField('Bacteriostatic water (mL)', '2');
+      setField('Your dose', '2');
+
+      expect(screen.getByTestId('recon-units')).toHaveTextContent('40');
+    });
+
+    it('detaches the catalog id when the name is typed over', () => {
+      render(<AddMedicationDialog />);
+      openDialog();
+      setField('Name', 'Reta');
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Reta/ }));
+      setField('Name', 'Grey vial #3');
+
+      save();
+
+      expect(lastCreateBody().custom_fields).toMatchObject({
+        catalog_id: null,
+      });
+    });
+
+    it('keeps the typed name and manual source on the custom row', () => {
+      render(<AddMedicationDialog />);
+      openDialog();
+      setField('Name', 'BPC-157');
+      fireEvent.mouseDown(
+        screen.getByRole('option', { name: /custom medication/ })
+      );
+
+      save();
+
+      const body = lastCreateBody();
+      expect(body).toMatchObject({ name: 'BPC-157', source: 'manual' });
+      expect(body.custom_fields).toMatchObject({ catalog_id: null });
+    });
+
+    it("prefills from the user's own medication when one is picked", () => {
+      mockOwnMedications = [mirroredMed];
+      render(<AddMedicationDialog />);
+      openDialog();
+      setField('Name', 'Metf');
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Metformin/ }));
+
+      save();
+
+      expect(lastCreateBody()).toMatchObject({
+        name: 'Metformin',
+        strength_value: 500,
+        strength_unit: 'mg',
+        dose_amount: 500,
+        dose_unit: 'mg',
+      });
     });
   });
 });
