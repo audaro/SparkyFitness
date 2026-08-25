@@ -1,4 +1,5 @@
 import { renderHook } from '@testing-library/react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 import { useRefetchOnFocus } from '../../src/hooks/useRefetchOnFocus';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -10,15 +11,30 @@ const mockUseFocusEffect = useFocusEffect as jest.MockedFunction<typeof useFocus
 
 describe('useRefetchOnFocus', () => {
   let focusCallback: (() => void) | undefined;
+  let blurCallback: (() => void) | undefined;
+  let appStateCallback: ((state: AppStateStatus) => void) | undefined;
+  let removeListener: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     focusCallback = undefined;
-    // Capture the callback and invoke it immediately (simulates focus on mount)
+    blurCallback = undefined;
+    appStateCallback = undefined;
+    // Capture the callback and invoke it immediately (simulates focus on mount),
+    // keeping the cleanup it returns so a blur can be simulated too.
     mockUseFocusEffect.mockImplementation((callback) => {
-      focusCallback = callback;
-      callback();
+      focusCallback = () => {
+        blurCallback = callback() as unknown as () => void;
+      };
+      focusCallback();
     });
+    removeListener = jest.fn();
+    jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((_event, handler) => {
+        appStateCallback = handler as (state: AppStateStatus) => void;
+        return { remove: removeListener } as ReturnType<typeof AppState.addEventListener>;
+      });
     jest.spyOn(Date, 'now').mockReturnValue(0);
   });
 
@@ -114,5 +130,82 @@ describe('useRefetchOnFocus', () => {
     (Date.now as jest.Mock).mockReturnValue(5_000);
     focusCallback!();
     expect(mockRefetch).toHaveBeenCalledTimes(2);
+  });
+
+  describe('returning from the background', () => {
+    test('refetches when the app becomes active while the screen is focused', () => {
+      const mockRefetch = jest.fn();
+
+      renderHook(() => useRefetchOnFocus(mockRefetch));
+      expect(mockRefetch).toHaveBeenCalledTimes(1);
+
+      // No focus event fires here — the screen never lost focus, the app did.
+      // This is the overnight case: a tab left open shows yesterday until the
+      // query is asked again.
+      (Date.now as jest.Mock).mockReturnValue(12 * 60 * 60 * 1_000);
+      appStateCallback!('active');
+
+      expect(mockRefetch).toHaveBeenCalledTimes(2);
+    });
+
+    test('ignores states other than active', () => {
+      const mockRefetch = jest.fn();
+
+      renderHook(() => useRefetchOnFocus(mockRefetch));
+      (Date.now as jest.Mock).mockReturnValue(60_000);
+
+      appStateCallback!('background');
+      appStateCallback!('inactive');
+
+      expect(mockRefetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('does not refetch an unfocused screen', () => {
+      const mockRefetch = jest.fn();
+
+      renderHook(() => useRefetchOnFocus(mockRefetch));
+      blurCallback!();
+
+      (Date.now as jest.Mock).mockReturnValue(60_000);
+      appStateCallback!('active');
+
+      // It refetches when the user navigates back to it, which is the focus
+      // path — resuming the app is not a reason to refresh every mounted tab.
+      expect(mockRefetch).toHaveBeenCalledTimes(1);
+
+      focusCallback!();
+      expect(mockRefetch).toHaveBeenCalledTimes(2);
+    });
+
+    test('shares one throttle with focus', () => {
+      const mockRefetch = jest.fn();
+
+      renderHook(() => useRefetchOnFocus(mockRefetch));
+      expect(mockRefetch).toHaveBeenCalledTimes(1);
+
+      // A tab switch and a foreground return seconds apart is one refresh.
+      (Date.now as jest.Mock).mockReturnValue(10_000);
+      appStateCallback!('active');
+
+      expect(mockRefetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('respects enabled', () => {
+      const mockRefetch = jest.fn();
+
+      renderHook(() => useRefetchOnFocus(mockRefetch, false));
+      (Date.now as jest.Mock).mockReturnValue(60_000);
+      appStateCallback!('active');
+
+      expect(mockRefetch).not.toHaveBeenCalled();
+    });
+
+    test('removes its listener on unmount', () => {
+      const { unmount } = renderHook(() => useRefetchOnFocus(jest.fn()));
+
+      unmount();
+
+      expect(removeListener).toHaveBeenCalled();
+    });
   });
 });

@@ -52,6 +52,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../types/navigation';
 import { NUTRIENT_META, getNutrientLabel } from '../constants/nutrients';
 import { useHeaderActionColors } from '../hooks/useHeaderActionColors';
+import { useTodayRollover } from '../hooks/useTodayRollover';
 
 const RANGE_SEGMENTS = (t: (key: string, options: { defaultValue: string }) => string): Segment<StepsRange>[] => [
   { key: '7d', label: t('ranges.7d', { defaultValue: '7d' }) },
@@ -78,12 +79,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const calendarRef = useRef<CalendarSheetRef>(null);
 
-  // Only reset to today when the calendar day has actually changed (midnight rollover)
-  useFocusEffect(
-    useCallback(() => {
-      syncTodayRollover();
-    }, [syncTodayRollover])
-  );
+  // Only reset to today when the calendar day has actually changed (midnight
+  // rollover), on focus and on the app returning to the foreground.
+  useTodayRollover(syncTodayRollover);
 
   // Re-tapping the active Home tab acts as a quick return to
   // today's summary and the top of the screen.

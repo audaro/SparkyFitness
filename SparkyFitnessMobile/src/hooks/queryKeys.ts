@@ -115,10 +115,14 @@ export const exercisePacksQueryKey = ['exercisePacks'] as const;
 
 /**
  * Weekly working-set progress per training group. Keyed by how many history
- * weeks were requested, since that changes the payload the server returns.
+ * weeks were requested, since that changes the payload the server returns —
+ * so anything invalidating it after a workout write must use the root key,
+ * which covers every history window a screen may have asked for.
  */
+export const weeklySetTargetsRootQueryKey = ['weeklySetTargets'] as const;
+
 export const weeklySetTargetsQueryKey = (historyWeeks: number) =>
-  ['weeklySetTargets', historyWeeks] as const;
+  [...weeklySetTargetsRootQueryKey, historyWeeks] as const;
 
 /** The one stored "Up Next" workout; the server keeps at most one per user. */
 export const workoutRecommendationQueryKey = ['workoutRecommendation'] as const;

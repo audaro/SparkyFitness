@@ -52,6 +52,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../types/navigation';
 import { useHeaderActionColors } from '../hooks/useHeaderActionColors';
+import { useTodayRollover } from '../hooks/useTodayRollover';
 
 type DiaryScreenProps = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Food'>,
@@ -76,11 +77,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
   const calendarRef = useRef<CalendarSheetRef>(null);
   const servingSheetRef = useRef<ServingAdjustSheetRef>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      syncTodayRollover();
-    }, [syncTodayRollover])
-  );
+  useTodayRollover(syncTodayRollover);
 
   // Re-tapping the active Food tab acts as a quick return to today's
   // entries and the top of the screen.

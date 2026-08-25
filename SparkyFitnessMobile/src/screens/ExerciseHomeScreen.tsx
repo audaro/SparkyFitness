@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
 import { useCSSVariable } from 'uniwind';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -26,6 +25,7 @@ import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
 import { useGymProfiles } from '../hooks/useGymProfiles';
 import { useNavigationActionGuard } from '../hooks/useNavigationActionGuard';
 import { usePreferences } from '../hooks/usePreferences';
+import { useTodayRollover } from '../hooks/useTodayRollover';
 import { useWeeklySetGroupColors } from '../hooks/useWeeklySetGroupColors';
 import { useWeeklySetTargets } from '../hooks/useWeeklySetTargets';
 import { useActiveWorkoutStore } from '../stores/activeWorkoutStore';
@@ -83,11 +83,7 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
   const goToToday = useExerciseDateStore((s) => s.goToToday);
   const syncTodayRollover = useExerciseDateStore((s) => s.syncTodayRollover);
 
-  useFocusEffect(
-    useCallback(() => {
-      syncTodayRollover();
-    }, [syncTodayRollover]),
-  );
+  useTodayRollover(syncTodayRollover);
 
   // Re-tapping the active Exercise tab returns to today and the top, matching
   // the Food tab.

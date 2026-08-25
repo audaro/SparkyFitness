@@ -41,6 +41,12 @@ const mockNavigation = {
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => mockNavigation,
+  // The screen renders outside a NavigationContainer here, and the query hooks
+  // under it refresh on focus. Run the effect once, as a mounted focused screen
+  // would; ExerciseHomeScreen's suite stubs it the same way.
+  useFocusEffect: (callback: () => void) => {
+    callback();
+  },
 }));
 
 function renderScreen() {

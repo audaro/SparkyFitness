@@ -19,6 +19,7 @@ import {
   exerciseAlternativesQueryKey,
   workoutRecommendationQueryKey,
 } from './queryKeys';
+import { useRefetchOnFocus } from './useRefetchOnFocus';
 
 interface UseWorkoutRecommendationOptions {
   enabled?: boolean;
@@ -42,6 +43,14 @@ export function useWorkoutRecommendation({
     queryFn: fetchRecommendation,
     enabled,
   });
+
+  // The stored row is the server's answer to "what should this user train
+  // today", so it goes stale on a day rollover and on a workout generated from
+  // another device — neither of which the client can see. `staleTime` is
+  // `Infinity` app-wide, so without this the card holds whatever it fetched at
+  // launch. Generation still writes its response straight into the cache; the
+  // shared 30s throttle keeps a focus right after that from asking again.
+  useRefetchOnFocus(query.refetch, enabled);
 
   const generate = useMutation({
     mutationFn: (body: GenerateRecommendationPayload = {}) =>

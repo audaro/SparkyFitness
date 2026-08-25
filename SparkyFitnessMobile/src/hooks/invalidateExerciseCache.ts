@@ -6,6 +6,7 @@ import {
   muscleRecoveryQueryKey,
   suggestedExercisesQueryKey,
   dailySummaryQueryKey,
+  weeklySetTargetsRootQueryKey,
 } from './queryKeys';
 
 export function invalidateExerciseCache(queryClient: QueryClient, entryDate: string) {
@@ -21,4 +22,11 @@ export function invalidateExerciseCache(queryClient: QueryClient, entryDate: str
   // this on every set, but the strip is unmounted during a live workout, so an
   // inactive query is only marked stale and refetches once, on next mount.
   void queryClient.invalidateQueries({ queryKey: muscleRecoveryQueryKey });
+  // Working sets per training group are derived from the same sets, so the
+  // week's progress is stale for exactly the same reason recovery is — the
+  // Exercise tab's ring would otherwise keep counting the week as it stood
+  // before this workout until the app was restarted. Invalidated by the root
+  // key on purpose: the key carries the requested history window, and the tab
+  // and the targets screen ask for different ones.
+  void queryClient.invalidateQueries({ queryKey: weeklySetTargetsRootQueryKey });
 }
