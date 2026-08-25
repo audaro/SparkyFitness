@@ -9,6 +9,7 @@ repo; phases at "Phasing"). Previous step: `docs/handoffs/medication-autofill-ph
 |---|---|
 | `5a91bf18c` | Rank the medication catalog against a typed query (`searchCatalog`) |
 | `e6eeb5813` | Autofill the name field from the cabinet and catalog (web + mobile) |
+| `4ab3f1551` | Localize the reconstitution refusals and warnings (closes open risk 2) |
 
 ### The search primitive
 
@@ -81,14 +82,21 @@ schema and unused. No migration was needed and none was added.
 
 Run on the committed state, all green:
 
-- Server: `pnpm run validate` pass; `pnpm test` — **4258 passed**, 2 skipped (295 files).
-- Frontend: `pnpm run validate` pass; `pnpm test` — **1093 passed** (112 suites).
-- Mobile: `pnpm run validate` pass (incl. i18n audit, EN + PL); `pnpm exec jest` — **6105 passed**
-  (377 suites).
+- Server: `pnpm run validate` pass; `pnpm test` — **4266 passed**, 2 skipped (295 files).
+- Frontend: `pnpm run validate` pass; `pnpm test` — **1096 passed** (113 suites).
+- Mobile: `pnpm run validate` pass (incl. i18n audit, EN + PL); `pnpm exec jest` — **6109 passed**
+  (378 suites).
 
-19 new tests. The retatrutide example runs end to end in both suites: pick "Reta" →
+34 new tests. The retatrutide example runs end to end in both suites: pick "Reta" →
 `catalog_id: retatrutide`, `route_id: subcutaneous`, `type_id: injection`, no ladder, calculator
 opens; 10 mg + 2 mL, 2 mg dose → **40 units (U-100)**.
+
+One caveat on the mobile suite: during the localization commit's gate run, one full-suite run
+reported a single failure that three subsequent full runs did not reproduce, and the failing test
+was not captured. Nothing in that commit touches timers or shared mutable state across suites (the
+new test mutates the i18n singleton but restores the language in `afterEach`, and Jest gives each
+suite its own module registry). Treat it as an unidentified flake, not a known-good result — if it
+recurs, capture the `FAIL` line rather than only the summary counts.
 
 ## Found in self-audit (fixed before commit)
 
@@ -118,10 +126,16 @@ it beyond the six PK-registry drugs. It is blocked on open risk 1 below.
    correct everywhere and routes to the calculator, which is a working answer rather than a guessed
    one. **Phase 2 makes this cheaper to decide**: the chip UI is already built and gated on
    `strengths` being non-null, so populating the data is the only remaining work.
-2. **`reconstitute()`'s refusal and warning messages are English-only.** They come from `shared`,
-   which has no `t`. Every label around them is localised; the messages are not. The fix is for the
-   UI to translate from the `reason` / `code` — both are already on the result — rather than render
-   `message`. Worth doing before this reaches a non-English user.
+2. ~~**`reconstitute()`'s refusal and warning messages are English-only.**~~ **Fixed after this
+   handoff was written.** Every failure and warning now also carries `details` — the values its
+   sentence interpolates — and each UI rebuilds the sentence from `reason` / `code` + `details`
+   through its own `t` (`SparkyFitnessFrontend/src/pages/Medications/reconstitutionMessages.ts`,
+   `SparkyFitnessMobile/src/utils/reconstitutionLocalization.ts`). Both switches are exhaustive
+   with no `default`, so a reason added in `shared` fails the typecheck rather than silently
+   falling back to English. `shared`'s `message` is now documented as a fallback for a caller with
+   no i18n, and is what nothing in the app renders. One reason was split out while doing it:
+   `diluentForTargetUnits` was reporting a bad target-units input as `invalid_syringe_capacity`,
+   so one reason carried two different sentences; it is now `invalid_target_units`.
 3. **Web and mobile disagree on `custom_fields` merge semantics.** Mobile spreads the existing
    object and adds `catalog_id`; web replaces it wholesale (pre-existing behaviour — web already
    sent `{}` for a non-GLP-1 medication). So editing on web a row that mobile enriched drops keys
