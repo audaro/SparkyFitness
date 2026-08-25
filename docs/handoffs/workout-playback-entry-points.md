@@ -10,27 +10,29 @@ changed.
 
 ## What shipped
 
-| Commit      | Package | What it did                                                                 |
-| ----------- | ------- | --------------------------------------------------------------------------- |
-| `77a88c900` | web     | Start workout on the Up Next card — the last "look but don't touch" surface |
-| `f232deda7` | web     | The in-progress guard, extracted and applied to all three entry points      |
-| `56480410a` | web     | `ConfirmationDialog` translates the labels it supplies itself               |
-| `ff65d9f87` | web     | `ConfirmationDialog` announces its description to screen readers            |
-| `b0d18acbd` | docs    | Phase E handoff records the above                                           |
-| `3e576f1e4` | docs    | Phase E handoff's merge-exposure claim replaced with a measurement          |
-| `7110066b8` | docs    | This handoff, at the point the web half closed                              |
-| `ee7c7531a` | mobile  | Day-scoped tabs refresh on foreground return and on day rollover            |
-| `b46644bcd` | mobile  | Health Connect transform tests stop depending on the runner's timezone      |
-| `7ddf36da2` | mobile  | The remaining two health test files made timezone-independent               |
-| `6312d587e` | docs    | This handoff extended to cover the mobile half                              |
-| `8ba95ec91` | mobile  | First suite for `utils/workoutSupersets.ts`, the superset algebra           |
-| `19b095ec6` | docs    | Handoff records the superset suite; timezone sweep claim corrected          |
-| `e6ee3ccc0` | mobile  | First suite for `hooks/useWorkoutRecommendation.ts`                         |
-| `9eaa013a7` | docs    | Handoff records that suite, and corrects its `useFocusEffect` advice        |
-| `ecdc227de` | mobile  | First suite for `hooks/useGymProfiles.ts` — closes the untested three       |
-| `a9764dba7` | docs    | Handoff records that suite; mobile `AGENTS.md` note retired                 |
-| `1f463cd8c` | mobile  | Duplicate-profile-name error classified by status, not by substring         |
-| `55d5d8894` | mobile  | The other five status-by-substring sites converted; one new suite           |
+| Commit      | Package | What it did                                                                  |
+| ----------- | ------- | ---------------------------------------------------------------------------- |
+| `77a88c900` | web     | Start workout on the Up Next card — the last "look but don't touch" surface  |
+| `f232deda7` | web     | The in-progress guard, extracted and applied to all three entry points       |
+| `56480410a` | web     | `ConfirmationDialog` translates the labels it supplies itself                |
+| `ff65d9f87` | web     | `ConfirmationDialog` announces its description to screen readers             |
+| `b0d18acbd` | docs    | Phase E handoff records the above                                            |
+| `3e576f1e4` | docs    | Phase E handoff's merge-exposure claim replaced with a measurement           |
+| `7110066b8` | docs    | This handoff, at the point the web half closed                               |
+| `ee7c7531a` | mobile  | Day-scoped tabs refresh on foreground return and on day rollover             |
+| `b46644bcd` | mobile  | Health Connect transform tests stop depending on the runner's timezone       |
+| `7ddf36da2` | mobile  | The remaining two health test files made timezone-independent                |
+| `6312d587e` | docs    | This handoff extended to cover the mobile half                               |
+| `8ba95ec91` | mobile  | First suite for `utils/workoutSupersets.ts`, the superset algebra            |
+| `19b095ec6` | docs    | Handoff records the superset suite; timezone sweep claim corrected           |
+| `e6ee3ccc0` | mobile  | First suite for `hooks/useWorkoutRecommendation.ts`                          |
+| `9eaa013a7` | docs    | Handoff records that suite, and corrects its `useFocusEffect` advice         |
+| `ecdc227de` | mobile  | First suite for `hooks/useGymProfiles.ts` — closes the untested three        |
+| `a9764dba7` | docs    | Handoff records that suite; mobile `AGENTS.md` note retired                  |
+| `1f463cd8c` | mobile  | Duplicate-profile-name error classified by status, not by substring          |
+| `55d5d8894` | mobile  | The other five status-by-substring sites converted; one new suite            |
+| `ca373ea70` | docs    | Handoff records that sweep; MFA-cookie duplication flagged                   |
+| `1c41fcae4` | mobile  | Three copies of the MFA error ladder collapsed; code carried on `LoginError` |
 
 The long-form write-up for the web half lives in `exercise-home-phase-e.md` under E5 and E6, because
 the diagnosis it corrects belongs next to the phase that filed it. What follows is what a fresh
@@ -129,16 +131,17 @@ first) and two cases on `WorkoutPresetsManager.test.tsx`.
 `ExerciseCard.test.tsx` covers the preset-playback path only. The component is ~600 lines and the
 rest of it is still untested; the suite exists as a place to add to, not as coverage.
 
-Mobile, run from `SparkyFitnessMobile/`. Green at `55d5d8894`.
+Mobile, run from `SparkyFitnessMobile/`. Green at `1c41fcae4`.
 
 | Command                                                        | Result                        |
 | -------------------------------------------------------------- | ----------------------------- |
 | `pnpm run validate`                                            | clean (tsc, lint, i18n audit) |
-| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6056 passed, 375 suites**   |
+| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6078 passed, 376 suites**   |
 
 Up from 5971 / 371. The delta is four new suites — `utils/workoutSupersets` (41),
 `hooks/useWorkoutRecommendation` (19), `hooks/useGymProfiles` (17), `hooks/useUpdateFoodEntryMeal`
-(4) — plus one misclassification case appended to each of the four suites `55d5d8894` touched.
+(4) — plus one misclassification case appended to each of the four suites `55d5d8894` touched, and
+`services/api/authErrors` (18) with four transport cases added to `authService` in `1c41fcae4`.
 
 The three health files were run at `Pacific/Midway` (UTC-11), `America/Los_Angeles`, `UTC`,
 `Europe/London`, `Asia/Tokyo` and `Pacific/Kiritimati` (UTC+14), and then the **whole** suite was run
@@ -162,37 +165,44 @@ the fork has touched, at one upstream commit in six months.
 
 ## Exact next step
 
-**Nothing in this thread is open.** The status-by-substring sweep finished in `55d5d8894`: no site in
-`src/` now reads a status out of an error message. `grep -rn "message\.includes(" src/` returns nine
-hits and all nine are sentinel strings, not digits.
+**Nothing in this thread is open.** Both classification sweeps are finished and neither left a
+follow-up.
 
-The nearest live thread it _did_ expose, for a session looking for one:
+`55d5d8894` ended the status-by-substring one: no site in `src/` reads a status out of an error
+message, and `hasApiStatus(error, status)` / `isAuthzError(error)` in `services/api/errors.ts` are
+where new classification goes.
 
-**Three copies of the same MFA-cookie check.** `OnboardingScreen.tsx:430`, `ReauthModal.tsx:298` and
-`ServerConfigModal.tsx:418` each match `INVALID_TWO_FACTOR_COOKIE` or `expired` in an error message
-by hand. That is past the rule of two, and unlike the status matches it is not a false-positive bug —
-a sentinel string is a deliberate contract, and `expired` is loose but has no digit-collision
-failure mode. So it is a duplication to collapse when something next touches one of the three, not a
-defect to go fix. If it moves, it belongs beside `hasApiStatus` in `services/api/errors.ts`.
+`1c41fcae4` closed the MFA-cookie duplication this doc had flagged as a later job. It turned out to
+be more than three copies of one predicate — `OnboardingScreen`, `ReauthModal` and
+`ServerConfigModal` each held the whole `LoginError` ladder (rate limit → invalid code → stale
+two-factor cookie → generic), identical down to the message strings, with only the step each returns
+to actually differing. That is now `classifyLoginError` / `loginErrorMessage` in
+`services/api/authErrors.ts`, deliberately the dependency-light module so a test can import it
+without pulling in the auth service.
 
-What `55d5d8894` settled, and the shape to reuse:
+Three things from it worth carrying:
 
-- `hasApiStatus(error, status)` and `isAuthzError(error)` (403-or-404, which
-  `useWorkoutPresetMutations` and `useExerciseMutations` each had a private copy of) live in
-  `services/api/errors.ts`. New classification goes through them; nothing should re-derive a status.
-- **The test fixtures were the load-bearing half.** The four existing suites threw bare `Error`s
-  whose messages happened to contain the digits, which is why they had passed against the broken
-  classifier all along — a suite can pin the wrong behaviour just as firmly as the right one. They
-  now build a real `ApiError` through `__tests__/helpers/apiError.ts`, and deliberately keep the
-  status-shaped message, so a regression to text matching still fails. `useGymProfiles` and
-  `useWorkoutRecommendation` had grown their own local copies of that builder and were folded onto
-  the shared one in the same commit.
-- Each suite gained a case for a non-403 whose _body_ merely contains the digits. Mutation-checked
-  the same way as the suites below: reverting `hasApiStatus` to the substring form fails eight cases
-  across six suites.
-- A correction worth carrying, because it changed the size of the job: an earlier note in this doc
-  said none of the five had a suite pinning the classification. Four of the five do. Checking the
-  source without checking `__tests__/` is how that was got wrong.
+- **The copies had already drifted, which is the argument for the rule of two rather than an
+  illustration of it.** Two screens skip the stale-cookie branch when the error has no status —
+  a `LoginError` without one never came from a server response (an HTTPS refusal, a cancelled
+  passkey or SSO prompt, a 200 whose body was missing its token). `OnboardingScreen` had no such
+  guard, so a local failure whose message happened to say "expired" would clear the user's cookies
+  and bounce them a step back. Latent rather than live — nothing local says "expired" today — and
+  invisible until the three were read side by side. The shared version keeps the guard.
+- **The text matching was a symptom, not the disease.** All three matched on message text because
+  `parseAuthErrorText` folded the server's error code into the human-readable string and threw the
+  field away. It now returns both, and `LoginError` carries a `code`. Same shape as the `409` bug:
+  a classifier reads prose when the transport above it discards structure, so fix the transport
+  first and the classifier collapses to a field read.
+- **The message fallbacks stayed on purpose.** `INVALID_TWO_FACTOR_COOKIE` comes from better-auth,
+  not from this repo's server — `grep -rn INVALID_TWO_FACTOR_COOKIE SparkyFitnessServer/ shared/`
+  finds nothing — so nothing here can promise the `code` field is populated on every variant of that
+  response. Structured first, prose second, and both are pinned.
+- **Coverage was thinner than it looked.** Only `ServerConfigModal` tested any of the ladder, with
+  two cases; the other two screens had none. `authErrors` gets its own suite (18 cases,
+  mutation-checked eight ways), and `authService` gained four cases pinning that the code actually
+  reaches `LoginError` — without those the structured path would have been untested on the half
+  that fills it in, which is the same gap `55d5d8894` found in its fixtures.
 
 **The list below is closed** — the three modules `AGENTS.md` called out as having no suite of their
 own now have one, and that note has been retired. Kept for the pattern each established, since the
