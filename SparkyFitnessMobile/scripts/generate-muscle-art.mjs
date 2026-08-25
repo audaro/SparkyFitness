@@ -9,14 +9,15 @@
  *
  *   pnpm run muscle-art:generate
  *
- * The illustration labels its paths with a `class` naming the muscle, several
- * paths per muscle (left and right, front and back view). Each tile on the Pick
- * Muscles grid needs those paths as one `d` string plus a viewBox that frames
- * them, which is what this computes.
+ * The output is the whole illustration — both figures, front and back — as an
+ * ordered list of paths, each tagged with the muscle it belongs to where the
+ * illustration labels one. `MuscleBodyMap` renders them in that order, which is
+ * what keeps the silhouette under the muscles and the outline detail over them,
+ * and makes every labelled path a tap target for its muscle.
  *
  * It does NOT cover the whole vocabulary: the illustration knows twelve of the
- * seventeen canonical muscles. The rest are listed in the generated file and
- * their tiles keep drawing a labelled colour block.
+ * seventeen canonical muscles. The other five have no region on the figure and
+ * the screen offers them as chips instead.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -49,203 +50,121 @@ const SVG_CLASS_TO_MUSCLE = {
   triceps: 'triceps',
 };
 
-/** Breathing room around a muscle's bounding box, as a fraction of its size. */
-const PADDING = 0.12;
-
 /**
- * The bounding box of an absolute-coordinate path.
- *
- * Every command in this illustration is `M`, `C` or `Z` — all absolute — so
- * every number in the string is a real coordinate and min/max over them is
- * sound. A cubic's control points can sit outside the curve they draw, so the
- * box can come out slightly larger than the ink; it can never come out smaller,
- * which is the direction that would clip the art.
- *
- * Throws on a relative command rather than returning a quietly wrong box: if
- * upstream redraws the illustration with relative paths, this needs a real path
- * parser and should say so instead of emitting nonsense.
+ * The illustration's two unlabelled fills. The pale one is the body itself, the
+ * dark one is outline detail drawn over everything (head, hands, creases).
+ * Matched by colour because that is the only thing telling them apart in the
+ * file — neither carries a class.
  */
-function boundingBox(d) {
-  const relative = d.match(/[a-z]/g)?.filter((c) => c !== 'e');
-  if (relative?.length) {
-    throw new Error(
-      `Path uses relative commands (${[...new Set(relative)].join(', ')}), ` +
-        'which this script cannot measure. Re-export the SVG with absolute ' +
-        'coordinates, or replace boundingBox() with a real path parser.',
-    );
-  }
-
-  const numbers = d.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)?.map(Number) ?? [];
-  if (numbers.length < 2 || numbers.length % 2 !== 0) {
-    throw new Error(`Path has ${numbers.length} coordinate numbers, expected an even count above 0.`);
-  }
-
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (let i = 0; i < numbers.length; i += 2) {
-    minX = Math.min(minX, numbers[i]);
-    maxX = Math.max(maxX, numbers[i]);
-    minY = Math.min(minY, numbers[i + 1]);
-    maxY = Math.max(maxY, numbers[i + 1]);
-  }
-
-  // Square the box before padding. A tile is square, and `react-native-svg`
-  // letterboxes a mismatched viewBox — so measuring calves (tall and narrow)
-  // and handing over its true box would shrink it to a sliver of the tile.
-  const size = Math.max(maxX - minX, maxY - minY);
-  const pad = size * PADDING;
-  const cx = (minX + maxX) / 2;
-  const cy = (minY + maxY) / 2;
-  const side = size + pad * 2;
-
-  const round = (value) => Math.round(value * 100) / 100;
-  return `${round(cx - side / 2)} ${round(cy - side / 2)} ${round(side)} ${round(side)}`;
-}
+const SILHOUETTE_FILL = '#f5f5f5';
+const DETAIL_FILL = '#757575';
 
 const svg = readFileSync(SVG_PATH, 'utf8');
 
-// Both attribute orders appear in the file, so match the tag and pull each
-// attribute out of it rather than assuming class precedes d.
-const byMuscle = new Map();
+const viewBox = svg.match(/<svg[^>]*\bviewBox="([^"]+)"/)?.[1];
+if (!viewBox) {
+  throw new Error(`Could not read the illustration's viewBox from ${SVG_PATH}.`);
+}
+
+// Document order is render order, and it matters: the pale silhouette is drawn
+// first so the muscles sit on top of it, and the outline detail last so it sits
+// on top of them. Preserving the order preserves the layering, with no z-index
+// reasoning of our own.
+const paths = [];
 for (const tag of svg.match(/<path\b[^>]*>/g) ?? []) {
   const className = tag.match(/\bclass="([^"]*)"/)?.[1];
   const d = tag.match(/\bd="([^"]*)"/)?.[1];
-  if (!className || !d) continue;
+  if (!d) continue;
 
-  const muscle = SVG_CLASS_TO_MUSCLE[className];
-  if (!muscle) continue;
+  const cleaned = d.replace(/\s+/g, ' ').trim();
 
-  if (!byMuscle.has(muscle)) byMuscle.set(muscle, []);
-  byMuscle.get(muscle).push(d.replace(/\s+/g, ' ').trim());
+  if (className) {
+    const muscle = SVG_CLASS_TO_MUSCLE[className];
+    if (!muscle) {
+      throw new Error(
+        `Path classed "${className}" has no entry in SVG_CLASS_TO_MUSCLE. Add ` +
+          'it (mapped to a canonical muscle), or that region silently stops ' +
+          'being tappable.',
+      );
+    }
+    paths.push({ kind: 'muscle', muscle, d: cleaned });
+    continue;
+  }
+
+  const fill = tag.match(/\bfill="([^"]*)"/)?.[1];
+  if (fill === SILHOUETTE_FILL) {
+    paths.push({ kind: 'silhouette', d: cleaned });
+  } else if (fill === DETAIL_FILL) {
+    paths.push({ kind: 'detail', d: cleaned });
+  } else {
+    throw new Error(
+      `Unclassed path with fill "${fill}" is neither the silhouette ` +
+        `(${SILHOUETTE_FILL}) nor outline detail (${DETAIL_FILL}). The figure ` +
+        'would render with a piece missing.',
+    );
+  }
 }
 
-if (byMuscle.size === 0) {
-  throw new Error(`No classed paths found in ${SVG_PATH} — has the illustration changed shape?`);
+if (paths.length === 0) {
+  throw new Error(`No paths found in ${SVG_PATH} — has the illustration changed shape?`);
 }
 
-/** Horizontal extent of a path, used to tell the two views apart. */
-function xExtent(d) {
-  const numbers = d.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)?.map(Number) ?? [];
-  const xs = numbers.filter((_, index) => index % 2 === 0);
-  return { min: Math.min(...xs), max: Math.max(...xs) };
+const found = new Set(paths.filter((p) => p.kind === 'muscle').map((p) => p.muscle));
+const missing = [...new Set(Object.values(SVG_CLASS_TO_MUSCLE))].filter((m) => !found.has(m));
+if (missing.length) {
+  throw new Error(`Mapped but not present in the SVG: ${missing.join(', ')}`);
+}
+if (!paths.some((p) => p.kind === 'silhouette')) {
+  throw new Error('No silhouette path found — the figure would render as floating muscles.');
 }
 
-/** Area of a `minX minY width height` viewBox string. */
-function boxArea(viewBox) {
-  const [, , width, height] = viewBox.split(' ').map(Number);
-  return width * height;
-}
-
-const canvasWidth = Number(svg.match(/viewBox="[\d.\s-]*?\s([\d.]+)\s[\d.]+"/)?.[1]);
-if (!Number.isFinite(canvasWidth)) {
-  throw new Error('Could not read the illustration viewBox width.');
-}
-
-// The illustration draws the body twice, front view beside back view. Five
-// muscles are labelled in both, and measuring those together yields a box
-// spanning the whole canvas — two half-bodies shrunk into a tile rather than
-// one muscle. So each muscle is split by view and only one view is kept.
-const seam = canvasWidth / 2;
-const straddlers = [...byMuscle.values()]
-  .flat()
-  .filter((d) => {
-    const { min, max } = xExtent(d);
-    return min < seam && max > seam;
-  });
-if (straddlers.length) {
-  throw new Error(
-    `${straddlers.length} path(s) cross the midline at x=${seam}, so the two ` +
-      'views cannot be separated by it. Has the illustration been re-laid-out?',
-  );
-}
-
-const entries = [...byMuscle.entries()]
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([muscle, paths]) => {
-    const views = {
-      front: paths.filter((d) => xExtent(d).max <= seam),
-      back: paths.filter((d) => xExtent(d).min >= seam),
-    };
-
-    // Concatenating subpaths into one `d` is valid SVG: each begins with its
-    // own `M`, so they draw as one multi-part shape.
-    const measured = Object.entries(views)
-      .filter(([, group]) => group.length > 0)
-      .map(([view, group]) => {
-        const d = group.join(' ');
-        return { view, d, viewBox: boundingBox(d), count: group.length };
-      });
-
-    // Where a muscle appears in both, keep the view that draws it in more
-    // pieces — a proxy for the view it is detailed in, and so the one it is
-    // meant to be read from: calves and traps from behind, abdominals from the
-    // front. Ties break to the front, the conventional view of a body.
-    //
-    // It is a heuristic, so its answer is not left to chance: the chosen view
-    // for every muscle is asserted in `__tests__/constants/muscleArt.test.ts`,
-    // and a regeneration that flips one fails there rather than shipping an
-    // "Abs" tile showing someone's back. Measuring by area was the first try
-    // and did exactly that — obliques wrap further round the back than the abs
-    // reach across the front.
-    measured.sort((a, b) => b.count - a.count || (a.view === 'front' ? -1 : 1));
-    return { muscle, ...measured[0], views: measured.length };
-  });
-
-const covered = new Set(entries.map((entry) => entry.muscle));
-const uncovered = [...new Set(Object.values(SVG_CLASS_TO_MUSCLE))].filter((m) => !covered.has(m));
-if (uncovered.length) {
-  throw new Error(`Mapped but not found in the SVG: ${uncovered.join(', ')}`);
-}
-
-const body = entries
-  .map(
-    ({ muscle, d, viewBox, count, view, views }) =>
-      `  '${muscle}': {\n` +
-      `    // ${count} path${count === 1 ? '' : 's'}, ${view} view` +
-      `${views > 1 ? ' (drawn in both views; this is the detailed one)' : ''}\n` +
-      `    view: '${view}',\n` +
-      `    viewBox: '${viewBox}',\n` +
-      `    d: '${d}',\n` +
-      `  },`,
+const body = paths
+  .map((path) =>
+    path.kind === 'muscle'
+      ? `  { kind: 'muscle', muscle: '${path.muscle}', d: '${path.d}' },`
+      : `  { kind: '${path.kind}', d: '${path.d}' },`,
   )
   .join('\n');
 
+const onBody = [...found].sort();
+
 const out = `/**
- * Anatomical art for the Pick Muscles grid, keyed by canonical muscle.
+ * The anatomical figure behind the Pick Muscles body map.
  *
  * GENERATED — do not edit. Run \`pnpm run muscle-art:generate\` instead, which
  * re-derives this from \`SparkyFitnessFrontend/public/images/muscle-male.svg\`,
  * the illustration the web body map already renders. That file is upstream's,
  * so regenerating is how this stays in step with it.
  *
- * Only the muscles the illustration draws appear here. The rest have no entry
- * and their tiles fall back to a labelled colour block — see \`MuscleTile\`.
+ * The array is in the illustration's own document order, which is its render
+ * order: silhouette first, muscles over it, outline detail last.
  */
 import type { Muscle } from '@workspace/shared';
 
-export interface MuscleArt {
-  /**
-   * Which of the illustration's two bodies this muscle is taken from.
-   *
-   * Carried as data, not a comment, because the generator picks it with a
-   * heuristic — the view drawing the muscle in more pieces, ties to the front.
-   * The test asserts the choice per muscle so a regeneration that flips one
-   * fails there instead of shipping an "Abs" tile showing a back.
-   */
-  view: 'front' | 'back';
-  /** Viewport the path coordinates are expressed in, framed on this muscle. */
-  viewBox: string;
-  /** Every path the illustration draws for this muscle, as one \`d\`. */
-  d: string;
-}
+export type BodyPath =
+  /** A labelled region, tappable as its muscle. */
+  | { readonly kind: 'muscle'; readonly muscle: Muscle; readonly d: string }
+  /** The body itself, drawn under everything. */
+  | { readonly kind: 'silhouette'; readonly d: string }
+  /** Outline detail — head, hands, creases — drawn over everything. */
+  | { readonly kind: 'detail'; readonly d: string };
 
-export const MUSCLE_ART: Partial<Record<Muscle, MuscleArt>> = {
+/** The illustration's coordinate space: the front figure beside the back one. */
+export const BODY_VIEW_BOX = '${viewBox}';
+
+/**
+ * The muscles the figure actually draws, so the screen knows which ones it has
+ * to offer some other way. Twelve of the seventeen canonical muscles.
+ */
+export const MUSCLES_ON_BODY: readonly Muscle[] = [
+${onBody.map((muscle) => `  '${muscle}',`).join('\n')}
+];
+
+export const BODY_PATHS: readonly BodyPath[] = [
 ${body}
-};
+];
 `;
 
 writeFileSync(OUT_PATH, out);
 console.log(`Wrote ${OUT_PATH}`);
-console.log(`  ${entries.length} muscles: ${entries.map((e) => e.muscle).join(', ')}`);
+console.log(`  ${paths.length} paths, ${onBody.length} muscles: ${onBody.join(', ')}`);

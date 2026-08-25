@@ -1,6 +1,6 @@
 import { MUSCLES, type Muscle } from '@workspace/shared';
 
-import { MUSCLE_ART, type MuscleArt } from './muscleArt.generated';
+import { MUSCLES_ON_BODY } from './muscleArt.generated';
 
 /**
  * How the 17 canonical muscles are grouped into tiles on the muscle grid.
@@ -60,6 +60,14 @@ const ACCESSORY_MUSCLE_TILES: readonly MuscleTileDefinition[] = [
   { id: 'neck', label: 'Neck', muscles: ['neck'] },
 ];
 
+/**
+ * The Main/Accessory split, kept as the definitional source of `MUSCLE_TILES`.
+ *
+ * The titles and subtitles are no longer rendered: the picker draws the
+ * anatomical figure instead of a sectioned tile grid, and the only tiles it
+ * still lists as such are the four with no region on it. The grouping is real
+ * domain information, so it stays — but nothing displays it today.
+ */
 export const MUSCLE_TILE_SECTIONS: readonly MuscleTileSection[] = [
   {
     title: 'Main',
@@ -86,21 +94,25 @@ export const MUSCLE_TILES: readonly MuscleTileDefinition[] =
  * workouts in the logs.
  */
 /**
- * The anatomical art for a tile, or `undefined` when the illustration does not
- * draw it.
+ * The tiles the body map cannot offer, because the illustration draws no region
+ * for any muscle they cover. Pick Muscles lists these as chips beneath the
+ * figure so the vocabulary stays fully reachable.
  *
- * A tile can stand for more than one muscle, so this takes the first of them
- * the illustration knows. Today that never has to choose: the only multi-muscle
- * tile is Back (`lats` + `middle back`) and the illustration draws neither, so
- * Back is one of the five that keep the labelled colour block.
+ * Every tile is wholly on the figure or wholly off it — never split — which
+ * `__tests__/constants/muscleArt.test.ts` asserts, since a half-drawn tile
+ * would be tappable on the body *and* listed as missing from it.
  */
-export function artForTile(tile: MuscleTileDefinition): MuscleArt | undefined {
-  for (const muscle of tile.muscles) {
-    const art = MUSCLE_ART[muscle];
-    if (art) return art;
-  }
-  return undefined;
+/**
+ * The tile a muscle belongs to. Used by the body map, whose regions are muscles
+ * while the screen's selection is tiles.
+ */
+export function tileForMuscle(muscle: Muscle): MuscleTileDefinition | undefined {
+  return MUSCLE_TILES.find((tile) => tile.muscles.includes(muscle));
 }
+
+export const TILES_OFF_BODY: readonly MuscleTileDefinition[] = MUSCLE_TILES.filter((tile) =>
+  tile.muscles.every((muscle) => !MUSCLES_ON_BODY.includes(muscle)),
+);
 
 export function musclesForTiles(
   tileIds: readonly string[],

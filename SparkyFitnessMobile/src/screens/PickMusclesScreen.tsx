@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import {
@@ -10,14 +10,20 @@ import {
   type MuscleSplit,
 } from '@workspace/shared';
 
-import MuscleTile from '../components/MuscleTile';
+import MuscleBodyMap from '../components/MuscleBodyMap';
 import SettingsRow, { SettingsRowGroup } from '../components/SettingsRow';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import { useGenerateAndShowWorkout } from '../hooks/useGenerateAndShowWorkout';
 import { useMuscleRecovery, type MuscleRecoveryItem } from '../hooks/useMuscleRecovery';
-import { MUSCLE_TILE_SECTIONS, artForTile, musclesForTiles, type MuscleTileDefinition } from '../constants/muscleTiles';
+import { useFreshnessToneColors } from '../hooks/useFreshnessToneColors';
+import {
+  TILES_OFF_BODY,
+  musclesForTiles,
+  tileForMuscle,
+  type MuscleTileDefinition,
+} from '../constants/muscleTiles';
 import { titleCaseCanonical } from '../utils/workoutSession';
 import type { RootStackScreenProps } from '../types/navigation';
 
@@ -82,7 +88,12 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
-  const textMuted = useCSSVariable('--color-text-muted') as string;
+  const [textMuted, surfaceColor, accentPrimary] = useCSSVariable([
+    '--color-text-muted',
+    '--color-surface',
+    '--color-accent-primary',
+  ]) as [string, string, string];
+  const toneColors = useFreshnessToneColors();
 
   const [mode, setMode] = useState<'splits' | 'grid'>('splits');
   const [selectedTileIds, setSelectedTileIds] = useState<string[]>([]);
@@ -142,6 +153,27 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
         : [...current, tileId],
     );
   }, []);
+
+  /**
+   * The body map's regions are muscles; the screen's selection is tiles. Every
+   * muscle the figure draws is its own tile — the one multi-muscle tile, Back,
+   * has no region — so the two map onto each other without ambiguity.
+   */
+  const handleToggleMuscle = useCallback(
+    (muscle: Muscle) => {
+      const tile = tileForMuscle(muscle);
+      if (tile) toggleTile(tile.id);
+    },
+    [toggleTile],
+  );
+
+  const selectedMuscles = musclesForTiles(selectedTileIds);
+
+  const bodyRecovery = new Map(
+    recovery.map(
+      (entry) => [entry.muscle as Muscle, { percent: entry.percent, tone: entry.tone }] as const,
+    ),
+  );
 
   const handleSaveGrid = useCallback(() => {
     const targetMuscles = musclesForTiles(selectedTileIds);
@@ -243,40 +275,57 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
         ) : (
           <View testID="pick-muscles-grid">
             <Text className="text-sm mb-4" style={{ color: textMuted }}>
-              Pick every muscle you want to train. The percentage is how
-              recovered it is today.
+              Tap the muscles you want to train. Colour is how recovered each one
+              is today.
             </Text>
 
-            {MUSCLE_TILE_SECTIONS.map((section) => (
-              <View key={section.title} className="mb-6">
-                <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider">
-                  {section.title}
-                </Text>
-                <Text className="text-xs mt-0.5 mb-3" style={{ color: textMuted }}>
-                  {section.subtitle}
-                </Text>
+            <MuscleBodyMap
+              recoveryByMuscle={bodyRecovery}
+              selected={selectedMuscles}
+              onToggle={handleToggleMuscle}
+              testID="pick-muscles-body"
+            />
 
-                <View className="flex-row flex-wrap gap-3">
-                  {section.tiles.map((tile) => {
-                    const entry = tileRecovery(tile, recoveryByMuscle);
-                    return (
-                      <MuscleTile
-                        key={tile.id}
-                        label={tile.label}
-                        percent={entry?.percent ?? null}
-                        tone={entry?.tone ?? null}
-                        selected={selectedTileIds.includes(tile.id)}
-                        onPress={() => toggleTile(tile.id)}
-                        svgPath={artForTile(tile)?.d}
-                        svgViewBox={artForTile(tile)?.viewBox}
-                        className="w-[30%]"
-                        testID={`pick-muscles-tile-${tile.id}`}
-                      />
-                    );
-                  })}
-                </View>
+            {/* The figure draws twelve of the seventeen canonical muscles.
+                These are the rest — reachable here rather than nowhere, which
+                matters most for Back: it is picked often and the illustration
+                has no region for either muscle it covers. */}
+            <View className="mt-6">
+              <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider">
+                Not on the diagram
+              </Text>
+              <View className="flex-row flex-wrap gap-2 mt-3">
+                {TILES_OFF_BODY.map((tile) => {
+                  const entry = tileRecovery(tile, recoveryByMuscle);
+                  const picked = selectedTileIds.includes(tile.id);
+                  return (
+                    <Pressable
+                      key={tile.id}
+                      onPress={() => toggleTile(tile.id)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: picked }}
+                      accessibilityLabel={
+                        entry ? `${tile.label}, ${entry.percent}% recovered` : tile.label
+                      }
+                      testID={`pick-muscles-chip-${tile.id}`}
+                      className="flex-row items-center rounded-full px-3 py-2"
+                      style={{
+                        backgroundColor: surfaceColor,
+                        borderWidth: 2,
+                        borderColor: picked ? accentPrimary : 'transparent',
+                      }}
+                    >
+                      <Text className="text-sm text-text-primary">{tile.label}</Text>
+                      {entry ? (
+                        <Text className="text-xs font-bold ml-2" style={{ color: toneColors[entry.tone] }}>
+                          {entry.percent}%
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </View>
-            ))}
+            </View>
           </View>
         )}
       </ScrollView>

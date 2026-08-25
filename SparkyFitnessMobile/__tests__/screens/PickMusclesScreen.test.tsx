@@ -4,7 +4,8 @@ import { freshnessPercent, freshnessTone, MUSCLES } from '@workspace/shared';
 
 import PickMusclesScreen from '../../src/screens/PickMusclesScreen';
 import { useMuscleRecovery } from '../../src/hooks/useMuscleRecovery';
-import { MUSCLE_TILES } from '../../src/constants/muscleTiles';
+import { TILES_OFF_BODY } from '../../src/constants/muscleTiles';
+import { MUSCLES_ON_BODY } from '../../src/constants/muscleArt.generated';
 import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';
 
 const mockGenerateRecommendation = jest.fn();
@@ -228,21 +229,33 @@ describe('PickMusclesScreen', () => {
       return screen;
     }
 
-    it('draws a tile for every one of the 17 canonical muscles', () => {
+    // Every canonical muscle stays reachable: on the figure where the
+    // illustration draws it, as a chip beneath where it does not. A muscle in
+    // neither place could not be targeted at all.
+    it('offers every one of the 17 canonical muscles somewhere', () => {
       const screen = openGrid(renderScreen());
 
-      for (const tile of MUSCLE_TILES) {
-        expect(screen.getByTestId(`pick-muscles-tile-${tile.id}`)).toBeTruthy();
+      for (const muscle of MUSCLES_ON_BODY) {
+        expect(screen.getByTestId(`pick-muscles-body-${muscle}`)).toBeTruthy();
       }
-      const covered = MUSCLE_TILES.flatMap((tile) => tile.muscles);
-      expect([...covered].sort()).toEqual([...MUSCLES].sort());
+      for (const tile of TILES_OFF_BODY) {
+        expect(screen.getByTestId(`pick-muscles-chip-${tile.id}`)).toBeTruthy();
+      }
+
+      const reachable = [
+        ...MUSCLES_ON_BODY,
+        ...TILES_OFF_BODY.flatMap((tile) => tile.muscles),
+      ];
+      expect([...reachable].sort()).toEqual([...MUSCLES].sort());
     });
 
     it('sends canonical muscle names for the picked tiles', async () => {
       const screen = openGrid(renderScreen());
 
-      fireEvent.press(screen.getByTestId('pick-muscles-tile-back'));
-      fireEvent.press(screen.getByTestId('pick-muscles-tile-quadriceps'));
+      // One from each half of the screen: Back is a chip because the
+      // illustration draws neither muscle it covers; quads are on the figure.
+      fireEvent.press(screen.getByTestId('pick-muscles-chip-back'));
+      fireEvent.press(screen.getByTestId('pick-muscles-body-quadriceps'));
       fireEvent.press(screen.getByText('Save'));
 
       await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
@@ -254,9 +267,9 @@ describe('PickMusclesScreen', () => {
     it('drops a tile that is tapped twice', async () => {
       const screen = openGrid(renderScreen());
 
-      fireEvent.press(screen.getByTestId('pick-muscles-tile-chest'));
-      fireEvent.press(screen.getByTestId('pick-muscles-tile-biceps'));
-      fireEvent.press(screen.getByTestId('pick-muscles-tile-chest'));
+      fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
+      fireEvent.press(screen.getByTestId('pick-muscles-body-biceps'));
+      fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
       fireEvent.press(screen.getByText('Save'));
 
       await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
@@ -278,9 +291,7 @@ describe('PickMusclesScreen', () => {
       setRecovery([...fullyRecovered(), item('quadriceps', 0.12)]);
       const screen = openGrid(renderScreen());
 
-      expect(
-        screen.getByLabelText('Quadriceps, 12% recovered'),
-      ).toBeTruthy();
+      expect(screen.getByLabelText('Quadriceps, 12% recovered')).toBeTruthy();
     });
 
     // Training back trains both muscles the tile stands for, so the tile must
@@ -298,12 +309,34 @@ describe('PickMusclesScreen', () => {
       expect(screen.getByLabelText('Back, 20% recovered')).toBeTruthy();
     });
 
-    it('renders tiles before recovery has arrived', () => {
+    it('renders the figure before recovery has arrived', () => {
       setRecovery([]);
       const screen = openGrid(renderScreen());
 
-      expect(screen.getByTestId('pick-muscles-tile-chest')).toBeTruthy();
+      // Choosing what to train does not depend on knowing how fresh it is, so
+      // the region is there and pickable with no percentage to announce.
+      expect(screen.getByTestId('pick-muscles-body-chest')).toBeTruthy();
       expect(screen.getByLabelText('Chest')).toBeTruthy();
+    });
+
+    it('announces a picked region as selected', () => {
+      // The only way selection reaches a screen reader: react-native-svg passes
+      // no accessibility state through to a path, so it has to be in the label.
+      const screen = openGrid(renderScreen());
+
+      fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
+
+      expect(screen.getByLabelText('Chest, selected, 100% recovered')).toBeTruthy();
+    });
+
+    it('a muscle drawn in pieces is one control, not eight', () => {
+      // The illustration draws the quads as eight paths. Every one is pressable
+      // so any part of the region works, but only one announces itself — else a
+      // screen reader reads the same checkbox eight times.
+      const screen = openGrid(renderScreen());
+
+      expect(screen.getAllByTestId('pick-muscles-body-quadriceps')).toHaveLength(1);
+      expect(screen.getAllByLabelText(/^Quadriceps/)).toHaveLength(1);
     });
 
     it('returns to the split list on Cancel without generating', () => {
@@ -335,7 +368,7 @@ describe('PickMusclesScreen', () => {
     it('lets the screen go once a pick has generated', async () => {
       const screen = openGrid(renderScreen());
 
-      fireEvent.press(screen.getByTestId('pick-muscles-tile-chest'));
+      fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
       fireEvent.press(screen.getByText('Save'));
       await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('UpNext'));
 
