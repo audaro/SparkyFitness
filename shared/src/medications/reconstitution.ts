@@ -170,6 +170,21 @@ function sameUnitFamily(a: ReconstitutionUnit, b: ReconstitutionUnit): boolean {
 }
 
 /**
+ * Express `amount` of `from` in `to`, or null when the two units do not measure the same thing.
+ *
+ * The null is the whole point: IU has no general factor to mass, so a caller that wants a number
+ * has to decide what to do about the ones that cannot exist rather than receive a guess.
+ */
+export function convertReconstitutionUnits(
+  amount: number,
+  from: ReconstitutionUnit,
+  to: ReconstitutionUnit,
+): number | null {
+  if (!sameUnitFamily(from, to)) return null;
+  return convert(amount, from, to);
+}
+
+/**
  * Express `amount` of `from` in `to`, for units in the same family. mg → mcg is ×1000, spelled
  * out rather than implied. Callers must have checked `sameUnitFamily` first.
  */
