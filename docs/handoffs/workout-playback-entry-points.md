@@ -26,6 +26,8 @@ changed.
 | `8ba95ec91` | mobile  | First suite for `utils/workoutSupersets.ts`, the superset algebra           |
 | `19b095ec6` | docs    | Handoff records the superset suite; timezone sweep claim corrected          |
 | `e6ee3ccc0` | mobile  | First suite for `hooks/useWorkoutRecommendation.ts`                         |
+| `9eaa013a7` | docs    | Handoff records that suite, and corrects its `useFocusEffect` advice        |
+| `ecdc227de` | mobile  | First suite for `hooks/useGymProfiles.ts` — closes the untested three       |
 
 The long-form write-up for the web half lives in `exercise-home-phase-e.md` under E5 and E6, because
 the diagnosis it corrects belongs next to the phase that filed it. What follows is what a fresh
@@ -129,10 +131,10 @@ Mobile, run from `SparkyFitnessMobile/`. Green at `7ddf36da2`.
 | Command                                                        | Result                        |
 | -------------------------------------------------------------- | ----------------------------- |
 | `pnpm run validate`                                            | clean (tsc, lint, i18n audit) |
-| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6031 passed, 373 suites**   |
+| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6046 passed, 374 suites**   |
 
-Up from 5971 / 371; the delta is `__tests__/utils/workoutSupersets.test.ts` (41) and
-`__tests__/hooks/useWorkoutRecommendation.test.tsx` (19).
+Up from 5971 / 371. The delta is the three new suites: `utils/workoutSupersets` (41),
+`hooks/useWorkoutRecommendation` (19), `hooks/useGymProfiles` (15).
 
 The three health files were run at `Pacific/Midway` (UTC-11), `America/Los_Angeles`, `UTC`,
 `Europe/London`, `Asia/Tokyo` and `Pacific/Kiritimati` (UTC+14), and then the **whole** suite was run
@@ -156,9 +158,20 @@ the fork has touched, at one upstream commit in six months.
 
 ## Exact next step
 
-**The three mobile recommendation-family modules with no suite of their own.** Carried forward from
-Phase E and still true at `7ddf36da2`; `AGENTS.md` calls them out by name, because a change to any of
-them is only as tested as the screens that happen to use them:
+**Decide on the `409` substring match in `useGymProfiles.ts` — the one finding this work turned up
+and deliberately did not fix.** `isDuplicateNameError` classifies a duplicate profile name with
+`error.message.includes('409')`, against a message `apiClient` builds as
+`Server error: ${status} - ${errorText}`. So any failure whose **body text** contains `409` is
+reported to the user as "You already have a profile with that name." Verified, not inferred: a 500
+carrying `profile 409abc-dead-beef could not be written` produces exactly that message. The fix is
+one line — `error instanceof ApiError && error.statusCode === 409`, `ApiError` already carries the
+status — and it was left out because writing a suite is not licence to change behaviour under it.
+Whoever takes it should add the misclassification case to
+`__tests__/hooks/useGymProfiles.test.tsx` in the same commit.
+
+**Then: the section below is closed.** The three modules `AGENTS.md` called out as having no suite
+of their own now have one. Recorded here for the pattern each established, since the next untested
+module should follow them:
 
 1. ~~`utils/workoutSupersets.ts`~~ — **done in `8ba95ec91`**: 41 cases, mutation-checked against
    nine source mutations. Left as the model for the two below, in two respects. It is organized by
@@ -173,11 +186,10 @@ them is only as tested as the screens that happen to use them:
    hook gated on `enabled`, and how React Navigation delivers focus belongs to that hook's own
    suite. The `useFocusEffect` stub is still what a _screen_ suite needs, since those render real
    trees.
-3. **`hooks/useGymProfiles.ts`** — activation is a dedicated endpoint rather than a field on the
-   `PUT`, and equipment values are canonical lowercase because the catalog filter is case-sensitive.
-   Both are the kind of invariant a suite should pin.
+3. ~~`hooks/useGymProfiles.ts`~~ — **done in `ecdc227de`**, 15 cases, mutation-checked seven ways.
 
-All JS-only. **No native change, so no `expo prebuild` and no `expo run:ios`** — and Metro is
+All JS-only, including the `409` fix. **No native change, so no `expo prebuild` and no
+`expo run:ios`** — and Metro is
 already running detached with `EXPO_PACKAGER_PROXY_URL`, so do not restart it with a bare
 `pnpm start`. Gate with `pnpm run validate` plus
 `pnpm exec jest --watchman=false --runInBand --coverage=false` from `SparkyFitnessMobile/`, and do
@@ -196,6 +208,13 @@ above.
   the file.
 - **`ConfirmationDialog.cancelLabel` has no caller.** Added for symmetry with `confirmLabel` when the
   hardcoded strings came out. Defensible, but it is unused API until something needs "Keep editing".
+- **Three suites were written by mutating the source, not by watching them go green.** All three
+  passed on the first run; nine, seven and seven deliberate breakages then confirmed each case bites,
+  and one case in `workoutSupersets` passed under its own mutation and had to be rewritten. A green
+  first run on a suite for untested code is evidence of nothing. `SparkyFitnessMobile/AGENTS.md` was updated in the
+  same commit: its "no suite of their own" note for these three modules named them by hand, so
+  leaving it would have told the next session to rely on screen coverage that is no longer the only
+  thing there.
 - **A literal date in a mobile test is a latent failure, not a passing assertion.** Three files were
   fixed; the sweep stopped there deliberately rather than becoming a repo-wide pass. Everything the
   app dates by device-local day is a candidate — the health suites were simply where it surfaced.
