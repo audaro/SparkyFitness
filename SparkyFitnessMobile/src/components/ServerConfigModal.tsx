@@ -19,6 +19,7 @@ import Icon from './Icon';
 import FormInput, { UnfocusedInputEcho } from './FormInput';
 import SegmentedControl from './SegmentedControl';
 import MfaForm, { ErrorBanner, OidcProviderLogo, PrimaryButton } from './MfaForm';
+import { classifyLoginError, loginErrorMessage } from '../services/api/authErrors';
 import {
   login,
   LoginError,
@@ -407,27 +408,12 @@ const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
       clearPendingProxyHeaders();
       onSuccess();
     } catch (err) {
-      if (err instanceof LoginError) {
-        if (err.statusCode === 429) {
-          setError(t('auth.errors.tooManyAttempts', { defaultValue: 'Too many attempts. Please wait a moment and try again.' }));
-        } else if (err.message.toLowerCase().includes('invalid code')) {
-          setError(t('auth.errors.invalidVerificationCode', { defaultValue: 'Invalid verification code. Please try again.' }));
-        } else if (err.statusCode === undefined) {
-          setError(t('auth.errors.generic', { defaultValue: 'Authentication failed. Please try again.' }));
-        } else if (
-          err.message.includes('INVALID_TWO_FACTOR_COOKIE') ||
-          err.message.toLowerCase().includes('invalid two factor cookie') ||
-          err.message.includes('expired')
-        ) {
-          await clearAuthCookies();
-          setError(t('auth.errors.sessionExpired', { defaultValue: 'Your session has expired. Please sign in again.' }));
-          setStep('form');
-        } else {
-          setError(t('auth.errors.generic', { defaultValue: 'Authentication failed. Please try again.' }));
-        }
-      } else {
-        setError(t('auth.errors.verificationFailed', { defaultValue: 'Verification failed. Please try again.' }));
+      const failure = classifyLoginError(err);
+      if (failure === 'stale-two-factor-session') {
+        await clearAuthCookies();
+        setStep('form');
       }
+      setError(loginErrorMessage(failure, t));
     } finally {
       setLoading(false);
     }

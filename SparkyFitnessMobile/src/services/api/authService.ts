@@ -191,7 +191,14 @@ const getBetterAuthHeaders = async (serverUrl: string): Promise<Record<string, s
   };
 };
 
-const parseAuthErrorText = (errorText: string): string => {
+/**
+ * Splits an auth error body into the string shown to the user and the server's
+ * machine-readable code. The code is folded into the message as well, because
+ * that text is what surfaces when nothing classifies the failure — but it is
+ * returned separately so `classifyLoginError` can read it rather than search
+ * the prose for it.
+ */
+const parseAuthError = (errorText: string): { message: string; code?: string } => {
   try {
     const parsed = JSON.parse(errorText) as {
       code?: string;
@@ -201,21 +208,21 @@ const parseAuthErrorText = (errorText: string): string => {
     const message = parsed.message ?? parsed.error;
 
     if (message && parsed.code) {
-      return `${message} (${parsed.code})`;
+      return { message: `${message} (${parsed.code})`, code: parsed.code };
     }
 
     if (message) {
-      return message;
+      return { message };
     }
 
     if (parsed.code) {
-      return parsed.code;
+      return { message: parsed.code, code: parsed.code };
     }
   } catch {
     // Fall back to the raw response body.
   }
 
-  return errorText.trim();
+  return { message: errorText.trim() };
 };
 
 export const clearAuthCookies = async (): Promise<void> => {
@@ -258,10 +265,11 @@ export const login = async (
   }, DEFAULT_API_TIMEOUT_MS);
 
   if (!response.ok) {
-    const errorText = parseAuthErrorText(await response.text());
+    const parsed = parseAuthError(await response.text());
     throw new LoginError(
-      `Sign-in failed: ${response.status} - ${errorText}`,
+      `Sign-in failed: ${response.status} - ${parsed.message}`,
       response.status,
+      parsed.code,
     );
   }
 
@@ -334,7 +342,8 @@ export const verifyTotp = async (
   }, DEFAULT_API_TIMEOUT_MS);
 
   if (!response.ok) {
-    throw new LoginError(parseAuthErrorText(await response.text()), response.status);
+    const parsed = parseAuthError(await response.text());
+    throw new LoginError(parsed.message, response.status, parsed.code);
   }
 
   const body = await response.json();
@@ -367,7 +376,8 @@ export const sendEmailOtp = async (
   }, DEFAULT_API_TIMEOUT_MS);
 
   if (!response.ok) {
-    throw new LoginError(parseAuthErrorText(await response.text()), response.status);
+    const parsed = parseAuthError(await response.text());
+    throw new LoginError(parsed.message, response.status, parsed.code);
   }
 };
 
@@ -389,7 +399,8 @@ export const verifyEmailOtp = async (
   }, DEFAULT_API_TIMEOUT_MS);
 
   if (!response.ok) {
-    throw new LoginError(parseAuthErrorText(await response.text()), response.status);
+    const parsed = parseAuthError(await response.text());
+    throw new LoginError(parsed.message, response.status, parsed.code);
   }
 
   const body = await response.json();

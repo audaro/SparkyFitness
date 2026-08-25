@@ -296,6 +296,58 @@ describe('authService', () => {
       );
     });
 
+    test('LoginError carries the server code as a field, not only in the message', async () => {
+      // The message keeps the flattened `(CODE)` suffix for display, but the
+      // three MFA screens classify on this field — reading the code back out of
+      // the prose is what the substring matching they used to do amounted to.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ message: 'Two factor cookie missing', code: 'INVALID_TWO_FACTOR_COOKIE' }),
+          ),
+      });
+
+      try {
+        await login(serverUrl, 'user@test.com', 'wrong');
+        fail('Expected LoginError to be thrown');
+      } catch (error) {
+        expect((error as LoginError).code).toBe('INVALID_TWO_FACTOR_COOKIE');
+        expect((error as LoginError).message).toContain('(INVALID_TWO_FACTOR_COOKIE)');
+      }
+    });
+
+    test('a code-only error body sets both the code and the message', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve(JSON.stringify({ code: 'INVALID_TWO_FACTOR_COOKIE' })),
+      });
+
+      try {
+        await login(serverUrl, 'user@test.com', 'wrong');
+        fail('Expected LoginError to be thrown');
+      } catch (error) {
+        expect((error as LoginError).code).toBe('INVALID_TWO_FACTOR_COOKIE');
+      }
+    });
+
+    test('an error body with no code leaves the field undefined', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: () => Promise.resolve(JSON.stringify({ message: 'Account locked' })),
+      });
+
+      try {
+        await login(serverUrl, 'user@test.com', 'pass');
+        fail('Expected LoginError to be thrown');
+      } catch (error) {
+        expect((error as LoginError).code).toBeUndefined();
+      }
+    });
+
     test('LoginError includes statusCode and correct name', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -455,6 +507,26 @@ describe('authService', () => {
         });
 
       await expect(verifyTotp(serverUrl, '000000')).rejects.toThrow('Invalid code');
+    });
+
+    test('carries the server code through the MFA verify path too', async () => {
+      // This is the request that actually fails with a stale two-factor cookie.
+      const serverUrl = 'https://totp-code.example.com';
+      mockFetch
+        .mockResolvedValueOnce(mockAuthSettingsResponse(null))
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          text: () =>
+            Promise.resolve(JSON.stringify({ message: 'Nope', code: 'INVALID_TWO_FACTOR_COOKIE' })),
+        });
+
+      try {
+        await verifyTotp(serverUrl, '000000');
+        fail('Expected LoginError to be thrown');
+      } catch (error) {
+        expect((error as LoginError).code).toBe('INVALID_TWO_FACTOR_COOKIE');
+      }
     });
 
     test('throws LoginError when response has no token', async () => {
