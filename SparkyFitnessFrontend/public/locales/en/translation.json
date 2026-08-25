@@ -1139,6 +1139,43 @@
     "plans": "plans",
     "status": "Status"
   },
+  "weeklySetTargets": {
+    "cardTitle": "This Week",
+    "cardDescription": "Working sets per training group against your weekly targets.",
+    "weekRange": "{{start}} – {{end}}",
+    "percent": "{{percent}}%",
+    "derivedNote": "These targets are a starting point based on how often you train. Edit any group to set your own.",
+    "progress": "{{completed}} / {{target}} sets",
+    "remaining": "{{remaining}} to go",
+    "notTracked": "Not tracked",
+    "editTarget": "Edit {{group}} target",
+    "targetInputLabel": "{{group}} weekly set target",
+    "saveTarget": "Save",
+    "cancelEdit": "Cancel",
+    "history": "Recent weeks",
+    "saved": "Targets saved",
+    "saveError": "Could not save your targets.",
+    "loadError": "Failed to load your weekly targets.",
+    "group": {
+      "push": "Push Muscles",
+      "pull": "Pull Muscles",
+      "legs": "Leg Muscles",
+      "core": "Core Muscles"
+    },
+    "detail": {
+      "push": "Chest, shoulders, triceps",
+      "pull": "Back, lats, traps, biceps, forearms",
+      "legs": "Quads, hamstrings, glutes, calves",
+      "core": "Abdominals"
+    }
+  },
+  "muscleRecovery": {
+    "cardTitle": "Recovery",
+    "cardDescription": "How fresh each muscle is today — most recovered first.",
+    "percent": "{{percent}}%",
+    "empty": "Log a workout and your recovery will show up here.",
+    "loadError": "Failed to load your recovery."
+  },
   "upNext": {
     "cardTitle": "Up Next",
     "durationLabel": "Workout length",

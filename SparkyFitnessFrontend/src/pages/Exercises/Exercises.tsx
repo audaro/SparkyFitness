@@ -41,6 +41,8 @@ import WorkoutPresetsManager from './WorkoutPresetsManager';
 import WorkoutPlansManager from '@/pages/Exercises/WorkoutPlansManager';
 import GymProfilesManager from '@/pages/Exercises/GymProfilesManager';
 import UpNextCard from '@/pages/Exercises/UpNextCard';
+import WeeklySetTargetsCard from '@/pages/Exercises/WeeklySetTargetsCard';
+import MuscleRecoveryCard from '@/pages/Exercises/MuscleRecoveryCard';
 import {
   useExercises,
   useUpdateExerciseShareStatusMutation,
@@ -420,6 +422,13 @@ const ExerciseDatabaseManager = () => {
           for on most visits; the library below is for browsing and editing.
           Hides itself while acting on behalf of another user. */}
       <UpNextCard />
+
+      {/* This week's volume against target, then how fresh each muscle is —
+          the two readings that explain why Up Next programmed what it did.
+          Targets are owner-only; recovery only needs diary access, so the two
+          gate themselves differently. */}
+      <WeeklySetTargetsCard />
+      <MuscleRecoveryCard />
 
       {/* Exercises Section */}
       <Card>

@@ -1,14 +1,10 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { MUSCLES } from '@workspace/shared';
+import { freshnessPercent, freshnessTone, MUSCLES } from '@workspace/shared';
 
 import PickMusclesScreen from '../../src/screens/PickMusclesScreen';
 import { useMuscleRecovery } from '../../src/hooks/useMuscleRecovery';
 import { MUSCLE_TILES } from '../../src/constants/muscleTiles';
-import {
-  freshnessPercent,
-  freshnessTone,
-} from '../../src/utils/muscleRecoveryDisplay';
 import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';
 
 const mockGenerateRecommendation = jest.fn();

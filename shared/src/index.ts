@@ -119,6 +119,7 @@ export * from "./utils/calorieCalculations.ts";
 export * from "./utils/servingSizeConversions.ts";
 export * from "./utils/strengthMath.ts";
 export * from "./utils/muscleRecovery.ts";
+export * from "./utils/muscleRecoveryDisplay.ts";
 export * from "./utils/workoutGeneration.ts";
 export * from "./utils/weeklySetTargets.ts";
 export * from "./utils/nutrientMatching.ts";

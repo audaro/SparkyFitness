@@ -1,9 +1,14 @@
 /**
- * Display layer over the recovery engine (`shared/src/utils/muscleRecovery.ts`).
+ * Display layer over the recovery engine (`./muscleRecovery.ts`).
  *
  * The wire carries `freshness` as **0.0–1.0**; every surface renders it as a
- * whole percentage. Both conversions live here so the recovery strip, the
- * muscle grid and anything after them cannot disagree about what "84%" means.
+ * whole percentage. Both conversions live here so the mobile recovery strip,
+ * the mobile muscle grid, the web recovery card and anything after them cannot
+ * disagree about what "84%" means or about where "fresh" stops.
+ *
+ * In `shared/` rather than in one client because the bands are a shared reading
+ * of the same wire value: a threshold that drifted between platforms would call
+ * the same muscle fresh on the phone and fatigued on the web.
  */
 
 /** Freshness bands, coarse on purpose — this is a glanceable signal, not a gauge. */

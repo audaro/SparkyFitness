@@ -249,3 +249,17 @@ export function bucketEntriesByWeek(
   }
   return byWeek;
 }
+
+/**
+ * A set count as a user reads it.
+ *
+ * Counts here are fractional by design — an exercise that trains a group as a
+ * secondary mover contributes half a set — so a whole number must not render as
+ * "12.0" and a fractional one must not be rounded away to "8" when the user
+ * performed 7.5. Shared rather than per-client because the mobile week card and
+ * the web one show the same number and would otherwise be free to disagree
+ * about it.
+ */
+export function formatSetCount(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}

@@ -1,7 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import type { MuscleFreshnessResponse, MuscleRecoveryResponse } from '@workspace/shared';
+import {
+  freshnessPercent,
+  freshnessTone,
+  type FreshnessTone,
+  type MuscleFreshnessResponse,
+  type MuscleRecoveryResponse,
+} from '@workspace/shared';
 import { fetchMuscleRecovery } from '../services/api/workoutRecommendationsApi';
-import { freshnessPercent, freshnessTone, type FreshnessTone } from '../utils/muscleRecoveryDisplay';
 import { muscleRecoveryQueryKey } from './queryKeys';
 import { useRefetchOnFocus } from './useRefetchOnFocus';
 

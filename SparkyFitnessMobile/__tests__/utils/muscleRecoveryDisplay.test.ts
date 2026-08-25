@@ -1,7 +1,9 @@
-import {
-  freshnessPercent,
-  freshnessTone,
-} from '../../src/utils/muscleRecoveryDisplay';
+// The helpers live in `shared/src/utils/muscleRecoveryDisplay.ts`, which has no
+// test runner of its own, so they are asserted from a consumer — the same
+// arrangement as the on-demand themes, which shared owns and the server tests.
+// Mobile keeps the suite because it was the first consumer; the web recovery
+// card reads the same bands.
+import { freshnessPercent, freshnessTone } from '@workspace/shared';
 
 describe('freshnessPercent', () => {
   it('scales the 0.0-1.0 score to a whole percentage', () => {

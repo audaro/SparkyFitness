@@ -15,7 +15,7 @@ import {
   useUpdateWeeklySetTargets,
   useWeeklySetTargets,
 } from '../hooks/useWeeklySetTargets';
-import { formatSetCount } from '../utils/workoutSession';
+import { formatSetCount } from '@workspace/shared';
 import type {
   MuscleGroup,
   WeeklySetGroupProgress,

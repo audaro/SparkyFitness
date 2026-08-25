@@ -48,6 +48,23 @@ export const workoutRecommendationKeys = {
   current: () => [...workoutRecommendationKeys.all, 'current'] as const,
 };
 
+// Scoped by acting user, unlike the two keys above: recovery is derived from
+// logged exercise entries and rides the `diary` permission, so a delegate reads
+// a different account's vector and the two must not share a cache entry.
+export const muscleRecoveryKeys = {
+  all: ['muscleRecovery'] as const,
+  current: (userId?: string | null) =>
+    [...muscleRecoveryKeys.all, 'current', { userId }] as const,
+};
+
+// `historyWeeks` is part of the key because it changes the response, not just
+// the render — asking for eight weeks and asking for none are different reads.
+export const weeklySetTargetKeys = {
+  all: ['weeklySetTargets'] as const,
+  week: (historyWeeks: number) =>
+    [...weeklySetTargetKeys.all, { historyWeeks }] as const,
+};
+
 export const exerciseSearchKeys = {
   all: ['exerciseSearch'] as const,
   providers: ['exerciseSearch', 'providers'] as const,

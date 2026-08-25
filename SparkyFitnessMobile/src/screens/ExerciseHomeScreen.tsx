@@ -6,7 +6,7 @@ import { useCSSVariable } from 'uniwind';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { ExerciseSessionResponse } from '@workspace/shared';
+import { formatSetCount, type ExerciseSessionResponse } from '@workspace/shared';
 
 import CalendarSheet, { type CalendarSheetRef } from '../components/CalendarSheet';
 import CreateTile from '../components/CreateTile';
@@ -30,7 +30,6 @@ import { useWeeklySetGroupColors } from '../hooks/useWeeklySetGroupColors';
 import { useWeeklySetTargets } from '../hooks/useWeeklySetTargets';
 import { useActiveWorkoutStore } from '../stores/activeWorkoutStore';
 import { useExerciseDateStore } from '../stores/exerciseDateStore';
-import { formatSetCount } from '../utils/workoutSession';
 import type { MuscleGroup } from '../services/api/weeklySetTargetsApi';
 import type { RootStackParamList, TabParamList } from '../types/navigation';
 

@@ -151,15 +151,6 @@ export function formatDuration(minutes: number): string {
   return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
 }
 
-/**
- * Set counts are fractional — a set can count part-way towards a group when an
- * exercise trains it as a secondary muscle — so a whole number must not render
- * as "12.0".
- */
-export function formatSetCount(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
-
 export function getFirstImage(session: ExerciseSessionResponse): string | null {
   if (session.type === 'individual') {
     return session.exercise_snapshot?.images?.[0] ?? null;

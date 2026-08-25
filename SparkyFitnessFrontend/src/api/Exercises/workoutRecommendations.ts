@@ -1,12 +1,26 @@
 import { apiCall } from '@/api/api';
 import type {
   GenerateWorkoutRecommendationRequest,
+  MuscleRecoveryResponse,
   WorkoutRecommendationResponse,
 } from '@workspace/shared';
 
 export type WorkoutRecommendation = WorkoutRecommendationResponse;
 export type GenerateRecommendationPayload =
   GenerateWorkoutRecommendationRequest;
+export type MuscleRecovery = MuscleRecoveryResponse;
+
+/**
+ * Today's per-muscle recovery, freshest first.
+ *
+ * Unlike the rest of this route family, recovery is **not** owner-only: it is
+ * derived from logged exercise entries rather than from the coaching-context
+ * tables, so the route rides the `diary` permission and a delegate with diary
+ * access reads the account they are acting for.
+ */
+export const getMuscleRecovery = async (): Promise<MuscleRecovery> => {
+  return apiCall('/workout-recommendations/recovery', { method: 'GET' });
+};
 
 /**
  * The stored "Up Next" workout, or null when none has been generated.

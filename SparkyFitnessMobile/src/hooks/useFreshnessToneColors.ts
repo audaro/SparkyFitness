@@ -1,6 +1,6 @@
 import { useCSSVariable } from 'uniwind';
 
-import type { FreshnessTone } from '../utils/muscleRecoveryDisplay';
+import type { FreshnessTone } from '@workspace/shared';
 
 /**
  * The colour each recovery band is drawn in.

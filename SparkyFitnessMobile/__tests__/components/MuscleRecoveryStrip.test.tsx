@@ -1,13 +1,9 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import { MUSCLES } from '@workspace/shared';
+import { freshnessPercent, freshnessTone, MUSCLES } from '@workspace/shared';
 
 import MuscleRecoveryStrip from '../../src/components/MuscleRecoveryStrip';
 import { useMuscleRecovery } from '../../src/hooks/useMuscleRecovery';
-import {
-  freshnessPercent,
-  freshnessTone,
-} from '../../src/utils/muscleRecoveryDisplay';
 
 jest.mock('../../src/hooks/useMuscleRecovery', () => ({
   useMuscleRecovery: jest.fn(),

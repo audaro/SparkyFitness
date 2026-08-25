@@ -5,7 +5,7 @@ import { useCSSVariable } from 'uniwind';
 
 import Icon from './Icon';
 import { useFreshnessToneColors } from '../hooks/useFreshnessToneColors';
-import type { FreshnessTone } from '../utils/muscleRecoveryDisplay';
+import type { FreshnessTone } from '@workspace/shared';
 
 export interface MuscleTileProps {
   label: string;
