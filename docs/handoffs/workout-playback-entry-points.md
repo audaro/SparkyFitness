@@ -28,6 +28,8 @@ changed.
 | `e6ee3ccc0` | mobile  | First suite for `hooks/useWorkoutRecommendation.ts`                         |
 | `9eaa013a7` | docs    | Handoff records that suite, and corrects its `useFocusEffect` advice        |
 | `ecdc227de` | mobile  | First suite for `hooks/useGymProfiles.ts` — closes the untested three       |
+| `a9764dba7` | docs    | Handoff records that suite; mobile `AGENTS.md` note retired                 |
+| `1f463cd8c` | mobile  | Duplicate-profile-name error classified by status, not by substring         |
 
 The long-form write-up for the web half lives in `exercise-home-phase-e.md` under E5 and E6, because
 the diagnosis it corrects belongs next to the phase that filed it. What follows is what a fresh
@@ -131,7 +133,7 @@ Mobile, run from `SparkyFitnessMobile/`. Green at `7ddf36da2`.
 | Command                                                        | Result                        |
 | -------------------------------------------------------------- | ----------------------------- |
 | `pnpm run validate`                                            | clean (tsc, lint, i18n audit) |
-| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6046 passed, 374 suites**   |
+| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6048 passed, 374 suites**   |
 
 Up from 5971 / 371. The delta is the three new suites: `utils/workoutSupersets` (41),
 `hooks/useWorkoutRecommendation` (19), `hooks/useGymProfiles` (15).
@@ -158,20 +160,29 @@ the fork has touched, at one upstream commit in six months.
 
 ## Exact next step
 
-**Decide on the `409` substring match in `useGymProfiles.ts` — the one finding this work turned up
-and deliberately did not fix.** `isDuplicateNameError` classifies a duplicate profile name with
-`error.message.includes('409')`, against a message `apiClient` builds as
-`Server error: ${status} - ${errorText}`. So any failure whose **body text** contains `409` is
-reported to the user as "You already have a profile with that name." Verified, not inferred: a 500
-carrying `profile 409abc-dead-beef could not be written` produces exactly that message. The fix is
-one line — `error instanceof ApiError && error.statusCode === 409`, `ApiError` already carries the
-status — and it was left out because writing a suite is not licence to change behaviour under it.
-Whoever takes it should add the misclassification case to
-`__tests__/hooks/useGymProfiles.test.tsx` in the same commit.
+**Decide whether the other five substring status matches follow the `409` fix.** `1f463cd8c`
+replaced `error.message.includes('409')` in `useGymProfiles.ts` with `hasApiStatus(error, 409)`,
+reading `ApiError.statusCode` instead of the message text, and put `hasApiStatus` in
+`services/api/errors.ts` so the rest have somewhere to land. Five call sites still match the old way
+and carry the same false positive — any failure whose **body** contains those digits is classified
+as the specific one it was screening for:
 
-**Then: the section below is closed.** The three modules `AGENTS.md` called out as having no suite
-of their own now have one. Recorded here for the pattern each established, since the next untested
-module should follow them:
+| File                                 | Matches      |
+| ------------------------------------ | ------------ |
+| `hooks/useUpdateFoodEntry.ts`        | `403`        |
+| `hooks/useUpdateFoodEntryMeal.ts`    | `403`        |
+| `hooks/useDeleteFood.ts`             | `403`        |
+| `hooks/useWorkoutPresetMutations.ts` | `403`, `404` |
+| `hooks/useExerciseMutations.ts`      | `403`, `404` |
+
+Not a mechanical sweep, which is why it did not ride along with the fix: each site has its own copy
+and its own callers, none of the five has a suite pinning the classification at all, and a 403 on a
+food shared with the user is a real flow whose message someone chose deliberately. Do them with a
+case each, the way `useGymProfiles` now has one.
+
+**The list below is closed** — the three modules `AGENTS.md` called out as having no suite of their
+own now have one, and that note has been retired. Kept for the pattern each established, since the
+next untested module should follow them:
 
 1. ~~`utils/workoutSupersets.ts`~~ — **done in `8ba95ec91`**: 41 cases, mutation-checked against
    nine source mutations. Left as the model for the two below, in two respects. It is organized by
