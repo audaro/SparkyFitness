@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { formatDateToYYYYMMDD } from '@/lib/utils';
+import { todayInZone } from '@workspace/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,7 +43,8 @@ import {
 } from '@/hooks/Exercises/useWorkoutPresets';
 import { useLogWorkoutPresetMutation } from '@/hooks/Exercises/useExerciseEntries';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import { createWorkoutPlaybackRouteState } from '@/utils/workoutPlayback';
+import { useWorkoutPlaybackStart } from '@/hooks/Exercises/useWorkoutPlaybackStart';
+import { createWorkoutPlaybackDraftFromPreset } from '@/utils/workoutPlayback';
 import { formatWeight } from '@/utils/numberFormatting';
 import WorkoutPresetSelector from './WorkoutPresetSelector';
 
@@ -62,11 +62,10 @@ const MAX_PRESET_NAME_LENGTH = 255;
 
 const WorkoutPresetsManager = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const location = useLocation();
   const { user } = useAuth();
   const isMobile = useIsMobile();
-  const { weightUnit } = usePreferences();
+  const { weightUnit, timezone } = usePreferences();
+  const { requestStart, guardDialog } = useWorkoutPlaybackStart();
 
   const [isAddPresetDialogOpen, setIsAddPresetDialogOpen] = useState(false);
   const [isStartWorkoutDialogOpen, setIsStartWorkoutDialogOpen] =
@@ -200,7 +199,10 @@ const WorkoutPresetsManager = () => {
   const handleLogPresetToDiary = React.useCallback(
     async (preset: WorkoutPreset) => {
       try {
-        const today = formatDateToYYYYMMDD(new Date());
+        // Same day string the Start path uses. Logging and starting the same
+        // preset must not land on two different days for a user whose timezone
+        // differs from their machine's.
+        const today = todayInZone(timezone);
         await logWorkoutPreset({ presetId: preset.id, date: today });
         toast({
           title: t('common.success', 'Success'),
@@ -218,23 +220,23 @@ const WorkoutPresetsManager = () => {
         });
       }
     },
-    [logWorkoutPreset, t]
+    [logWorkoutPreset, t, timezone]
   );
 
   const handleStartWorkoutPlayback = React.useCallback(
     (preset: WorkoutPreset) => {
-      const today = formatDateToYYYYMMDD(new Date());
-      const routeState = createWorkoutPlaybackRouteState(
-        preset,
-        today,
-        `${location.pathname}${location.search}`
-      );
+      // `todayInZone`, not the machine's local date: a user whose timezone
+      // differs from their laptop's would otherwise start a workout on one day
+      // string here and see the other everywhere the diary computes a day —
+      // including the stored playback draft this checks for.
+      const today = todayInZone(timezone);
 
-      navigate(`/workout-playback?date=${today}`, {
-        state: routeState,
+      requestStart({
+        entryDate: today,
+        createDraft: () => createWorkoutPlaybackDraftFromPreset(preset, today),
       });
     },
-    [location.pathname, location.search, navigate]
+    [requestStart, timezone]
   );
 
   const columns = React.useMemo<ColumnDef<WorkoutPreset>[]>(
@@ -579,6 +581,8 @@ const WorkoutPresetsManager = () => {
           initialPreset={selectedPreset}
         />
       )}
+
+      {guardDialog}
     </div>
   );
 };

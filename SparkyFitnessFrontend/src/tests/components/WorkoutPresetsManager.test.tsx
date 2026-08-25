@@ -2,8 +2,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import WorkoutPresetsManager from '@/pages/Exercises/WorkoutPresetsManager';
 import type { WorkoutPreset } from '@/types/workout';
+import {
+  createWorkoutPlaybackDraftFromPreset,
+  saveWorkoutPlaybackDraftToStorage,
+  type WorkoutPlaybackDraft,
+} from '@/utils/workoutPlayback';
+import { todayInZone } from '@workspace/shared';
 
 const mockCreatePreset = jest.fn();
+const mockNavigate = jest.fn();
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -31,12 +38,14 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('react-router-dom', () => ({
-  useNavigate: () => jest.fn(),
+  useNavigate: () => mockNavigate,
   useLocation: () => ({ pathname: '/exercises', search: '' }),
 }));
 
 jest.mock('@/contexts/PreferencesContext', () => ({
-  usePreferences: () => ({ weightUnit: 'kg' }),
+  // `timezone` matters here: the preset paths log to today in the *user's*
+  // timezone, not the machine's local date.
+  usePreferences: () => ({ weightUnit: 'kg', timezone: 'UTC' }),
 }));
 
 jest.mock('@/hooks/useAuth', () => ({
@@ -133,5 +142,62 @@ describe('WorkoutPresetsManager duplicate preset', () => {
     } finally {
       presetFixture.name = originalName;
     }
+  });
+});
+
+describe('WorkoutPresetsManager start workout', () => {
+  // The mocked timezone, so this matches what the component computes.
+  const today = todayInZone('UTC');
+
+  const startPresetFromRowMenu = async () => {
+    const trigger = screen.getAllByRole('button', { name: /open menu/i })[0]!;
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerId: 1 });
+    fireEvent.click(trigger);
+    // By role, not by text: "Start Workout" is also the page header button and
+    // the title of the dialog it opens.
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: /start workout/i })
+    );
+  };
+
+  const navigatedState = (): {
+    returnTo?: string;
+    draft?: WorkoutPlaybackDraft;
+  } => mockNavigate.mock.calls[0]![1].state;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  it('enters playback with the preset as a draft, logged to today in the user timezone', async () => {
+    render(<WorkoutPresetsManager />);
+    await startPresetFromRowMenu();
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
+    expect(mockNavigate.mock.calls[0]![0]).toBe(
+      `/workout-playback?date=${today}`
+    );
+    expect(navigatedState().draft?.name).toBe('Upper Body');
+    expect(navigatedState().draft?.entry_date).toBe(today);
+  });
+
+  it('prompts before replacing a workout already in progress for the day', async () => {
+    saveWorkoutPlaybackDraftToStorage(
+      createWorkoutPlaybackDraftFromPreset(presetFixture, today)
+    );
+
+    render(<WorkoutPresetsManager />);
+    await startPresetFromRowMenu();
+
+    // Without the guard the route-state draft would replace the stored one on
+    // arrival, taking every set logged into it.
+    expect(
+      await screen.findByText('Workout already in progress')
+    ).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Start new workout'));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
   });
 });

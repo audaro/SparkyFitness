@@ -109,13 +109,28 @@ Mobile's `buildRecommendationDraftExercises` was a reference, not a donor, as ex
 the preset _form_ type (display strings in the user's units, mobile's set-type vocabulary, client
 ids), so only its field-by-field decisions carried over.
 
-**One hazard was found and fenced.** A route-state draft _replaces_ whatever is in `localStorage` for
-that day, so starting a workout on a day that already has an unfinished one silently discards it.
-Start now prompts, offering Resume (navigate with no draft, so the page falls back to the stored one)
-or Start new. **The two preset entry points — `ExerciseCard.handleWorkoutPresetSelected` and
-`WorkoutPresetsManager.handleStartWorkoutPlayback` — have the same hazard and no such prompt.** That
-is pre-existing and was left alone, but it is a real data-loss path and the fix is now sitting in
-`UpNextCard` ready to be reused.
+**One hazard was found and fenced, on all three entry points.** A route-state draft _replaces_
+whatever is in `localStorage` for that day, so starting a workout on a day that already has an
+unfinished one silently discards it. Starting now prompts, offering Resume (navigate with **no**
+draft, so the page falls back to the stored one) or Start new. The two preset entry points —
+`ExerciseCard.handleWorkoutPresetSelected` and `WorkoutPresetsManager.handleStartWorkoutPlayback` —
+carried the identical pre-existing hazard, so with three call sites the guard became
+`hooks/Exercises/useWorkoutPlaybackStart.tsx` rather than a third copy: it owns the storage check,
+the prompt, and the navigate, and returns `{ requestStart, guardDialog }`. A fourth entry point that
+navigates to `/workout-playback` on its own reintroduces the data loss, which is why the check lives
+behind the only sanctioned way in.
+
+Two details of that hook are load-bearing. `createDraft` is a **callback**, not a draft: a draft
+stamps `started_at` when it is built, so building one for a start the user then cancels would carry a
+start time that never happened. And Resume passes no draft at all — falling back to the stored draft
+is exactly what resuming means, and passing one would be the overwrite being guarded against.
+
+Rewiring the presets manager surfaced an adjacent wrong-day bug: both `handleStartWorkoutPlayback`
+and `handleLogPresetToDiary` dated the workout with `formatDateToYYYYMMDD(new Date())` — the
+machine's local date — so for a user whose timezone differs from their laptop's, logging a preset and
+starting it could land on two different days. Both use `todayInZone(timezone)` now. The diary card is
+the deliberate exception: it starts on the day being viewed (`selectedDate`), because the diary is a
+day view.
 
 Also worth knowing: the workout is always logged to **today in the user's timezone**, never the
 `?date=` the Exercise page browses with, because it was programmed against today's recovery. And

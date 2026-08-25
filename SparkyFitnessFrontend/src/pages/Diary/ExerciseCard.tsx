@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,7 +38,8 @@ import {
 } from '@workspace/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { exerciseByIdOptions } from '@/hooks/Exercises/useExercises';
-import { createWorkoutPlaybackRouteState } from '@/utils/workoutPlayback';
+import { createWorkoutPlaybackDraftFromPreset } from '@/utils/workoutPlayback';
+import { useWorkoutPlaybackStart } from '@/hooks/Exercises/useWorkoutPlaybackStart';
 import {
   Exercise,
   ExerciseEntry,
@@ -66,7 +66,7 @@ const ExerciseCard = ({
   onExercisesLogged,
 }: ExerciseCardProps) => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { requestStart, guardDialog } = useWorkoutPlaybackStart();
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
   const { loggingLevel, energyUnit, convertEnergy, getEnergyUnitString } =
@@ -220,15 +220,16 @@ const ExerciseCard = ({
 
   const handleWorkoutPresetSelected = (preset: WorkoutPreset) => {
     debug(loggingLevel, 'Workout preset selected in ExerciseCard:', preset);
-    const routeState = createWorkoutPlaybackRouteState(
-      preset,
-      selectedDate,
-      `${window.location.pathname}${window.location.search}`
-    );
 
+    // Closed first, not in the start callback: `requestStart` may open the
+    // in-progress prompt instead of navigating, and stacking that on top of the
+    // add dialog would bury it.
     handleCloseAddDialog();
-    navigate(`/workout-playback?date=${selectedDate}`, {
-      state: routeState,
+
+    requestStart({
+      entryDate: selectedDate,
+      createDraft: () =>
+        createWorkoutPlaybackDraftFromPreset(preset, selectedDate),
     });
   };
 
@@ -602,6 +603,8 @@ const ExerciseCard = ({
         convertEnergy={convertEnergy}
         getEnergyUnitString={getEnergyUnitString}
       />
+
+      {guardDialog}
     </Card>
   );
 };

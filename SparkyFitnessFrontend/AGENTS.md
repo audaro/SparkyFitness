@@ -110,11 +110,16 @@ card per reading under `pages/Exercises/`. Four rules, each of which has already
   `hooks/Exercises/useCoachingContextAvailable.ts`, with its query disabled so no request is made.
 - **Starting a generated workout goes through playback, not the preset path.** "Start workout" builds
   a `WorkoutPlaybackDraft` with `createWorkoutPlaybackDraftFromRecommendation` and hands it to
-  `/workout-playback` in route state. Two things to know before touching it: a route-state draft
-  **replaces** whatever is in `localStorage` for that day, so any new entry point needs the
-  in-progress prompt `UpNextCard` uses; and the day is always today in the user's timezone, never the
+  `/workout-playback` in route state. The day is always today in the user's timezone, never the
   page's `?date=`, because the workout was programmed against today's recovery. `preset_id` is null
   on such a draft — a recommendation is not a preset, and nothing resolves one through that field.
+- **Every way into playback goes through `hooks/Exercises/useWorkoutPlaybackStart.tsx`.** A
+  route-state draft **replaces** whatever is in `localStorage` for that day, so starting a workout on
+  a day that already has an unfinished one destroys it. The hook is the prompt in front of that, used
+  by all three entry points (Up Next, the presets manager row menu, the diary's preset selector);
+  drop its `guardDialog` in the tree and call `requestStart`. Navigating to `/workout-playback` with a
+  draft any other way reintroduces the data loss. Pass `createDraft` as a callback, not a built draft
+  — building one stamps `started_at`, which must not happen for a start the user cancels.
 
 ## Translations (i18n)
 

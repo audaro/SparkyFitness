@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Dumbbell,
@@ -14,13 +13,11 @@ import {
   isWarmupSetType,
   todayInZone,
   type RecommendedExercise,
-  type WorkoutRecommendationPayload,
 } from '@workspace/shared';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import ConfirmationDialog from '@/components/ui/ConfirmationDialog';
 import {
   Select,
   SelectContent,
@@ -36,11 +33,9 @@ import {
   useWorkoutRecommendation,
 } from '@/hooks/Exercises/useWorkoutRecommendation';
 import { useGymProfiles } from '@/hooks/Exercises/useGymProfiles';
+import { useWorkoutPlaybackStart } from '@/hooks/Exercises/useWorkoutPlaybackStart';
 import { titleCaseCanonical } from '@/utils/canonicalVocabulary';
-import {
-  createRecommendationPlaybackRouteState,
-  loadWorkoutPlaybackDraftFromStorage,
-} from '@/utils/workoutPlayback';
+import { createWorkoutPlaybackDraftFromRecommendation } from '@/utils/workoutPlayback';
 
 /** The durations the engine accepts, inside the wire's 15–180 bound. */
 const DURATION_CHOICES = [20, 30, 45, 60, 90, 120] as const;
@@ -116,8 +111,6 @@ function formatRecommendedSets(
  */
 const UpNextCard: React.FC = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const location = useLocation();
   const available = useCoachingContextAvailable();
   const { weightUnit, convertWeight, distanceUnit, convertDistance, timezone } =
     usePreferences();
@@ -128,9 +121,9 @@ const UpNextCard: React.FC = () => {
   const { mutate: generate, isPending: isGenerating } =
     useGenerateWorkoutRecommendationMutation();
   const { mutate: markStatus } = useUpdateWorkoutRecommendationStatusMutation();
+  const { requestStart, guardDialog } = useWorkoutPlaybackStart();
 
   const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
-  const [pendingStartDate, setPendingStartDate] = useState<string | null>(null);
 
   // A `disabled` prop follows a render and loses to a fast double-tap, so the
   // in-flight check is a ref — the same guard the mobile pickers use.
@@ -185,48 +178,29 @@ const UpNextCard: React.FC = () => {
   };
 
   /**
-   * Hand the generated workout to the playback page.
+   * Start the generated workout.
    *
-   * The date is today in the user's timezone, never the `?date=` this page uses
+   * The day is today in the user's timezone, never the `?date=` this page uses
    * for browsing past days: the workout was programmed against today's recovery,
    * so starting it while looking back at last Tuesday would log it to a day it
    * was not built for.
    */
-  const goToPlayback = (
-    startPayload: WorkoutRecommendationPayload,
-    entryDate: string
-  ) => {
-    const routeState = createRecommendationPlaybackRouteState(
-      startPayload,
-      entryDate,
-      t('upNext.sessionName', 'Up Next workout'),
-      `${location.pathname}${location.search}`
-    );
-
-    navigate(`/workout-playback?date=${entryDate}`, { state: routeState });
-
-    // Fired after navigating, and nothing waits on it — see the hook. A start
-    // the marker never records is still a start.
-    if (recommendation) {
-      markStatus({ id: recommendation.id, status: 'started' });
-    }
-  };
-
   const handleStart = () => {
-    if (!payload) return;
+    if (!payload || !recommendation) return;
 
-    const entryDate = todayInZone(timezone);
-
-    // A route-state draft replaces whatever is in storage for that day, so a
-    // workout already in progress would vanish without this. The preset entry
-    // points have the same hazard and no such prompt; this one is the door
-    // being added today.
-    if (loadWorkoutPlaybackDraftFromStorage(entryDate)) {
-      setPendingStartDate(entryDate);
-      return;
-    }
-
-    goToPlayback(payload, entryDate);
+    requestStart({
+      entryDate: todayInZone(timezone),
+      createDraft: () =>
+        createWorkoutPlaybackDraftFromRecommendation(
+          payload,
+          todayInZone(timezone),
+          t('upNext.sessionName', 'Up Next workout')
+        ),
+      // Best-effort lifecycle marker, fired after the navigation and waited on
+      // by nothing — see the hook. A start the marker never records is still a
+      // start, and it must never unwind one.
+      onStarted: () => markStatus({ id: recommendation.id, status: 'started' }),
+    });
   };
 
   if (!available) {
@@ -416,40 +390,7 @@ const UpNextCard: React.FC = () => {
         )}
       </CardHeader>
       <CardContent>{renderBody()}</CardContent>
-      <ConfirmationDialog
-        open={pendingStartDate !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingStartDate(null);
-        }}
-        title={t(
-          'upNext.replaceInProgressTitle',
-          'Workout already in progress'
-        )}
-        description={t(
-          'upNext.replaceInProgressDescription',
-          'You have an unfinished workout for today. Starting this one replaces it, and anything you logged in the unfinished workout is lost.'
-        )}
-        variant="destructive"
-        confirmLabel={t('upNext.replaceInProgressConfirm', 'Start new workout')}
-        onConfirm={() => {
-          const entryDate = pendingStartDate;
-          setPendingStartDate(null);
-          if (payload && entryDate) {
-            goToPlayback(payload, entryDate);
-          }
-        }}
-        secondaryActionLabel={t('upNext.resumeInProgress', 'Resume it')}
-        onSecondaryAction={() => {
-          const entryDate = pendingStartDate;
-          setPendingStartDate(null);
-          if (!entryDate) return;
-          // No route state: the playback page falls back to the stored draft,
-          // which is exactly the unfinished workout being resumed.
-          navigate(`/workout-playback?date=${entryDate}`, {
-            state: { returnTo: `${location.pathname}${location.search}` },
-          });
-        }}
-      />
+      {guardDialog}
     </Card>
   );
 };

@@ -654,6 +654,10 @@
   },
   "exercise": {
     "title": "Exercises",
+    "replaceInProgressTitle": "Workout already in progress",
+    "replaceInProgressDescription": "You have an unfinished workout for this day. Starting this one replaces it, and anything you logged in the unfinished workout is lost.",
+    "replaceInProgressConfirm": "Start new workout",
+    "resumeInProgress": "Resume it",
     "addExerciseDialog": {
       "title": "Add Exercise",
       "description": "Add a new exercise to your database, either by creating a custom one or importing from an external source.",
@@ -1194,11 +1198,7 @@
     "estimatedMinutes": "~{{minutes}} min",
     "restChip": "{{rest}} rest",
     "start": "Start workout",
-    "sessionName": "Up Next workout",
-    "replaceInProgressTitle": "Workout already in progress",
-    "replaceInProgressDescription": "You have an unfinished workout for today. Starting this one replaces it, and anything you logged in the unfinished workout is lost.",
-    "replaceInProgressConfirm": "Start new workout",
-    "resumeInProgress": "Resume it"
+    "sessionName": "Up Next workout"
   },
   "gymProfilesManager": {
     "cardTitle": "Gym Profiles",
