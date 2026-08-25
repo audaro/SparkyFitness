@@ -25,6 +25,7 @@ import WhatsNewBanner, {
 import { AnnouncementModal } from './AnnouncementModal';
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
 import { useHeaderActionColors } from '../hooks/useHeaderActionColors';
+import { useTranslation } from 'react-i18next';
 
 export const NON_ADD_TABS = ['Home', 'Exercise', 'Food', 'Settings'] as const;
 export type NonAddTabName = typeof NON_ADD_TABS[number];
@@ -193,6 +194,7 @@ function FoodStackScreen() {
 }
 
 function SettingsStackScreen() {
+  const { t } = useTranslation();
   const { defaultColor } = useHeaderActionColors();
   const textPrimary = useCSSVariable('--color-text-primary') as string;
   const screenOptions = React.useMemo(
@@ -203,7 +205,7 @@ function SettingsStackScreen() {
   return (
     <View className="flex-1">
       <SettingsStack.Navigator screenOptions={screenOptions}>
-        <SettingsStack.Screen name="SettingsRoot" component={SafeSettings as React.ComponentType} options={{ title: 'Settings', headerBackTitle: 'Settings' }} />
+        <SettingsStack.Screen name="SettingsRoot" component={SafeSettings as React.ComponentType} options={{ title: t('navigation.settings', { defaultValue: 'Settings' }), headerBackTitle: t('navigation.settings', { defaultValue: 'Settings' }) }} />
       </SettingsStack.Navigator>
       <NativeTabsBannerOverlay />
     </View>
@@ -215,6 +217,7 @@ export function NativeTabsLayout({
   rememberActiveTab,
   getLastActiveTab,
 }: { onAddPress?: () => void } & TabTrackingProps) {
+  const { t } = useTranslation();
   const [primary, tabActive, tabInactive] = useCSSVariable([
     '--color-accent-primary',
     '--color-tab-active',
@@ -246,7 +249,7 @@ export function NativeTabsLayout({
             name="Home"
             component={HomeStackScreen}
             options={{
-              tabBarLabel: 'Home',
+              tabBarLabel: t('navigation.dashboard', { defaultValue: 'Home' }),
               tabBarIcon: () => ({ sfSymbol: 'square.grid.2x2.fill' } as unknown as AppleIcon),
             }}
           />
@@ -254,7 +257,7 @@ export function NativeTabsLayout({
             name="Exercise"
             component={ExerciseStackScreen}
             options={{
-              tabBarLabel: 'Exercise',
+              tabBarLabel: t('navigation.exercise', { defaultValue: 'Exercise' }),
               tabBarIcon: () =>
                 ({ sfSymbol: 'figure.strengthtraining.traditional' } as unknown as AppleIcon),
             }}
@@ -262,7 +265,7 @@ export function NativeTabsLayout({
           <NativeTab.Screen
             name="Add"
             options={{
-              tabBarLabel: 'Add',
+              tabBarLabel: t('navigation.add', { defaultValue: 'Add' }),
               tabBarIcon: () => ADD_TAB_ICON,
               role: 'search',
               preventsDefault: true,
@@ -280,7 +283,7 @@ export function NativeTabsLayout({
             name="Food"
             component={FoodStackScreen}
             options={{
-              tabBarLabel: 'Food',
+              tabBarLabel: t('navigation.diary', { defaultValue: 'Food' }),
               tabBarIcon: () => ({ sfSymbol: 'fork.knife' } as unknown as AppleIcon),
             }}
           />
@@ -288,7 +291,7 @@ export function NativeTabsLayout({
             name="Settings"
             component={SettingsStackScreen}
             options={{
-              tabBarLabel: 'Settings',
+              tabBarLabel: t('navigation.settings', { defaultValue: 'Settings' }),
               tabBarIcon: () => ({ sfSymbol: 'gearshape.fill' } as unknown as AppleIcon),
             }}
           />
@@ -302,6 +305,7 @@ export function FallbackTabsLayout({
   rememberActiveTab,
   getLastActiveTab,
 }: { onAddPress?: () => void } & TabTrackingProps) {
+  const { t } = useTranslation();
   // The AddSheet is rendered in App.tsx with proper props
   return (
     <FallbackTab.Navigator
@@ -328,10 +332,11 @@ export function FallbackTabsLayout({
         </View>
       )}
     >
-      <FallbackTab.Screen name="Home" component={SafeHome} />
-      <FallbackTab.Screen name="Exercise" component={SafeExercise} />
+      <FallbackTab.Screen name="Home" component={SafeHome} options={{ tabBarLabel: t('navigation.dashboard', { defaultValue: 'Home' }), tabBarAccessibilityLabel: t('navigation.dashboard', { defaultValue: 'Home' }) }} />
+      <FallbackTab.Screen name="Exercise" component={SafeExercise} options={{ tabBarLabel: t('navigation.exercise', { defaultValue: 'Exercise' }), tabBarAccessibilityLabel: t('navigation.exercise', { defaultValue: 'Exercise' }) }} />
       <FallbackTab.Screen
         name="Add"
+        options={{ tabBarLabel: t('navigation.add', { defaultValue: 'Add' }), tabBarAccessibilityLabel: t('navigation.add', { defaultValue: 'Add' }) }}
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
@@ -341,8 +346,8 @@ export function FallbackTabsLayout({
       >
         {() => <AddRedirectScreen getLastActiveTab={getLastActiveTab} />}
       </FallbackTab.Screen>
-      <FallbackTab.Screen name="Food" component={SafeFood} />
-      <FallbackTab.Screen name="Settings" component={SafeSettings} />
+      <FallbackTab.Screen name="Food" component={SafeFood} options={{ tabBarLabel: t('navigation.diary', { defaultValue: 'Food' }), tabBarAccessibilityLabel: t('navigation.diary', { defaultValue: 'Food' }) }} />
+      <FallbackTab.Screen name="Settings" component={SafeSettings} options={{ tabBarLabel: t('navigation.settings', { defaultValue: 'Settings' }), tabBarAccessibilityLabel: t('navigation.settings', { defaultValue: 'Settings' }) }} />
     </FallbackTab.Navigator>
   );
 }

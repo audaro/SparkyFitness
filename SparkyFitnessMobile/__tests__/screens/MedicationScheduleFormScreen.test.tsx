@@ -2,7 +2,7 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { pressAction } from './helpers/nativeHeaderTestUtils';
+import { pressAction, skipDuplicatePressWindow } from './helpers/nativeHeaderTestUtils';
 import MedicationScheduleFormScreen from '../../src/screens/MedicationScheduleFormScreen';
 import {
   useMedicationDetail,
@@ -295,8 +295,11 @@ describe('MedicationScheduleFormScreen', () => {
     expect(Alert.alert).toHaveBeenCalledWith('Required', 'Select at least one day of the week.');
     expect(createMutate).not.toHaveBeenCalled();
 
-    fireEvent.press(screen.getByLabelText('Wed'));
-    fireEvent.press(screen.getByLabelText('Mon'));
+    fireEvent.press(screen.getByLabelText('Wednesday, not selected'));
+    fireEvent.press(screen.getByLabelText('Monday, not selected'));
+    // Picking the days is seconds of real user time; the header Save guard
+    // treats two presses inside its window as one.
+    skipDuplicatePressWindow();
     pressAction(screen, mockNavigation, 'Save');
 
     expect(createMutate).toHaveBeenCalledWith(
@@ -365,7 +368,7 @@ describe('MedicationScheduleFormScreen', () => {
     );
     const screen = renderScreen({ medicationId: 'med-1', scheduleId: 'sched-1' });
 
-    expect(screen.getByLabelText('Wed').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByLabelText('Wednesday, selected').props.accessibilityState.selected).toBe(true);
 
     fireEvent.press(screen.getByText('opt-daily'));
 

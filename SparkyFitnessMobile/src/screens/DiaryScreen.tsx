@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import { View, Text, ScrollView, RefreshControl } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Button from '../components/ui/Button';
 import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
 import { useFocusEffect } from '@react-navigation/native';
@@ -44,6 +45,7 @@ import {
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
 import { useDiaryDateStore } from '../stores/diaryDateStore';
 import { getHistoricalMealTypeLabel, getMealTypeDisplayLabel } from '../utils/mealNutrition';
+import { formatDateLabel } from '../utils/dateUtils';
 import type { FoodEntry } from '../types/foodEntries';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -61,6 +63,8 @@ const RECENT_LIMIT = 4;
 type RecentItem = { type: 'meal'; data: Meal } | { type: 'food'; data: FoodItem };
 
 const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
+  const { t , i18n: translationI18n } = useTranslation();
+  const dateLocale = translationI18n.language.startsWith('pl') ? 'pl-PL' : 'en-US';
   const insets = useSafeAreaInsets();
   const selectedDate = useDiaryDateStore((s) => s.selectedDate);
   const setSelectedDate = useDiaryDateStore((s) => s.setSelectedDate);
@@ -109,7 +113,12 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
         onDatePress: openCalendar,
         onNextDate: goToNextDay,
         tintColor: nativeHeaderActionColor,
-        accessibilityLabel: 'Choose diary date',
+        accessibilityLabel: t('diary.chooseDate', { defaultValue: 'Choose diary date' }),
+        previousDayLabel: t('common.previousDay', { defaultValue: ': previous day' }),
+        nextDayLabel: t('common.nextDay', { defaultValue: ': next day' }),
+        dateLabel: `${formatDateLabel(selectedDate, t, dateLocale)} ▾`,
+        t,
+        locale: dateLocale,
       },
     );
   }, [
@@ -120,6 +129,8 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
     openCalendar,
     selectedDate,
     usesNativeTabs,
+    t,
+    dateLocale,
   ]);
 
   useLayoutEffect(() => {
@@ -145,8 +156,8 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
       // a deleted/hidden type fall back to the literal historical name.
       const definition = mealTypes.find((mt) => mt.id === mealTypeId) ?? null;
       const mealLabel = definition
-        ? getMealTypeDisplayLabel(definition)
-        : getHistoricalMealTypeLabel(mealTypeName);
+        ? getMealTypeDisplayLabel(definition, t)
+        : getHistoricalMealTypeLabel(mealTypeName, t);
       navigation.navigate('MealTypeDetail', {
         date: selectedDate,
         mealTypeId: mealTypeId ?? undefined,
@@ -154,7 +165,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
         mealLabel,
       });
     },
-    [navigation, selectedDate, mealTypes],
+    [navigation, selectedDate, mealTypes, t],
   );
 
   const { preferences } = usePreferences();
@@ -322,9 +333,9 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
           icon="alert-circle"
           iconTone="danger"
           iconSize={48}
-          title="Failed to load diary"
-          subtitle="Please check your connection and try again."
-          action={{ label: 'Retry', onPress: () => refetch(), variant: 'primary' }}
+          title={t('diary.loadFailed', { defaultValue: 'Failed to load diary' })}
+          subtitle={t('diary.checkConnection', { defaultValue: 'Please check your connection and try again.' })}
+          action={{ label: t('diary.retry', { defaultValue: 'Retry' }), onPress: () => refetch(), variant: 'primary' }}
         />
       );
     }
@@ -359,7 +370,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
               className="px-6 mt-4 self-center"
               onPress={() => navigation.navigate('FoodSearch', { date: selectedDate })}
             >
-              Add Food
+              {t('diary.addFood', { defaultValue: 'Add Food' })}
             </Button>
           </>
         ) : (
@@ -561,7 +572,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
     <>
       {!isConnectionLoading && isConnected ? (
         <DateNavigator
-          title="Food"
+          title={t('diary.title', { defaultValue: 'Food' })}
           selectedDate={selectedDate}
           onPreviousDay={goToPreviousDay}
           onNextDay={goToNextDay}
@@ -574,7 +585,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
           className="px-4 pb-5"
           style={{ paddingTop: insets.top + 16 }}
         >
-          <Text className="text-2xl font-bold text-text-primary">Food</Text>
+          <Text className="text-2xl font-bold text-text-primary">{t('diary.title', { defaultValue: 'Food' })}</Text>
         </View>
       )}
       {renderedContent}

@@ -251,7 +251,7 @@ app.use(async (req, res, next) => {
       console.log(
         '[AUTH HANDLER] Manual Cleanup: Clearing sparky_active_user_id on logout'
       );
-      applySignOutCookieCleanup(res);
+      applySignOutCookieCleanup(res, req.secure);
     }
     log(
       'debug',

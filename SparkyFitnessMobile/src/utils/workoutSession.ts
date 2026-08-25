@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import type {
   ExerciseEntrySetRequest,
   ExerciseEntrySetResponse,
@@ -35,6 +36,7 @@ import type { CreateExerciseEntryPayload } from '../services/api/exerciseApi';
 import { weightToKg, weightFromKg, distanceFromKm, distanceToKm } from './unitConversions';
 import { parseDecimalInput } from './numericInput';
 import { getDefaultRestSec, type PlannedExercise } from './workoutSupersets';
+import { formatLocalizedNumber } from '../localization';
 
 // The superset/reorder algebra lives in its own module; re-exported here so
 // the many existing import sites keep working.
@@ -228,7 +230,7 @@ export const calculateOtherExerciseCalories = (sessions: ExerciseSessionResponse
 export const calculateExerciseDuration = (sessions: ExerciseSessionResponse[]): number =>
   calculateExerciseStats(sessions).durationMinutes;
 
-export function getWorkoutSummary(session: ExerciseSessionResponse): {
+export function getWorkoutSummary(session: ExerciseSessionResponse, t: TFunction): {
   name: string;
   duration: number;
   calories: number;
@@ -241,7 +243,7 @@ export function getWorkoutSummary(session: ExerciseSessionResponse): {
     };
   }
   return {
-    name: session.name ?? session.exercise_snapshot?.name ?? 'Unknown exercise',
+    name: session.name ?? session.exercise_snapshot?.name ?? t('workout.unknownExercise', { defaultValue: 'Unknown exercise' }),
     duration: session.duration_minutes,
     calories: session.calories_burned,
   };
@@ -251,6 +253,7 @@ export function buildSessionSubtitle(
   session: ExerciseSessionResponse,
   duration: number,
   calories: number,
+  t: TFunction,
   weightUnit: 'kg' | 'lbs' = 'kg',
   distanceUnit: 'km' | 'miles' = 'km',
 ): string {
@@ -273,17 +276,33 @@ export function buildSessionSubtitle(
     }
 
     const parts: string[] = [];
-    parts.push(`${exerciseCount} exercise${exerciseCount !== 1 ? 's' : ''}`);
-    if (totalSets > 0) parts.push(`${totalSets} sets`);
+    parts.push(t('workout.exerciseCount', {
+      count: exerciseCount,
+      formattedCount: String(exerciseCount),
+      defaultValue: '{{formattedCount}} exercises',
+      defaultValue_one: '{{formattedCount}} exercise',
+      defaultValue_few: '{{formattedCount}} exercises',
+      defaultValue_many: '{{formattedCount}} exercises',
+      defaultValue_other: '{{formattedCount}} exercises',
+    }));
+    if (totalSets > 0) parts.push(t('workout.setCount', {
+      count: totalSets,
+      formattedCount: String(totalSets),
+      defaultValue: '{{formattedCount}} sets',
+      defaultValue_one: '{{formattedCount}} set',
+      defaultValue_few: '{{formattedCount}} sets',
+      defaultValue_many: '{{formattedCount}} sets',
+      defaultValue_other: '{{formattedCount}} sets',
+    }));
     if (totalVolumeKg > 0) {
       const vol = Math.round(weightFromKg(totalVolumeKg, weightUnit));
-      parts.push(`${vol.toLocaleString()} ${weightUnit}`);
+      parts.push(`${formatLocalizedNumber(vol)} ${weightUnit}`);
     }
     if (totalDistanceKm > 0) {
       const dist = distanceFromKm(totalDistanceKm, distanceUnit);
-      parts.push(`${dist.toFixed(1)} ${distanceUnit === 'miles' ? 'mi' : 'km'}`);
+      parts.push(`${formatLocalizedNumber(dist, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${distanceUnit === 'miles' ? 'mi' : 'km'}`);
     }
-    if (calories > 0) parts.push(`${Math.round(calories)} Cal`);
+    if (calories > 0) parts.push(`${Math.round(calories)} ${t('workout.caloriesUnit', { defaultValue: 'Cal' })}`);
     return parts.join(' \u00b7 ');
   }
 
@@ -297,13 +316,21 @@ export function buildSessionSubtitle(
       (sum, set) => sum + (set.weight ?? 0) * (set.reps ?? 0), 0,
     );
     const parts: string[] = [];
-    parts.push(`${totalSets} set${totalSets !== 1 ? 's' : ''}`);
+    parts.push(t('workout.setCount', {
+      count: totalSets,
+      formattedCount: String(totalSets),
+      defaultValue: '{{formattedCount}} sets',
+      defaultValue_one: '{{formattedCount}} set',
+      defaultValue_few: '{{formattedCount}} sets',
+      defaultValue_many: '{{formattedCount}} sets',
+      defaultValue_other: '{{formattedCount}} sets',
+    }));
     if (totalVolumeKg > 0) {
       const vol = Math.round(weightFromKg(totalVolumeKg, weightUnit));
-      parts.push(`${vol.toLocaleString()} ${weightUnit}`);
+      parts.push(`${formatLocalizedNumber(vol)} ${weightUnit}`);
     }
     if (duration > 0) parts.push(formatDuration(duration));
-    if (calories > 0) parts.push(`${Math.round(calories)} Cal`);
+    if (calories > 0) parts.push(`${Math.round(calories)} ${t('workout.caloriesUnit', { defaultValue: 'Cal' })}`);
     return parts.join(' \u00b7 ');
   }
 
@@ -313,9 +340,9 @@ export function buildSessionSubtitle(
   if (session.distance != null && session.distance > 0) {
     const dist = distanceFromKm(session.distance, distanceUnit);
     const label = distanceUnit === 'miles' ? 'mi' : 'km';
-    parts.push(`${dist.toFixed(1)} ${label}`);
+    parts.push(`${formatLocalizedNumber(dist, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${label}`);
   }
-  if (calories > 0) parts.push(`${Math.round(calories)} Cal`);
+  if (calories > 0) parts.push(`${Math.round(calories)} ${t('workout.caloriesUnit', { defaultValue: 'Cal' })}`);
   return parts.join(' \u00b7 ');
 }
 
@@ -613,13 +640,14 @@ export function presetExerciseToCardExercise(
 
 export function formatVolume(volumeKg: number, weightUnit: string): string {
   const value = weightFromKg(volumeKg, weightUnit as 'kg' | 'lbs');
-  return `${Math.round(value).toLocaleString()} ${weightUnit}`;
+  return `${formatLocalizedNumber(Math.round(value))} ${weightUnit}`;
 }
 
 /** Compact historical-set text, e.g. `W 60 × 8`, `100 × 5`, `12 reps`, `45s`, or `30:00 · 5.2 km`; weight is unitless display units. */
 export function formatRecentSessionSet(
   set: ExerciseRecentSessionSet,
   weightUnit: 'kg' | 'lbs',
+  t: TFunction,
   modality?: ExerciseModality,
   distanceUnit: 'km' | 'miles' = 'km',
 ): string {
@@ -632,18 +660,18 @@ export function formatRecentSessionSet(
     const parts: string[] = [];
     if (seconds != null) parts.push(formatDurationSeconds(seconds));
     if (isCardioModality(modality) && set.distance != null) {
-      const dist = parseFloat(distanceFromKm(set.distance, distanceUnit).toFixed(2));
+      const dist = formatLocalizedNumber(distanceFromKm(set.distance, distanceUnit), { maximumFractionDigits: 2 });
       parts.push(`${dist} ${distanceUnit === 'miles' ? 'mi' : 'km'}`);
     }
     return parts.length > 0 ? `${prefix}${parts.join(' · ')}` : '–';
   }
   const w =
     set.weight != null
-      ? String(parseFloat(weightFromKg(set.weight, weightUnit).toFixed(1)))
+      ? formatLocalizedNumber(weightFromKg(set.weight, weightUnit), { maximumFractionDigits: 1 })
       : null;
   if (w != null && set.reps != null) return `${prefix}${w} × ${set.reps}`;
   if (w != null) return `${prefix}${w}`; // weight-only
-  if (set.reps != null) return `${prefix}${set.reps} reps`; // reps-only set in a mixed history
+  if (set.reps != null) return `${prefix}${t('workout.repCount', { count: set.reps, formattedCount: formatLocalizedNumber(set.reps), defaultValue: '{{formattedCount}} reps', defaultValue_one: '{{formattedCount}} rep' })}`; // reps-only set in a mixed history
   if (set.duration != null) return `${prefix}${formatDurationSeconds(set.duration)}`;
   return '–';
 }
@@ -916,14 +944,15 @@ export function formatRestCountdown(remainingMs: number): string {
 export function formatSetLoad(
   set: Pick<ActiveSetDescription, 'weightKg' | 'reps'> & { durationSec?: number | null },
   weightUnit: 'kg' | 'lbs',
+  t: TFunction,
 ): string | null {
   if (set.durationSec != null) return formatDurationSeconds(set.durationSec);
   const w =
     set.weightKg != null
-      ? `${parseFloat(weightFromKg(set.weightKg, weightUnit).toFixed(1))} ${weightUnit}`
+      ? `${formatLocalizedNumber(weightFromKg(set.weightKg, weightUnit), { maximumFractionDigits: 1 })} ${weightUnit}`
       : null;
   if (w != null && set.reps != null) return `${w} × ${set.reps}`;
-  if (set.reps != null) return `${set.reps} reps`;
+  if (set.reps != null) return t('workout.repCount', { count: set.reps, formattedCount: formatLocalizedNumber(set.reps), defaultValue: '{{formattedCount}} reps', defaultValue_one: '{{formattedCount}} rep' });
   return w;
 }
 
@@ -1340,6 +1369,7 @@ export function buildWorkoutCompletionSummary(
   session: PresetSessionResponse,
   completedSetIds: CompletedSetMap,
   prSetIds: PrSetMap,
+  t: TFunction,
 ): WorkoutCompletionSummary {
   let completedSetCount = 0;
   let totalSetCount = 0;
@@ -1351,7 +1381,7 @@ export function buildWorkoutCompletionSummary(
   const exercises: WorkoutCompletionExercise[] = [];
 
   for (const exercise of session.exercises) {
-    const name = exercise.exercise_snapshot?.name ?? 'Exercise';
+    const name = exercise.exercise_snapshot?.name ?? t('workout.exercise', { defaultValue: 'Exercise' });
     const modality = resolveSnapshotModality(exercise.exercise_snapshot);
     let exerciseCompleted = 0;
     let exerciseVolumeKg = 0;
@@ -1704,10 +1734,11 @@ export function stripPlannedSetValues(
 export function exerciseFromSnapshot(
   snapshot: ExerciseSnapshotResponse | null,
   exerciseId: string,
+  t: TFunction,
 ): Exercise {
   return {
     id: snapshot?.id ?? exerciseId,
-    name: snapshot?.name ?? 'Exercise',
+    name: snapshot?.name ?? t('workout.exercise', { defaultValue: 'Exercise' }),
     category: snapshot?.category ?? null,
     modality: snapshot?.modality ?? null,
     equipment: snapshot?.equipment ?? [],
@@ -1739,10 +1770,10 @@ export function makeSparseExercise(params: {
   category?: string | null;
   modality?: string | null;
   images?: string[] | null;
-}): Exercise {
+}, t: TFunction): Exercise {
   return {
     id: params.id,
-    name: params.name ?? 'Exercise',
+    name: params.name ?? t('workout.exercise', { defaultValue: 'Exercise' }),
     category: params.category ?? null,
     modality: isExerciseModality(params.modality) ? params.modality : null,
     equipment: [],
@@ -1767,7 +1798,7 @@ export function makeSparseExercise(params: {
  * screen can preview it before import. External ids are not UUIDs, so the
  * detail screen skips hydration and history and renders exactly these fields.
  */
-export function exerciseFromExternalItem(item: ExternalExerciseItem): Exercise {
+export function exerciseFromExternalItem(item: ExternalExerciseItem, t: TFunction): Exercise {
   return {
     ...makeSparseExercise({
       id: item.id,
@@ -1775,7 +1806,7 @@ export function exerciseFromExternalItem(item: ExternalExerciseItem): Exercise {
       category: item.category,
       modality: item.modality ?? null,
       images: item.images,
-    }),
+    }, t),
     equipment: item.equipment ?? [],
     primary_muscles: item.primary_muscles ?? [],
     secondary_muscles: item.secondary_muscles ?? [],
@@ -1797,9 +1828,9 @@ export function exerciseFromExternalItem(item: ExternalExerciseItem): Exercise {
  * carry the full snapshot; freshly-added ones only know name/category/images,
  * so the detail screen hydrates the rest by id.
  */
-export function exerciseFromDraft(exercise: WorkoutDraftExercise): Exercise {
+export function exerciseFromDraft(exercise: WorkoutDraftExercise, t: TFunction): Exercise {
   if (exercise.snapshot) {
-    return exerciseFromSnapshot(exercise.snapshot, exercise.exerciseId);
+    return exerciseFromSnapshot(exercise.snapshot, exercise.exerciseId, t);
   }
   return makeSparseExercise({
     id: exercise.exerciseId,
@@ -1807,7 +1838,7 @@ export function exerciseFromDraft(exercise: WorkoutDraftExercise): Exercise {
     category: exercise.exerciseCategory,
     modality: exercise.exerciseModality ?? null,
     images: exercise.images,
-  });
+  }, t);
 }
 
 /**

@@ -103,6 +103,7 @@ jest.mock('react-native-health-connect', () => ({
   requestPermission: jest.fn().mockResolvedValue([]),
   getGrantedPermissions: jest.fn().mockResolvedValue([]),
   readRecords: jest.fn().mockResolvedValue({ records: [] }),
+  requestExerciseRoute: jest.fn().mockResolvedValue([]),
   aggregateRecord: jest.fn().mockResolvedValue({}),
   aggregateGroupByDuration: jest.fn().mockResolvedValue([]),
   aggregateGroupByPeriod: jest.fn().mockResolvedValue([]),
@@ -622,3 +623,19 @@ jest.mock('@gorhom/bottom-sheet', () => {
     BottomSheetBackdrop: () => null,
   };
 });
+
+// Provide the production i18n instance to components rendered in isolation.
+// Screen/component suites may omit the app bootstrap, but localized UI should
+// still resolve its explicit English defaults instead of warning or returning
+// raw keys.
+const { initReactI18next } = require('react-i18next');
+const testI18n = require('./src/localization/i18n').default;
+if (!testI18n.isInitialized) {
+  testI18n.use(initReactI18next).init({
+    resources: { en: { translation: {} }, pl: { translation: {} } },
+    lng: 'en',
+    fallbackLng: 'en',
+    initImmediate: false,
+    interpolation: { escapeValue: false },
+  });
+}

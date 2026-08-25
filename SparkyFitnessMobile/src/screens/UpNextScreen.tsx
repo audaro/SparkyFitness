@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
+import { useTranslation } from 'react-i18next';
 import { isCardioModality, type RecommendedExercise } from '@workspace/shared';
 
 import ActionSheet, {
@@ -57,6 +58,7 @@ const ANY_GYM = 'any';
 const DURATION_OPTIONS = [30, 45, 60, 75, 90, 120];
 
 const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
@@ -449,11 +451,11 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           name: exercise.exercise_name,
           modality: exercise.modality,
           images: exercise.images,
-        }),
+        }, t),
         hideWorkoutActions: true,
       });
     },
-    [navigation],
+    [navigation, t],
   );
 
   const gymOptions = useMemo(

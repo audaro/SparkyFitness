@@ -4,7 +4,7 @@ import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { pressAction } from './helpers/nativeHeaderTestUtils';
+import { pressAction, skipDuplicatePressWindow } from './helpers/nativeHeaderTestUtils';
 import MeasurementsAddScreen from '../../src/screens/MeasurementsAddScreen';
 import { useMeasurements } from '../../src/hooks/useMeasurements';
 import { usePreferences } from '../../src/hooks/usePreferences';
@@ -193,7 +193,15 @@ type Screen = ReturnType<typeof renderScreen>;
 const getInput = (screen: Screen, field: keyof typeof FIELD_INDEX) =>
   screen.getAllByPlaceholderText('0')[FIELD_INDEX[field]];
 
+let hasPressedSave = false;
+
 const pressSave = async (screen: Screen) => {
+  // Every save in this file is a distinct deliberate press — fixing a
+  // validation error, or retrying after a partial failure — which is seconds
+  // of real user time. The header Save guard treats two presses inside its
+  // window as one, so step past it between scripted presses.
+  if (hasPressedSave) skipDuplicatePressWindow();
+  hasPressedSave = true;
   pressAction(screen, mockNavigation, SAVE_LABEL);
   // The merged screen saves through upsertMutation.mutateAsync, so flush the
   // awaited continuation inside act before asserting or re-rendering.
@@ -675,7 +683,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     const screen = renderScreen();
 
     expect(screen.getByText("Couldn't load custom measurements.")).toBeTruthy();
-    expect(screen.getByText('Try again')).toBeTruthy();
+    expect(screen.getByText('Please try again.')).toBeTruthy();
   });
 
   test('partial custom save failure shows an error and does not close the screen', async () => {
@@ -878,7 +886,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     expect(screen.queryByTestId('custom-input-sync-1')).toBeNull();
     expect(screen.queryByTestId('custom-input-sync-2')).toBeNull();
     expect(screen.queryByTestId('custom-input-sync-3')).toBeNull();
-    const moreButton = screen.getByLabelText('More categories');
+    const moreButton = screen.getByLabelText('More categories ▾');
     expect(moreButton).toBeTruthy();
     expect(moreButton.props.accessibilityState?.expanded).toBe(false);
     // Expanding reveals them (same renderCustomCategory rows, accessible again).
@@ -886,7 +894,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     expect(screen.getByTestId('custom-input-sync-1')).toBeTruthy();
     expect(screen.getByTestId('custom-input-sync-2')).toBeTruthy();
     expect(screen.getByTestId('custom-input-sync-3')).toBeTruthy();
-    expect(screen.getByLabelText('More categories').props.accessibilityState?.expanded).toBe(true);
+    expect(screen.getByLabelText('Hide categories ▴').props.accessibilityState?.expanded).toBe(true);
     // Hourly / All / Unlimited are not exposed anywhere — even after expanding.
     expect(screen.queryByTestId('custom-input-hourly-1')).toBeNull();
     expect(screen.queryByTestId('custom-input-all-1')).toBeNull();
@@ -1018,14 +1026,14 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     );
     expect(healthInputs).toHaveLength(0);
     // The one-tap More categories control is present (not flooded, not gone).
-    const moreButton = screen.getByLabelText('More categories');
+    const moreButton = screen.getByLabelText('More categories ▾');
     expect(moreButton).toBeTruthy();
     expect(moreButton.props.accessibilityState?.expanded).toBe(false);
     // Expanding reveals representative health inputs (lazy, one tap away).
     fireEvent.press(moreButton);
     expect(screen.getByTestId('custom-input-health-0')).toBeTruthy(); // steps
     expect(screen.getByTestId('custom-input-health-3')).toBeTruthy(); // Active Calories
-    expect(screen.getByLabelText('More categories').props.accessibilityState?.expanded).toBe(true);
+    expect(screen.getByLabelText('Hide categories ▴').props.accessibilityState?.expanded).toBe(true);
     // Hourly is hidden even after expanding More.
     expect(screen.queryByTestId('custom-input-hourly-1')).toBeNull();
     // Standard built-ins remain present and usable.
@@ -1044,7 +1052,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     const screen = renderScreen();
 
     expect(screen.queryByTestId('custom-input-w1')).toBeNull();
-    const moreButton = screen.getByLabelText('More categories');
+    const moreButton = screen.getByLabelText('More categories ▾');
     expect(moreButton.props.accessibilityState?.expanded).toBe(false);
     fireEvent.press(moreButton);
     expect(screen.getByTestId('custom-input-w1')).toBeTruthy();
@@ -1057,7 +1065,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
 
     // Visible WITHOUT expanding More.
     expect(screen.getByTestId('custom-input-bp1')).toBeTruthy();
-    expect(screen.queryByLabelText('More categories')).toBeNull();
+    expect(screen.queryByLabelText('More categories ▾')).toBeNull();
     // Manual value is prefilled.
     expect(screen.getByTestId('custom-input-bp1').props.value).toBe('120');
   });
@@ -1068,7 +1076,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     const screen = renderScreen();
 
     expect(screen.queryByTestId('custom-input-h1')).toBeNull();
-    fireEvent.press(screen.getByLabelText('More categories'));
+    fireEvent.press(screen.getByLabelText('More categories ▾'));
     // Input appears but the synced value is never prefilled.
     expect(screen.getByTestId('custom-input-h1').props.value).toBe('');
   });
@@ -1079,7 +1087,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     const screen = renderScreen();
 
     expect(screen.queryByTestId('custom-input-w1')).toBeNull();
-    fireEvent.press(screen.getByLabelText('More categories'));
+    fireEvent.press(screen.getByLabelText('More categories ▾'));
     expect(screen.getByTestId('custom-input-w1').props.value).toBe('');
   });
 
@@ -1088,7 +1096,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     setCustomEntries([customEntry({ id: 'e1', category_id: 'w1', value: '80', source: 'healthkit' })]);
     const screen = renderScreen();
 
-    fireEvent.press(screen.getByLabelText('More categories'));
+    fireEvent.press(screen.getByLabelText('More categories ▾'));
     fireEvent.changeText(screen.getByTestId('custom-input-w1'), '82');
     await pressSave(screen);
 
@@ -1105,7 +1113,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     setCustomEntries([]);
     const screen = renderScreen();
 
-    const moreButton = screen.getByLabelText('More categories');
+    const moreButton = screen.getByLabelText('More categories ▾');
     fireEvent.press(moreButton);
     fireEvent.changeText(screen.getByTestId('custom-input-w1'), '82');
     fireEvent.press(moreButton); // collapse
@@ -1125,7 +1133,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     setCustomEntries([]);
     const screen = renderScreen();
 
-    fireEvent.press(screen.getByLabelText('More categories'));
+    fireEvent.press(screen.getByLabelText('More categories ▾'));
     fireEvent.changeText(screen.getByTestId('custom-input-w1'), '82');
 
     // Simulate a background refetch: same categories, same (empty) entries —
@@ -1147,7 +1155,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
 
     expect(screen.getByTestId('custom-input-c1')).toBeTruthy();
     expect(screen.getByTestId('custom-input-bp1')).toBeTruthy();
-    expect(screen.queryByLabelText('More categories')).toBeNull();
+    expect(screen.queryByLabelText('More categories ▾')).toBeNull();
   });
 
   test('L. More categories toggle exposes accessibility expanded state', () => {
@@ -1155,13 +1163,13 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     setCustomEntries([]);
     const screen = renderScreen();
 
-    const button = screen.getByLabelText('More categories');
+    const button = screen.getByLabelText('More categories ▾');
     expect(button.props.accessibilityRole).toBe('button');
     expect(button.props.accessibilityState?.expanded).toBe(false);
     fireEvent.press(button);
-    expect(screen.getByLabelText('More categories').props.accessibilityState?.expanded).toBe(true);
-    fireEvent.press(screen.getByLabelText('More categories'));
-    expect(screen.getByLabelText('More categories').props.accessibilityState?.expanded).toBe(false);
+    expect(screen.getByLabelText('Hide categories ▴').props.accessibilityState?.expanded).toBe(true);
+    fireEvent.press(screen.getByLabelText('Hide categories ▴'));
+    expect(screen.getByLabelText('More categories ▾').props.accessibilityState?.expanded).toBe(false);
   });
 
 });

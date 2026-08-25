@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SymbolView } from 'expo-symbols';
 import { useCSSVariable } from 'uniwind';
 import { useNavigation } from '@react-navigation/native';
+import { createDuplicatePressGuard } from '../utils/duplicatePress';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { ParamListBase } from '@react-navigation/native';
@@ -136,7 +137,12 @@ export type HeaderItem =
       items: HeaderMenuEntry[];
       /** Accent dot on the trigger marking a non-default selection. */
       showsBadge?: boolean;
+      badgeValue?: string;
       accessibilityLabel: string;
+      /** Optional custom-bar label when native and custom paths need different context. */
+      customAccessibilityLabel?: string;
+      /** Optional native label when native and custom paths need different context. */
+      nativeAccessibilityLabel?: string;
       identifier?: string;
     };
 
@@ -195,12 +201,13 @@ function itemIsDisabled(item: HeaderItem): boolean {
 function itemAccessibilityLabel(item: HeaderItem, t: TFunction): string | undefined {
   switch (item.kind) {
     case 'back':
-      return 'Back';
+      return t('common.back', 'Back');
     case 'dismiss':
-      return item.accessibilityLabel ?? 'Close';
+      return item.accessibilityLabel ?? t('common.close', 'Close');
     case 'icon':
-    case 'menu':
       return item.accessibilityLabel;
+    case 'menu':
+      return item.customAccessibilityLabel ?? item.accessibilityLabel;
     case 'text':
     case 'primary':
       // Explicit caller accessibilityLabel wins; otherwise mirror the visible
@@ -213,14 +220,22 @@ function itemAccessibilityLabel(item: HeaderItem, t: TFunction): string | undefi
 
 /**
  * Resolves the visible label for a header item. `kind:'primary'` items without
- * an explicit label fall back to the localized `common.save` value with an
- * explicit English fallback; every other item uses its required label.
+ * an explicit label, or whose label is the canonical English SAVE_LABEL marker,
+ * fall back to the localized `common.save` value with an explicit English
+ * fallback; every other item uses its required label.
  */
 function resolveItemLabel(item: HeaderItem, t: TFunction): string | undefined {
   switch (item.kind) {
     case 'primary':
-      return item.label ?? t('common.save', 'Save');
+      return item.label === undefined || item.label === SAVE_LABEL
+        ? t('common.save', 'Save')
+        : item.label;
     case 'text':
+      // A role:'primary' text item with the canonical SAVE_LABEL marker is also
+      // localized (e.g. caller reuses SAVE_LABEL for a primary text action).
+      if (('role' in item && item.role === 'primary') && item.label === SAVE_LABEL) {
+        return t('common.save', 'Save');
+      }
       return item.label;
     case 'back':
     case 'dismiss':
@@ -231,17 +246,24 @@ function resolveItemLabel(item: HeaderItem, t: TFunction): string | undefined {
 
 /**
  * Resolves the busy label for a header item. Primary items without an explicit
- * busy label fall back to the localized `common.saving` value with an explicit
- * English fallback.
+ * busy label, or whose busy label is the canonical SAVING_LABEL marker, fall
+ * back to the localized `common.saving` value with an explicit English fallback.
  */
 function resolveItemBusyLabel(item: HeaderItem, t: TFunction): string | undefined {
+  const primaryBusy = (kind: 'primary' | 'text') =>
+    kind === 'primary'
+      ? item.kind === 'primary' && (item.busyLabel === undefined || item.busyLabel === SAVING_LABEL)
+      : item.kind === 'text' && ('role' in item && item.role === 'primary') && item.busyLabel === SAVING_LABEL;
+
   if (item.kind === 'primary') {
-    return item.busyLabel ?? t('common.saving', 'Saving…');
+    return primaryBusy('primary')
+      ? t('common.saving', 'Saving…')
+      : item.busyLabel;
   }
 
   if (item.kind === 'text') {
-    return isPrimaryItem(item)
-      ? item.busyLabel ?? t('common.saving', 'Saving…')
+    return primaryBusy('text')
+      ? t('common.saving', 'Saving…')
       : item.busyLabel;
   }
 
@@ -340,8 +362,8 @@ function buildNativeMenuItem(
     sfSymbol: item.sfSymbol ?? 'ellipsis',
     identifier,
     tintColor: colors.defaultColor,
-    accessibilityLabel: item.accessibilityLabel,
-    badge: item.showsBadge ? createNativeHeaderAccentBadge(accentColor) : undefined,
+    accessibilityLabel: item.nativeAccessibilityLabel ?? item.accessibilityLabel,
+    badge: item.showsBadge ? createNativeHeaderAccentBadge(accentColor, item.badgeValue ?? '•') : undefined,
     menuItems,
   });
 }
@@ -467,7 +489,7 @@ function buildNativeItem(
         sfSymbol: 'xmark',
         identifier,
         tintColor: colors.defaultColor,
-        accessibilityLabel: item.accessibilityLabel ?? 'Close',
+        accessibilityLabel: item.accessibilityLabel ?? t('common.close', 'Close'),
         onPress: press,
         disabled: !!item.disabled,
       });
@@ -546,6 +568,19 @@ export function useScreenHeader(config: ScreenHeaderConfig): React.ReactNode {
   const handlersRef = useRef<Record<string, () => void>>({});
   const nextHandlers: Record<string, () => void> = {};
 
+  // `kind: 'primary'` is the Save sugar, and most screens expose their only
+  // Save through it. Those presses dispatch straight through `handlersRef` with
+  // no synchronous guard, so a burst of taps replayed off a blocked JS thread
+  // ran the handler once per tap — screen-local isPending checks do not help,
+  // because every queued press sees the previous render's closure (#2191).
+  //
+  // Same guard the footer Save bar uses, and scoped to the RIGHT-slot primary:
+  // that is the accent write action, the only one where a repeated press
+  // writes twice. The left slot is navigation, and at least one screen uses
+  // the primary sugar for a wizard Back (CycleOnboardingScreen) where rapid
+  // repeated presses are exactly what the user means.
+  const allowPress = useRef(createDuplicatePressGuard()).current;
+
   const goBack = () => navigation.goBack();
   // A menu item's own press only exists on the custom path: measure the
   // trigger and open the AnchoredMenu under it. (Natively the system presents
@@ -554,17 +589,24 @@ export function useScreenHeader(config: ScreenHeaderConfig): React.ReactNode {
     measureAnchoredMenuTrigger(menuTriggerRefs.current[id] ?? null, (anchor) =>
       setOpenMenu({ id, anchor }),
     );
-  const registerHandlers = (item: HeaderItem, id: string) => {
-    nextHandlers[id] = item.kind === 'menu' ? openAnchoredMenu(id) : resolvePress(item, goBack);
+  const registerHandlers = (item: HeaderItem, id: string, slot: 'left' | 'right') => {
+    const press = item.kind === 'menu' ? openAnchoredMenu(id) : resolvePress(item, goBack);
+    nextHandlers[id] =
+      item.kind === 'primary' && slot === 'right'
+        ? () => {
+            if (!allowPress(id)) return;
+            press();
+          }
+        : press;
     collectMenuHandlers(item, id, nextHandlers);
   };
   const leftId = left ? resolveIdentifier(left, 'header-left') : 'header-left';
   if (left) {
-    registerHandlers(left, leftId);
+    registerHandlers(left, leftId, 'left');
   }
   const rightMeta = rightItems.map((item, index) => {
     const id = resolveIdentifier(item, `header-right-${index}`);
-    registerHandlers(item, id);
+    registerHandlers(item, id, 'right');
     return { item, id };
   });
   handlersRef.current = nextHandlers;
@@ -576,7 +618,10 @@ export function useScreenHeader(config: ScreenHeaderConfig): React.ReactNode {
       ? {
           sfSymbol: item.sfSymbol,
           showsBadge: !!item.showsBadge,
+          badgeValue: item.kind === 'menu' ? item.badgeValue : undefined,
           accessibilityLabel: item.accessibilityLabel,
+          customAccessibilityLabel: item.customAccessibilityLabel,
+          nativeAccessibilityLabel: item.nativeAccessibilityLabel,
           entries: item.items.map((entry) =>
             isMenuSection(entry)
               ? {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert } from 'react-native';
 import { CommonActions } from '@react-navigation/native';
 import { queryClient } from './queryClient';
@@ -7,13 +8,37 @@ import { useSyncHealthData } from './useSyncHealthData';
 import { promptForActiveWorkoutConflict } from './useStartLiveWorkout';
 import { loadTimeRange } from '../services/storage';
 import type { TimeRange } from '../services/storage';
-import { initHealthConnect, loadHealthPreference } from '../services/healthConnectService';
+import {
+  initHealthConnect,
+  loadHealthPreference,
+} from '../services/healthConnectService';
 import { HEALTH_METRICS } from '../HealthMetrics';
 import { isSyncClaimed } from '../services/autoSyncCoordinator';
 import { loadActiveDraft, clearDraft } from '../services/workoutDraftService';
 import { navigationRef as rootNavigationRef } from '../components/ActiveWorkoutBar';
 import { NON_ADD_TABS, type NonAddTabName } from '../components/TabsLayout';
 import type { RootStackParamList } from '../types/navigation';
+
+function getServerConnectionMessage(
+  t: (key: string, options: { defaultValue: string }) => string,
+  key: string,
+  fallback: string,
+): string {
+  switch (key) {
+    case 'addSheetActions.configureForExercise':
+      return t('addSheetActions.configureForExercise', {
+        defaultValue:
+          'Configure your server connection in Settings to add an exercise.',
+      });
+    case 'addSheetActions.configureForWorkout':
+      return t('addSheetActions.configureForWorkout', {
+        defaultValue:
+          'Configure your server connection in Settings to start a workout.',
+      });
+    default:
+      return fallback;
+  }
+}
 
 type TabStateSnapshot = {
   index?: number;
@@ -79,8 +104,11 @@ interface AddSheetActionsArgs {
  * user to their last content tab after a dismissal without an action.
  */
 export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
+  const { t } = useTranslation();
   const lastActiveTabRef = useRef<NonAddTabName>('Home');
-  const addSheetDismissNavigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addSheetDismissNavigationTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   const rememberActiveTab = useCallback((routeName: string) => {
     if ((NON_ADD_TABS as readonly string[]).includes(routeName)) {
@@ -113,11 +141,11 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
       ? (rootNavigationRef.getRootState() as TabStateSnapshot | undefined)
       : undefined;
 
-    const tabState =
-      rootOrTabState?.routes?.some((route) => route.name === 'Tabs')
-        ? findRouteState(rootOrTabState, 'Tabs')
-        : rootOrTabState;
-
+    const tabState = rootOrTabState?.routes?.some(
+      route => route.name === 'Tabs',
+    )
+      ? findRouteState(rootOrTabState, 'Tabs')
+      : rootOrTabState;
     const dateForTab = (tab: 'Exercise' | 'Food') => {
       const tabLocalState = findRouteState(tabState, tab);
       const params =
@@ -134,14 +162,19 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
     return dateForTab('Food');
   }, []);
 
-  const navigateFromSheet = useCallback(<T extends keyof RootStackParamList>(
-    screen: T,
-    params?: RootStackParamList[T],
-  ) => {
-    if (rootNavigationRef.isReady()) {
-      rootNavigationRef.dispatch(CommonActions.navigate({ name: screen, params }));
-    }
-  }, []);
+  const navigateFromSheet = useCallback(
+    <T extends keyof RootStackParamList>(
+      screen: T,
+      params?: RootStackParamList[T],
+    ) => {
+      if (rootNavigationRef.isReady()) {
+        rootNavigationRef.dispatch(
+          CommonActions.navigate({ name: screen, params }),
+        );
+      }
+    },
+    [],
+  );
 
   const handleAddFood = useCallback(() => {
     const date = getActiveDiaryDate();
@@ -153,24 +186,43 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
     navigateFromSheet('FoodScan', { date });
   }, [getActiveDiaryDate, navigateFromSheet]);
 
-  const checkServerConnected = useCallback((message: string): boolean => {
-    const isConnected = queryClient.getQueryData(serverConnectionQueryKey);
-    if (!isConnected) {
-      Alert.alert('No Server Connected', message, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Go to Settings',
-          onPress: () => navigateFromSheet('Tabs', { screen: 'Settings' }),
-        },
-      ]);
-      return false;
-    }
-    return true;
-  }, [navigateFromSheet]);
+  const checkServerConnected = useCallback(
+    (message: string, defaultMessage: string): boolean => {
+      const isConnected = queryClient.getQueryData(serverConnectionQueryKey);
+      if (!isConnected) {
+        Alert.alert(
+          t('addSheetActions.noServerTitle', {
+            defaultValue: 'No Server Connected',
+          }),
+          getServerConnectionMessage(t, message, defaultMessage),
+          [
+            {
+              text: t('common.cancel', { defaultValue: 'Cancel' }),
+              style: 'cancel',
+            },
+            {
+              text: t('common.goToSettings', {
+                defaultValue: 'Go to Settings',
+              }),
+              onPress: () => navigateFromSheet('Tabs', { screen: 'Settings' }),
+            },
+          ],
+        );
+        return false;
+      }
+      return true;
+    },
+    [navigateFromSheet, t],
+  );
 
   const handleStartExerciseForm = useCallback(
     async (screen: 'WorkoutAdd' | 'ActivityAdd') => {
-      if (!checkServerConnected('Configure your server connection in Settings to add an exercise.')) {
+      if (
+        !checkServerConnected(
+          'addSheetActions.configureForExercise',
+          'Configure your server connection in Settings to add an exercise.',
+        )
+      ) {
         return;
       }
 
@@ -178,12 +230,30 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
       const draft = await loadActiveDraft();
       if (draft) {
         Alert.alert(
-          'Draft in Progress',
-          `You have an unsaved ${draft.type === 'workout' ? 'workout' : 'activity'} draft. What would you like to do?`,
+          t('addSheetActions.draft.title', {
+            defaultValue: 'Draft in Progress',
+          }),
+          t('addSheetActions.draft.message', {
+            defaultValue:
+              'You have an unsaved {{type}} draft. What would you like to do?',
+            type:
+              draft.type === 'workout'
+                ? t('addSheetActions.draft.workout', {
+                    defaultValue: 'workout',
+                  })
+                : t('addSheetActions.draft.activity', {
+                    defaultValue: 'activity',
+                  }),
+          }),
           [
-            { text: 'Cancel', style: 'cancel' },
             {
-              text: 'Resume Draft',
+              text: t('common.cancel', { defaultValue: 'Cancel' }),
+              style: 'cancel',
+            },
+            {
+              text: t('addSheetActions.draft.resume', {
+                defaultValue: 'Resume Draft',
+              }),
               onPress: () => {
                 if (draft.type === 'workout') {
                   navigateFromSheet('WorkoutAdd');
@@ -193,7 +263,9 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
               },
             },
             {
-              text: 'Discard & Continue',
+              text: t('addSheetActions.draft.discard', {
+                defaultValue: 'Discard & Continue',
+              }),
               style: 'destructive',
               onPress: async () => {
                 await clearDraft();
@@ -207,26 +279,41 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
 
       navigateFromSheet(screen, { date, skipDraftLoad: true });
     },
-    [checkServerConnected, navigateFromSheet, getActiveDiaryDate],
+    [checkServerConnected, navigateFromSheet, getActiveDiaryDate, t],
   );
 
   // Live start: no draft guard (form drafts belong to the Log Workout path) and
   // no diary date (a live workout is logged to today). Tapping while a workout
   // is already running prompts to go back to it or clear it and start over.
   const handleStartWorkout = useCallback(() => {
-    if (!checkServerConnected('Configure your server connection in Settings to start a workout.')) {
+    if (
+      !checkServerConnected(
+        'addSheetActions.configureForWorkout',
+        'Configure your server connection in Settings to start a workout.',
+      )
+    ) {
       return;
     }
-    const prompted = promptForActiveWorkoutConflict(queryClient, {
-      onGoToWorkout: () => navigateFromSheet('ActiveWorkout'),
-      onClearAndStart: () => navigateFromSheet('PresetSearch'),
-    });
+    const prompted = promptForActiveWorkoutConflict(
+      queryClient,
+      {
+        onGoToWorkout: () => navigateFromSheet('ActiveWorkout'),
+        onClearAndStart: () => navigateFromSheet('PresetSearch'),
+      },
+      t,
+    );
     if (prompted) return;
     navigateFromSheet('PresetSearch');
-  }, [checkServerConnected, navigateFromSheet]);
+  }, [checkServerConnected, navigateFromSheet, t]);
 
-  const handleLogWorkout = useCallback(() => handleStartExerciseForm('WorkoutAdd'), [handleStartExerciseForm]);
-  const handleAddActivity = useCallback(() => handleStartExerciseForm('ActivityAdd'), [handleStartExerciseForm]);
+  const handleLogWorkout = useCallback(
+    () => handleStartExerciseForm('WorkoutAdd'),
+    [handleStartExerciseForm],
+  );
+  const handleAddActivity = useCallback(
+    () => handleStartExerciseForm('ActivityAdd'),
+    [handleStartExerciseForm],
+  );
 
   const handleAddMeasurements = useCallback(() => {
     const date = getActiveDiaryDate();
@@ -246,7 +333,15 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
 
     const initialized = await initHealthConnect();
     if (!initialized) {
-      Alert.alert('Health Data Unavailable', 'Could not initialize health data access. Check your permissions in Settings.');
+      Alert.alert(
+        t('addSheetActions.healthUnavailable.title', {
+          defaultValue: 'Health Data Unavailable',
+        }),
+        t('addSheetActions.healthUnavailable.message', {
+          defaultValue:
+            'Could not initialize health data access. Check your permissions in Settings.',
+        }),
+      );
       return;
     }
 
@@ -260,7 +355,7 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
     }
 
     syncMutation.mutate({ timeRange, healthMetricStates });
-  }, [syncMutation]);
+  }, [syncMutation, t]);
 
   const handleAddSheetDismissWithoutAction = useCallback(() => {
     if (!rootNavigationRef.isReady()) return;
