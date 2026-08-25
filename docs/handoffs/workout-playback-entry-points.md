@@ -33,6 +33,8 @@ changed.
 | `55d5d8894` | mobile  | The other five status-by-substring sites converted; one new suite            |
 | `ca373ea70` | docs    | Handoff records that sweep; MFA-cookie duplication flagged                   |
 | `1c41fcae4` | mobile  | Three copies of the MFA error ladder collapsed; code carried on `LoginError` |
+| `8d9ab63c9` | docs    | Handoff records the MFA consolidation                                        |
+| `2067f1803` | mobile  | Pick Muscles tiles draw real anatomy, generated from the web body-map SVG    |
 
 The long-form write-up for the web half lives in `exercise-home-phase-e.md` under E5 and E6, because
 the diagnosis it corrects belongs next to the phase that filed it. What follows is what a fresh
@@ -131,17 +133,18 @@ first) and two cases on `WorkoutPresetsManager.test.tsx`.
 `ExerciseCard.test.tsx` covers the preset-playback path only. The component is ~600 lines and the
 rest of it is still untested; the suite exists as a place to add to, not as coverage.
 
-Mobile, run from `SparkyFitnessMobile/`. Green at `1c41fcae4`.
+Mobile, run from `SparkyFitnessMobile/`. Green at `2067f1803`.
 
 | Command                                                        | Result                        |
 | -------------------------------------------------------------- | ----------------------------- |
 | `pnpm run validate`                                            | clean (tsc, lint, i18n audit) |
-| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6078 passed, 376 suites**   |
+| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6144 passed, 377 suites**   |
 
 Up from 5971 / 371. The delta is four new suites — `utils/workoutSupersets` (41),
 `hooks/useWorkoutRecommendation` (19), `hooks/useGymProfiles` (17), `hooks/useUpdateFoodEntryMeal`
 (4) — plus one misclassification case appended to each of the four suites `55d5d8894` touched, and
-`services/api/authErrors` (18) with four transport cases added to `authService` in `1c41fcae4`.
+`services/api/authErrors` (18) with four transport cases added to `authService` in `1c41fcae4`, and
+`constants/muscleArt` (66) in `2067f1803`.
 
 The three health files were run at `Pacific/Midway` (UTC-11), `America/Los_Angeles`, `UTC`,
 `Europe/London`, `Asia/Tokyo` and `Pacific/Kiritimati` (UTC+14), and then the **whole** suite was run
@@ -165,44 +168,56 @@ the fork has touched, at one upstream commit in six months.
 
 ## Exact next step
 
-**Nothing in this thread is open.** Both classification sweeps are finished and neither left a
-follow-up.
+**Nothing in this thread is open.** Both classification sweeps are finished, and the muscle-grid art
+that was the only human-blocked item turned out not to need a human.
 
-`55d5d8894` ended the status-by-substring one: no site in `src/` reads a status out of an error
+`55d5d8894` ended the status-by-substring sweep: no site in `src/` reads a status out of an error
 message, and `hasApiStatus(error, status)` / `isAuthzError(error)` in `services/api/errors.ts` are
-where new classification goes.
+where new classification goes. `1c41fcae4` closed the MFA-cookie duplication the same way — three
+screens each held the whole `LoginError` ladder, identical down to the message strings, and it now
+lives in `services/api/authErrors.ts` as `classifyLoginError` / `loginErrorMessage`. Two lessons from
+that pair are worth keeping:
 
-`1c41fcae4` closed the MFA-cookie duplication this doc had flagged as a later job. It turned out to
-be more than three copies of one predicate — `OnboardingScreen`, `ReauthModal` and
-`ServerConfigModal` each held the whole `LoginError` ladder (rate limit → invalid code → stale
-two-factor cookie → generic), identical down to the message strings, with only the step each returns
-to actually differing. That is now `classifyLoginError` / `loginErrorMessage` in
-`services/api/authErrors.ts`, deliberately the dependency-light module so a test can import it
-without pulling in the auth service.
+- **The copies had drifted, which is the argument for the rule of two rather than an illustration of
+  it.** Two of the three screens skip the stale-cookie branch when the error carries no status — a
+  `LoginError` without one never came from a server response. `OnboardingScreen` had no such guard,
+  so a local failure whose message happened to say "expired" would clear the user's cookies. Latent
+  rather than live, and invisible until the three were read side by side.
+- **Text matching is a symptom, not the disease.** Both bugs existed because the transport above the
+  classifier discarded structure — `apiClient` folding the status into a message, `parseAuthErrorText`
+  folding the server's error code into one. Fix the transport and the classifier collapses to a field
+  read. And the _fixtures_ were load-bearing both times: suites that threw bare `Error`s with
+  status-shaped messages had been pinning the broken behaviour all along.
 
-Three things from it worth carrying:
+`2067f1803` did the muscle art. The task had been filed as "someone has to draw seventeen muscles";
+in fact the artwork was already in the repo — `SparkyFitnessFrontend/public/images/muscle-male.svg`,
+which the web body map renders, labels each path with its muscle. It is now extracted into
+`SparkyFitnessMobile/src/constants/muscleArt.generated.ts` by `pnpm run muscle-art:generate`. Four
+things to know before touching it:
 
-- **The copies had already drifted, which is the argument for the rule of two rather than an
-  illustration of it.** Two screens skip the stale-cookie branch when the error has no status —
-  a `LoginError` without one never came from a server response (an HTTPS refusal, a cancelled
-  passkey or SSO prompt, a 200 whose body was missing its token). `OnboardingScreen` had no such
-  guard, so a local failure whose message happened to say "expired" would clear the user's cookies
-  and bounce them a step back. Latent rather than live — nothing local says "expired" today — and
-  invisible until the three were read side by side. The shared version keeps the guard.
-- **The text matching was a symptom, not the disease.** All three matched on message text because
-  `parseAuthErrorText` folded the server's error code into the human-readable string and threw the
-  field away. It now returns both, and `LoginError` carries a `code`. Same shape as the `409` bug:
-  a classifier reads prose when the transport above it discards structure, so fix the transport
-  first and the classifier collapses to a field read.
-- **The message fallbacks stayed on purpose.** `INVALID_TWO_FACTOR_COOKIE` comes from better-auth,
-  not from this repo's server — `grep -rn INVALID_TWO_FACTOR_COOKIE SparkyFitnessServer/ shared/`
-  finds nothing — so nothing here can promise the `code` field is populated on every variant of that
-  response. Structured first, prose second, and both are pinned.
-- **Coverage was thinner than it looked.** Only `ServerConfigModal` tested any of the ladder, with
-  two cases; the other two screens had none. `authErrors` gets its own suite (18 cases,
-  mutation-checked eight ways), and `authService` gained four cases pinning that the code actually
-  reaches `LoginError` — without those the structured path would have been untested on the half
-  that fills it in, which is the same gap `55d5d8894` found in its fixtures.
+1. **The generated file is generated.** Do not hand-edit it; re-run the script. It is a script rather
+   than a pasted constant precisely because the SVG is upstream's and will be redrawn.
+2. **Coverage is twelve of seventeen.** `abductors`, `adductors`, `lats`, `middle back` and `neck`
+   are not in the illustration, so their tiles keep the labelled colour block. **Back is the one that
+   matters** — it covers `lats` + `middle back`, it is picked often, and it is the most visible
+   remaining gap. Closing it needs either art for those two muscles or a different source
+   illustration; it is the only part of this that still wants a human.
+3. **The illustration draws the body twice, front beside back.** Five muscles are labelled in both.
+   Measuring them together frames the whole canvas — two shrunken half-figures in a tile — so the
+   generator splits at the midline and keeps one view. It throws if any path crosses the midline,
+   which is how a re-laid-out SVG announces itself instead of quietly producing nonsense.
+4. **Which view a muscle uses is a heuristic, and is pinned.** More paths wins, ties to the front.
+   Picking by area instead put the abs on someone's back — obliques wrap further round the back than
+   the abs reach across the front. `__tests__/constants/muscleArt.test.ts` asserts the chosen view
+   per muscle and that every viewBox actually contains its path's ink, so a regeneration that flips
+   one or clips one fails there.
+
+One method note that outlived all three: **a green first run on a suite for previously untested code
+is evidence of nothing.** Every suite in this stretch was verified by breaking the source instead —
+and it kept paying. One case in `workoutSupersets` passed under its own mutation; and the first
+"square viewBox" assertion in `muscleArt` survived removing the squaring entirely, because a box
+sized off width alone is still square. It took asserting the real invariant — nothing clipped — to
+catch it.
 
 **The list below is closed** — the three modules `AGENTS.md` called out as having no suite of their
 own now have one, and that note has been retired. Kept for the pattern each established, since the
@@ -263,8 +278,9 @@ above.
   Anyone "fixing" the coaching surfaces to respect the browsed date will be reintroducing a bug — the
   workout was programmed against today's recovery.
 - Carried forward from Phase E, all still true and none blocking: the web weekly-targets card draws
-  linear bars where mobile draws a Skia hexagon; C2's anatomical SVG paths remain the only
-  human-blocked task and block nothing; muscle targeting (Pick Muscles, splits, On Demand) is
+  linear bars where mobile draws a Skia hexagon; C2's anatomical art is no longer human-blocked — `2067f1803`
+  generated it from the illustration the web body map already renders, leaving five muscles the
+  illustration does not draw; muscle targeting (Pick Muscles, splits, On Demand) is
   mobile-only and is a UI gap, not a contract one; the three untested mobile modules are closed, and so is
   the status-by-substring sweep they led to; the two web body-map implementations stay unconsolidated per blueprint
   D10; health sync
