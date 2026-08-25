@@ -4,8 +4,7 @@ import { freshnessPercent, freshnessTone, MUSCLES } from '@workspace/shared';
 
 import PickMusclesScreen from '../../src/screens/PickMusclesScreen';
 import { useMuscleRecovery } from '../../src/hooks/useMuscleRecovery';
-import { TILES_OFF_BODY } from '../../src/constants/muscleTiles';
-import { MUSCLES_ON_BODY } from '../../src/constants/muscleArt.generated';
+import { BODY_PATHS } from '../../src/constants/muscleArt.generated';
 import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';
 
 const mockGenerateRecommendation = jest.fn();
@@ -229,39 +228,66 @@ describe('PickMusclesScreen', () => {
       return screen;
     }
 
-    // Every canonical muscle stays reachable: on the figure where the
-    // illustration draws it, as a chip beneath where it does not. A muscle in
-    // neither place could not be targeted at all.
-    it('offers every one of the 17 canonical muscles somewhere', () => {
+    /** Flip the figure. Selection is shared across both views. */
+    function showBack(screen: ReturnType<typeof renderScreen>) {
+      fireEvent.press(screen.getByText('Back'));
+      return screen;
+    }
+
+    /** Which view each muscle is drawn on, straight from the generated art. */
+    const drawnOn = (view: 'front' | 'back') =>
+      new Set(
+        BODY_PATHS.flatMap((path) =>
+          path.kind === 'muscle' && path.view === view ? [path.muscle] : [],
+        ),
+      );
+
+    // Every canonical muscle is on the figure now — five of them only because
+    // the art relabels two upstream regions and hand-draws three more. A muscle
+    // on neither view could not be targeted at all.
+    it('offers every one of the 17 canonical muscles on one view or the other', () => {
       const screen = openGrid(renderScreen());
 
-      for (const muscle of MUSCLES_ON_BODY) {
+      const front = drawnOn('front');
+      for (const muscle of front) {
         expect(screen.getByTestId(`pick-muscles-body-${muscle}`)).toBeTruthy();
       }
-      for (const tile of TILES_OFF_BODY) {
-        expect(screen.getByTestId(`pick-muscles-chip-${tile.id}`)).toBeTruthy();
+
+      showBack(screen);
+      const back = drawnOn('back');
+      for (const muscle of back) {
+        expect(screen.getByTestId(`pick-muscles-body-${muscle}`)).toBeTruthy();
       }
 
-      const reachable = [
-        ...MUSCLES_ON_BODY,
-        ...TILES_OFF_BODY.flatMap((tile) => tile.muscles),
-      ];
-      expect([...reachable].sort()).toEqual([...MUSCLES].sort());
+      expect([...new Set([...front, ...back])].sort()).toEqual([...MUSCLES].sort());
     });
 
     it('sends canonical muscle names for the picked tiles', async () => {
       const screen = openGrid(renderScreen());
 
-      // One from each half of the screen: Back is a chip because the
-      // illustration draws neither muscle it covers; quads are on the figure.
-      fireEvent.press(screen.getByTestId('pick-muscles-chip-back'));
+      // One from each view, and one of them a tile covering two muscles: the
+      // lats are drawn on the back, and picking them picks the whole Back tile.
       fireEvent.press(screen.getByTestId('pick-muscles-body-quadriceps'));
+      showBack(screen);
+      fireEvent.press(screen.getByTestId('pick-muscles-body-lats'));
       fireEvent.press(screen.getByText('Save'));
 
       await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
       expect(mockGenerateRecommendation).toHaveBeenCalledWith({
         target_muscles: ['lats', 'middle back', 'quadriceps'],
       });
+    });
+
+    // The two figures are one picker, not two: flipping the view must not lose
+    // what was already chosen on the other side.
+    it('keeps a pick made on one view when the other is shown', () => {
+      const screen = openGrid(renderScreen());
+
+      fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
+      showBack(screen);
+
+      expect(screen.getByTestId('pick-muscles-selected-chest')).toBeTruthy();
+      expect(screen.queryByTestId('pick-muscles-body-chest')).toBeNull();
     });
 
     it('drops a tile that is tapped twice', async () => {
@@ -294,8 +320,8 @@ describe('PickMusclesScreen', () => {
       expect(screen.getByLabelText('Quadriceps, 12% recovered')).toBeTruthy();
     });
 
-    // Training back trains both muscles the tile stands for, so the tile must
-    // not claim the fresher one's number.
+    // Training back trains both muscles the tile stands for, so the readout
+    // must not claim the fresher one's number.
     it('shows the more fatigued muscle on a tile that covers two', () => {
       setRecovery([
         ...MUSCLES.filter((muscle) => muscle !== 'lats' && muscle !== 'middle back').map(
@@ -304,9 +330,47 @@ describe('PickMusclesScreen', () => {
         item('lats', 1),
         item('middle back', 0.2),
       ]);
-      const screen = openGrid(renderScreen());
+      const screen = showBack(openGrid(renderScreen()));
 
-      expect(screen.getByLabelText('Back, 20% recovered')).toBeTruthy();
+      fireEvent.press(screen.getByTestId('pick-muscles-body-lats'));
+
+      expect(screen.getByText('Back · 20% recovered')).toBeTruthy();
+    });
+
+    describe('the readout', () => {
+      it('says what to do when nothing is picked', () => {
+        const screen = openGrid(renderScreen());
+
+        expect(screen.getByTestId('pick-muscles-none')).toBeTruthy();
+        expect(screen.getByText('Selected (0)')).toBeTruthy();
+      });
+
+      // Fill carries selection now, so this is where the exact percentage lives.
+      it('names each pick with the recovery the hook derived', () => {
+        setRecovery([...fullyRecovered(), item('chest', 0.37)]);
+        const screen = openGrid(renderScreen());
+
+        fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
+
+        expect(screen.getByText('Selected (1)')).toBeTruthy();
+        expect(screen.getByText('Chest · 37% recovered')).toBeTruthy();
+      });
+
+      // The other half of why it exists: undoing a mistap without having to hit
+      // the same small shape on the body again.
+      it('drops a pick when its row is tapped', async () => {
+        const screen = openGrid(renderScreen());
+
+        fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
+        fireEvent.press(screen.getByTestId('pick-muscles-body-biceps'));
+        fireEvent.press(screen.getByTestId('pick-muscles-selected-chest'));
+
+        expect(screen.queryByTestId('pick-muscles-selected-chest')).toBeNull();
+
+        fireEvent.press(screen.getByText('Save'));
+        await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
+        expect(mockGenerateRecommendation).toHaveBeenCalledWith({ target_muscles: ['biceps'] });
+      });
     });
 
     it('renders the figure before recovery has arrived', () => {

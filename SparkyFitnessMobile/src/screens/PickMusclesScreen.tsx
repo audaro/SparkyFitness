@@ -11,6 +11,7 @@ import {
 } from '@workspace/shared';
 
 import MuscleBodyMap from '../components/MuscleBodyMap';
+import SegmentedControl from '../components/SegmentedControl';
 import SettingsRow, { SettingsRowGroup } from '../components/SettingsRow';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
@@ -19,11 +20,12 @@ import { useGenerateAndShowWorkout } from '../hooks/useGenerateAndShowWorkout';
 import { useMuscleRecovery, type MuscleRecoveryItem } from '../hooks/useMuscleRecovery';
 import { useFreshnessToneColors } from '../hooks/useFreshnessToneColors';
 import {
-  TILES_OFF_BODY,
+  MUSCLE_TILES,
   musclesForTiles,
   tileForMuscle,
   type MuscleTileDefinition,
 } from '../constants/muscleTiles';
+import type { BodyView } from '../constants/muscleArt.generated';
 import { titleCaseCanonical } from '../utils/workoutSession';
 import type { RootStackScreenProps } from '../types/navigation';
 
@@ -31,6 +33,11 @@ type PickMusclesScreenProps = RootStackScreenProps<'PickMuscles'>;
 
 /** The freshness-ranked default: no muscle constraint at all. */
 const RECOVERED_KEY = 'recovered';
+
+const VIEW_SEGMENTS: { key: BodyView; label: string }[] = [
+  { key: 'front', label: 'Front' },
+  { key: 'back', label: 'Back' },
+];
 
 /**
  * What a split row says it will train.
@@ -88,15 +95,17 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
-  const [textMuted, surfaceColor, accentPrimary] = useCSSVariable([
+  const [textMuted, surfaceColor] = useCSSVariable([
     '--color-text-muted',
     '--color-surface',
-    '--color-accent-primary',
-  ]) as [string, string, string];
+  ]) as [string, string];
   const toneColors = useFreshnessToneColors();
 
   const [mode, setMode] = useState<'splits' | 'grid'>('splits');
   const [selectedTileIds, setSelectedTileIds] = useState<string[]>([]);
+  // Which figure is on screen. Selection is shared across both: a muscle simply
+  // appears on whichever view draws it.
+  const [view, setView] = useState<BodyView>('front');
 
   const { muscles: recovery } = useMuscleRecovery();
 
@@ -155,9 +164,13 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
   }, []);
 
   /**
-   * The body map's regions are muscles; the screen's selection is tiles. Every
-   * muscle the figure draws is its own tile — the one multi-muscle tile, Back,
-   * has no region — so the two map onto each other without ambiguity.
+   * The body map's regions are muscles; the screen's selection is tiles.
+   *
+   * Back is the one tile standing for two muscles, and the figure now draws
+   * both — so tapping a lat lights the mid-spine too. That is the truth of the
+   * pick rather than a rounding of it: the request carries both either way, and
+   * a tile that highlighted only half of what it sends would be the misleading
+   * version.
    */
   const handleToggleMuscle = useCallback(
     (muscle: Muscle) => {
@@ -168,6 +181,9 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
   );
 
   const selectedMuscles = musclesForTiles(selectedTileIds);
+  // In tile order rather than tap order, so the readout does not reshuffle
+  // itself as picks come and go.
+  const selectedTiles = MUSCLE_TILES.filter((tile) => selectedTileIds.includes(tile.id));
 
   const bodyRecovery = new Map(
     recovery.map(
@@ -279,52 +295,74 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
               is today.
             </Text>
 
+            {/* One figure at a time. Side by side, each body is about half a
+                phone wide and most muscles are 10–20pt across — under any
+                reasonable tap target, and too small for the selection to read
+                at all. */}
+            <View testID="pick-muscles-view-toggle" className="mb-4">
+              <SegmentedControl segments={VIEW_SEGMENTS} activeKey={view} onSelect={setView} />
+            </View>
+
             <MuscleBodyMap
+              view={view}
               recoveryByMuscle={bodyRecovery}
               selected={selectedMuscles}
               onToggle={handleToggleMuscle}
               testID="pick-muscles-body"
             />
 
-            {/* The figure draws twelve of the seventeen canonical muscles.
-                These are the rest — reachable here rather than nowhere, which
-                matters most for Back: it is picked often and the illustration
-                has no region for either muscle it covers. */}
+            {/* Not the chip row that used to sit here: those were *pickers* for
+                muscles the figure could not offer, and the figure now draws all
+                seventeen. This is a readout of what is chosen — which is where
+                the exact recovery percentages live now that fill carries
+                selection, and how a mistap is undone without hunting a small
+                shape on the body. */}
             <View className="mt-6">
               <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider">
-                Not on the diagram
+                {`Selected (${selectedTiles.length})`}
               </Text>
-              <View className="flex-row flex-wrap gap-2 mt-3">
-                {TILES_OFF_BODY.map((tile) => {
-                  const entry = tileRecovery(tile, recoveryByMuscle);
-                  const picked = selectedTileIds.includes(tile.id);
-                  return (
-                    <Pressable
-                      key={tile.id}
-                      onPress={() => toggleTile(tile.id)}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: picked }}
-                      accessibilityLabel={
-                        entry ? `${tile.label}, ${entry.percent}% recovered` : tile.label
-                      }
-                      testID={`pick-muscles-chip-${tile.id}`}
-                      className="flex-row items-center rounded-full px-3 py-2"
-                      style={{
-                        backgroundColor: surfaceColor,
-                        borderWidth: 2,
-                        borderColor: picked ? accentPrimary : 'transparent',
-                      }}
-                    >
-                      <Text className="text-sm text-text-primary">{tile.label}</Text>
-                      {entry ? (
-                        <Text className="text-xs font-bold ml-2" style={{ color: toneColors[entry.tone] }}>
-                          {entry.percent}%
+              {selectedTiles.length === 0 ? (
+                <Text className="text-sm mt-3" style={{ color: textMuted }} testID="pick-muscles-none">
+                  Tap a muscle to target it.
+                </Text>
+              ) : (
+                <View className="mt-3 rounded-xl overflow-hidden" style={{ backgroundColor: surfaceColor }}>
+                  {selectedTiles.map((tile) => {
+                    const entry = tileRecovery(tile, recoveryByMuscle);
+                    return (
+                      <Pressable
+                        key={tile.id}
+                        onPress={() => toggleTile(tile.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          entry
+                            ? `Remove ${tile.label}, ${entry.percent}% recovered`
+                            : `Remove ${tile.label}`
+                        }
+                        testID={`pick-muscles-selected-${tile.id}`}
+                        className="flex-row items-center justify-between px-4 py-3"
+                      >
+                        {/* The recovery half carries the same tone the figure
+                            fills that muscle with, so the readout and the body
+                            agree at a glance. "Remove" stays neutral: it is the
+                            action, and tinting it by freshness would say
+                            something about the muscle that it does not mean. */}
+                        <Text className="text-sm text-text-primary">
+                          {tile.label}
+                          {entry ? (
+                            <Text style={{ color: toneColors[entry.tone] }}>
+                              {` · ${entry.percent}% recovered`}
+                            </Text>
+                          ) : null}
                         </Text>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
+                        <Text className="text-xs font-bold ml-3" style={{ color: textMuted }}>
+                          Remove
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           </View>
         )}

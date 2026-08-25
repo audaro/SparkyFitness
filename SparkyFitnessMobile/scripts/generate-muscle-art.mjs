@@ -1,5 +1,5 @@
 /**
- * Generates `src/constants/muscleArt.generated.ts` from the anatomical
+ * Writes `src/constants/muscleArt.generated.ts` from the anatomical
  * illustration the web app already renders,
  * `SparkyFitnessFrontend/public/images/muscle-male.svg`.
  *
@@ -8,125 +8,42 @@
  * reconciling a copy by hand.
  *
  *   pnpm run muscle-art:generate
+ *   pnpm run muscle-art:check      re-derive and diff, writing nothing
  *
- * The output is the whole illustration — both figures, front and back — as an
- * ordered list of paths, each tagged with the muscle it belongs to where the
- * illustration labels one. `MuscleBodyMap` renders them in that order, which is
- * what keeps the silhouette under the muscles and the outline detail over them,
- * and makes every labelled path a tap target for its muscle.
+ * `--check` is what `validate` runs. The art is generated but committed, and
+ * the app renders the commit — so the check catches both halves of that going
+ * stale: an override that no longer matches the illustration (the build throws,
+ * and a dropped override means a region labelled as a muscle it is not), and a
+ * committed file that was hand-edited or never regenerated.
  *
- * It does NOT cover the whole vocabulary: the illustration knows twelve of the
- * seventeen canonical muscles. The other five have no region on the figure and
- * the screen offers them as chips instead.
+ * The derivation itself — relabelling, the hand-authored regions, splitting the
+ * two figures into views, and every check that any of it still lines up — lives
+ * in `scripts/muscle-art/build.mjs`, shared with `muscle-art:render` so that
+ * what gets eyeballed is exactly what ships. This file only formats the result.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { buildBodyArt } from './muscle-art/build.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
-const SVG_PATH = resolve(here, '../../SparkyFitnessFrontend/public/images/muscle-male.svg');
 const OUT_PATH = resolve(here, '../src/constants/muscleArt.generated.ts');
 
-/**
- * The illustration's class names against this repo's canonical muscle
- * vocabulary (`MUSCLES` in `@workspace/shared`). Two of them are the web app's
- * mapping (`svgClassToSchemaName` in the frontend's `constants/exercises.ts`)
- * and are kept identical on purpose; `obliques` folds into `abdominals` there
- * too, since the vocabulary has no separate member for it.
- */
-const SVG_CLASS_TO_MUSCLE = {
-  abdominal: 'abdominals',
-  obliques: 'abdominals',
-  biceps: 'biceps',
-  calves: 'calves',
-  chest: 'chest',
-  forearms: 'forearms',
-  glutes: 'glutes',
-  hamstrings: 'hamstrings',
-  lowerback: 'lower back',
-  quads: 'quadriceps',
-  shoulders: 'shoulders',
-  traps: 'traps',
-  triceps: 'triceps',
-};
-
-/**
- * The illustration's two unlabelled fills. The pale one is the body itself, the
- * dark one is outline detail drawn over everything (head, hands, creases).
- * Matched by colour because that is the only thing telling them apart in the
- * file — neither carries a class.
- */
-const SILHOUETTE_FILL = '#f5f5f5';
-const DETAIL_FILL = '#757575';
-
-const svg = readFileSync(SVG_PATH, 'utf8');
-
-const viewBox = svg.match(/<svg[^>]*\bviewBox="([^"]+)"/)?.[1];
-if (!viewBox) {
-  throw new Error(`Could not read the illustration's viewBox from ${SVG_PATH}.`);
-}
-
-// Document order is render order, and it matters: the pale silhouette is drawn
-// first so the muscles sit on top of it, and the outline detail last so it sits
-// on top of them. Preserving the order preserves the layering, with no z-index
-// reasoning of our own.
-const paths = [];
-for (const tag of svg.match(/<path\b[^>]*>/g) ?? []) {
-  const className = tag.match(/\bclass="([^"]*)"/)?.[1];
-  const d = tag.match(/\bd="([^"]*)"/)?.[1];
-  if (!d) continue;
-
-  const cleaned = d.replace(/\s+/g, ' ').trim();
-
-  if (className) {
-    const muscle = SVG_CLASS_TO_MUSCLE[className];
-    if (!muscle) {
-      throw new Error(
-        `Path classed "${className}" has no entry in SVG_CLASS_TO_MUSCLE. Add ` +
-          'it (mapped to a canonical muscle), or that region silently stops ' +
-          'being tappable.',
-      );
-    }
-    paths.push({ kind: 'muscle', muscle, d: cleaned });
-    continue;
-  }
-
-  const fill = tag.match(/\bfill="([^"]*)"/)?.[1];
-  if (fill === SILHOUETTE_FILL) {
-    paths.push({ kind: 'silhouette', d: cleaned });
-  } else if (fill === DETAIL_FILL) {
-    paths.push({ kind: 'detail', d: cleaned });
-  } else {
-    throw new Error(
-      `Unclassed path with fill "${fill}" is neither the silhouette ` +
-        `(${SILHOUETTE_FILL}) nor outline detail (${DETAIL_FILL}). The figure ` +
-        'would render with a piece missing.',
-    );
-  }
-}
-
-if (paths.length === 0) {
-  throw new Error(`No paths found in ${SVG_PATH} — has the illustration changed shape?`);
-}
-
-const found = new Set(paths.filter((p) => p.kind === 'muscle').map((p) => p.muscle));
-const missing = [...new Set(Object.values(SVG_CLASS_TO_MUSCLE))].filter((m) => !found.has(m));
-if (missing.length) {
-  throw new Error(`Mapped but not present in the SVG: ${missing.join(', ')}`);
-}
-if (!paths.some((p) => p.kind === 'silhouette')) {
-  throw new Error('No silhouette path found — the figure would render as floating muscles.');
-}
+const { paths, views, aspect, muscles } = buildBodyArt();
 
 const body = paths
-  .map((path) =>
-    path.kind === 'muscle'
-      ? `  { kind: 'muscle', muscle: '${path.muscle}', d: '${path.d}' },`
-      : `  { kind: '${path.kind}', d: '${path.d}' },`,
-  )
+  .map((path) => {
+    const view = `view: '${path.view}'`;
+    if (path.kind !== 'muscle') return `  { kind: '${path.kind}', ${view}, d: '${path.d}' },`;
+    const authored = path.authored ? ', authored: true' : '';
+    return `  { kind: 'muscle', muscle: '${path.muscle}', ${view}${authored}, d: '${path.d}' },`;
+  })
   .join('\n');
 
-const onBody = [...found].sort();
+const counts = Object.fromEntries(
+  ['front', 'back'].map((view) => [view, paths.filter((path) => path.view === view).length]),
+);
 
 const out = `/**
  * The anatomical figure behind the Pick Muscles body map.
@@ -134,30 +51,65 @@ const out = `/**
  * GENERATED — do not edit. Run \`pnpm run muscle-art:generate\` instead, which
  * re-derives this from \`SparkyFitnessFrontend/public/images/muscle-male.svg\`,
  * the illustration the web body map already renders. That file is upstream's,
- * so regenerating is how this stays in step with it.
+ * so regenerating is how this stays in step with it. \`pnpm run
+ * muscle-art:render\` draws the same paths to PNG to look at.
  *
  * The array is in the illustration's own document order, which is its render
- * order: silhouette first, muscles over it, outline detail last.
+ * order: silhouette first, muscles over it, outline detail last. The five
+ * \`authored\` regions are merged in after the last of upstream's muscles, which
+ * puts them over the body and under the head and hands.
  */
 import type { Muscle } from '@workspace/shared';
 
+/** Which figure a path is drawn on. The screen shows one at a time. */
+export type BodyView = 'front' | 'back';
+
+interface BodyPathBase {
+  readonly view: BodyView;
+  readonly d: string;
+}
+
 export type BodyPath =
   /** A labelled region, tappable as its muscle. */
-  | { readonly kind: 'muscle'; readonly muscle: Muscle; readonly d: string }
+  | (BodyPathBase & {
+      readonly kind: 'muscle';
+      readonly muscle: Muscle;
+      /**
+       * Drawn by hand rather than taken from upstream, for a muscle the
+       * illustration has no geometry for. See \`scripts/muscle-art/authored-shapes.mjs\`.
+       */
+      readonly authored?: true;
+    })
   /** The body itself, drawn under everything. */
-  | { readonly kind: 'silhouette'; readonly d: string }
+  | (BodyPathBase & { readonly kind: 'silhouette' })
   /** Outline detail — head, hands, creases — drawn over everything. */
-  | { readonly kind: 'detail'; readonly d: string };
-
-/** The illustration's coordinate space: the front figure beside the back one. */
-export const BODY_VIEW_BOX = '${viewBox}';
+  | (BodyPathBase & { readonly kind: 'detail' });
 
 /**
- * The muscles the figure actually draws, so the screen knows which ones it has
- * to offer some other way. Twelve of the seventeen canonical muscles.
+ * Each figure's own coordinate window.
+ *
+ * Both boxes are the same size, so flipping the view does not resize the body;
+ * each is centred on its own silhouette. Showing one figure at a time is what
+ * makes the regions tappable at all — side by side on a phone, most muscles are
+ * 10–20pt across.
+ */
+export const BODY_VIEWS: Readonly<Record<BodyView, { readonly viewBox: string }>> = {
+  front: { viewBox: '${views.front.viewBox}' },
+  back: { viewBox: '${views.back.viewBox}' },
+};
+
+/** The shape of either view, for the container the figure is drawn into. */
+export const BODY_VIEW_ASPECT = ${Number(aspect.toFixed(6))};
+
+/**
+ * Every canonical muscle, all of which the figure now draws.
+ *
+ * It stays exported, rather than being folded away as "all of them", because it
+ * is the generator's own record of what it found: a regeneration that loses a
+ * region fails a test here instead of quietly making that muscle unpickable.
  */
 export const MUSCLES_ON_BODY: readonly Muscle[] = [
-${onBody.map((muscle) => `  '${muscle}',`).join('\n')}
+${muscles.map((muscle) => `  '${muscle}',`).join('\n')}
 ];
 
 export const BODY_PATHS: readonly BodyPath[] = [
@@ -165,6 +117,21 @@ ${body}
 ];
 `;
 
-writeFileSync(OUT_PATH, out);
-console.log(`Wrote ${OUT_PATH}`);
-console.log(`  ${paths.length} paths, ${onBody.length} muscles: ${onBody.join(', ')}`);
+if (process.argv.includes('--check')) {
+  const committed = readFileSync(OUT_PATH, 'utf8');
+  if (committed !== out) {
+    console.error(
+      `${OUT_PATH} is not what the illustration produces today.\n` +
+        'Run `pnpm run muscle-art:generate`, look at the result with ' +
+        '`pnpm run muscle-art:render`, and commit both. Never hand-edit the ' +
+        'generated file — the next regeneration would drop the edit.',
+    );
+    process.exit(1);
+  }
+  console.log(`${OUT_PATH} is up to date (${paths.length} paths, ${muscles.length} muscles).`);
+} else {
+  writeFileSync(OUT_PATH, out);
+  console.log(`Wrote ${OUT_PATH}`);
+  console.log(`  ${paths.length} paths (${counts.front} front, ${counts.back} back)`);
+  console.log(`  ${muscles.length} muscles: ${muscles.join(', ')}`);
+}

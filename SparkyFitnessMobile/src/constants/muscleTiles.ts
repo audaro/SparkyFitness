@@ -1,7 +1,5 @@
 import { MUSCLES, type Muscle } from '@workspace/shared';
 
-import { MUSCLES_ON_BODY } from './muscleArt.generated';
-
 /**
  * How the 17 canonical muscles are grouped into tiles on the muscle grid.
  *
@@ -64,9 +62,9 @@ const ACCESSORY_MUSCLE_TILES: readonly MuscleTileDefinition[] = [
  * The Main/Accessory split, kept as the definitional source of `MUSCLE_TILES`.
  *
  * The titles and subtitles are no longer rendered: the picker draws the
- * anatomical figure instead of a sectioned tile grid, and the only tiles it
- * still lists as such are the four with no region on it. The grouping is real
- * domain information, so it stays — but nothing displays it today.
+ * anatomical figure, which covers the whole vocabulary, so no tile is listed as
+ * such anywhere. The grouping is real domain information, so it stays — but
+ * nothing displays it today.
  */
 export const MUSCLE_TILE_SECTIONS: readonly MuscleTileSection[] = [
   {
@@ -86,6 +84,18 @@ export const MUSCLE_TILES: readonly MuscleTileDefinition[] =
   MUSCLE_TILE_SECTIONS.flatMap((section) => section.tiles);
 
 /**
+ * The tile a muscle belongs to.
+ *
+ * The body map's regions are muscles while the screen's selection is tiles, so
+ * every tap goes through here. Back is the one tile covering two muscles, and
+ * both of them are drawn: tapping either lights up both, which is honest, since
+ * both are what the request would carry.
+ */
+export function tileForMuscle(muscle: Muscle): MuscleTileDefinition | undefined {
+  return MUSCLE_TILES.find((tile) => tile.muscles.includes(muscle));
+}
+
+/**
  * The canonical muscles a set of picked tiles resolves to, in canonical order.
  *
  * Canonical order rather than tap order so the same selection always produces
@@ -93,27 +103,6 @@ export const MUSCLE_TILES: readonly MuscleTileDefinition[] =
  * reordered itself would make two identical picks look like two different
  * workouts in the logs.
  */
-/**
- * The tiles the body map cannot offer, because the illustration draws no region
- * for any muscle they cover. Pick Muscles lists these as chips beneath the
- * figure so the vocabulary stays fully reachable.
- *
- * Every tile is wholly on the figure or wholly off it — never split — which
- * `__tests__/constants/muscleArt.test.ts` asserts, since a half-drawn tile
- * would be tappable on the body *and* listed as missing from it.
- */
-/**
- * The tile a muscle belongs to. Used by the body map, whose regions are muscles
- * while the screen's selection is tiles.
- */
-export function tileForMuscle(muscle: Muscle): MuscleTileDefinition | undefined {
-  return MUSCLE_TILES.find((tile) => tile.muscles.includes(muscle));
-}
-
-export const TILES_OFF_BODY: readonly MuscleTileDefinition[] = MUSCLE_TILES.filter((tile) =>
-  tile.muscles.every((muscle) => !MUSCLES_ON_BODY.includes(muscle)),
-);
-
 export function musclesForTiles(
   tileIds: readonly string[],
 ): Muscle[] {

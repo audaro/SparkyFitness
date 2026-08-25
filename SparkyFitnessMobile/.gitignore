@@ -74,3 +74,5 @@ plans/
 /vendor
 /installations
 /.bundle
+# muscle body-map renders (pnpm run muscle-art:render)
+.muscle-art-render/

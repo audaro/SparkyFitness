@@ -4,9 +4,14 @@ Branch `feat/ai-coach`. Previous step: `docs/handoffs/workout-playback-entry-poi
 mobile commit (`f2fd45d80`) turned Pick Muscles into a tappable anatomical figure with a row of chips
 beneath it for the muscles the illustration does not draw.
 
-This is a **plan, not a record** — nothing below has shipped. It closes three gaps left by that
-commit: the chips, an invisible selection treatment, and the absence of any readout naming what the
-user has picked.
+> **Shipped 2026-08-24.** All five phases below are done; what actually landed, and where it
+> departed from this plan, is recorded in `docs/handoffs/pick-muscles-body-map-shipped.md`. Keep
+> reading this file for the *why* behind each phase — it is the design rationale — but treat the
+> other one as the description of the code.
+
+This was a **plan, not a record** when it was written — nothing below had shipped. It closes three
+gaps left by that commit: the chips, an invisible selection treatment, and the absence of any
+readout naming what the user has picked.
 
 Mobile-only (`SparkyFitnessMobile/`). Nothing on the server, the frontend, or in `shared/` changes.
 The illustration itself (`SparkyFitnessFrontend/public/images/muscle-male.svg`) is upstream's and is
