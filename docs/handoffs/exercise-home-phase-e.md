@@ -207,7 +207,12 @@ Carried forward, still true:
 
 ## Merge exposure this phase adds
 
-Worth knowing before the next upstream sync. Until now the fork's conflict surface was mobile-only
+Worth knowing before the next upstream sync. **A sync run on 2026-08-24 after E6 was a no-op** —
+`upstream/main`, `upstream/dev` and `upstream/dev2` are all ancestors of this branch, and the single
+upstream branch ahead of `main` (`nix/update-pnpm-hashes`) has an empty diff against it. There is no
+in-flight upstream work touching any file the fork has modified.
+
+Until now the fork's conflict surface was mobile-only
 (16 files on the 341-commit merge of 2026-08-24, all of them files the fork edited in place or
 deleted). E4 opens a **second permanent conflict zone on the web**: `layouts/MainLayout.tsx` holds
 both nav arrays and upstream edits them regularly (the cycle and medications conditionals are
@@ -220,9 +225,32 @@ file they edited. In-place edits are the cheaper trade here.
 
 E5 and E6 add little to that surface, but not nothing. `utils/workoutPlayback.ts`,
 `pages/Diary/ExerciseCard.tsx` and `pages/Exercises/WorkoutPresetsManager.tsx` are upstream files
-edited in place; the guard itself is a new file. **`components/ui/ConfirmationDialog.tsx` is the one
-to watch** — it is a shared primitive with six callers, so an upstream change to it conflicts against
-fork edits in the exact lines most likely to be touched (the footer buttons). The edits are small and
-defensible enough to re-apply by hand, and they are the kind of fix upstream would plausibly make
-too, which would resolve the conflict by convergence. This fork does not PR out, so that is the only
-way it converges.
+edited in place; the guard itself is a new file.
+
+**Measured 2026-08-24, against `upstream/main` at `fda0c167f`.** The fork's whole delta is 157 added
+files, 123 modified, 2 deleted. Only modified files can conflict, and their risk is upstream's churn
+rate, not their importance. For the 18 web files the fork has modified, six months of upstream
+commits each:
+
+| Upstream commits (6mo) | File                                        |
+| ---------------------- | ------------------------------------------- |
+| 137                    | `public/locales/en/translation.json`        |
+| 23                     | `layouts/MainLayout.tsx`                    |
+| 22                     | `pages/Diary/Diary.tsx`                     |
+| 14                     | `pages/Diary/ExerciseCard.tsx`              |
+| 11                     | `pages/Exercises/WorkoutPresetsManager.tsx` |
+| 8                      | `utils/workoutPlayback.ts`                  |
+| …                      | …                                           |
+| 1                      | `components/ui/ConfirmationDialog.tsx`      |
+
+So the E4 note above is right that `MainLayout.tsx` and `Diary.tsx` are the permanent web conflict
+zone, and **the E6 note that first stood here — calling `ConfirmationDialog.tsx` "the one to watch" —
+was wrong.** It is the _coldest_ file the fork has touched on the web: six upstream commits in its
+entire history, one in the last six months. The reasoning behind that claim was not wrong, only
+mis-weighted — that one recent commit (`03e5d1451`, 2026-05-28) did land exactly where the fork now
+edits, adding the secondary-action button to the footer. Being a shared primitive with six callers
+makes a conflict there _consequential_; it does not make it _likely_, and the note conflated the two.
+The honest version: low probability, small blast radius (10 scattered hunks in a 74-line file — a
+conflict is effectively a re-apply by hand, and the whole file is 74 lines), and a fix upstream would
+plausibly make itself. This fork does not PR out, so convergence is the only way it ever stops being
+a fork edit.
