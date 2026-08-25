@@ -54,10 +54,24 @@ export function startRecognition({ autoStop }: RecognitionMode): void {
 /**
  * Folds `result` events into one transcript.
  *
- * Continuous recognition emits *segments*: an interim result covers only the
- * utterance in progress and every final result is a new utterance, so the
- * finals have to be concatenated here rather than replacing what came before.
- * A non-continuous session is just the single-final case of the same rule.
+ * The two platforms disagree about what a result covers, and one of them
+ * disagrees with itself. Android sends only the new utterance, so results have
+ * to be concatenated. iOS sends `formattedString`, the whole task's transcript,
+ * on every result — and emits *two* final-flagged results for one utterance:
+ * the module's iOS-18 `speechDuration` heuristic fires one mid-speech, then
+ * stopping capture delivers the real `isFinal`. Worse, after that first final
+ * the module prepends a space as if the text were a new segment, so appending
+ * it duplicates everything the user just said.
+ *
+ * Rather than branch on `Platform.OS` and guess which engine does what, a
+ * result that already contains the transcript so far is treated as a
+ * restatement and replaces it; anything else is appended. The comparison
+ * ignores case, punctuation and spacing, because iOS re-punctuates and
+ * re-cases the text it hands back (`addsPunctuation`).
+ *
+ * The one thing this cannot see is a user who repeats their entire transcript
+ * verbatim as the next utterance — that reads as a restatement and collapses.
+ * Losing a duplicated phrase beats duplicating every iOS utterance.
  */
 export interface TranscriptAccumulator {
   /** Folds in one result event and returns the transcript so far. */
@@ -67,18 +81,36 @@ export interface TranscriptAccumulator {
   reset(): void;
 }
 
+/** Case, punctuation and spacing carry no meaning for the prefix comparison. */
+function normalizeForCompare(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\s.,!?;:'"„”“‘’()[\]{}\-–—…]+/g, ' ')
+    .trim();
+}
+
 export function createTranscriptAccumulator(): TranscriptAccumulator {
   let committed = '';
   let live = '';
-  const joined = () => [committed, live].filter(Boolean).join(' ');
+
+  /** True when `text` already contains everything committed so far. */
+  const restates = (text: string) =>
+    committed !== '' &&
+    normalizeForCompare(text).startsWith(normalizeForCompare(committed));
+
+  const joined = () =>
+    restates(live) ? live : [committed, live].filter(Boolean).join(' ');
 
   return {
     push(transcript, isFinal) {
+      const text = transcript.trim();
       if (isFinal) {
-        committed = [committed, transcript.trim()].filter(Boolean).join(' ');
+        committed = restates(text)
+          ? text
+          : [committed, text].filter(Boolean).join(' ');
         live = '';
       } else {
-        live = transcript.trim();
+        live = text;
       }
       return joined();
     },
