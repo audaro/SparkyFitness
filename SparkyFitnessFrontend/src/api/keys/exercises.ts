@@ -40,6 +40,14 @@ export const gymProfileKeys = {
   lists: () => [...gymProfileKeys.all, 'list'] as const,
 };
 
+// There is at most one stored recommendation per user (the table is
+// `UNIQUE (user_id)` — generating replaces, no history), so this is a single
+// key rather than a key factory.
+export const workoutRecommendationKeys = {
+  all: ['workoutRecommendation'] as const,
+  current: () => [...workoutRecommendationKeys.all, 'current'] as const,
+};
+
 export const exerciseSearchKeys = {
   all: ['exerciseSearch'] as const,
   providers: ['exerciseSearch', 'providers'] as const,

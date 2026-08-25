@@ -40,6 +40,7 @@ import type { ExerciseOwnershipFilter } from '@/types/exercises';
 import WorkoutPresetsManager from './WorkoutPresetsManager';
 import WorkoutPlansManager from '@/pages/Exercises/WorkoutPlansManager';
 import GymProfilesManager from '@/pages/Exercises/GymProfilesManager';
+import UpNextCard from '@/pages/Exercises/UpNextCard';
 import {
   useExercises,
   useUpdateExerciseShareStatusMutation,
@@ -415,6 +416,11 @@ const ExerciseDatabaseManager = () => {
 
   return (
     <div className="space-y-6">
+      {/* Up Next — the generated workout, first because it is what the page is
+          for on most visits; the library below is for browsing and editing.
+          Hides itself while acting on behalf of another user. */}
+      <UpNextCard />
+
       {/* Exercises Section */}
       <Card>
         <CardHeader className="pb-2">

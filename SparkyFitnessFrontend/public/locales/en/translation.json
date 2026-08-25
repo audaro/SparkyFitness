@@ -1139,6 +1139,22 @@
     "plans": "plans",
     "status": "Status"
   },
+  "upNext": {
+    "cardTitle": "Up Next",
+    "durationLabel": "Workout length",
+    "durationOption": "{{minutes}} min",
+    "generate": "Generate workout",
+    "refresh": "New workout",
+    "retry": "Retry",
+    "emptyDescription": "No workout yet. Generate one and the engine programs it from your recovery, your history, and the equipment your active gym profile says you have.",
+    "loadError": "Failed to load your suggested workout.",
+    "generateError": "Could not build a workout.",
+    "anyEquipment": "Any equipment",
+    "exerciseCount_one": "{{count}} exercise",
+    "exerciseCount_other": "{{count}} exercises",
+    "estimatedMinutes": "~{{minutes}} min",
+    "restChip": "{{rest}} rest"
+  },
   "gymProfilesManager": {
     "cardTitle": "Gym Profiles",
     "addProfileButton": "Add Profile",

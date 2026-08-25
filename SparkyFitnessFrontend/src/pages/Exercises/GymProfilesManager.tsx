@@ -34,21 +34,11 @@ import {
   useUpdateGymProfileMutation,
   type GymProfile,
 } from '@/hooks/Exercises/useGymProfiles';
-import { useActiveUser } from '@/contexts/ActiveUserContext';
+import { useCoachingContextAvailable } from '@/hooks/Exercises/useCoachingContextAvailable';
+import { titleCaseCanonical } from '@/utils/canonicalVocabulary';
 
 // Matches gym_equipment_profiles.name, capped by the shared request schema.
 const MAX_PROFILE_NAME_LENGTH = 100;
-
-/**
- * Display-only capitalization. Stored values stay canonical lowercase — the
- * catalog matches them with `equipment::jsonb ?|`, which is exact and
- * case-sensitive, so a title-cased value would quietly match nothing. These are
- * free-exercise-db vocabulary values rather than application copy, so they are
- * deliberately not translated (mobile renders them the same way).
- */
-function equipmentLabel(value: string): string {
-  return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
-}
 
 /**
  * The response type is `string[]` (the server does not re-narrow it on the way
@@ -73,13 +63,7 @@ interface EditorState {
 const GymProfilesManager: React.FC = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
-  const { isActingOnBehalf } = useActiveUser();
-
-  // gym_equipment_profiles is owner-only at the RLS layer: it matches the
-  // authenticated actor, not the switched-to user. A delegate would see an
-  // empty list and any write would be rejected, so the section is hidden
-  // rather than shown broken.
-  const enabled = !isActingOnBehalf;
+  const enabled = useCoachingContextAvailable();
 
   const { profiles, isLoading, isError, data } = useGymProfiles(enabled);
 
@@ -194,7 +178,7 @@ const GymProfilesManager: React.FC = () => {
     (equipment: string[]): string =>
       equipment.length === 0
         ? t('gymProfilesManager.noEquipment', 'No equipment selected')
-        : equipment.map(equipmentLabel).join(', '),
+        : equipment.map(titleCaseCanonical).join(', '),
     [t]
   );
 
@@ -380,7 +364,7 @@ const GymProfilesManager: React.FC = () => {
                           htmlFor={checkboxId}
                           className="text-sm font-normal cursor-pointer"
                         >
-                          {equipmentLabel(value)}
+                          {titleCaseCanonical(value)}
                         </Label>
                       </div>
                     );
