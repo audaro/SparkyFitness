@@ -11,6 +11,7 @@ import { useActiveAiServiceSetting } from '../../hooks';
 import { postQuickLog } from '../../services/api/quickLogApi';
 import {
   abortRecognition,
+  createTranscriptAccumulator,
   ensureVoicePermissions,
   speakReply,
   startRecognition,
@@ -21,10 +22,10 @@ import { addLog } from '../../services/LogService';
 
 /**
  * Global push-to-talk for Sparky: a floating mic available on every screen.
- * Tap → on-device speech recognition (live transcript) → recognition ends on a
- * pause (or a second tap) → the transcript is sent to the one-shot
- * `/api/chat/quick-log` endpoint → the reply is shown and, when enabled,
- * spoken aloud by the on-device synthesizer.
+ * Tap → on-device speech recognition (live transcript) → a second tap ends
+ * capture (or a pause in speech does, with the auto-stop preference on) → the
+ * transcript is sent to the one-shot `/api/chat/quick-log` endpoint → the reply
+ * is shown and, when enabled, spoken aloud by the on-device synthesizer.
  *
  * Mounted once in App.tsx beside ActiveWorkoutBar, outside the screen tree.
  */
@@ -83,6 +84,7 @@ export default function VoicePushToTalk() {
   const insets = useSafeAreaInsets();
   const voiceButtonVisible = useAppPreferencesStore((s) => s.voiceButtonVisible);
   const voiceRepliesEnabled = useAppPreferencesStore((s) => s.voiceRepliesEnabled);
+  const voiceAutoStopEnabled = useAppPreferencesStore((s) => s.voiceAutoStopEnabled);
   const { data: aiSetting } = useActiveAiServiceSetting();
   const topRoute = useTopRouteName();
   const workoutBarPadding = useActiveWorkoutBarPadding('tabs');
@@ -94,7 +96,7 @@ export default function VoicePushToTalk() {
   // Guards stale async callbacks (network replies, TTS onDone) after the user
   // cancels or starts a new utterance.
   const sessionRef = useRef(0);
-  const finalTranscriptRef = useRef('');
+  const transcriptRef = useRef(createTranscriptAccumulator());
 
   const [accent, surface, border, textPrimary, muted, dangerText, dangerIcon] = useCSSVariable([
     '--color-accent-primary',
@@ -148,14 +150,14 @@ export default function VoicePushToTalk() {
   // always invokes the latest closure, so `phase` is current here.
   useSpeechRecognitionEvent('result', (event) => {
     if (phase !== 'listening') return;
-    const text = event.results[0]?.transcript ?? '';
-    setTranscript(text);
-    if (event.isFinal) finalTranscriptRef.current = text;
+    setTranscript(transcriptRef.current.push(event.results[0]?.transcript ?? '', event.isFinal));
   });
 
   useSpeechRecognitionEvent('end', () => {
     if (phase !== 'listening') return;
-    const message = (finalTranscriptRef.current || '').trim();
+    // Falls back to the live segment: ending capture mid-utterance is normal in
+    // manual mode, and the engine does not always finalize what it heard.
+    const message = transcriptRef.current.text().trim();
     if (!message) {
       resetToIdle();
       return;
@@ -187,24 +189,24 @@ export default function VoicePushToTalk() {
       return;
     }
     sessionRef.current += 1;
-    finalTranscriptRef.current = '';
+    transcriptRef.current.reset();
     setTranscript('');
     setReply('');
     setErrorText('');
     setPhase('listening');
     try {
-      startRecognition();
+      startRecognition({ autoStop: voiceAutoStopEnabled });
     } catch (error) {
       addLog('Voice recognition failed to start', 'ERROR', [
         error instanceof Error ? error.message : String(error),
       ]);
       setPhase('idle');
     }
-  }, []);
+  }, [voiceAutoStopEnabled]);
 
   const handleMicPress = useCallback(() => {
     if (phase === 'listening') {
-      // Second tap ends capture; the final result + "end" event drive send.
+      // Second tap ends capture; the transcript + "end" event drive send.
       stopRecognition();
       return;
     }
@@ -262,7 +264,8 @@ export default function VoicePushToTalk() {
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
             <Icon name="sparkles" size={16} color={accent} />
             <Text style={{ color: muted, fontSize: 13, marginLeft: 6, flex: 1 }}>
-              {phase === 'listening' && 'Listening…'}
+              {phase === 'listening' &&
+                (voiceAutoStopEnabled ? 'Listening…' : 'Listening… tap the mic when done')}
               {phase === 'thinking' && 'Sparky is working on it…'}
               {phase === 'speaking' && 'Sparky'}
               {phase === 'done' && 'Sparky'}

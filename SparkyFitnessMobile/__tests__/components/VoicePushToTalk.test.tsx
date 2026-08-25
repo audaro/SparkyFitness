@@ -67,7 +67,7 @@ describe('VoicePushToTalk', () => {
       expect(ExpoSpeechRecognitionModule.requestPermissionsAsync).toHaveBeenCalled()
     );
     expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled();
-    expect(getByText('Listening…')).toBeTruthy();
+    expect(getByText('Listening… tap the mic when done')).toBeTruthy();
 
     act(() => {
       handlers().result({ results: [{ transcript: 'log 2 eggs' }], isFinal: true });
@@ -86,7 +86,7 @@ describe('VoicePushToTalk', () => {
       'Logged 2 eggs.',
       expect.objectContaining({ onDone: expect.any(Function) })
     );
-    expect(queryByText('Listening…')).toBeNull();
+    expect(queryByText('Listening… tap the mic when done')).toBeNull();
   });
 
   it('does not speak when spoken replies are disabled', async () => {
@@ -118,7 +118,7 @@ describe('VoicePushToTalk', () => {
     });
 
     expect(mockPostQuickLog).not.toHaveBeenCalled();
-    expect(queryByText('Listening…')).toBeNull();
+    expect(queryByText('Listening… tap the mic when done')).toBeNull();
   });
 
   it('surfaces quick-log failures as an error card', async () => {
@@ -137,6 +137,65 @@ describe('VoicePushToTalk', () => {
 
     await waitFor(() => expect(getByText('No active AI provider')).toBeTruthy());
     expect(getByText('Something went wrong')).toBeTruthy();
+  });
+
+  it('listens through pauses by default, concatenating the utterances it hears', async () => {
+    mockPostQuickLog.mockResolvedValueOnce({ text: 'Done.', actions: [] });
+
+    const { getByLabelText, getByText } = renderOverlay();
+
+    fireEvent.press(getByLabelText('Talk to Sparky'));
+    await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled());
+    // Manual mode is continuous recognition: the mic survives a pause.
+    expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledWith(
+      expect.objectContaining({ continuous: true })
+    );
+    expect(getByText('Listening… tap the mic when done')).toBeTruthy();
+
+    // Continuous results are segments, not a growing whole.
+    act(() => {
+      handlers().result({ results: [{ transcript: 'log 2 eggs' }], isFinal: true });
+      handlers().result({ results: [{ transcript: 'and a coffee' }], isFinal: true });
+    });
+    expect(getByText('log 2 eggs and a coffee')).toBeTruthy();
+
+    fireEvent.press(getByLabelText('Stop listening'));
+    expect(ExpoSpeechRecognitionModule.stop).toHaveBeenCalled();
+
+    await act(async () => {
+      handlers().end({});
+    });
+    expect(mockPostQuickLog).toHaveBeenCalledWith('log 2 eggs and a coffee', 'cfg-1');
+  });
+
+  it('sends the live segment when capture ends before the engine finalizes it', async () => {
+    mockPostQuickLog.mockResolvedValueOnce({ text: 'Done.', actions: [] });
+
+    const { getByLabelText } = renderOverlay();
+
+    fireEvent.press(getByLabelText('Talk to Sparky'));
+    await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled());
+    act(() => {
+      handlers().result({ results: [{ transcript: 'log a banana' }], isFinal: false });
+    });
+    await act(async () => {
+      handlers().end({});
+    });
+
+    expect(mockPostQuickLog).toHaveBeenCalledWith('log a banana', 'cfg-1');
+  });
+
+  it('lets the engine end the utterance when auto-stop is on', async () => {
+    useAppPreferencesStore.setState({ voiceAutoStopEnabled: true });
+
+    const { getByLabelText, getByText } = renderOverlay();
+
+    fireEvent.press(getByLabelText('Talk to Sparky'));
+    await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled());
+    expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledWith(
+      expect.objectContaining({ continuous: false })
+    );
+    expect(getByText('Listening…')).toBeTruthy();
   });
 
   it('hides entirely when the preference is off', () => {

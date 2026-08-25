@@ -46,6 +46,8 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
   const setVoiceButtonVisible = useAppPreferencesStore((s) => s.setVoiceButtonVisible);
   const voiceRepliesEnabled = useAppPreferencesStore((s) => s.voiceRepliesEnabled);
   const setVoiceRepliesEnabled = useAppPreferencesStore((s) => s.setVoiceRepliesEnabled);
+  const voiceAutoStopEnabled = useAppPreferencesStore((s) => s.voiceAutoStopEnabled);
+  const setVoiceAutoStopEnabled = useAppPreferencesStore((s) => s.setVoiceAutoStopEnabled);
   const isIOS = Platform.OS === 'ios';
   const iosLanguage = isIOS ? getNativeIOSLanguage() : null;
   const supportsLiquidGlassTabBar = canUseLiquidGlass();
@@ -210,6 +212,18 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
             <Switch
               value={voiceRepliesEnabled}
               onValueChange={setVoiceRepliesEnabled}
+            />
+          }
+        />
+
+        <SettingsRow
+          title="Stop listening automatically"
+          subtitle="End dictation as soon as you pause. Off: the mic keeps listening until you tap it again."
+          subtitleNumberOfLines={0}
+          rightAccessory={
+            <Switch
+              value={voiceAutoStopEnabled}
+              onValueChange={setVoiceAutoStopEnabled}
             />
           }
         />

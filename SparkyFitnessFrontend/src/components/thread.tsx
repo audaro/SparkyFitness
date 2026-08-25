@@ -42,6 +42,8 @@ import {
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
+  EarIcon,
+  EarOffIcon,
   MicIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -53,15 +55,18 @@ import {
 import type { FC } from 'react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
+  isDictationAutoStopEnabled,
   isDictationSupported,
   isSpeechSynthesisSupported,
   isVoiceRepliesEnabled,
+  setDictationAutoStopEnabled,
   setVoiceRepliesEnabled,
   speakMarkdown,
   startDictation,
   stopSpeaking,
+  subscribeDictationAutoStop,
   subscribeVoiceReplies,
-  type BrowserSpeechRecognition,
+  type DictationSession,
 } from '@/lib/speech';
 
 interface ThreadProps {
@@ -222,20 +227,25 @@ const Composer: FC = () => {
 
 /**
  * Composer dictation: browser SpeechRecognition streams the live transcript
- * into the composer input; recognition ends on a pause in speech or a second
- * click, and the user reviews/edits before sending. Hidden entirely in
- * browsers without the Web Speech API (e.g. Firefox).
+ * into the composer input, and the user reviews/edits before sending. The mic
+ * runs until a second click; only with the auto-stop preference on does a pause
+ * in speech end it. Hidden entirely in browsers without the Web Speech API
+ * (e.g. Firefox).
  */
 const ComposerDictateButton: FC = () => {
   const aui = useAui();
   const [dictating, setDictating] = useState(false);
-  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const sessionRef = useRef<DictationSession | null>(null);
+  const autoStop = useSyncExternalStore(
+    subscribeDictationAutoStop,
+    isDictationAutoStopEnabled
+  );
 
   // Never leave the mic hot if the composer unmounts mid-dictation.
   useEffect(
     () => () => {
-      recognitionRef.current?.abort();
-      recognitionRef.current = null;
+      sessionRef.current?.abort();
+      sessionRef.current = null;
     },
     []
   );
@@ -244,26 +254,35 @@ const ComposerDictateButton: FC = () => {
 
   const handleClick = () => {
     if (dictating) {
-      recognitionRef.current?.stop();
+      sessionRef.current?.stop();
       return;
     }
     stopSpeaking();
-    const recognition = startDictation({
-      onTranscript: (text) => aui.composer().setText(text),
-      onEnd: () => {
-        recognitionRef.current = null;
-        setDictating(false);
+    const session = startDictation(
+      {
+        onTranscript: (text) => aui.composer().setText(text),
+        onEnd: () => {
+          sessionRef.current = null;
+          setDictating(false);
+        },
       },
-    });
-    if (recognition) {
-      recognitionRef.current = recognition;
+      { autoStop }
+    );
+    if (session) {
+      sessionRef.current = session;
       setDictating(true);
     }
   };
 
+  const label = dictating
+    ? autoStop
+      ? 'Stop dictation'
+      : 'Finish dictation'
+    : 'Dictate a message';
+
   return (
     <TooltipIconButton
-      tooltip={dictating ? 'Stop dictation' : 'Dictate a message'}
+      tooltip={label}
       side="bottom"
       type="button"
       variant="ghost"
@@ -272,10 +291,47 @@ const ComposerDictateButton: FC = () => {
         'aui-composer-dictate size-8 rounded-full',
         dictating && 'text-destructive animate-pulse'
       )}
-      aria-label={dictating ? 'Stop dictation' : 'Dictate a message'}
+      aria-label={label}
       onClick={handleClick}
     >
       <MicIcon className="size-4" />
+    </TooltipIconButton>
+  );
+};
+
+/**
+ * Toggle for how dictation ends: off (the default) keeps the mic open until the
+ * user clicks it again; on hands that back to the browser's end-of-utterance
+ * detection, which stops the moment you pause.
+ */
+const DictationAutoStopToggle: FC = () => {
+  const enabled = useSyncExternalStore(
+    subscribeDictationAutoStop,
+    isDictationAutoStopEnabled
+  );
+
+  if (!isDictationSupported()) return null;
+
+  const label = enabled
+    ? 'Keep listening until I stop dictation'
+    : 'Stop listening when I pause';
+
+  return (
+    <TooltipIconButton
+      tooltip={label}
+      side="bottom"
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="aui-composer-dictate-autostop size-8 rounded-full"
+      aria-label={label}
+      onClick={() => setDictationAutoStopEnabled(!enabled)}
+    >
+      {enabled ? (
+        <EarOffIcon className="size-4" />
+      ) : (
+        <EarIcon className="size-4" />
+      )}
     </TooltipIconButton>
   );
 };
@@ -354,6 +410,7 @@ const ComposerAction: FC = () => {
         <ComposerAddAttachment />
         <ChatToolCategoriesSelector />
         <ComposerDictateButton />
+        <DictationAutoStopToggle />
         <VoiceRepliesToggle />
       </div>
       <AuiIf condition={(s) => !s.thread.isRunning}>

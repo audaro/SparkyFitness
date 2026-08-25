@@ -13,12 +13,19 @@ import { addLog } from '../LogService';
 /** Recognition options shared by every Sparky voice entry point. */
 export const RECOGNITION_OPTIONS = {
   interimResults: true,
-  // One utterance per press: recognition ends itself after a pause in speech,
-  // which is what auto-sends the transcript.
-  continuous: false,
   requiresOnDeviceRecognition: true,
   addsPunctuation: true,
 } as const;
+
+export interface RecognitionMode {
+  /**
+   * true — one utterance per press: recognition ends itself after a pause in
+   * speech, which is what settles the transcript.
+   * false — the mic stays open across pauses until `stopRecognition()`. Android
+   * 12 and below have no continuous mode and auto-stop regardless.
+   */
+  autoStop: boolean;
+}
 
 /**
  * Requests mic + speech-recognition permissions. Returns true when granted.
@@ -37,8 +44,50 @@ export async function ensureVoicePermissions(): Promise<boolean> {
 }
 
 /** Starts one on-device recognition session. Events arrive via useSpeechRecognitionEvent. */
-export function startRecognition(): void {
-  ExpoSpeechRecognitionModule.start({ ...RECOGNITION_OPTIONS });
+export function startRecognition({ autoStop }: RecognitionMode): void {
+  ExpoSpeechRecognitionModule.start({
+    ...RECOGNITION_OPTIONS,
+    continuous: !autoStop,
+  });
+}
+
+/**
+ * Folds `result` events into one transcript.
+ *
+ * Continuous recognition emits *segments*: an interim result covers only the
+ * utterance in progress and every final result is a new utterance, so the
+ * finals have to be concatenated here rather than replacing what came before.
+ * A non-continuous session is just the single-final case of the same rule.
+ */
+export interface TranscriptAccumulator {
+  /** Folds in one result event and returns the transcript so far. */
+  push(transcript: string, isFinal: boolean): string;
+  /** The transcript so far: finalized utterances plus the live segment. */
+  text(): string;
+  reset(): void;
+}
+
+export function createTranscriptAccumulator(): TranscriptAccumulator {
+  let committed = '';
+  let live = '';
+  const joined = () => [committed, live].filter(Boolean).join(' ');
+
+  return {
+    push(transcript, isFinal) {
+      if (isFinal) {
+        committed = [committed, transcript.trim()].filter(Boolean).join(' ');
+        live = '';
+      } else {
+        live = transcript.trim();
+      }
+      return joined();
+    },
+    text: joined,
+    reset() {
+      committed = '';
+      live = '';
+    },
+  };
 }
 
 /** Ends the audio capture; a final result then an "end" event follow. */

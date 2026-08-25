@@ -42,6 +42,7 @@ export const PREFERENCE_DEFAULTS = {
   askSparkyVisible: true,
   voiceButtonVisible: true,
   voiceRepliesEnabled: true,
+  voiceAutoStopEnabled: false,
   medicationsCardVisible: true,
   medicationRemindersEnabled: true,
   medicationReminderRepeats: true,
@@ -75,6 +76,7 @@ export type AppPreferencesData = {
   askSparkyVisible: boolean;
   voiceButtonVisible: boolean;
   voiceRepliesEnabled: boolean;
+  voiceAutoStopEnabled: boolean;
   medicationsCardVisible: boolean;
   medicationRemindersEnabled: boolean;
   medicationReminderRepeats: boolean;
@@ -108,6 +110,7 @@ export interface AppPreferencesState extends AppPreferencesData {
   setAskSparkyVisible: (value: boolean) => void;
   setVoiceButtonVisible: (value: boolean) => void;
   setVoiceRepliesEnabled: (value: boolean) => void;
+  setVoiceAutoStopEnabled: (value: boolean) => void;
   setMedicationsCardVisible: (value: boolean) => void;
   setMedicationRemindersEnabled: (value: boolean) => void;
   setMedicationReminderRepeats: (value: boolean) => void;
@@ -181,6 +184,7 @@ export const useAppPreferencesStore = create<AppPreferencesState>()(
       setAskSparkyVisible: (value) => set({ askSparkyVisible: value }),
       setVoiceButtonVisible: (value) => set({ voiceButtonVisible: value }),
       setVoiceRepliesEnabled: (value) => set({ voiceRepliesEnabled: value }),
+      setVoiceAutoStopEnabled: (value) => set({ voiceAutoStopEnabled: value }),
       setMedicationsCardVisible: (value) => set({ medicationsCardVisible: value }),
       setMedicationRemindersEnabled: (value) => set({ medicationRemindersEnabled: value }),
       setMedicationReminderRepeats: (value) => set({ medicationReminderRepeats: value }),
@@ -217,6 +221,7 @@ export const useAppPreferencesStore = create<AppPreferencesState>()(
         askSparkyVisible: state.askSparkyVisible,
         voiceButtonVisible: state.voiceButtonVisible,
         voiceRepliesEnabled: state.voiceRepliesEnabled,
+        voiceAutoStopEnabled: state.voiceAutoStopEnabled,
         medicationsCardVisible: state.medicationsCardVisible,
         medicationRemindersEnabled: state.medicationRemindersEnabled,
         medicationReminderRepeats: state.medicationReminderRepeats,

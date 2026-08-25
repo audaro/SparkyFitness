@@ -52,6 +52,7 @@ import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 import { useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import {
   abortRecognition,
+  createTranscriptAccumulator,
   ensureVoicePermissions,
   speakReply,
   startRecognition,
@@ -338,14 +339,17 @@ function LocalComposerInput({ autoFocusReady, ...props }: LocalComposerInputProp
 /**
  * Mic dictation button for the composer. Tap → on-device speech recognition
  * streams interim text into the composer (via the assistant-ui store, which
- * LocalComposerInput adopts as a store-driven change); recognition ends on a
- * pause or a second tap, and the user reviews/edits before hitting Send.
- * Events are module-global, so handlers gate on this button's own dictating
- * state to avoid cross-talk with the global push-to-talk overlay.
+ * LocalComposerInput adopts as a store-driven change); a second tap ends it
+ * (or a pause in speech does, with the auto-stop preference on), and the user
+ * reviews/edits before hitting Send. Events are module-global, so handlers gate
+ * on this button's own dictating state to avoid cross-talk with the global
+ * push-to-talk overlay.
  */
 function ComposerMic() {
   const aui = useAui();
   const [dictating, setDictating] = useState(false);
+  const voiceAutoStopEnabled = useAppPreferencesStore((s) => s.voiceAutoStopEnabled);
+  const transcriptRef = useRef(createTranscriptAccumulator());
   // Synced in an effect (not during render) purely for the unmount cleanup.
   const dictatingRef = useRef(false);
   useEffect(() => {
@@ -360,7 +364,7 @@ function ComposerMic() {
   // read `dictating` directly.
   useSpeechRecognitionEvent('result', (event) => {
     if (!dictating) return;
-    const text = event.results[0]?.transcript ?? '';
+    const text = transcriptRef.current.push(event.results[0]?.transcript ?? '', event.isFinal);
     if (text) aui.composer().setText(text);
   });
 
@@ -398,23 +402,30 @@ function ComposerMic() {
       });
       return;
     }
+    transcriptRef.current.reset();
     setDictating(true);
     try {
-      startRecognition();
+      startRecognition({ autoStop: voiceAutoStopEnabled });
     } catch (error) {
       addLog('Chat dictation failed to start', 'ERROR', [
         error instanceof Error ? error.message : String(error),
       ]);
       setDictating(false);
     }
-  }, [dictating]);
+  }, [dictating, voiceAutoStopEnabled]);
+
+  const label = dictating
+    ? voiceAutoStopEnabled
+      ? 'Stop dictation'
+      : 'Finish dictation'
+    : 'Dictate a message';
 
   return (
     <ThreadPrimitive.If running={false}>
       <Pressable
         onPress={handlePress}
         hitSlop={8}
-        accessibilityLabel={dictating ? 'Stop dictation' : 'Dictate a message'}
+        accessibilityLabel={label}
         style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
       >
         <Icon
