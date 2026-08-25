@@ -22,6 +22,8 @@ changed.
 | `ee7c7531a` | mobile  | Day-scoped tabs refresh on foreground return and on day rollover            |
 | `b46644bcd` | mobile  | Health Connect transform tests stop depending on the runner's timezone      |
 | `7ddf36da2` | mobile  | The remaining two health test files made timezone-independent               |
+| `6312d587e` | docs    | This handoff extended to cover the mobile half                              |
+| `8ba95ec91` | mobile  | First suite for `utils/workoutSupersets.ts`, the superset algebra           |
 
 The long-form write-up for the web half lives in `exercise-home-phase-e.md` under E5 and E6, because
 the diagnosis it corrects belongs next to the phase that filed it. What follows is what a fresh
@@ -125,13 +127,15 @@ Mobile, run from `SparkyFitnessMobile/`. Green at `7ddf36da2`.
 | Command                                                        | Result                        |
 | -------------------------------------------------------------- | ----------------------------- |
 | `pnpm run validate`                                            | clean (tsc, lint, i18n audit) |
-| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **5971 passed, 371 suites**   |
+| `pnpm exec jest --watchman=false --runInBand --coverage=false` | **6012 passed, 372 suites**   |
 
-The three health files were additionally run at `Pacific/Midway` (UTC-11), `America/Los_Angeles`,
-`UTC`, `Europe/London`, `Asia/Tokyo` and `Pacific/Kiritimati` (UTC+14) — green in all six, which is
-the point of the change. **The suite is now known-good only in the local zone plus those two
-extremes for those three files; the rest of the suite has never been swept.** A `TZ=Pacific/Midway`
-run is a cheap way to find the next one.
+Up from 5971 / 371; the delta is `__tests__/utils/workoutSupersets.test.ts`.
+
+The three health files were run at `Pacific/Midway` (UTC-11), `America/Los_Angeles`, `UTC`,
+`Europe/London`, `Asia/Tokyo` and `Pacific/Kiritimati` (UTC+14), and then the **whole** suite was run
+at both extremes: 371/371 at each. So the mobile suite is timezone-independent as of `7ddf36da2`,
+not just the files that were fixed — a stronger claim than this doc made when it was first written.
+`TZ=Pacific/Midway pnpm exec jest …` is the cheap way to keep it that way.
 
 ## Upstream state
 
@@ -153,11 +157,13 @@ the fork has touched, at one upstream commit in six months.
 Phase E and still true at `7ddf36da2`; `AGENTS.md` calls them out by name, because a change to any of
 them is only as tested as the screens that happen to use them:
 
-1. **`utils/workoutSupersets.ts`** — the highest value of the three, and the only pure module.
-   `supersetPlannedExercises` / `ungroupPlannedExercise` / `getPlannedSupersetRuns` operate on three
-   different shapes keyed on `exercise_id`/`superset_group`, and harmonize both `rest_seconds` and
-   every `sets[].rest_time` because two different surfaces read the two fields. It is exercised only
-   through `UpNextScreen` and `ActiveWorkoutScreen`.
+1. ~~`utils/workoutSupersets.ts`~~ — **done in `8ba95ec91`**: 41 cases, mutation-checked against
+   nine source mutations. Left as the model for the two below, in two respects. It is organized by
+   _rule_ rather than by exported name, because the nine exported wrappers are one core with
+   different field accessors and a per-export layout would have asserted the same rule nine times
+   while pinning the accessors not at all. And every case was checked by breaking the source in the
+   way it claims to catch — one of them passed under its own mutation and had to be rewritten, which
+   a green first run would never have revealed.
 2. **`hooks/useWorkoutRecommendation.ts`** — now carries the `useRefetchOnFocus` call added in
    `ee7c7531a`, still with no direct coverage. Note the mock trap: a suite for it needs
    `useFocusEffect` stubbed, exactly as `PickMusclesScreen` and `OnDemandWorkoutsScreen` now do.
