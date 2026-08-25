@@ -2,7 +2,12 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
-import { searchCatalog, type CatalogDrug, type Medication } from '@workspace/shared';
+import {
+  catalogRowSubtitle,
+  searchCatalog,
+  type CatalogDrug,
+  type Medication,
+} from '@workspace/shared';
 import Icon from './Icon';
 
 /**
@@ -127,8 +132,10 @@ export default function MedicationNameSuggestions({
                       name: query.trim(),
                     })}
             </Text>
-            {row.kind === 'catalog' && row.viaAlias && (
-              <Text className="text-text-muted text-xs">{row.drug.displayName}</Text>
+            {row.kind === 'catalog' && catalogRowSubtitle(row.drug, row.viaAlias) && (
+              <Text className="text-text-muted text-xs">
+                {catalogRowSubtitle(row.drug, row.viaAlias)}
+              </Text>
             )}
             {row.kind === 'existing' && row.medication.strength_value != null && (
               <Text className="text-text-muted text-xs">

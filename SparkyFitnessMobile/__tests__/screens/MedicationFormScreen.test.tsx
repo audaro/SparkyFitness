@@ -287,6 +287,38 @@ describe('MedicationFormScreen — catalog autofill', () => {
     );
   });
 
+  it('offers the brand label ladder and no calculator for a pen', () => {
+    const screen = renderScreen();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Wegovy');
+    // The row names its molecule, so Wegovy and Ozempic do not read as unrelated drugs.
+    expect(screen.getByText('Semaglutide')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('med-suggestion-catalog:wegovy'));
+
+    // Wegovy's own ladder, not Ozempic's — the two are separate entries precisely because
+    // 1.7 and 2.4 mg exist on one label and not the other.
+    expect(screen.getByText('Label strengths')).toBeTruthy();
+    expect(screen.getByText('1.7 mg')).toBeTruthy();
+    expect(screen.queryByText('2 mg')).toBeNull();
+    // A pen is not reconstituted, so the vial calculator stays shut.
+    expect(screen.queryByTestId('recon-vial')).toBeNull();
+
+    fireEvent.press(screen.getByText('2.4 mg'));
+    pressAction(screen, mockNavigation, 'Save');
+
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Wegovy',
+        strength_value: 2.4,
+        strength_unit: 'mg',
+        // The brand is what was picked. `glp1_drug` stays absent here by design — mobile
+        // records the catalog row, and the PK coach is the web's surface.
+        custom_fields: expect.objectContaining({ catalog_id: 'wegovy' }),
+      }),
+      expect.anything(),
+    );
+  });
+
   it('detaches the catalog id when the name is typed over', () => {
     const screen = renderScreen();
 

@@ -22,6 +22,25 @@
  * requires changing the type, which is the point. Everything investigational carries
  * `strengths: null`, and the reconstitution calculator (`reconstitution.ts`) does the arithmetic
  * on numbers the user supplies instead.
+ *
+ * WHY BRANDS ARE THEIR OWN ENTRIES
+ * --------------------------------
+ * A strength ladder is a property of a *label*, and a label belongs to a brand, not a molecule.
+ * Ozempic and Wegovy are both semaglutide and ladder differently (…1, 2 mg vs …1, 1.7, 2.4 mg);
+ * Mounjaro and Zepbound are both tirzepatide and differ in indication rather than strengths. One
+ * `semaglutide` entry cannot hold both ladders, and picking either one for it would put a
+ * strength on someone's medication record that their pen does not have.
+ *
+ * So each brand is its own entry, linked to its molecule by `genericId` and sharing the
+ * molecule's `glp1ProfileId` — the PK model still sees one drug, because the pharmacokinetics
+ * belong to the molecule even though the ladder does not. `brandOf` derives every shared field
+ * from the generic rather than restating it, so a brand cannot drift from its molecule.
+ *
+ * The generic entries stay, with `strengths: null`. They are what a compounded or grey-market
+ * vial is: the same molecule with no label behind it, which is exactly the case the
+ * reconstitution calculator exists for. A brand's name is therefore removed from its generic's
+ * aliases — leaving it would return two rows for one query, the brand and the molecule
+ * pretending to be it.
  */
 
 import { GLP1_DRUG_PROFILES } from "./glp1.ts";
@@ -96,6 +115,15 @@ export interface CatalogDrug {
    */
   glp1ProfileId?: string;
   /**
+   * The molecule this is a brand of, as another entry's id. Absent on a generic entry.
+   *
+   * A brand exists as its own entry because its strength ladder does; everything else about it
+   * — PK, category, route, cadence — belongs to the molecule and is derived from that entry by
+   * `brandOf`. This is also what lets the UI show "Wegovy" as the row and "Semaglutide" under
+   * it, so two brands of one molecule do not read as unrelated drugs.
+   */
+  genericId?: string;
+  /**
    * Default schedule type, where a published dosing interval exists. Null means the user picks
    * — the catalog does not guess a frequency for a drug with no label.
    */
@@ -121,20 +149,23 @@ function pkFromGlp1(profileId: string): CatalogPk {
 }
 
 /**
- * The catalog.
+ * The molecules.
  *
- * Phase 0 seeds it with the drugs already in the PK registry, so the shape is proven against
- * real entries before the content pass widens it. `strengths` and `vialSizes` are deliberately
- * unpopulated here: both are content that needs sourcing and review, and a wrong number on a
- * medication record is the worst thing this feature can produce. Until then `strengths: null`
- * routes the dosage step to the reconstitution calculator, which is a working answer rather
- * than a guessed one.
+ * `strengths` is null on every one of these and that is not a gap: a molecule has no label, so
+ * it has no ladder. A user holding a compounded or grey-market vial of semaglutide picks this
+ * entry and the reconstitution calculator does the arithmetic on the numbers they supply.
+ * Someone holding a pen picks the brand below, which does have a label.
+ *
+ * `vialSizes` is still empty everywhere — packaging hints for grey-market supply have no
+ * authoritative source, and the field is a suggestion rather than a constraint, so an empty
+ * array is a working state rather than a missing one.
  */
-export const MEDICATION_CATALOG: Record<string, CatalogDrug> = {
+const GENERIC_DRUGS = {
   semaglutide: {
     id: "semaglutide",
     displayName: "Semaglutide",
-    aliases: ["Ozempic", "Wegovy", "Sema"],
+    // Community shorthand only. Brand names live on the brand entries below.
+    aliases: ["Sema"],
     category: "incretin",
     routes: ["subcutaneous"],
     vialSizes: [],
@@ -146,7 +177,7 @@ export const MEDICATION_CATALOG: Record<string, CatalogDrug> = {
   oral_semaglutide: {
     id: "oral_semaglutide",
     displayName: "Semaglutide (oral)",
-    aliases: ["Rybelsus"],
+    aliases: [],
     category: "incretin",
     routes: ["oral"],
     vialSizes: [],
@@ -158,7 +189,7 @@ export const MEDICATION_CATALOG: Record<string, CatalogDrug> = {
   tirzepatide: {
     id: "tirzepatide",
     displayName: "Tirzepatide",
-    aliases: ["Mounjaro", "Zepbound", "Tirz"],
+    aliases: ["Tirz"],
     category: "incretin",
     routes: ["subcutaneous"],
     vialSizes: [],
@@ -170,7 +201,7 @@ export const MEDICATION_CATALOG: Record<string, CatalogDrug> = {
   dulaglutide: {
     id: "dulaglutide",
     displayName: "Dulaglutide",
-    aliases: ["Trulicity"],
+    aliases: [],
     category: "incretin",
     routes: ["subcutaneous"],
     vialSizes: [],
@@ -182,7 +213,7 @@ export const MEDICATION_CATALOG: Record<string, CatalogDrug> = {
   liraglutide: {
     id: "liraglutide",
     displayName: "Liraglutide",
-    aliases: ["Saxenda", "Victoza"],
+    aliases: [],
     category: "incretin",
     routes: ["subcutaneous"],
     vialSizes: [],
@@ -198,13 +229,149 @@ export const MEDICATION_CATALOG: Record<string, CatalogDrug> = {
     category: "incretin",
     routes: ["subcutaneous"],
     vialSizes: [],
-    // Investigational: no approved label, so no strength ladder. The calculator takes over.
+    // Investigational: no approved label, so no strength ladder anywhere — there is no brand
+    // entry for it either, because there is no brand. The calculator takes over.
     strengths: null,
     pk: pkFromGlp1("retatrutide"),
     glp1ProfileId: "retatrutide",
     cadence: "weekly",
   },
+} satisfies Record<string, CatalogDrug>;
+
+/**
+ * Build a brand from its molecule, restating only what the label actually changes.
+ *
+ * Everything else — PK, `glp1ProfileId`, category, routes, cadence — is spread from the generic,
+ * so a brand cannot claim a different half-life or route from the molecule it is. `vialSizes` is
+ * deliberately cleared rather than inherited: these brands ship as pens and cartridges, and a
+ * vial hint on one would prefill the reconstitution calculator for a drug nobody reconstitutes.
+ */
+function brandOf(
+  generic: CatalogDrug,
+  brand: {
+    id: string;
+    displayName: string;
+    strengths: CatalogStrengths;
+    /** Only where the brand itself has a synonym; the molecule's shorthand stays on the molecule. */
+    aliases?: string[];
+  },
+): CatalogDrug {
+  return {
+    ...generic,
+    id: brand.id,
+    displayName: brand.displayName,
+    aliases: brand.aliases ?? [],
+    genericId: generic.id,
+    strengths: brand.strengths,
+    vialSizes: [],
+  };
+}
+
+/** Every ladder below is the deliverable doses of the US label, in mg. */
+const mgLadder = (values: number[]): CatalogStrengths => ({
+  values,
+  unit: "mg",
+  source: "label",
+});
+
+/**
+ * The brands.
+ *
+ * Each is one approved label's deliverable doses. Where two brands of a molecule share a ladder
+ * (Mounjaro and Zepbound) they are still separate entries, because they are separate labels and
+ * a user picks the one printed on their box — and because nothing guarantees the ladders stay
+ * identical the next time either label is revised.
+ */
+const BRAND_DRUGS: Record<string, CatalogDrug> = {
+  ozempic: brandOf(GENERIC_DRUGS.semaglutide, {
+    id: "ozempic",
+    displayName: "Ozempic",
+    strengths: mgLadder([0.25, 0.5, 1, 2]),
+  }),
+  wegovy: brandOf(GENERIC_DRUGS.semaglutide, {
+    id: "wegovy",
+    displayName: "Wegovy",
+    strengths: mgLadder([0.25, 0.5, 1, 1.7, 2.4]),
+  }),
+  rybelsus: brandOf(GENERIC_DRUGS.oral_semaglutide, {
+    id: "rybelsus",
+    displayName: "Rybelsus",
+    strengths: mgLadder([3, 7, 14]),
+  }),
+  mounjaro: brandOf(GENERIC_DRUGS.tirzepatide, {
+    id: "mounjaro",
+    displayName: "Mounjaro",
+    strengths: mgLadder([2.5, 5, 7.5, 10, 12.5, 15]),
+  }),
+  zepbound: brandOf(GENERIC_DRUGS.tirzepatide, {
+    id: "zepbound",
+    displayName: "Zepbound",
+    strengths: mgLadder([2.5, 5, 7.5, 10, 12.5, 15]),
+  }),
+  trulicity: brandOf(GENERIC_DRUGS.dulaglutide, {
+    id: "trulicity",
+    displayName: "Trulicity",
+    strengths: mgLadder([0.75, 1.5, 3, 4.5]),
+  }),
+  victoza: brandOf(GENERIC_DRUGS.liraglutide, {
+    id: "victoza",
+    displayName: "Victoza",
+    strengths: mgLadder([0.6, 1.2, 1.8]),
+  }),
+  saxenda: brandOf(GENERIC_DRUGS.liraglutide, {
+    id: "saxenda",
+    displayName: "Saxenda",
+    strengths: mgLadder([0.6, 1.2, 1.8, 2.4, 3]),
+  }),
 };
+
+/**
+ * The catalog: molecules and the brands of them.
+ *
+ * Widening this beyond the incretins is the remaining content work. The shape is now proven
+ * against both cases it has to carry — a labelled brand with a ladder, and a molecule with none.
+ */
+export const MEDICATION_CATALOG: Record<string, CatalogDrug> = {
+  ...GENERIC_DRUGS,
+  ...BRAND_DRUGS,
+};
+
+/**
+ * The molecule a brand belongs to, or null when the drug is itself a molecule.
+ *
+ * Throws on a `genericId` naming no entry, for the same reason `pkFromGlp1` does: a dangling
+ * link should be a total failure at module load, not a brand that silently reads as its own
+ * unrelated drug.
+ */
+export function catalogGenericOf(drug: CatalogDrug): CatalogDrug | null {
+  if (!drug.genericId) return null;
+  const generic = Object.hasOwn(MEDICATION_CATALOG, drug.genericId)
+    ? MEDICATION_CATALOG[drug.genericId]
+    : undefined;
+  if (!generic) {
+    throw new Error(
+      `catalog.ts: "${drug.id}" names generic "${drug.genericId}", which is not in the catalog.`,
+    );
+  }
+  return generic;
+}
+
+/**
+ * The line under a search row.
+ *
+ * A brand names its molecule, so Mounjaro and Zepbound do not read as unrelated drugs and a user
+ * who knows they are on tirzepatide can recognise the box in front of them. A molecule matched on
+ * a synonym names itself, so typing "Sema" does not leave the row unexplained. Null when the row
+ * title already says everything there is to say.
+ */
+export function catalogRowSubtitle(
+  drug: CatalogDrug,
+  viaAlias: boolean,
+): string | null {
+  const generic = catalogGenericOf(drug);
+  if (generic) return generic.displayName;
+  return viaAlias ? drug.displayName : null;
+}
 
 /** Resolve a catalog drug by id, display name, or (case-insensitive) alias. */
 export function resolveCatalogDrug(

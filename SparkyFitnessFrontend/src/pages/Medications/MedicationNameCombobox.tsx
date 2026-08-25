@@ -1,7 +1,11 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pill, Plus, Sparkles } from 'lucide-react';
-import { searchCatalog, type CatalogDrug } from '@workspace/shared';
+import {
+  catalogRowSubtitle,
+  searchCatalog,
+  type CatalogDrug,
+} from '@workspace/shared';
 import { Input } from '@/components/ui/input';
 import { useMedications } from '@/hooks/useMedications';
 import type { Medication } from '@/types/medications';
@@ -264,9 +268,9 @@ export default function MedicationNameCombobox({
                       <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="flex-1 truncate">
                         {row.matchedOn}
-                        {row.viaAlias && (
+                        {catalogRowSubtitle(row.drug, row.viaAlias) && (
                           <span className="ml-1 text-xs text-muted-foreground">
-                            {row.drug.displayName}
+                            {catalogRowSubtitle(row.drug, row.viaAlias)}
                           </span>
                         )}
                       </span>

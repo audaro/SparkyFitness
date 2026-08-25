@@ -225,8 +225,9 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({ route, navi
         setCalculatorToggle(false);
         return;
       }
-      // `matchedOn`, not `displayName`: someone who typed "Wegovy" gets a row named Wegovy
-      // rather than a rename to "Semaglutide" they did not ask for.
+      // `matchedOn`, not `displayName`: someone who typed "Sema" gets a row named Sema rather
+      // than a rename to "Semaglutide" they did not ask for. Brands are their own entries, so
+      // the two only differ on a synonym match.
       const { drug } = pick;
       setEdits((prev) => ({
         ...prev,

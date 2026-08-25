@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import AddMedicationDialog from '@/pages/Medications/AddMedicationDialog';
 import type { Medication } from '@/types/medications';
@@ -444,6 +450,45 @@ describe('AddMedicationDialog dose fields', () => {
       setField('Your dose', '2');
 
       expect(screen.getByTestId('recon-units')).toHaveTextContent('40');
+    });
+
+    it('offers the brand label ladder and no calculator for a pen', () => {
+      render(<AddMedicationDialog />);
+      openDialog();
+      setField('Name', 'Wegovy');
+      // Anchored: the "Add \"Wegovy\" as a custom medication" row also contains the word.
+      const row = screen.getByRole('option', { name: /^Wegovy/ });
+      // The row names its molecule, so Wegovy and Ozempic do not read as unrelated drugs.
+      expect(within(row).getByText('Semaglutide')).toBeInTheDocument();
+      fireEvent.mouseDown(row);
+
+      // Wegovy's own ladder, not Ozempic's — the two are separate entries precisely because
+      // 1.7 and 2.4 mg exist on one label and not the other.
+      expect(screen.getByText('Label strengths')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: '1.7 mg' })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: '2 mg' })
+      ).not.toBeInTheDocument();
+      // A pen is not reconstituted, so the vial calculator stays shut.
+      expect(screen.queryByLabelText('Vial contains')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: '2.4 mg' }));
+      save();
+
+      const body = lastCreateBody();
+      expect(body).toMatchObject({
+        name: 'Wegovy',
+        strength_value: 2.4,
+        strength_unit: 'mg',
+        is_glp1: true,
+      });
+      // The brand is what was picked; the PK model still sees the molecule.
+      expect(body.custom_fields).toMatchObject({
+        catalog_id: 'wegovy',
+        glp1_drug: 'semaglutide',
+      });
     });
 
     it('detaches the catalog id when the name is typed over', () => {

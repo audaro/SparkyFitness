@@ -822,9 +822,10 @@ export default function AddMedicationDialog({
       return;
     }
 
-    // A catalog pick. `matchedOn` rather than `displayName`: someone who typed "Wegovy" gets a
-    // row named Wegovy, because replacing it with "Semaglutide" is a rename they did not ask
-    // for and may not recognise in their cabinet.
+    // A catalog pick. `matchedOn` rather than `displayName`: someone who typed "Sema" gets a
+    // row named Sema, because replacing it with "Semaglutide" is a rename they did not ask for
+    // and may not recognise in their cabinet. (Brands are their own entries, so the two only
+    // differ on a synonym match now.)
     const { drug } = pick;
     setName(pick.matchedOn);
     setCatalogDrug(drug);
