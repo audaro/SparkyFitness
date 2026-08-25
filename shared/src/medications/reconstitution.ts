@@ -74,6 +74,7 @@ export type ReconstitutionErrorReason =
   | "invalid_dose"
   | "invalid_syringe"
   | "invalid_syringe_capacity"
+  | "invalid_target_units"
   | "invalid_interval"
   | "unit_mismatch"
   | "dose_exceeds_vial"
@@ -83,9 +84,21 @@ export type ReconstitutionWarningCode =
   | "exceeds_syringe_capacity"
   | "below_measurable_precision";
 
+/**
+ * The values interpolated into a message, handed over separately so a UI can render the same
+ * sentence in the user's own language. Keys are stable per `reason` / `code` and are exactly
+ * the placeholders the English `message` fills in.
+ */
+export type ReconstitutionMessageDetails = Record<string, string | number>;
+
 export interface ReconstitutionWarning {
   code: ReconstitutionWarningCode;
+  /**
+   * English text. A **fallback**, not the thing to render: this package has no translator, so
+   * a localised UI must build its own sentence from `code` and `details`.
+   */
   message: string;
+  details: ReconstitutionMessageDetails;
 }
 
 export interface ReconstitutionSuccess {
@@ -112,8 +125,14 @@ export interface ReconstitutionSuccess {
 export interface ReconstitutionFailure {
   ok: false;
   reason: ReconstitutionErrorReason;
-  /** Plain-language explanation, safe to surface directly. */
+  /**
+   * Plain-language English explanation. A **fallback**, not the thing to render: this package
+   * has no translator, so a localised UI must build its own sentence from `reason` and
+   * `details` and fall back to this only when it has no string for that reason.
+   */
   message: string;
+  /** Values the message interpolates, for a UI rendering its own translation. */
+  details: ReconstitutionMessageDetails;
 }
 
 export type ReconstitutionResult =
@@ -139,8 +158,9 @@ function roundTo(value: number, decimals: number): number {
 function fail(
   reason: ReconstitutionErrorReason,
   message: string,
+  details: ReconstitutionMessageDetails = {},
 ): ReconstitutionFailure {
-  return { ok: false, reason, message };
+  return { ok: false, reason, message, details };
 }
 
 /** True when two units measure the same thing. Mass converts; IU does not cross over. */
@@ -208,6 +228,7 @@ export function reconstitute(input: ReconstitutionInput): ReconstitutionResult {
     return fail(
       "invalid_syringe",
       `Unknown syringe standard "${String(syringe)}". Supported: U-100, U-40.`,
+      { syringe: String(syringe) },
     );
   }
 
@@ -239,6 +260,7 @@ export function reconstitute(input: ReconstitutionInput): ReconstitutionResult {
       "unit_mismatch",
       `A vial measured in ${vial.unit} cannot be dosed in ${dose.unit}. ` +
         `IU and mg are not interchangeable — the factor depends on the substance.`,
+      { vialUnit: vial.unit, doseUnit: dose.unit },
     );
   }
 
@@ -250,6 +272,12 @@ export function reconstitute(input: ReconstitutionInput): ReconstitutionResult {
       "dose_exceeds_vial",
       `A ${dose.amount} ${dose.unit} dose is more than the vial holds ` +
         `(${vial.amount} ${vial.unit}).`,
+      {
+        doseAmount: dose.amount,
+        doseUnit: dose.unit,
+        vialAmount: vial.amount,
+        vialUnit: vial.unit,
+      },
     );
   }
 
@@ -289,6 +317,7 @@ export function reconstitute(input: ReconstitutionInput): ReconstitutionResult {
       message:
         `${roundedSyringeUnits} units is more than a ${capacityUnits}-unit ${syringe} syringe holds. ` +
         `Use a larger syringe, split the draw, or add less diluent.`,
+      details: { units: roundedSyringeUnits, capacityUnits, syringe },
     });
   }
   if (roundedSyringeUnits < MIN_RELIABLE_SYRINGE_UNITS) {
@@ -297,6 +326,7 @@ export function reconstitute(input: ReconstitutionInput): ReconstitutionResult {
       message:
         `${roundedSyringeUnits} units is below what a syringe barrel measures reliably. ` +
         `Add more diluent so the same dose draws to a larger volume.`,
+      details: { units: roundedSyringeUnits },
     });
   }
 
@@ -323,9 +353,7 @@ export function diluentForTargetUnits(input: {
   dose: ReconstitutionAmount;
   targetSyringeUnits: number;
   syringe?: SyringeStandard;
-}):
-  | { ok: true; diluentMl: number }
-  | { ok: false; reason: ReconstitutionErrorReason; message: string } {
+}): { ok: true; diluentMl: number } | ReconstitutionFailure {
   const { vial, dose, targetSyringeUnits, syringe = "U-100" } = input;
 
   if (!vial || !isPositiveFinite(vial.amount)) {
@@ -345,11 +373,12 @@ export function diluentForTargetUnits(input: {
     return fail(
       "invalid_syringe",
       `Unknown syringe standard "${String(syringe)}". Supported: U-100, U-40.`,
+      { syringe: String(syringe) },
     );
   }
   if (!isPositiveFinite(targetSyringeUnits)) {
     return fail(
-      "invalid_syringe_capacity",
+      "invalid_target_units",
       "Enter the number of units you want to draw, greater than zero.",
     );
   }
@@ -358,6 +387,7 @@ export function diluentForTargetUnits(input: {
       "unit_mismatch",
       `A vial measured in ${vial.unit} cannot be dosed in ${dose.unit}. ` +
         `IU and mg are not interchangeable — the factor depends on the substance.`,
+      { vialUnit: vial.unit, doseUnit: dose.unit },
     );
   }
 
@@ -367,6 +397,12 @@ export function diluentForTargetUnits(input: {
       "dose_exceeds_vial",
       `A ${dose.amount} ${dose.unit} dose is more than the vial holds ` +
         `(${vial.amount} ${vial.unit}).`,
+      {
+        doseAmount: dose.amount,
+        doseUnit: dose.unit,
+        vialAmount: vial.amount,
+        vialUnit: vial.unit,
+      },
     );
   }
 

@@ -410,7 +410,23 @@
       "detail": "{{concentration}} {{unit}}/mL · draw {{volume}} mL · {{doses}} doses per vial",
       "lasts": "Vial lasts about {{days}} days",
       "apply": "Use these numbers",
-      "framing": "This converts the numbers you entered. It does not recommend a dose — check it against your own supply and your prescriber."
+      "framing": "This converts the numbers you entered. It does not recommend a dose — check it against your own supply and your prescriber.",
+      "errors": {
+        "invalidVialAmount": "Enter how much the vial contains, as a number greater than zero.",
+        "invalidDiluent": "Enter how much bacteriostatic water you added, in mL, as a number greater than zero.",
+        "invalidDose": "Enter your dose as a number greater than zero.",
+        "invalidSyringe": "Unknown syringe standard \"{{syringe}}\". Supported: U-100, U-40.",
+        "invalidSyringeCapacity": "Syringe capacity must be a number of units greater than zero.",
+        "invalidTargetUnits": "Enter the number of units you want to draw, greater than zero.",
+        "invalidInterval": "Days between doses must be a number greater than zero.",
+        "unitMismatch": "A vial measured in {{vialUnit}} cannot be dosed in {{doseUnit}}. IU and mg are not interchangeable — the factor depends on the substance.",
+        "doseExceedsVial": "A {{doseAmount}} {{doseUnit}} dose is more than the vial holds ({{vialAmount}} {{vialUnit}}).",
+        "notFinite": "Could not compute a reliable result from those numbers. Check the vial, diluent and dose."
+      },
+      "warnings": {
+        "exceedsSyringeCapacity": "{{units}} units is more than a {{capacityUnits}}-unit {{syringe}} syringe holds. Use a larger syringe, split the draw, or add less diluent.",
+        "belowMeasurablePrecision": "{{units}} units is below what a syringe barrel measures reliably. Add more diluent so the same dose draws to a larger volume."
+      }
     },
     "cabinet": {
       "addMed": "Add medication",

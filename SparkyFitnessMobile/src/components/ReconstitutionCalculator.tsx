@@ -8,6 +8,10 @@ import {
   type ReconstitutionUnit,
   type SyringeStandard,
 } from '@workspace/shared';
+import {
+  localizeReconstitutionFailure,
+  localizeReconstitutionWarning,
+} from '../utils/reconstitutionLocalization';
 import FormInput from './FormInput';
 import SegmentedControl from './SegmentedControl';
 
@@ -155,7 +159,7 @@ export default function ReconstitutionCalculator({
 
       {result && !result.ok && (
         <Text testID="recon-error" className="text-text-danger-subtle text-sm">
-          {result.message}
+          {localizeReconstitutionFailure(t, result)}
         </Text>
       )}
 
@@ -190,7 +194,7 @@ export default function ReconstitutionCalculator({
 
           {result.warnings.map((warning) => (
             <Text key={warning.code} className="text-text-warning text-sm">
-              {warning.message}
+              {localizeReconstitutionWarning(t, warning)}
             </Text>
           ))}
 

@@ -18,6 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  reconstitutionFailureMessage,
+  reconstitutionWarningMessage,
+} from './reconstitutionMessages';
+
 const UNITS: ReconstitutionUnit[] = ['mg', 'mcg', 'iu'];
 const SYRINGES: SyringeStandard[] = ['U-100', 'U-40'];
 
@@ -220,7 +225,7 @@ export default function ReconstitutionCalculator({
           className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{result.message}</span>
+          <span>{reconstitutionFailureMessage(t, result)}</span>
         </p>
       )}
 
@@ -270,7 +275,7 @@ export default function ReconstitutionCalculator({
               className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm text-amber-700 dark:text-amber-400"
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{warning.message}</span>
+              <span>{reconstitutionWarningMessage(t, warning)}</span>
             </p>
           ))}
 

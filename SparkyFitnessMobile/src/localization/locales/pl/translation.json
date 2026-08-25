@@ -1152,7 +1152,23 @@
       "detail": "{{concentration}} {{unit}}/ml · nabierz {{volume}} ml · {{doses}} dawek z fiolki",
       "lasts": "Fiolka wystarcza na około {{days}} dni",
       "apply": "Użyj tych wartości",
-      "framing": "To przelicza wprowadzone przez Ciebie wartości. Nie zaleca dawki — sprawdź ją z własnym zapasem i lekarzem prowadzącym."
+      "framing": "To przelicza wprowadzone przez Ciebie wartości. Nie zaleca dawki — sprawdź ją z własnym zapasem i lekarzem prowadzącym.",
+      "errors": {
+        "invalidVialAmount": "Podaj, ile zawiera fiolka — liczbę większą od zera.",
+        "invalidDiluent": "Podaj, ile wody bakteriostatycznej dodałeś, w ml — liczbę większą od zera.",
+        "invalidDose": "Podaj swoją dawkę jako liczbę większą od zera.",
+        "invalidSyringe": "Nieznany standard strzykawki „{{syringe}}”. Obsługiwane: U-100, U-40.",
+        "invalidSyringeCapacity": "Pojemność strzykawki musi być liczbą jednostek większą od zera.",
+        "invalidTargetUnits": "Podaj liczbę jednostek, które chcesz nabrać — większą od zera.",
+        "invalidInterval": "Liczba dni między dawkami musi być większa od zera.",
+        "unitMismatch": "Fiolki mierzonej w {{vialUnit}} nie można dawkować w {{doseUnit}}. IU i mg nie są wymienne — przelicznik zależy od substancji.",
+        "doseExceedsVial": "Dawka {{doseAmount}} {{doseUnit}} przekracza zawartość fiolki ({{vialAmount}} {{vialUnit}}).",
+        "notFinite": "Nie udało się obliczyć wiarygodnego wyniku z tych liczb. Sprawdź fiolkę, rozpuszczalnik i dawkę."
+      },
+      "warnings": {
+        "exceedsSyringeCapacity": "{{units}} jednostek to więcej, niż mieści strzykawka {{syringe}} o pojemności {{capacityUnits}} jednostek. Użyj większej strzykawki, podziel nabranie lub dodaj mniej rozpuszczalnika.",
+        "belowMeasurablePrecision": "{{units}} jednostek to mniej, niż cylinder strzykawki mierzy wiarygodnie. Dodaj więcej rozpuszczalnika, aby ta sama dawka miała większą objętość."
+      }
     }
   },
   "scheduleSummary": {

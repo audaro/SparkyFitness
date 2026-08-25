@@ -478,7 +478,7 @@ describe('diluentForTargetUnits', () => {
 
     expect(
       diluentForTargetUnits({ ...base, targetSyringeUnits: 0 })
-    ).toMatchObject({ ok: false });
+    ).toMatchObject({ ok: false, reason: 'invalid_target_units' });
     expect(
       diluentForTargetUnits({ ...base, vial: { amount: 0, unit: 'mg' } })
     ).toMatchObject({ ok: false, reason: 'invalid_vial_amount' });
@@ -488,5 +488,137 @@ describe('diluentForTargetUnits', () => {
     expect(
       diluentForTargetUnits({ ...base, dose: { amount: 500, unit: 'iu' } })
     ).toMatchObject({ ok: false, reason: 'unit_mismatch' });
+  });
+});
+
+/**
+ * `shared` has no translator, so every refusal and caution hands its interpolated values over
+ * separately in `details`. A localised UI rebuilds the sentence from `reason`/`code` + `details`
+ * rather than rendering the English `message`, so `details` losing a value the message names is
+ * a silently broken sentence in every language but English.
+ */
+describe('reconstitute — details for a translated message', () => {
+  const IU_VIAL: ReconstitutionInput = {
+    vial: { amount: 10, unit: 'iu' },
+    diluentMl: 2,
+    dose: { amount: 2, unit: 'mg' },
+  };
+
+  it('names the syringe it did not recognise', () => {
+    const r = expectFail(
+      reconstitute({
+        ...RETATRUTIDE,
+        syringe: 'U-500' as unknown as ReconstitutionInput['syringe'],
+      })
+    );
+
+    expect(r.reason).toBe('invalid_syringe');
+    expect(r.details).toEqual({ syringe: 'U-500' });
+  });
+
+  it('names both units of a mismatch', () => {
+    const r = expectFail(reconstitute(IU_VIAL));
+
+    expect(r.reason).toBe('unit_mismatch');
+    expect(r.details).toEqual({ vialUnit: 'iu', doseUnit: 'mg' });
+  });
+
+  it('names the dose and the vial it exceeds', () => {
+    const r = expectFail(
+      reconstitute({ ...RETATRUTIDE, dose: { amount: 20, unit: 'mg' } })
+    );
+
+    expect(r.reason).toBe('dose_exceeds_vial');
+    expect(r.details).toEqual({
+      doseAmount: 20,
+      doseUnit: 'mg',
+      vialAmount: 10,
+      vialUnit: 'mg',
+    });
+  });
+
+  it('carries an empty details object when there is nothing to interpolate', () => {
+    const r = expectFail(reconstitute({ ...RETATRUTIDE, diluentMl: 0 }));
+
+    expect(r.reason).toBe('invalid_diluent');
+    expect(r.details).toEqual({});
+  });
+
+  it('gives a capacity warning the same number the result reports', () => {
+    const r = expectOk(
+      reconstitute({ ...RETATRUTIDE, dose: { amount: 8, unit: 'mg' } })
+    );
+    const warning = r.warnings.find(
+      (w) => w.code === 'exceeds_syringe_capacity'
+    );
+
+    // The caution must quote the marks the user is reading, not a number of its own.
+    expect(warning?.details).toEqual({
+      units: r.syringeUnits,
+      capacityUnits: SYRINGE_UNITS_PER_ML['U-100'],
+      syringe: 'U-100',
+    });
+  });
+
+  it('gives a precision warning the same number the result reports', () => {
+    const r = expectOk(
+      reconstitute({
+        vial: { amount: 10, unit: 'mg' },
+        diluentMl: 1,
+        dose: { amount: 0.1, unit: 'mg' },
+      })
+    );
+    const warning = r.warnings.find(
+      (w) => w.code === 'below_measurable_precision'
+    );
+
+    expect(r.syringeUnits).toBeLessThan(MIN_RELIABLE_SYRINGE_UNITS);
+    expect(warning?.details).toEqual({ units: r.syringeUnits });
+  });
+
+  it('interpolates every detail value into the English message', () => {
+    const failures = [
+      expectFail(
+        reconstitute({
+          ...RETATRUTIDE,
+          syringe: 'U-500' as unknown as ReconstitutionInput['syringe'],
+        })
+      ),
+      expectFail(reconstitute(IU_VIAL)),
+      expectFail(
+        reconstitute({ ...RETATRUTIDE, dose: { amount: 20, unit: 'mg' } })
+      ),
+    ];
+    const warnings = expectOk(
+      reconstitute({ ...RETATRUTIDE, dose: { amount: 8, unit: 'mg' } })
+    ).warnings;
+
+    // A detail the message does not use is a detail the translation cannot need, and one the
+    // message uses but does not carry is a placeholder a translated string renders raw.
+    for (const { message, details } of [...failures, ...warnings]) {
+      expect(Object.keys(details).length).toBeGreaterThan(0);
+      for (const value of Object.values(details)) {
+        expect(message).toContain(String(value));
+      }
+    }
+  });
+
+  it('gives diluentForTargetUnits the same details for the same refusal', () => {
+    const r = diluentForTargetUnits({
+      vial: { amount: 10, unit: 'mg' },
+      dose: { amount: 20, unit: 'mg' },
+      targetSyringeUnits: 20,
+    });
+
+    expect(r).toMatchObject({
+      ok: false,
+      reason: 'dose_exceeds_vial',
+      details: {
+        doseAmount: 20,
+        doseUnit: 'mg',
+        vialAmount: 10,
+        vialUnit: 'mg',
+      },
+    });
   });
 });
