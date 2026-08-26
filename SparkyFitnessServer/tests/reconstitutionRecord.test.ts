@@ -7,6 +7,8 @@ import {
   RECONSTITUTION_FIELD,
   reconstitute,
   vialInventoryPrefill,
+  vialBudGuidance,
+  PRESERVED_BUD_DAYS,
   type ReconstitutionRecord,
 } from '@workspace/shared';
 
@@ -15,6 +17,7 @@ const MIX: ReconstitutionRecord = {
   vial_unit: 'mg',
   diluent_ml: 3,
   syringe: 'U-100',
+  diluent: 'bacteriostatic_water',
 };
 
 const FIELDS = { catalog_id: 'retatrutide', [RECONSTITUTION_FIELD]: MIX };
@@ -245,6 +248,8 @@ describe('vialInventoryPrefill', () => {
       concentrationMgMl: 5,
       volumeMl: 2,
       dosesTotal: 5,
+      // No diluent on these fixtures, so the window is the assumed one.
+      bud: { days: PRESERVED_BUD_DAYS, reason: 'unstated' },
     });
   });
 
@@ -287,6 +292,8 @@ describe('vialInventoryPrefill', () => {
       concentrationMgMl: null,
       volumeMl: 2,
       dosesTotal: 10,
+      // No diluent on these fixtures, so the window is the assumed one.
+      bud: { days: PRESERVED_BUD_DAYS, reason: 'unstated' },
     });
   });
 
@@ -302,6 +309,8 @@ describe('vialInventoryPrefill', () => {
       concentrationMgMl: 10,
       volumeMl: 3,
       dosesTotal: null,
+      // MIX states a preserved diluent, so the window is derived even though the dose is not.
+      bud: { days: PRESERVED_BUD_DAYS, reason: 'preserved' },
     });
   });
 
@@ -376,5 +385,120 @@ describe('vialInventoryPrefill', () => {
         doseUnit: 'mg',
       })
     ).toBeNull();
+  });
+});
+
+describe('reconstitution diluent', () => {
+  it('reads a diluent off a record that states one', () => {
+    expect(readReconstitutionRecord(FIELDS)?.diluent).toBe(
+      'bacteriostatic_water'
+    );
+  });
+
+  it.each([
+    'bacteriostatic_water',
+    'bacteriostatic_saline',
+    'sterile_water',
+    'sterile_saline',
+  ])('accepts %s', (diluent) => {
+    const record = readReconstitutionRecord({
+      [RECONSTITUTION_FIELD]: { ...MIX, diluent },
+    });
+    expect(record?.diluent).toBe(diluent);
+  });
+
+  it.each([
+    ['a record written before the field existed', undefined],
+    ['an explicit null', null],
+    ['a fluid this version does not know', 'tap_water'],
+    ['a non-string', 7],
+  ])('reads %s as not stated, keeping the record valid', (_label, diluent) => {
+    // The deliberate exception to the all-or-nothing rule: the diluent feeds the beyond-use
+    // suggestion and nothing in the syringe math, so voiding the record over it would break
+    // every mix already saved in order to protect arithmetic it is not part of.
+    const record = readReconstitutionRecord({
+      [RECONSTITUTION_FIELD]: { ...MIX, diluent },
+    });
+    expect(record).not.toBeNull();
+    expect(record?.vial_amount).toBe(30);
+    expect(record?.diluent).toBeNull();
+  });
+});
+
+describe('vialBudGuidance', () => {
+  it.each(['bacteriostatic_water', 'bacteriostatic_saline'] as const)(
+    'gives %s the preserved window',
+    (diluent) => {
+      expect(vialBudGuidance(diluent)).toEqual({
+        days: PRESERVED_BUD_DAYS,
+        reason: 'preserved',
+      });
+    }
+  );
+
+  it.each(['sterile_water', 'sterile_saline'] as const)(
+    'refuses a window for %s',
+    (diluent) => {
+      // There is a real figure for a preservative-free mix and it is measured in hours,
+      // depending on how and where the vial was punctured. Naming a day count here would be
+      // this module recommending rather than converting.
+      expect(vialBudGuidance(diluent)).toEqual({
+        days: null,
+        reason: 'preservative_free',
+      });
+    }
+  );
+
+  it('falls back to the preserved window, flagged as an assumption, when unstated', () => {
+    expect(vialBudGuidance(null)).toEqual({
+      days: PRESERVED_BUD_DAYS,
+      reason: 'unstated',
+    });
+  });
+
+  it('is 28 days, and changing that should be deliberate', () => {
+    expect(PRESERVED_BUD_DAYS).toBe(28);
+  });
+});
+
+describe('vialInventoryPrefill beyond-use guidance', () => {
+  it('carries the window derived from the mix', () => {
+    const prefill = vialInventoryPrefill({
+      customFields: { [RECONSTITUTION_FIELD]: MIX },
+      doseAmount: 2,
+      doseUnit: 'mg',
+    });
+    expect(prefill?.bud).toEqual({
+      days: PRESERVED_BUD_DAYS,
+      reason: 'preserved',
+    });
+  });
+
+  it('carries the refusal for a preservative-free mix, with the numbers still filled', () => {
+    const prefill = vialInventoryPrefill({
+      customFields: {
+        [RECONSTITUTION_FIELD]: { ...MIX, diluent: 'sterile_water' },
+      },
+      doseAmount: 2,
+      doseUnit: 'mg',
+    });
+    // The diluent decides the window, not the arithmetic: concentration and dose count stand.
+    expect(prefill?.concentrationMgMl).toBe(10);
+    expect(prefill?.dosesTotal).toBe(15);
+    expect(prefill?.bud).toEqual({ days: null, reason: 'preservative_free' });
+  });
+
+  it('reports an unstated diluent as an assumption rather than a derivation', () => {
+    const prefill = vialInventoryPrefill({
+      customFields: {
+        [RECONSTITUTION_FIELD]: { ...MIX, diluent: undefined },
+      },
+      doseAmount: 2,
+      doseUnit: 'mg',
+    });
+    expect(prefill?.bud).toEqual({
+      days: PRESERVED_BUD_DAYS,
+      reason: 'unstated',
+    });
   });
 });

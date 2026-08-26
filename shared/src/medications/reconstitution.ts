@@ -228,7 +228,7 @@ export function reconstitute(input: ReconstitutionInput): ReconstitutionResult {
   if (!isPositiveFinite(diluentMl)) {
     return fail(
       "invalid_diluent",
-      "Enter how much bacteriostatic water you added, in mL, as a number greater than zero.",
+      "Enter how much diluent you added, in mL, as a number greater than zero.",
     );
   }
   if (!dose || !isPositiveFinite(dose.amount)) {

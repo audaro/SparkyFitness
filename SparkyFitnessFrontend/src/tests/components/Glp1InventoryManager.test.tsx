@@ -128,7 +128,12 @@ function medication(overrides: Partial<Medication> = {}): Medication {
   };
 }
 
-/** A medication carrying the mix the calculator saved: a 10 mg vial in 2 mL, dosed at 2 mg. */
+/**
+ * A medication carrying the mix the calculator saved: a 10 mg vial in 2 mL, dosed at 2 mg.
+ *
+ * `diluent` defaults to undefined — a record written before the field existed — because that is
+ * what most stored mixes look like and it keeps the legacy path under test by default.
+ */
 function reconstitutedMedication(
   overrides: {
     vial_amount?: number;
@@ -136,6 +141,7 @@ function reconstitutedMedication(
     diluent_ml?: number;
     dose_amount?: number | null;
     dose_unit?: string | null;
+    diluent?: string;
   } = {}
 ): Medication {
   const {
@@ -144,6 +150,7 @@ function reconstitutedMedication(
     diluent_ml = 2,
     dose_amount = 2,
     dose_unit = 'mg',
+    diluent,
   } = overrides;
 
   return medication({
@@ -155,6 +162,7 @@ function reconstitutedMedication(
         vial_unit,
         diluent_ml,
         syringe: 'U-100',
+        ...(diluent === undefined ? {} : { diluent }),
       },
     },
   });
@@ -501,17 +509,104 @@ describe('Glp1InventoryManager saving', () => {
     expect(createdBody()).toMatchObject({ bud_date: '2026-08-29' });
   });
 
-  it('says which diluent the suggested window assumes', () => {
+  it('says the window is an assumption when the mix does not record its diluent', () => {
     render(<Glp1InventoryManager med={reconstitutedMedication()} />);
     openAddDialog();
     fireEvent.change(screen.getByLabelText('Date Opened'), {
       target: { value: '2026-08-01' },
     });
 
-    // The number is only right for one diluent, so the form has to say which.
-    expect(screen.getByText(/bacteriostatic water/i).textContent).toMatch(
-      /sterile preservative-free water is far shorter/i
-    );
+    // A record written before the diluent was captured: the number is only right for one
+    // kind of fluid, so the form has to admit it is assuming.
+    expect(
+      screen.getByText(/does not record what it was diluted with/i)
+    ).toBeInTheDocument();
+  });
+
+  it('derives the window from a preserved diluent rather than assuming it', () => {
+    const med = reconstitutedMedication({ diluent: 'bacteriostatic_water' });
+    render(<Glp1InventoryManager med={med} />);
+    openAddDialog();
+    fireEvent.change(screen.getByLabelText('Date Opened'), {
+      target: { value: '2026-08-01' },
+    });
+
+    expect(value('Beyond-Use Date (BUD)')).toBe('2026-08-29');
+    // Same 28 days, but now stated as derived — and no longer hedged.
+    expect(
+      screen.getByText(/from the preserved diluent recorded for this mix/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/does not record what it was diluted with/i)
+    ).toBeNull();
+  });
+
+  it('gives bacteriostatic saline the same window as bacteriostatic water', () => {
+    const med = reconstitutedMedication({ diluent: 'bacteriostatic_saline' });
+    render(<Glp1InventoryManager med={med} />);
+    openAddDialog();
+    fireEvent.change(screen.getByLabelText('Date Opened'), {
+      target: { value: '2026-08-01' },
+    });
+
+    // It is the preservative that buys the window, not the fluid it is dissolved in.
+    expect(value('Beyond-Use Date (BUD)')).toBe('2026-08-29');
+  });
+
+  it.each(['sterile_water', 'sterile_saline'])(
+    'suggests no window at all for %s',
+    (diluent) => {
+      const med = reconstitutedMedication({ diluent });
+      render(<Glp1InventoryManager med={med} />);
+      openAddDialog();
+      fireEvent.change(screen.getByLabelText('Date Opened'), {
+        target: { value: '2026-08-01' },
+      });
+
+      // There is a real figure for a preservative-free mix, it is measured in hours, and it
+      // is not this form's to invent. An empty box with the reason beside it is the answer.
+      expect(value('Beyond-Use Date (BUD)')).toBe('');
+      expect(
+        screen.getByText(/no multi-day window to suggest/i)
+      ).toBeInTheDocument();
+
+      clickSave();
+
+      expect(createdBody()).toMatchObject({ bud_date: null });
+    }
+  );
+
+  it('still accepts a beyond-use date typed onto a preservative-free mix', () => {
+    const med = reconstitutedMedication({ diluent: 'sterile_water' });
+    render(<Glp1InventoryManager med={med} />);
+    openAddDialog();
+    fireEvent.change(screen.getByLabelText('Date Opened'), {
+      target: { value: '2026-08-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Beyond-Use Date (BUD)'), {
+      target: { value: '2026-08-02' },
+    });
+    clickSave();
+
+    // Refusing to *suggest* a date is not refusing to record one.
+    expect(createdBody()).toMatchObject({ bud_date: '2026-08-02' });
+  });
+
+  it('unrecognised diluent on a record reads as unstated, not as a broken record', () => {
+    const med = reconstitutedMedication({ diluent: 'tap_water' });
+    render(<Glp1InventoryManager med={med} />);
+    openAddDialog();
+
+    // The record is still good — the vial fields prefill — and only the window hedges.
+    expect(value('Concentration (mg/mL)')).toBe('5');
+    expect(value('Total Doses')).toBe('5');
+    fireEvent.change(screen.getByLabelText('Date Opened'), {
+      target: { value: '2026-08-01' },
+    });
+    expect(value('Beyond-Use Date (BUD)')).toBe('2026-08-29');
+    expect(
+      screen.getByText(/does not record what it was diluted with/i)
+    ).toBeInTheDocument();
   });
 
   it('keeps a hand-typed BUD when the opened date moves', () => {

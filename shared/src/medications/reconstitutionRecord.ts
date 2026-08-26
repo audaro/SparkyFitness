@@ -24,15 +24,53 @@ import {
 /** The `medications.custom_fields` key the record lives under. */
 export const RECONSTITUTION_FIELD = "reconstitution";
 
+/**
+ * What the powder was dissolved in.
+ *
+ * This is the fact that decides the beyond-use window, and the record used to leave it out —
+ * so the inventory form had to *assume* bacteriostatic water to offer a date at all. The
+ * distinction that matters is whether the fluid carries a preservative: the benzyl alcohol in a
+ * bacteriostatic diluent is what buys a multi-day window, and a preservative-free one has none.
+ */
+export type ReconstitutionDiluent =
+  | "bacteriostatic_water"
+  | "bacteriostatic_saline"
+  | "sterile_water"
+  | "sterile_saline";
+
+const DILUENTS: readonly ReconstitutionDiluent[] = [
+  "bacteriostatic_water",
+  "bacteriostatic_saline",
+  "sterile_water",
+  "sterile_saline",
+];
+
+/** The diluents carrying a preservative, and so the only ones with a multi-day window. */
+const PRESERVED_DILUENTS: readonly ReconstitutionDiluent[] = [
+  "bacteriostatic_water",
+  "bacteriostatic_saline",
+];
+
 /** The mix, as the user entered it. Snake_case because it is persisted JSON, not a view model. */
 export interface ReconstitutionRecord {
   /** What the vial held before any diluent. */
   vial_amount: number;
   vial_unit: ReconstitutionUnit;
-  /** Bacteriostatic water added, in mL. */
+  /** Diluent added, in mL. */
   diluent_ml: number;
   /** The barrel the user measured with — 100 marks per mL reads very differently from 40. */
   syringe: SyringeStandard;
+  /**
+   * What the diluent was, or null when the record does not say.
+   *
+   * Null is a first-class answer here, not a parse failure. Records written before this field
+   * existed have no diluent and are still perfectly good records — the field feeds the
+   * beyond-use suggestion and *nothing* in the syringe math — so an absent or unrecognised
+   * value reads as "not stated" rather than voiding the whole record. That is a deliberate
+   * exception to the all-or-nothing rule below: refusing the record would silently break every
+   * mix a user has already saved, in order to protect arithmetic this field is not part of.
+   */
+  diluent: ReconstitutionDiluent | null;
 }
 
 const UNITS: readonly ReconstitutionUnit[] = ["mg", "mcg", "iu"];
@@ -51,6 +89,10 @@ function isUnit(value: unknown): value is ReconstitutionUnit {
 
 function isSyringe(value: unknown): value is SyringeStandard {
   return SYRINGES.includes(value as SyringeStandard);
+}
+
+function isDiluent(value: unknown): value is ReconstitutionDiluent {
+  return DILUENTS.includes(value as ReconstitutionDiluent);
 }
 
 function roundTo(value: number, decimals: number): number {
@@ -81,12 +123,53 @@ export function readReconstitutionRecord(
   if (!isPositiveFinite(record["diluent_ml"])) return null;
   if (!isSyringe(record["syringe"])) return null;
 
+  const diluent = record["diluent"];
+
   return {
     vial_amount: record["vial_amount"],
     vial_unit: record["vial_unit"],
     diluent_ml: record["diluent_ml"],
     syringe: record["syringe"],
+    // Absent, null, or a value this version does not know: all of them mean "not stated".
+    diluent: isDiluent(diluent) ? diluent : null,
   };
+}
+
+/**
+ * Days a vial reconstituted with a preserved diluent is conventionally given from first
+ * puncture, refrigerated. This is the figure the inventory form has always used; what changes
+ * with `diluent` on the record is that it is now *conditional* rather than assumed.
+ */
+export const PRESERVED_BUD_DAYS = 28;
+
+export interface VialBudGuidance {
+  /** Days from opening to suggest, or null when no multi-day window can honestly be offered. */
+  days: number | null;
+  /**
+   * Why that is the answer, so a UI can say which of the three situations it is in rather than
+   * showing a bare date. `unstated` is a record written before the diluent was captured.
+   */
+  reason: "preserved" | "preservative_free" | "unstated";
+}
+
+/**
+ * What beyond-use window, if any, follows from the diluent.
+ *
+ * A preservative-free mix gets **no** suggestion. There is a real figure for one — it is
+ * measured in hours, and it depends on how the vial was punctured and where — and putting a day
+ * count on it here would be this module recommending rather than converting, which is the line
+ * `reconstitute` already refuses to cross. An empty date the user fills in is the honest output;
+ * the caller is expected to say why it is empty.
+ */
+export function vialBudGuidance(
+  diluent: ReconstitutionDiluent | null,
+): VialBudGuidance {
+  if (diluent === null) {
+    return { days: PRESERVED_BUD_DAYS, reason: "unstated" };
+  }
+  return PRESERVED_DILUENTS.includes(diluent)
+    ? { days: PRESERVED_BUD_DAYS, reason: "preserved" }
+    : { days: null, reason: "preservative_free" };
 }
 
 /** The strength unit for a vial measured in `unit` once it is in solution. */
@@ -197,6 +280,11 @@ export interface VialInventoryPrefill {
    * Null means "ask the user", never "assume the default".
    */
   dosesTotal: number | null;
+  /**
+   * The beyond-use window this mix's diluent implies. Carried here so the inventory form reads
+   * the record once, and so a `days: null` refusal arrives with the reason attached.
+   */
+  bud: VialBudGuidance;
 }
 
 /**
@@ -243,5 +331,6 @@ export function vialInventoryPrefill(input: {
       concentrationMgMl === null ? null : roundTo(concentrationMgMl, 4),
     volumeMl: record.diluent_ml,
     dosesTotal: dose?.ok ? dose.dosesPerVial : null,
+    bud: vialBudGuidance(record.diluent),
   };
 }

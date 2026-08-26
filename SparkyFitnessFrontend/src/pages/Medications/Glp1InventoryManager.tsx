@@ -1,7 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Pencil, Trash2 } from 'lucide-react';
-import { todayInZone, addDays, vialInventoryPrefill } from '@workspace/shared';
+import {
+  todayInZone,
+  addDays,
+  vialInventoryPrefill,
+  PRESERVED_BUD_DAYS,
+  type VialBudGuidance,
+} from '@workspace/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -41,15 +47,13 @@ const DEFAULT_PEN_DOSES = '4';
 const DEFAULT_VIAL_DOSES = '10';
 
 /**
- * The beyond-use window offered for a vial once it is opened.
- *
- * 28 days is the figure for a multi-dose vial reconstituted with **bacteriostatic** water — the
- * benzyl alcohol in it is what buys the month — kept refrigerated. It is badly wrong for sterile
- * preservative-free water, which is hours to a day, and the reconstitution record does not
- * capture which diluent was used. So this is a starting point the user can overwrite, labelled
- * with the assumption it makes, rather than a date the form asserts.
+ * The beyond-use window for a pen, which is not reconstituted and so has no diluent to read.
+ * A vial's window is derived from its mix instead — see `budGuidance` below.
  */
-const BUD_WINDOW_DAYS = 28;
+const PEN_BUD_GUIDANCE: VialBudGuidance = {
+  days: PRESERVED_BUD_DAYS,
+  reason: 'unstated',
+};
 
 interface Glp1InventoryManagerProps {
   med: Medication;
@@ -107,11 +111,18 @@ export default function Glp1InventoryManager({
     [med.custom_fields, med.dose_amount, med.dose_unit]
   );
 
-  /** The BUD the window suggests for a given opened date, or '' when there is nothing to add to. */
+  // A vial's window follows from what it was mixed with; a pen has no mix to read.
+  const budGuidance = vialPrefill?.bud ?? PEN_BUD_GUIDANCE;
+
+  /**
+   * The BUD to suggest for a given opened date, or '' when none can be offered — either because
+   * nothing has been opened yet, or because the diluent carries no preservative and so has no
+   * multi-day window to suggest. An empty box the user fills in is the honest answer there.
+   */
   const suggestBudDate = (opened: string) => {
-    if (!opened) return '';
+    if (!opened || budGuidance.days === null) return '';
     try {
-      return addDays(opened, BUD_WINDOW_DAYS);
+      return addDays(opened, budGuidance.days);
     } catch {
       return '';
     }
@@ -543,10 +554,11 @@ export default function Glp1InventoryManager({
                   }}
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Suggested as {BUD_WINDOW_DAYS} days from opening — the window
-                  for a vial reconstituted with bacteriostatic water and kept
-                  refrigerated. Sterile preservative-free water is far shorter.
-                  Edit the date if that is not your mix.
+                  {budGuidance.reason === 'preservative_free'
+                    ? 'This mix was made with a preservative-free diluent, so there is no multi-day window to suggest. Set a date from your own supply and storage.'
+                    : budGuidance.reason === 'preserved'
+                      ? `Suggested as ${budGuidance.days} days from opening, from the preserved diluent recorded for this mix, kept refrigerated.`
+                      : `Suggested as ${budGuidance.days} days from opening. This mix does not record what it was diluted with, so that figure assumes a preserved diluent — edit the date if it was not.`}
                 </p>
               </div>
             )}

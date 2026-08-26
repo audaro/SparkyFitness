@@ -382,6 +382,8 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
   const createMutate = jest.fn();
   const updateMutate = jest.fn();
 
+  // Deliberately a record from before the diluent field existed: this fixture is what proves the
+  // read path normalises a missing diluent to "not stated" instead of refusing the whole mix.
   const reconMix = {
     vial_amount: 30,
     vial_unit: 'mg',
@@ -441,7 +443,39 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
         dose_unit: 'mg',
         // Without this the concentration is a dead end — nothing left to say which vial and
         // how much water it came from.
-        custom_fields: expect.objectContaining({ reconstitution: reconMix }),
+        custom_fields: expect.objectContaining({
+          // The diluent the picker opened on. It is written down rather than assumed, because
+          // it is what decides whether the vial has a multi-day beyond-use window.
+          reconstitution: { ...reconMix, diluent: 'bacteriostatic_water' },
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('records a preservative-free diluent the user picks over the default', () => {
+    mockUseMedicationDetail.mockReturnValue(
+      { data: undefined } as unknown as ReturnType<typeof useMedicationDetail>,
+    );
+    const screen = renderScreen();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Grey vial #3');
+    fireEvent.press(screen.getByTestId('open-recon-calculator'));
+    fireEvent.changeText(screen.getByTestId('recon-vial'), '30');
+    fireEvent.changeText(screen.getByTestId('recon-diluent'), '3');
+    fireEvent.changeText(screen.getByTestId('recon-dose'), '2');
+    // Two controls, one value: "Sterile" leaves the fluid alone.
+    fireEvent.press(screen.getByText('Sterile'));
+    fireEvent.press(screen.getByText('Saline'));
+    fireEvent.press(screen.getByTestId('recon-apply'));
+
+    pressAction(screen, mockNavigation, 'Save');
+
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        custom_fields: expect.objectContaining({
+          reconstitution: { ...reconMix, diluent: 'sterile_saline' },
+        }),
       }),
       expect.anything(),
     );
@@ -470,7 +504,11 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
       {
         id: 'med-vial',
         body: expect.objectContaining({
-          custom_fields: expect.objectContaining({ reconstitution: reconMix }),
+          // A record saved before the diluent field existed still round-trips: absent reads back
+          // as null — "not stated" — rather than failing the parse and losing the whole mix.
+          custom_fields: expect.objectContaining({
+            reconstitution: { ...reconMix, diluent: null },
+          }),
         }),
       },
       expect.anything(),

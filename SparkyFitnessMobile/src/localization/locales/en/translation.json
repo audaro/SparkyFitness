@@ -1145,7 +1145,17 @@
       "title": "Reconstitution calculator",
       "commonVials": "Common vials:",
       "vial": "Vial contains",
-      "diluent": "Bacteriostatic water (mL)",
+      "diluent": "Diluent (mL)",
+      "diluentType": "Diluted with",
+      "diluentHint": "Bacteriostatic fluids contain a preservative; sterile ones do not, and a mix made with them has no multi-day beyond-use window.",
+      "diluentPreservatives": {
+        "bacteriostatic": "Bacteriostatic",
+        "sterile": "Sterile"
+      },
+      "diluentFluids": {
+        "water": "Water",
+        "saline": "Saline"
+      },
       "dose": "Your dose",
       "syringe": "Syringe",
       "unitsPerMl": "units/mL",
@@ -1156,7 +1166,7 @@
       "framing": "This converts the numbers you entered. It does not recommend a dose — check it against your own supply and your prescriber.",
       "errors": {
         "invalidVialAmount": "Enter how much the vial contains, as a number greater than zero.",
-        "invalidDiluent": "Enter how much bacteriostatic water you added, in mL, as a number greater than zero.",
+        "invalidDiluent": "Enter how much diluent you added, in mL, as a number greater than zero.",
         "invalidDose": "Enter your dose as a number greater than zero.",
         "invalidSyringe": "Unknown syringe standard \"{{syringe}}\". Supported: U-100, U-40.",
         "invalidSyringeCapacity": "Syringe capacity must be a number of units greater than zero.",

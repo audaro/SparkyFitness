@@ -5,6 +5,7 @@ import {
   reconstitute,
   SYRINGE_UNITS_PER_ML,
   type CatalogVialSize,
+  type ReconstitutionDiluent,
   type ReconstitutionRecord,
   type ReconstitutionUnit,
   type SyringeStandard,
@@ -18,6 +19,36 @@ import SegmentedControl from './SegmentedControl';
 
 const UNITS: ReconstitutionUnit[] = ['mg', 'mcg', 'iu'];
 const SYRINGES: SyringeStandard[] = ['U-100', 'U-40'];
+
+/**
+ * The four diluents as two independent questions. The web dialog offers them as one four-option
+ * select, which does not survive here: `SegmentedControl` is a non-wrapping flex row, and
+ * "Bacteriostatic 0.9% sodium chloride" in a quarter of a phone's width is unreadable. Splitting
+ * them also puts the preservative — the half that decides whether there is a beyond-use window at
+ * all — on its own control rather than buried in the tail of a long label.
+ */
+type DiluentPreservative = 'bacteriostatic' | 'sterile';
+type DiluentFluid = 'water' | 'saline';
+
+const PRESERVATIVES: DiluentPreservative[] = ['bacteriostatic', 'sterile'];
+const FLUIDS: DiluentFluid[] = ['water', 'saline'];
+
+const DILUENT_PARTS: Record<
+  ReconstitutionDiluent,
+  { preservative: DiluentPreservative; fluid: DiluentFluid }
+> = {
+  bacteriostatic_water: { preservative: 'bacteriostatic', fluid: 'water' },
+  bacteriostatic_saline: { preservative: 'bacteriostatic', fluid: 'saline' },
+  sterile_water: { preservative: 'sterile', fluid: 'water' },
+  sterile_saline: { preservative: 'sterile', fluid: 'saline' },
+};
+
+const DILUENT_BY_PARTS: Record<DiluentPreservative, Record<DiluentFluid, ReconstitutionDiluent>> = {
+  bacteriostatic: { water: 'bacteriostatic_water', saline: 'bacteriostatic_saline' },
+  sterile: { water: 'sterile_water', saline: 'sterile_saline' },
+};
+
+const DEFAULT_DILUENT: ReconstitutionDiluent = 'bacteriostatic_water';
 
 export interface ReconstitutionApplied {
   /** Amount per mL after reconstitution — the medication's strength. */
@@ -70,6 +101,26 @@ export default function ReconstitutionCalculator({
   const [doseAmount, setDoseAmount] = useState(initialDose ? String(initialDose.amount) : '');
   const [doseUnit, setDoseUnit] = useState<ReconstitutionUnit>(initialDose?.unit ?? 'mg');
   const [syringe, setSyringe] = useState<SyringeStandard>(initialRecord?.syringe ?? 'U-100');
+  // A record saved before this field existed reads back as null — "not stated", not "no
+  // preservative" — so the picker opens on the common case rather than inheriting the ambiguity.
+  const [diluent, setDiluent] = useState<ReconstitutionDiluent>(
+    initialRecord?.diluent ?? DEFAULT_DILUENT,
+  );
+  const diluentParts = DILUENT_PARTS[diluent];
+
+  // Literal keys, one per option: the i18n audit reads these statically, and a key built by
+  // template literal is invisible to it and so never gets translated.
+  const preservativeLabel = (value: DiluentPreservative) =>
+    value === 'bacteriostatic'
+      ? t('medications.recon.diluentPreservatives.bacteriostatic', {
+          defaultValue: 'Bacteriostatic',
+        })
+      : t('medications.recon.diluentPreservatives.sterile', { defaultValue: 'Sterile' });
+
+  const fluidLabel = (value: DiluentFluid) =>
+    value === 'water'
+      ? t('medications.recon.diluentFluids.water', { defaultValue: 'Water' })
+      : t('medications.recon.diluentFluids.saline', { defaultValue: 'Saline' });
 
   // Blank is "not filled in yet", not zero: refusing before the user has typed anything would be
   // shouting at them for a mistake they have not made.
@@ -135,7 +186,7 @@ export default function ReconstitutionCalculator({
 
       <View className="gap-1.5">
         <Text className="text-text-secondary text-sm font-medium">
-          {t('medications.recon.diluent', { defaultValue: 'Bacteriostatic water (mL)' })}
+          {t('medications.recon.diluent', { defaultValue: 'Diluent (mL)' })}
         </Text>
         <FormInput
           testID="recon-diluent"
@@ -144,6 +195,31 @@ export default function ReconstitutionCalculator({
           value={diluentMl}
           onChangeText={setDiluentMl}
         />
+      </View>
+
+      <View className="gap-1.5">
+        <Text className="text-text-secondary text-sm font-medium">
+          {t('medications.recon.diluentType', { defaultValue: 'Diluted with' })}
+        </Text>
+        <SegmentedControl
+          segments={PRESERVATIVES.map((value) => ({
+            key: value,
+            label: preservativeLabel(value),
+          }))}
+          activeKey={diluentParts.preservative}
+          onSelect={(value) => setDiluent(DILUENT_BY_PARTS[value][diluentParts.fluid])}
+        />
+        <SegmentedControl
+          segments={FLUIDS.map((value) => ({ key: value, label: fluidLabel(value) }))}
+          activeKey={diluentParts.fluid}
+          onSelect={(value) => setDiluent(DILUENT_BY_PARTS[diluentParts.preservative][value])}
+        />
+        <Text className="text-text-muted text-xs">
+          {t('medications.recon.diluentHint', {
+            defaultValue:
+              'Bacteriostatic fluids contain a preservative; sterile ones do not, and a mix made with them has no multi-day beyond-use window.',
+          })}
+        </Text>
       </View>
 
       <View className="gap-1.5">
@@ -235,6 +311,7 @@ export default function ReconstitutionCalculator({
                     vial_unit: vialUnit,
                     diluent_ml: Number(diluentMl),
                     syringe,
+                    diluent,
                   },
                 })
               }

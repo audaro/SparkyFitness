@@ -26,7 +26,7 @@ function fill(vial: string, diluent: string, dose: string) {
   fireEvent.change(screen.getByLabelText('Vial contains'), {
     target: { value: vial },
   });
-  fireEvent.change(screen.getByLabelText('Bacteriostatic water (mL)'), {
+  fireEvent.change(screen.getByLabelText('Diluent (mL)'), {
     target: { value: diluent },
   });
   fireEvent.change(screen.getByLabelText('Your dose'), {

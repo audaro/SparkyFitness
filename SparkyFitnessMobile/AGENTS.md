@@ -1,6 +1,6 @@
 # AGENTS.md
 
-*Last updated: 2026-08-25*
+*Last updated: 2026-08-26*
 
 SparkyFitness Mobile is a React Native 0.85 + Expo SDK 56 app for syncing Apple Health / Health Connect data with the SparkyFitness backend, tracking nutrition, hydration, fasting, measurements, exercise, saved foods, meal templates, custom exercises, workout presets, iOS / Android widgets, the active workout HUD, and the Sparky AI chat.
 
@@ -211,6 +211,9 @@ npx expo prebuild --clean
 - **Tier 1 is ranked by use, not by alphabet.** `rankOwnMedications` (shared) orders the cabinet active-first, then most recently taken, then the never-taken alphabetically, and only then applies the three-row cap — a user with a dozen matches was otherwise offered whichever three sorted first. It reads `last_taken_at`, a **derived** field only the list endpoint fills in.
 - **A tier 2 group can be a guess.** When `searchCatalog` matches nothing by substring it falls back to edit distance and flags the hits `viaTypo`; the heading then says "Did you mean" rather than "Known drugs". Tier 3 says the same in words: `correctedTerms` from the server names the spellings its rows were actually found under, rendered as a sub-line under the NLM row, because RxNav answers a metformin typo with merbromin as well as metformin.
 - The opt-in lives on `MedicationSettingsScreen` (Settings → Medications), worded the same as the web row because both set one server-side preference. There is deliberately no nudge inside the suggestion list.
+- `components/ReconstitutionCalculator.tsx` is the vial-mixing calculator. The arithmetic is not here: it and the web component of the same name both call the one shared `reconstitute()`, so neither platform can drift into its own numbers, and `onApply` hands back a `ReconstitutionRecord` for `MedicationFormScreen` to persist under `custom_fields.reconstitution` — a concentration alone cannot say whether it came from a 30 mg vial in 3 mL or a 10 mg one in 1 mL.
+- The **diluent** is the one place the two platforms present differently on purpose. The record stores one of four values (`bacteriostatic_water` / `bacteriostatic_saline` / `sterile_water` / `sterile_saline`); the web offers them as a single four-option select, and mobile as **two** `SegmentedControl`s — preservative, then fluid — composed through `DILUENT_PARTS` / `DILUENT_BY_PARTS`. `SegmentedControl` is a non-wrapping `flex-row` with `flex-1` children, so "Bacteriostatic 0.9% sodium chloride" in a quarter of a phone's width is unreadable; splitting it also puts the preservative, the half that decides whether the vial has a multi-day beyond-use window at all, on its own control. Do not collapse it back into one four-segment control.
+- The field is `ReconstitutionDiluent | **null**` — absent, null, and an unrecognised value all read back as "not stated" — because it was added after mixes were already saved and `readReconstitutionRecord` is otherwise all-or-nothing. The picker opens on bacteriostatic water for a record that does not state one, which is a default the user can change, not a claim the record makes.
 
 ## Dashboard, Diary, Measurements, And Nutrients
 

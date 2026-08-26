@@ -30,7 +30,7 @@ export function reconstitutionFailureMessage(
     case 'invalid_diluent':
       return t(
         'medications.recon.errors.invalidDiluent',
-        'Enter how much bacteriostatic water you added, in mL, as a number greater than zero.'
+        'Enter how much diluent you added, in mL, as a number greater than zero.'
       );
     case 'invalid_dose':
       return t(

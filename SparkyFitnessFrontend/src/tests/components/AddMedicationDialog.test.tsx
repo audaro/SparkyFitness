@@ -460,7 +460,7 @@ describe('AddMedicationDialog dose fields', () => {
       expect(screen.queryByText('Label strengths')).not.toBeInTheDocument();
 
       setField('Vial contains', '10');
-      setField('Bacteriostatic water (mL)', '2');
+      setField('Diluent (mL)', '2');
       setField('Your dose', '2');
 
       expect(screen.getByTestId('recon-units')).toHaveTextContent('40');
@@ -570,6 +570,9 @@ describe('AddMedicationDialog dose fields', () => {
       vial_unit: 'mg',
       diluent_ml: 3,
       syringe: 'U-100',
+      // What it was mixed with, not just how much: this is what the inventory form's
+      // beyond-use window is derived from. The calculator opens on this value.
+      diluent: 'bacteriostatic_water',
     };
 
     const vialMed = {
@@ -592,7 +595,7 @@ describe('AddMedicationDialog dose fields', () => {
 
     function fillCalculator() {
       setField('Vial contains', '30');
-      setField('Bacteriostatic water (mL)', '3');
+      setField('Diluent (mL)', '3');
       setField('Your dose', '2');
     }
 
@@ -621,13 +624,39 @@ describe('AddMedicationDialog dose fields', () => {
       expect(body.custom_fields).toMatchObject({ reconstitution: reconMix });
     });
 
+    it('records a preservative-free diluent the user picks over the default', async () => {
+      render(<AddMedicationDialog />);
+      openDialog();
+      setField('Name', 'Grey vial #4');
+      openCalculator();
+      fillCalculator();
+
+      fireEvent.click(screen.getByRole('combobox', { name: /Diluted with/ }));
+      fireEvent.click(
+        await screen.findByRole('option', {
+          name: 'Sterile water (preservative-free)',
+        })
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Use these numbers' })
+      );
+
+      save();
+
+      // The whole point of capturing the diluent: this mix has no multi-day beyond-use
+      // window, and only the record can say so.
+      expect(lastCreateBody().custom_fields).toMatchObject({
+        reconstitution: { ...reconMix, diluent: 'sterile_water' },
+      });
+    });
+
     it('reopens the calculator on the saved mix when editing', () => {
       render(<AddMedicationDialog editMed={vialMed} />);
       openDialog();
 
       // No "Reconstituting a vial?" button to press: a row that has a mix opens on it.
       expect(screen.getByLabelText('Vial contains')).toHaveValue(30);
-      expect(screen.getByLabelText('Bacteriostatic water (mL)')).toHaveValue(3);
+      expect(screen.getByLabelText('Diluent (mL)')).toHaveValue(3);
       // Seeded from the medication's own dose, not from the record.
       expect(screen.getByLabelText('Your dose')).toHaveValue(2);
       // The answer is on screen without the user re-entering anything.
@@ -696,9 +725,7 @@ describe('AddMedicationDialog dose fields', () => {
       fireEvent.mouseDown(screen.getByRole('option', { name: /Retatrutide/ }));
 
       expect(screen.getByLabelText('Vial contains')).toHaveValue(null);
-      expect(screen.getByLabelText('Bacteriostatic water (mL)')).toHaveValue(
-        null
-      );
+      expect(screen.getByLabelText('Diluent (mL)')).toHaveValue(null);
     });
 
     it("takes the mix from the user's own row when one is copied", () => {

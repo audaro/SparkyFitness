@@ -5,6 +5,7 @@ import {
   reconstitute,
   SYRINGE_UNITS_PER_ML,
   type CatalogVialSize,
+  type ReconstitutionDiluent,
   type ReconstitutionRecord,
   type ReconstitutionUnit,
   type SyringeStandard,
@@ -26,6 +27,20 @@ import {
 
 const UNITS: ReconstitutionUnit[] = ['mg', 'mcg', 'iu'];
 const SYRINGES: SyringeStandard[] = ['U-100', 'U-40'];
+const DILUENTS: ReconstitutionDiluent[] = [
+  'bacteriostatic_water',
+  'bacteriostatic_saline',
+  'sterile_water',
+  'sterile_saline',
+];
+
+/**
+ * What the form opens on. Bacteriostatic water is both the common case and what this screen
+ * used to *assert* — its volume field was literally labelled "Bacteriostatic water (mL)" — so
+ * defaulting to it changes no arithmetic and makes the assumption visible and changeable
+ * instead of silent.
+ */
+const DEFAULT_DILUENT: ReconstitutionDiluent = 'bacteriostatic_water';
 
 export interface ReconstitutionApplied {
   /** Amount per mL after reconstitution — the medication's strength. */
@@ -88,6 +103,36 @@ export default function ReconstitutionCalculator({
   const [syringe, setSyringe] = useState<SyringeStandard>(
     initialRecord?.syringe ?? 'U-100'
   );
+  const [diluent, setDiluent] = useState<ReconstitutionDiluent>(
+    initialRecord?.diluent ?? DEFAULT_DILUENT
+  );
+
+  // Literal keys rather than one interpolated `medications.recon.diluents.${option}`: the
+  // translation-coverage test scans for keys statically, and a computed one is invisible to it.
+  const diluentLabel = (option: ReconstitutionDiluent) => {
+    switch (option) {
+      case 'bacteriostatic_water':
+        return t(
+          'medications.recon.diluents.bacteriostaticWater',
+          'Bacteriostatic water'
+        );
+      case 'bacteriostatic_saline':
+        return t(
+          'medications.recon.diluents.bacteriostaticSaline',
+          'Bacteriostatic 0.9% sodium chloride'
+        );
+      case 'sterile_water':
+        return t(
+          'medications.recon.diluents.sterileWater',
+          'Sterile water (preservative-free)'
+        );
+      case 'sterile_saline':
+        return t(
+          'medications.recon.diluents.sterileSaline',
+          'Sterile 0.9% sodium chloride (preservative-free)'
+        );
+    }
+  };
 
   // Blank inputs are "not filled in yet", not zero: showing a refusal before the user has
   // typed anything would be shouting at them for a mistake they have not made. Only once all
@@ -179,7 +224,7 @@ export default function ReconstitutionCalculator({
 
         <div className="space-y-1.5">
           <Label htmlFor="recon-diluent">
-            {t('medications.recon.diluent', 'Bacteriostatic water (mL)')}
+            {t('medications.recon.diluent', 'Diluent (mL)')}
           </Label>
           <Input
             id="recon-diluent"
@@ -191,6 +236,36 @@ export default function ReconstitutionCalculator({
             onChange={(e) => setDiluentMl(e.target.value)}
             placeholder="2"
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="recon-diluent-type">
+            {t('medications.recon.diluentType', 'Diluted with')}
+          </Label>
+          <Select
+            value={diluent}
+            onValueChange={(v) => setDiluent(v as ReconstitutionDiluent)}
+          >
+            <SelectTrigger id="recon-diluent-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DILUENTS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {diluentLabel(option)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* Only the preserved diluents buy a multi-day window, and the inventory form's
+              beyond-use date is derived from this answer — so it is worth one line here
+              rather than a surprise on the other screen. */}
+          <p className="text-[11px] text-muted-foreground">
+            {t(
+              'medications.recon.diluentHint',
+              'Bacteriostatic fluids contain a preservative; sterile ones do not, and a mix made with them has no multi-day beyond-use window.'
+            )}
+          </p>
         </div>
 
         <div className="space-y-1.5">
@@ -324,6 +399,7 @@ export default function ReconstitutionCalculator({
                     vial_unit: vialUnit,
                     diluent_ml: Number(diluentMl),
                     syringe,
+                    diluent,
                   },
                 })
               }

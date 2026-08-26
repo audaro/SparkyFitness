@@ -152,9 +152,9 @@ a real exit code:
 
 | Package | validate | tests |
 |---|---|---|
-| Server | pass | 300 suites, 4453 passed, 2 skipped |
-| Frontend | pass | 117 suites, 1176 passed |
-| Mobile | pass | 381 suites, 6156 passed |
+| Server | pass | 300 suites, 4471 passed, 2 skipped |
+| Frontend | pass | 117 suites, 1183 passed |
+| Mobile | pass | 381 suites, 6157 passed |
 
 The server figures include `medicationLastTaken.integration.test.ts`, which **skips** rather than
 fails when no database is reachable — a contributor without Postgres will see 299 suites and one
@@ -211,11 +211,60 @@ skipping cleanly when no DB is reachable. Seven assertions, of which the load-be
 medications list read would fail at runtime with the entire mocked suite green. Verified by
 mutation: widening the status filter to include `'skipped'` fails the refusal test.
 
+## Diluent on the reconstitution record — 2026-08-26
+
+The follow-up flagged below is done: `ReconstitutionRecord` now carries what the vial was mixed
+with, and the beyond-use suggestion is derived from it instead of assumed.
+
+**The type.** `ReconstitutionDiluent` is four values — `bacteriostatic_water`,
+`bacteriostatic_saline`, `sterile_water`, `sterile_saline` — and the field is
+`ReconstitutionDiluent | **null**`. That null is the whole design decision.
+`readReconstitutionRecord` is deliberately all-or-nothing: a record that fails any check is
+rejected entirely, because a half-read mix would produce confident wrong arithmetic. Making
+`diluent` required under that rule would have voided **every mix already saved**. So absent, null,
+and a value a future version does not recognise all read back as `null`, meaning "not stated" — a
+real answer, not a parse failure. It is safe to make this one field an exception precisely because
+it feeds only the beyond-use suggestion and never touches the syringe math.
+
+**The suggestion.** `vialBudGuidance(diluent)` returns `{days, reason}` with three outcomes:
+
+| reason | days | when |
+|---|---|---|
+| `preserved` | 28 | the mix records a bacteriostatic diluent — the benzyl alcohol is what buys the month |
+| `preservative_free` | **null** | sterile water or saline: good for hours, not days |
+| `unstated` | 28 | a record from before this field existed |
+
+`preservative_free` returning **no number** is the point. Preservative-free beyond-use is a matter
+of hours and depends on storage; suggesting any day count there would be worse than suggesting
+nothing. It refuses, in the same way `reconstitute()` and `vialInventoryPrefill()` refuse, and the
+caller has to say *why* the box is empty rather than silently leaving it blank. `Glp1InventoryManager`
+prints one of three captions off `reason`; a pen has no mix and takes `PEN_BUD_GUIDANCE`
+(28 days, `unstated`).
+
+**The pickers diverge on purpose.** Web is one four-option `Select`. Mobile is **two**
+`SegmentedControl`s — preservative, then fluid — composed through `DILUENT_PARTS` /
+`DILUENT_BY_PARTS`, because `SegmentedControl` is a non-wrapping `flex-row` and four long labels in
+a quarter of a phone's width are unreadable. It also puts the preservative, the half that decides
+whether there is a window at all, on its own control. Both write the same four canonical values.
+
+**One label and one error message were lying** and were reworded on both platforms plus in shared:
+the volume field said "Bacteriostatic water (mL)" (now "Diluent (mL)") and `invalid_diluent` said
+"Enter how much bacteriostatic water you added" (now "how much diluent"). The Polish catalog was
+updated by hand — mobile's locales are hand-maintained and its i18n audit fails on a missing PL
+key, unlike web's 27 machine-synced ones.
+
+**Watch for this:** the i18n audit and the web coverage test both scan `t()` keys **statically**. A
+key built by template literal — `medications.recon.diluents.${option}` — is invisible to them and
+would never be translated. Both platforms' label helpers are literal-key `switch`/ternary chains
+for that reason; do not "simplify" them back into interpolation.
+
+Tests: `reconstitutionRecord.test.ts` (+3 describes covering the diluent read, `vialBudGuidance`
+and the prefill's `bud`), `AddMedicationDialog.test.tsx` and `MedicationFormScreen.test.tsx` each
+gained a preservative-free pick, and the mobile round-trip fixture is deliberately left as a
+legacy record with no diluent so the null path stays covered.
+
 ## Open risks / next step
 
-- **The reconstitution record does not capture the diluent**, so the BUD suggestion assumes
-  bacteriostatic water and says so rather than deriving it. Adding `diluent` to
-  `ReconstitutionRecord` would make it derivable — the natural follow-up.
 - `last_taken_at` is one extra aggregate on every medications list read. Indexed by
   `idx_medication_entries_user_id`; watch it if a user's entry history gets large.
 - The inventory dialog's strings are hardcoded English (`Kind`, `Total Doses`, and now the BUD
