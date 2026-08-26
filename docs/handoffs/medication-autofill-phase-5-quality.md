@@ -310,6 +310,11 @@ New suites: `SparkyFitnessServer/tests/syringeBarrel.test.ts` (11, the shared ar
 
 ## Open risks / next step
 
+> Superseded 2026-08-26 by `upstream-sync-and-syringe-orientation.md`. Two of the three entries
+> below are closed there: the inventory dialog is now fully localized, and the syringe is drawn
+> vertically on web — and its needle turned out to be at the wrong end of the barrel on both
+> platforms, so the "It is horizontal" paragraph above no longer describes the code.
+
 - `last_taken_at` is one extra aggregate on every medications list read. Indexed by
   `idx_medication_entries_user_id`; watch it if a user's entry history gets large.
 - The inventory dialog's strings are hardcoded English (`Kind`, `Total Doses`, and now the BUD
