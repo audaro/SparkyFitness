@@ -383,6 +383,41 @@ describe('generateRecommendation', () => {
     expect(result.target_duration_minutes).toBe(90);
   });
 
+  // The scoring itself is asserted in workoutGeneration.test.ts; this proves
+  // the wire-through — the stored profile value reaching GenerationOptions —
+  // because that seam sat inert (`experienceLevel: null`) for a release and
+  // nothing but this test would notice it regressing.
+  it('reads the experience level off the coach profile into selection', async () => {
+    coachRepo.getCoachProfile.mockResolvedValue({
+      goals: null,
+      session_minutes: null,
+      experience_level: 'beginner',
+      limitations: [],
+    });
+    const beginnerBench = candidate({
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Push-Up',
+      level: 'beginner',
+    });
+    const unleveledBench = candidate({
+      id: '11111111-aaaa-4aaa-8aaa-111111111111',
+      name: 'Machine Press',
+    });
+    repo.getCandidateExercises.mockResolvedValue([
+      unleveledBench,
+      beginnerBench,
+    ]);
+
+    const result = await workoutRecommendationService.generateRecommendation(
+      USER_ID,
+      { targetMuscles: ['chest'] }
+    );
+
+    // Otherwise identical candidates: only the level-match bonus separates
+    // them, so the beginner-rated row winning is the profile value arriving.
+    expect(result.payload.exercises[0].exercise_id).toBe(beginnerBench.id);
+  });
+
   it('narrows the catalog read to the muscles it actually chose', async () => {
     const result =
       await workoutRecommendationService.generateRecommendation(USER_ID);

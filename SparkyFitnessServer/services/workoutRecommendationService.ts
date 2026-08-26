@@ -437,10 +437,7 @@ async function generateRecommendation(
       String(value).toLowerCase()
     ),
     goal: deriveGoal(coachProfile?.goals),
-    // `coach_profiles` has no experience column yet. The planner's level-match
-    // bonus is therefore inert rather than wrong; when a profile gains the
-    // field this is the single line that turns it on.
-    experienceLevel: null,
+    experienceLevel: coachProfile?.experience_level ?? null,
     excludeIds,
     targetMuscles: opts.targetMuscles,
   };
@@ -696,7 +693,7 @@ async function replaceRecommendationExercise(
       String(value).toLowerCase()
     ),
     goal: deriveGoal(coachProfile?.goals),
-    experienceLevel: null,
+    experienceLevel: coachProfile?.experience_level ?? null,
     excludeIds: [],
   };
 
