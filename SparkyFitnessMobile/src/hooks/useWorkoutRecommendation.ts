@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
+import { useTranslation } from 'react-i18next';
 import type {
   AlternativeExercise,
   ReplaceRecommendationExerciseRequest,
@@ -36,6 +37,7 @@ interface UseWorkoutRecommendationOptions {
 export function useWorkoutRecommendation({
   enabled = true,
 }: UseWorkoutRecommendationOptions = {}) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const query = useQuery<WorkoutRecommendation | null>({
@@ -61,14 +63,17 @@ export function useWorkoutRecommendation({
     onError: (error) => {
       Toast.show({
         type: 'error',
-        text1: 'Could not build a workout',
+        text1: t('upNext.generateFailed', { defaultValue: 'Could not build a workout' }),
         // 422 is the engine reporting it had nothing to program with — a fresh
         // catalog, or a gym profile so narrow no exercise survives the filter.
         // That is the user's to fix, so it gets its own message.
         text2:
           error instanceof ApiError && error.statusCode === 422
-            ? 'No exercises matched your gym equipment. Try another gym profile.'
-            : 'Please try again.',
+            ? t('upNext.generateNoMatch', {
+                defaultValue:
+                  'No exercises matched your gym equipment. Try another gym profile.',
+              })
+            : t('common.tryAgain', { defaultValue: 'Please try again.' }),
       });
     },
   });
@@ -133,6 +138,7 @@ export function useExerciseAlternatives(exerciseId: string | undefined) {
  * new state, and a refetch would only ask for it again.
  */
 export function useReplaceRecommendationExercise() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -144,14 +150,16 @@ export function useReplaceRecommendationExercise() {
     onError: (error) => {
       Toast.show({
         type: 'error',
-        text1: 'Could not replace that exercise',
+        text1: t('upNext.replaceFailed', {
+          defaultValue: 'Could not replace that exercise',
+        }),
         // 422 is the server refusing a swap it cannot make — the exercise is
         // already in the workout, or is not in the catalog. Its message says
         // which, and it is the user's to act on, so surface it verbatim.
         text2:
           (error instanceof ApiError && error.statusCode === 422
             ? getApiErrorMessage(error)
-            : null) ?? 'Please try again.',
+            : null) ?? t('common.tryAgain', { defaultValue: 'Please try again.' }),
       });
     },
   });

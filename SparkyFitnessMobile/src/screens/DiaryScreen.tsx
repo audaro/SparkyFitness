@@ -317,7 +317,13 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
   // Browse and Recently Logged sections down with it.
   const renderDay = () => {
     if (isLoading) {
-      return <StatusView inline loading title="Loading diary..." />;
+      return (
+        <StatusView
+          inline
+          loading
+          title={t('diaryHome.loading', { defaultValue: 'Loading diary...' })}
+        />
+      );
     }
 
     // `isError` is also true when a refetch fails over cached data, and this
@@ -405,15 +411,27 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
           icon="cloud-offline"
           iconTone="muted"
           iconSize={64}
-          title="No server configured"
-          subtitle="Configure your server connection in Settings to view your diary."
-          action={{ label: 'Go to Settings', onPress: () => navigation.navigate('Settings'), variant: 'primary' }}
+          title={t('diaryHome.noServerTitle', { defaultValue: 'No server configured' })}
+          subtitle={t('diaryHome.noServerSubtitle', {
+            defaultValue:
+              'Configure your server connection in Settings to view your diary.',
+          })}
+          action={{
+            label: t('diaryHome.goToSettings', { defaultValue: 'Go to Settings' }),
+            onPress: () => navigation.navigate('Settings'),
+            variant: 'primary',
+          }}
         />
       );
     }
 
     if (isConnectionLoading) {
-      return <StatusView loading title="Loading diary..." />;
+      return (
+        <StatusView
+          loading
+          title={t('diaryHome.loading', { defaultValue: 'Loading diary...' })}
+        />
+      );
     }
 
     return (
@@ -437,14 +455,16 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
         {renderDay()}
 
         <View className="mb-3 mt-6">
-          <Text className="text-lg font-semibold text-text-primary">Create</Text>
+          <Text className="text-lg font-semibold text-text-primary">
+            {t('diaryHome.create', { defaultValue: 'Create' })}
+          </Text>
         </View>
 
         <View className="flex-row justify-between mb-6">
           <CreateTile
             icon="food"
-            title="Food"
-            subtitle="Manual entry"
+            title={t('diaryHome.createFood', { defaultValue: 'Food' })}
+            subtitle={t('diaryHome.createFoodSubtitle', { defaultValue: 'Manual entry' })}
             disabled={isNavigationLocked}
             onPress={() =>
               runNavigationAction(() =>
@@ -456,8 +476,8 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
           />
           <CreateTile
             icon="meal"
-            title="Meal"
-            subtitle="Group foods"
+            title={t('diaryHome.createMeal', { defaultValue: 'Meal' })}
+            subtitle={t('diaryHome.createMealSubtitle', { defaultValue: 'Group foods' })}
             disabled={isNavigationLocked}
             onPress={() => runNavigationAction(() => navigation.navigate('MealAdd'))}
             className="w-[48%]"
@@ -466,43 +486,61 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
         </View>
 
         <View className="mb-3">
-          <Text className="text-lg font-semibold text-text-primary">Quick access</Text>
+          <Text className="text-lg font-semibold text-text-primary">
+            {t('diaryHome.quickAccess', { defaultValue: 'Quick access' })}
+          </Text>
         </View>
 
         <SettingsRowGroup>
           <SettingsRow
             icon="food"
-            title="Foods"
-            subtitle="Every food you can log"
+            title={t('diaryHome.foodsLibrary', { defaultValue: 'Foods' })}
+            subtitle={t('diaryHome.foodsLibrarySubtitle', {
+              defaultValue: 'Every food you can log',
+            })}
             onPress={() => navigation.navigate('FoodsLibrary')}
             testID="food-home-foods-library"
           />
           <SettingsRow
             icon="meal"
-            title="Meals"
-            subtitle="Groups of foods you have saved"
+            title={t('diaryHome.mealsLibrary', { defaultValue: 'Meals' })}
+            subtitle={t('diaryHome.mealsLibrarySubtitle', {
+              defaultValue: 'Groups of foods you have saved',
+            })}
             onPress={() => navigation.navigate('MealsLibrary')}
             testID="food-home-meals-library"
           />
         </SettingsRowGroup>
 
         <View className="mb-3">
-          <Text className="text-lg font-semibold text-text-primary">Recently logged</Text>
+          <Text className="text-lg font-semibold text-text-primary">
+            {t('diaryHome.recentlyLogged', { defaultValue: 'Recently logged' })}
+          </Text>
         </View>
 
         <View className="bg-surface rounded-xl overflow-hidden shadow-sm">
           {isRecentLoading ? (
-            <StatusView inline loading title="Loading recent items..." />
+            <StatusView
+              inline
+              loading
+              title={t('diaryHome.recentLoading', {
+                defaultValue: 'Loading recent items...',
+              })}
+            />
           ) : showRecentError ? (
             <View className="px-4 py-6 items-start">
-              <Text className="text-text-secondary text-sm">Failed to load recent items.</Text>
+              <Text className="text-text-secondary text-sm">
+                {t('diaryHome.recentFailed', {
+                  defaultValue: 'Failed to load recent items.',
+                })}
+              </Text>
               <Button
                 variant="link"
                 className="px-0 py-0 mt-3"
                 textClassName="text-sm"
                 onPress={retryRecent}
               >
-                Retry
+                {t('common.retry', { defaultValue: 'Retry' })}
               </Button>
             </View>
           ) : recentItems.length > 0 ? (
@@ -538,9 +576,14 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
             })
           ) : (
             <View className="px-4 py-6">
-              <Text className="text-text-primary text-base font-medium">No recent items yet</Text>
+              <Text className="text-text-primary text-base font-medium">
+                {t('diaryHome.recentEmptyTitle', { defaultValue: 'No recent items yet' })}
+              </Text>
               <Text className="text-text-secondary text-sm mt-1">
-                Foods and meals you log will appear here for quick access.
+                {t('diaryHome.recentEmptySubtitle', {
+                  defaultValue:
+                    'Foods and meals you log will appear here for quick access.',
+                })}
               </Text>
             </View>
           )}

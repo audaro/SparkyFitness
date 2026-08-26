@@ -199,8 +199,11 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
         />
 
         <SettingsRow
-          title="Talk to Sparky button"
-          subtitle="Show the floating mic on every screen. Speech is transcribed on this device."
+          title={t('appSettings.voiceButton', { defaultValue: 'Talk to Sparky button' })}
+          subtitle={t('appSettings.voiceButtonHelp', {
+            defaultValue:
+              'Show the floating mic on every screen. Speech is transcribed on this device.',
+          })}
           subtitleNumberOfLines={0}
           rightAccessory={
             <Switch
@@ -211,8 +214,11 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
         />
 
         <SettingsRow
-          title="Sparky speaks replies"
-          subtitle="Read Sparky's answers aloud after voice questions and in chat."
+          title={t('appSettings.voiceReplies', { defaultValue: 'Sparky speaks replies' })}
+          subtitle={t('appSettings.voiceRepliesHelp', {
+            defaultValue:
+              "Read Sparky's answers aloud after voice questions and in chat.",
+          })}
           subtitleNumberOfLines={0}
           rightAccessory={
             <Switch
@@ -223,8 +229,13 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
         />
 
         <SettingsRow
-          title="Stop listening automatically"
-          subtitle="End dictation as soon as you pause. Off: the mic keeps listening until you tap it again."
+          title={t('appSettings.voiceAutoStop', {
+            defaultValue: 'Stop listening automatically',
+          })}
+          subtitle={t('appSettings.voiceAutoStopHelp', {
+            defaultValue:
+              'End dictation as soon as you pause. Off: the mic keeps listening until you tap it again.',
+          })}
           subtitleNumberOfLines={0}
           rightAccessory={
             <Switch

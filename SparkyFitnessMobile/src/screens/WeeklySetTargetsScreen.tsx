@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import React, { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,20 +32,38 @@ const RING_STROKE = 14;
 /** Matches the server's ceiling on a hand-set target. */
 const MAX_TARGET = 100;
 
-const GROUP_LABELS: Record<MuscleGroup, string> = {
-  push: 'Push Muscles',
-  pull: 'Pull Muscles',
-  legs: 'Leg Muscles',
-  core: 'Core Muscles',
-};
+function groupLabel(t: TFunction, group: MuscleGroup): string {
+  switch (group) {
+    case 'push':
+      return t('weeklySetTargets.groups.push', { defaultValue: 'Push Muscles' });
+    case 'pull':
+      return t('weeklySetTargets.groups.pull', { defaultValue: 'Pull Muscles' });
+    case 'legs':
+      return t('weeklySetTargets.groups.legs', { defaultValue: 'Leg Muscles' });
+    case 'core':
+      return t('weeklySetTargets.groups.core', { defaultValue: 'Core Muscles' });
+  }
+}
 
 /** Which muscles land in each group, so the numbers are not a black box. */
-const GROUP_DETAIL: Record<MuscleGroup, string> = {
-  push: 'Chest, shoulders, triceps',
-  pull: 'Back, lats, traps, biceps, forearms',
-  legs: 'Quads, hamstrings, glutes, calves',
-  core: 'Abdominals',
-};
+function groupDetail(t: TFunction, group: MuscleGroup): string {
+  switch (group) {
+    case 'push':
+      return t('weeklySetTargets.detail.push', {
+        defaultValue: 'Chest, shoulders, triceps',
+      });
+    case 'pull':
+      return t('weeklySetTargets.detail.pull', {
+        defaultValue: 'Back, lats, traps, biceps, forearms',
+      });
+    case 'legs':
+      return t('weeklySetTargets.detail.legs', {
+        defaultValue: 'Quads, hamstrings, glutes, calves',
+      });
+    case 'core':
+      return t('weeklySetTargets.detail.core', { defaultValue: 'Abdominals' });
+  }
+}
 
 const MONTHS = [
   'Jan',
@@ -80,13 +100,14 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
 
+  const { t } = useTranslation();
   const { data, isLoading, isError, refetch } = useWeeklySetTargets();
   const updateTargets = useUpdateWeeklySetTargets();
   const [editingGroup, setEditingGroup] = useState<MuscleGroup | null>(null);
   const [draftTarget, setDraftTarget] = useState(0);
 
   const header = useScreenHeader({
-    title: 'Weekly Set Targets',
+    title: t('weeklySetTargets.title', { defaultValue: 'Weekly Set Targets' }),
     left: { kind: 'back' },
   });
 
@@ -133,7 +154,10 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
         style={usesNativeHeader ? undefined : { paddingTop: insets.top }}
       >
         {header}
-        <StatusView loading title="Loading your week…" />
+        <StatusView
+          loading
+          title={t('weeklySetTargets.loading', { defaultValue: 'Loading your week…' })}
+        />
       </View>
     );
   }
@@ -148,9 +172,16 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
         <StatusView
           icon="alert-circle"
           iconTone="danger"
-          title="Could not load your targets"
-          subtitle="Check your connection and try again."
-          action={{ label: 'Retry', onPress: () => void refetch() }}
+          title={t('weeklySetTargets.loadFailed', {
+            defaultValue: 'Could not load your targets',
+          })}
+          subtitle={t('common.checkConnection', {
+            defaultValue: 'Check your connection and try again.',
+          })}
+          action={{
+            label: t('common.retry', { defaultValue: 'Retry' }),
+            onPress: () => void refetch(),
+          }}
         />
       </View>
     );
@@ -195,8 +226,10 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
 
         {!data.targets_are_custom ? (
           <Text className="mb-4 text-sm text-text-muted">
-            These targets are a starting point based on how often you train.
-            Tap any group to set your own.
+            {t('weeklySetTargets.defaultsHint', {
+              defaultValue:
+                'These targets are a starting point based on how often you train. Tap any group to set your own.',
+            })}
           </Text>
         ) : null}
 
@@ -214,7 +247,12 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
                   isEditing ? commitEdit() : startEditing(group)
                 }
                 accessibilityRole="button"
-                accessibilityLabel={`${GROUP_LABELS[group.group]}, ${formatSetCount(group.completed)} of ${group.target} sets`}
+                accessibilityLabel={t('weeklySetTargets.groupA11y', {
+                  defaultValue: '{{group}}, {{completed}} of {{target}} sets',
+                  group: groupLabel(t, group.group),
+                  completed: formatSetCount(group.completed),
+                  target: group.target,
+                })}
                 testID={`weekly-set-group-toggle-${group.group}`}
               >
                 <View
@@ -223,10 +261,14 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
                 />
                 <View className="flex-1">
                   <Text className="text-base font-semibold text-text-primary">
-                    {GROUP_LABELS[group.group]}
+                    {groupLabel(t, group.group)}
                   </Text>
                   <Text className="mt-0.5 text-sm text-text-secondary">
-                    {formatSetCount(group.completed)} / {group.target} Sets
+                    {t('weeklySetTargets.setsProgress', {
+                      defaultValue: '{{completed}} / {{target}} Sets',
+                      completed: formatSetCount(group.completed),
+                      target: group.target,
+                    })}
                   </Text>
                 </View>
                 <View className="items-end">
@@ -236,7 +278,9 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
                       : formatSetCount(group.remaining)}
                   </Text>
                   <Text className="text-xs text-text-muted">
-                    {group.target === 0 ? 'not tracked' : 'to go'}
+                    {group.target === 0
+                      ? t('weeklySetTargets.notTracked', { defaultValue: 'not tracked' })
+                      : t('weeklySetTargets.toGo', { defaultValue: 'to go' })}
                   </Text>
                 </View>
                 <Icon
@@ -250,14 +294,16 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
               {isEditing ? (
                 <View className="mt-4 border-t border-border pt-4">
                   <Text className="mb-3 text-sm text-text-secondary">
-                    {GROUP_DETAIL[group.group]}
+                    {groupDetail(t, group.group)}
                   </Text>
                   <View className="flex-row items-center justify-between">
                     <Pressable
                       className="h-11 w-11 items-center justify-center rounded-full bg-background"
                       onPress={() => adjustDraft(-1)}
                       accessibilityRole="button"
-                      accessibilityLabel="Decrease target"
+                      accessibilityLabel={t('weeklySetTargets.decrease', {
+                        defaultValue: 'Decrease target',
+                      })}
                       testID={`weekly-set-decrease-${group.group}`}
                     >
                       <Icon name="remove" size={20} color={primaryTextColor} />
@@ -270,14 +316,18 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
                         {draftTarget}
                       </Text>
                       <Text className="text-xs text-text-muted">
-                        sets per week
+                        {t('weeklySetTargets.setsPerWeek', {
+                          defaultValue: 'sets per week',
+                        })}
                       </Text>
                     </View>
                     <Pressable
                       className="h-11 w-11 items-center justify-center rounded-full bg-background"
                       onPress={() => adjustDraft(1)}
                       accessibilityRole="button"
-                      accessibilityLabel="Increase target"
+                      accessibilityLabel={t('weeklySetTargets.increase', {
+                        defaultValue: 'Increase target',
+                      })}
                       testID={`weekly-set-increase-${group.group}`}
                     >
                       <Icon name="add" size={20} color={primaryTextColor} />
@@ -286,10 +336,13 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
                   <Button
                     className="mt-4"
                     onPress={commitEdit}
-                    accessibilityLabel={`Save ${GROUP_LABELS[group.group]} target`}
+                    accessibilityLabel={t('weeklySetTargets.saveGroupA11y', {
+                      defaultValue: 'Save {{group}} target',
+                      group: groupLabel(t, group.group),
+                    })}
                     testID={`weekly-set-save-${group.group}`}
                   >
-                    Done
+                    {t('common.done', { defaultValue: 'Done' })}
                   </Button>
                 </View>
               ) : null}
@@ -300,7 +353,7 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
         {data.history.length > 0 ? (
           <View className="mt-4">
             <Text className="mb-3 text-base font-semibold text-text-primary">
-              History
+              {t('weeklySetTargets.history', { defaultValue: 'History' })}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {[...data.history].reverse().map((week) => (

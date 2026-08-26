@@ -2,6 +2,8 @@ import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { EQUIPMENT, isKnownEquipment, type Equipment } from '@workspace/shared';
 
 import FormInput from '../components/FormInput';
@@ -26,8 +28,9 @@ function equipmentLabel(value: string): string {
   return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 }
 
-function equipmentSummary(equipment: string[]): string {
-  if (equipment.length === 0) return 'No equipment selected';
+function equipmentSummary(t: TFunction, equipment: string[]): string {
+  if (equipment.length === 0)
+    return t('gymProfiles.noEquipment', { defaultValue: 'No equipment selected' });
   return equipment.map(equipmentLabel).join(', ');
 }
 
@@ -50,6 +53,7 @@ interface EditorState {
 }
 
 const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
@@ -145,12 +149,16 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
     const profile = editor?.profile;
     if (!profile) return;
     Alert.alert(
-      'Delete gym profile',
-      `Delete "${profile.name}"? Workouts you have already logged are not affected.`,
+      t('gymProfiles.deleteTitle', { defaultValue: 'Delete gym profile' }),
+      t('gymProfiles.deleteMessage', {
+        defaultValue:
+          'Delete "{{name}}"? Workouts you have already logged are not affected.',
+        name: profile.name,
+      }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete', { defaultValue: 'Delete' }),
           style: 'destructive',
           onPress: () => {
             void deleteProfileAsync(profile.id)
@@ -162,7 +170,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
         },
       ],
     );
-  }, [editor, deleteProfileAsync]);
+  }, [t, editor, deleteProfileAsync]);
 
   const handleActivate = useCallback(
     (profile: GymProfile) => {
@@ -176,17 +184,15 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
 
   // One primary action at a time: the editor owns Save, the list owns the add
   // button (a plain icon), so the one-accent invariant holds in both modes.
+  const editorTitle = editor
+    ? editor.profile
+      ? t('gymProfiles.editTitle', { defaultValue: 'Edit Gym Profile' })
+      : t('gymProfiles.newTitle', { defaultValue: 'New Gym Profile' })
+    : t('gymProfiles.listTitle', { defaultValue: 'Gym Profiles' });
+
   const header = useScreenHeader({
-    title: editor
-      ? editor.profile
-        ? 'Edit Gym Profile'
-        : 'New Gym Profile'
-      : 'Gym Profiles',
-    nativeTitle: editor
-      ? editor.profile
-        ? 'Edit Gym Profile'
-        : 'New Gym Profile'
-      : 'Gym Profiles',
+    title: editorTitle,
+    nativeTitle: editorTitle,
     animateKey: editor ? 'edit' : 'list',
     nativeOptions: { gestureEnabled: !editor, headerBackVisible: !editor },
     left: editor
@@ -194,14 +200,14 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
           kind: 'dismiss',
           onPress: closeEditor,
           disabled: isSaving,
-          accessibilityLabel: 'Cancel',
+          accessibilityLabel: t('common.cancel', { defaultValue: 'Cancel' }),
           identifier: 'gym-profiles-cancel',
         }
       : { kind: 'back' },
     right: editor
       ? {
           kind: 'primary',
-          label: 'Save',
+          label: t('common.save', { defaultValue: 'Save' }),
           onPress: () => void handleSave(),
           disabled: !canSave,
           busy: isSaving,
@@ -212,7 +218,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
           sfSymbol: 'plus',
           ionicon: 'add',
           onPress: openCreate,
-          accessibilityLabel: 'Add gym profile',
+          accessibilityLabel: t('gymProfiles.add', { defaultValue: 'Add gym profile' }),
           identifier: 'gym-profiles-add',
         },
   });
@@ -234,25 +240,31 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
         {editor ? (
           <View testID="gym-profile-editor">
             <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">
-              Name
+              {t('gymProfiles.nameLabel', { defaultValue: 'Name' })}
             </Text>
             <FormInput
               value={editor.name}
               onChangeText={(name) =>
                 setEditor((current) => (current ? { ...current, name } : current))
               }
-              placeholder="Home, Planet Fitness…"
+              placeholder={t('gymProfiles.namePlaceholder', {
+                defaultValue: 'Home, Planet Fitness…',
+              })}
               autoCapitalize="words"
-              accessibilityLabel="Gym profile name"
+              accessibilityLabel={t('gymProfiles.nameA11y', {
+                defaultValue: 'Gym profile name',
+              })}
               testID="gym-profile-name-input"
             />
 
             <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
-              Equipment
+              {t('gymProfiles.equipmentLabel', { defaultValue: 'Equipment' })}
             </Text>
             <Text className="text-sm text-text-secondary mb-3">
-              While this profile is active, suggestions only use the equipment you pick
-              here. Bodyweight movements are always available.
+              {t('gymProfiles.equipmentHelp', {
+                defaultValue:
+                  'While this profile is active, suggestions only use the equipment you pick here. Bodyweight movements are always available.',
+              })}
             </Text>
             <View className="flex-row flex-wrap gap-2">
               {EQUIPMENT.map((value) => {
@@ -291,10 +303,12 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
             <View className="flex-row items-center justify-between bg-surface rounded-xl p-4 mt-6">
               <View className="flex-1 mr-3">
                 <Text className="text-base font-semibold text-text-primary">
-                  Use this profile
+                  {t('gymProfiles.useThis', { defaultValue: 'Use this profile' })}
                 </Text>
                 <Text className="text-sm text-text-secondary mt-0.5">
-                  Makes it the active profile for workout suggestions.
+                  {t('gymProfiles.useThisHelp', {
+                    defaultValue: 'Makes it the active profile for workout suggestions.',
+                  })}
                 </Text>
               </View>
               <Switch
@@ -305,7 +319,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
                 // Turning the active profile off has no meaning — activate a
                 // different one instead.
                 disabled={editor.profile?.is_active === true}
-                accessibilityLabel="Use this profile"
+                accessibilityLabel={t('gymProfiles.useThis', {
+                  defaultValue: 'Use this profile',
+                })}
               />
             </View>
 
@@ -314,35 +330,45 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
                 variant="destructive"
                 onPress={handleDelete}
                 className="mt-6"
-                accessibilityLabel="Delete gym profile"
+                accessibilityLabel={t('gymProfiles.deleteTitle', {
+                  defaultValue: 'Delete gym profile',
+                })}
                 testID="gym-profile-delete"
               >
-                Delete profile
+                {t('gymProfiles.deleteAction', { defaultValue: 'Delete profile' })}
               </Button>
             ) : null}
           </View>
         ) : (
           <View testID="gym-profile-list">
             {isLoading ? (
-              <ActivityIndicator accessibilityLabel="Loading gym profiles" />
+              <ActivityIndicator
+                accessibilityLabel={t('gymProfiles.loading', {
+                  defaultValue: 'Loading gym profiles',
+                })}
+              />
             ) : profiles.length === 0 ? (
               <View className="items-center py-12">
                 <Text className="text-base font-semibold text-text-primary mb-1">
-                  No gym profiles yet
+                  {t('gymProfiles.emptyTitle', { defaultValue: 'No gym profiles yet' })}
                 </Text>
                 <Text className="text-sm text-text-secondary text-center mb-6">
-                  Create one for each place you train so workouts only use equipment you
-                  actually have.
+                  {t('gymProfiles.emptySubtitle', {
+                    defaultValue:
+                      'Create one for each place you train so workouts only use equipment you actually have.',
+                  })}
                 </Text>
                 <Button onPress={openCreate} testID="gym-profile-empty-create">
-                  Add gym profile
+                  {t('gymProfiles.add', { defaultValue: 'Add gym profile' })}
                 </Button>
               </View>
             ) : (
               <>
                 <Text className="text-sm text-text-secondary mb-3">
-                  Tap a profile to make it active. With no active profile, every exercise
-                  is fair game.
+                  {t('gymProfiles.listHelp', {
+                    defaultValue:
+                      'Tap a profile to make it active. With no active profile, every exercise is fair game.',
+                  })}
                 </Text>
                 {profiles.map((profile) => (
                   <View
@@ -354,9 +380,14 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
                       onPress={() => handleActivate(profile)}
                       accessibilityRole="radio"
                       accessibilityState={{ selected: profile.is_active }}
-                      accessibilityLabel={`${profile.name}${
-                        profile.is_active ? ', active' : ''
-                      }`}
+                      accessibilityLabel={
+                        profile.is_active
+                          ? t('gymProfiles.rowActiveA11y', {
+                              defaultValue: '{{name}}, active',
+                              name: profile.name,
+                            })
+                          : profile.name
+                      }
                       testID={`gym-profile-row-${profile.id}`}
                     >
                       <Icon
@@ -376,7 +407,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
                           {profile.name}
                         </Text>
                         <Text className="text-sm text-text-secondary mt-0.5" numberOfLines={2}>
-                          {equipmentSummary(profile.equipment)}
+                          {equipmentSummary(t, profile.equipment)}
                         </Text>
                       </View>
                     </Pressable>
@@ -384,7 +415,10 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
                       onPress={() => openEdit(profile)}
                       hitSlop={12}
                       accessibilityRole="button"
-                      accessibilityLabel={`Edit ${profile.name}`}
+                      accessibilityLabel={t('gymProfiles.editRowA11y', {
+                        defaultValue: 'Edit {{name}}',
+                        name: profile.name,
+                      })}
                       testID={`gym-profile-edit-${profile.id}`}
                     >
                       <Icon name="pencil" size={20} color={textSecondary} />

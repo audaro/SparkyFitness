@@ -645,8 +645,8 @@ export function Test({ name }) {
   });
 });
 
-describe('Hardcoded UI text detection (informational)', () => {
-  it('14. reports new hardcoded text in <Text> without failing the audit', () => {
+describe('Hardcoded UI text detection (blocking)', () => {
+  it('14. fails the audit on new hardcoded text in <Text>', () => {
     const source = `
 import React from 'react';
 import { Text } from 'react-native';
@@ -665,7 +665,7 @@ export function Test() {
     );
 
     expect(hardcoded.length).toBe(1);
-    expect(result.hasErrors).toBe(false);
+    expect(result.hasErrors).toBe(true);
     expect(result.report.hardcodedUiFindings.length).toBeGreaterThan(0);
   });
 

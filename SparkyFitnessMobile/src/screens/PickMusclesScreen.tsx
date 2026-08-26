@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
@@ -23,6 +25,7 @@ import {
   MUSCLE_TILES,
   musclesForTiles,
   tileForMuscle,
+  tileLabel,
   type MuscleTileDefinition,
 } from '../constants/muscleTiles';
 import type { BodyView } from '../constants/muscleArt.generated';
@@ -34,10 +37,12 @@ type PickMusclesScreenProps = RootStackScreenProps<'PickMuscles'>;
 /** The freshness-ranked default: no muscle constraint at all. */
 const RECOVERED_KEY = 'recovered';
 
-const VIEW_SEGMENTS: { key: BodyView; label: string }[] = [
-  { key: 'front', label: 'Front' },
-  { key: 'back', label: 'Back' },
-];
+function viewSegments(t: TFunction): { key: BodyView; label: string }[] {
+  return [
+    { key: 'front', label: t('pickMuscles.viewFront', { defaultValue: 'Front' }) },
+    { key: 'back', label: t('pickMuscles.viewBack', { defaultValue: 'Back' }) },
+  ];
+}
 
 /**
  * What a split row says it will train.
@@ -45,9 +50,10 @@ const VIEW_SEGMENTS: { key: BodyView; label: string }[] = [
  * Full body is named rather than enumerated: seventeen muscle names in a
  * one-line subtitle is a wall of text that says less than two words do.
  */
-function splitSubtitle(split: MuscleSplit): string {
+function splitSubtitle(t: TFunction, split: MuscleSplit): string {
   const members = MUSCLE_SPLIT_MEMBERS[split];
-  if (members.length === MUSCLES.length) return 'Every muscle';
+  if (members.length === MUSCLES.length)
+    return t('pickMuscles.everyMuscle', { defaultValue: 'Every muscle' });
   return members.map(titleCaseCanonical).join(', ');
 }
 
@@ -92,6 +98,8 @@ function tileRecovery(
  * list instead of dropping the user out of the picker entirely.
  */
 const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => {
+  const { t } = useTranslation();
+  const segments = useMemo(() => viewSegments(t), [t]);
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
@@ -197,9 +205,14 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
     void runGenerate(targetMuscles, 'grid');
   }, [runGenerate, selectedTileIds]);
 
+  const screenTitle =
+    mode === 'grid'
+      ? t('pickMuscles.gridTitle', { defaultValue: 'Individual Muscles' })
+      : t('upNext.pickMuscles', { defaultValue: 'Pick Muscles' });
+
   const header = useScreenHeader({
-    title: mode === 'grid' ? 'Individual Muscles' : 'Pick Muscles',
-    nativeTitle: mode === 'grid' ? 'Individual Muscles' : 'Pick Muscles',
+    title: screenTitle,
+    nativeTitle: screenTitle,
     animateKey: mode,
     nativeOptions: {
       gestureEnabled: mode === 'splits',
@@ -211,7 +224,7 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
             kind: 'dismiss',
             onPress: () => setMode('splits'),
             disabled: isGenerating,
-            accessibilityLabel: 'Cancel',
+            accessibilityLabel: t('common.cancel', { defaultValue: 'Cancel' }),
             identifier: 'pick-muscles-cancel',
           }
         : { kind: 'back' },
@@ -219,7 +232,7 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
       mode === 'grid'
         ? {
             kind: 'primary',
-            label: 'Save',
+            label: t('common.save', { defaultValue: 'Save' }),
             onPress: handleSaveGrid,
             disabled: selectedTileIds.length === 0,
             busy: pendingKey === 'grid',
@@ -244,14 +257,18 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
         {mode === 'splits' ? (
           <View testID="pick-muscles-splits">
             <Text className="text-sm mb-4" style={{ color: textMuted }}>
-              Pick what the next workout is built around. Your gym profile and
-              session length still apply.
+              {t('pickMuscles.splitsHelp', {
+                defaultValue:
+                  'Pick what the next workout is built around. Your gym profile and session length still apply.',
+              })}
             </Text>
 
             <SettingsRowGroup>
               <SettingsRow
-                title="Recovered muscles"
-                subtitle="Let the app pick whatever is freshest today"
+                title={t('pickMuscles.recovered', { defaultValue: 'Recovered muscles' })}
+                subtitle={t('pickMuscles.recoveredSubtitle', {
+                  defaultValue: 'Let the app pick whatever is freshest today',
+                })}
                 subtitleNumberOfLines={2}
                 onPress={() => void runGenerate(null, RECOVERED_KEY)}
                 disabled={isGenerating}
@@ -264,7 +281,7 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                 <SettingsRow
                   key={split}
                   title={titleCaseCanonical(split)}
-                  subtitle={splitSubtitle(split)}
+                  subtitle={splitSubtitle(t, split)}
                   subtitleNumberOfLines={2}
                   onPress={() => void runGenerate(MUSCLE_SPLIT_MEMBERS[split], split)}
                   disabled={isGenerating}
@@ -279,8 +296,10 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
             <SettingsRowGroup>
               <SettingsRow
                 icon="exercise-weights"
-                title="Choose muscles"
-                subtitle="Pick them one by one, with how recovered each is"
+                title={t('pickMuscles.chooseMuscles', { defaultValue: 'Choose muscles' })}
+                subtitle={t('pickMuscles.chooseMusclesSubtitle', {
+                  defaultValue: 'Pick them one by one, with how recovered each is',
+                })}
                 subtitleNumberOfLines={2}
                 onPress={() => setMode('grid')}
                 disabled={isGenerating}
@@ -291,8 +310,10 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
         ) : (
           <View testID="pick-muscles-grid">
             <Text className="text-sm mb-4" style={{ color: textMuted }}>
-              Tap the muscles you want to train. Colour is how recovered each one
-              is today.
+              {t('pickMuscles.gridHelp', {
+                defaultValue:
+                  'Tap the muscles you want to train. Colour is how recovered each one is today.',
+              })}
             </Text>
 
             {/* One figure at a time. Side by side, each body is about half a
@@ -300,7 +321,7 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                 reasonable tap target, and too small for the selection to read
                 at all. */}
             <View testID="pick-muscles-view-toggle" className="mb-4">
-              <SegmentedControl segments={VIEW_SEGMENTS} activeKey={view} onSelect={setView} />
+              <SegmentedControl segments={segments} activeKey={view} onSelect={setView} />
             </View>
 
             <MuscleBodyMap
@@ -319,11 +340,16 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                 shape on the body. */}
             <View className="mt-6">
               <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider">
-                {`Selected (${selectedTiles.length})`}
+                {t('pickMuscles.selectedCount', {
+                  defaultValue: 'Selected ({{total}})',
+                  total: selectedTiles.length,
+                })}
               </Text>
               {selectedTiles.length === 0 ? (
                 <Text className="text-sm mt-3" style={{ color: textMuted }} testID="pick-muscles-none">
-                  Tap a muscle to target it.
+                  {t('pickMuscles.selectedEmpty', {
+                    defaultValue: 'Tap a muscle to target it.',
+                  })}
                 </Text>
               ) : (
                 <View className="mt-3 rounded-xl overflow-hidden" style={{ backgroundColor: surfaceColor }}>
@@ -336,8 +362,15 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                         accessibilityRole="button"
                         accessibilityLabel={
                           entry
-                            ? `Remove ${tile.label}, ${entry.percent}% recovered`
-                            : `Remove ${tile.label}`
+                            ? t('pickMuscles.removeWithRecoveryA11y', {
+                                defaultValue: 'Remove {{label}}, {{percent}}% recovered',
+                                label: tileLabel(t, tile),
+                                percent: entry.percent,
+                              })
+                            : t('pickMuscles.removeA11y', {
+                                defaultValue: 'Remove {{label}}',
+                                label: tileLabel(t, tile),
+                              })
                         }
                         testID={`pick-muscles-selected-${tile.id}`}
                         className="flex-row items-center justify-between px-4 py-3"
@@ -348,15 +381,18 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                             action, and tinting it by freshness would say
                             something about the muscle that it does not mean. */}
                         <Text className="text-sm text-text-primary">
-                          {tile.label}
+                          {tileLabel(t, tile)}
                           {entry ? (
                             <Text style={{ color: toneColors[entry.tone] }}>
-                              {` · ${entry.percent}% recovered`}
+                              {t('pickMuscles.recoveryDetail', {
+                                defaultValue: ' · {{percent}}% recovered',
+                                percent: entry.percent,
+                              })}
                             </Text>
                           ) : null}
                         </Text>
                         <Text className="text-xs font-bold ml-3" style={{ color: textMuted }}>
-                          Remove
+                          {t('common.remove', { defaultValue: 'Remove' })}
                         </Text>
                       </Pressable>
                     );

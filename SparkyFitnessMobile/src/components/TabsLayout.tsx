@@ -119,6 +119,7 @@ function NativeTabsBannerOverlay() {
 }
 
 function HomeStackScreen() {
+  const { t } = useTranslation();
   const { defaultColor } = useHeaderActionColors();
   const textPrimary = useCSSVariable('--color-text-primary') as string;
   const screenOptions = React.useMemo(
@@ -133,8 +134,8 @@ function HomeStackScreen() {
           name="HomeRoot"
           component={SafeHome as React.ComponentType}
           options={{
-            title: 'Home',
-            headerBackTitle: 'Home',
+            title: t('navigation.dashboard', { defaultValue: 'Home' }),
+            headerBackTitle: t('navigation.dashboard', { defaultValue: 'Home' }),
           }}
         />
       </HomeStack.Navigator>
@@ -144,6 +145,7 @@ function HomeStackScreen() {
 }
 
 function ExerciseStackScreen() {
+  const { t } = useTranslation();
   const { defaultColor } = useHeaderActionColors();
   const textPrimary = useCSSVariable('--color-text-primary') as string;
   const screenOptions = React.useMemo(
@@ -158,8 +160,8 @@ function ExerciseStackScreen() {
           name="ExerciseRoot"
           component={SafeExercise as React.ComponentType}
           options={{
-            title: 'Exercise',
-            headerBackTitle: 'Exercise',
+            title: t('navigation.exercise', { defaultValue: 'Exercise' }),
+            headerBackTitle: t('navigation.exercise', { defaultValue: 'Exercise' }),
           }}
         />
       </ExerciseStack.Navigator>
@@ -169,6 +171,7 @@ function ExerciseStackScreen() {
 }
 
 function FoodStackScreen() {
+  const { t } = useTranslation();
   const { defaultColor } = useHeaderActionColors();
   const textPrimary = useCSSVariable('--color-text-primary') as string;
   const screenOptions = React.useMemo(
@@ -183,8 +186,8 @@ function FoodStackScreen() {
           name="FoodRoot"
           component={SafeFood as React.ComponentType}
           options={{
-            title: 'Food',
-            headerBackTitle: 'Food',
+            title: t('navigation.diary', { defaultValue: 'Food' }),
+            headerBackTitle: t('navigation.diary', { defaultValue: 'Food' }),
           }}
         />
       </FoodStack.Navigator>

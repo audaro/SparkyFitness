@@ -538,17 +538,17 @@ function AppContent() {
           <Stack.Screen
             name="UpNext"
             component={SafeUpNext}
-            options={createStackScreenOptions('Up Next', { headerBackTitle: 'Back' })}
+            options={createStackScreenOptions(t('upNext.title', { defaultValue: 'Up Next' }), { headerBackTitle: t('common.back', { defaultValue: 'Back' }) })}
           />
           <Stack.Screen
             name="PickMuscles"
             component={SafePickMuscles}
-            options={createStackScreenOptions('Pick Muscles', { headerBackTitle: 'Up Next' })}
+            options={createStackScreenOptions(t('upNext.pickMuscles', { defaultValue: 'Pick Muscles' }), { headerBackTitle: t('upNext.title', { defaultValue: 'Up Next' }) })}
           />
           <Stack.Screen
             name="OnDemandWorkouts"
             component={SafeOnDemandWorkouts}
-            options={createStackScreenOptions('On Demand', { headerBackTitle: 'Up Next' })}
+            options={createStackScreenOptions(t('upNext.onDemand', { defaultValue: 'On Demand' }), { headerBackTitle: t('upNext.title', { defaultValue: 'Up Next' }) })}
           />
           <Stack.Screen
             name="WorkoutAdd"
@@ -659,17 +659,17 @@ function AppContent() {
           <Stack.Screen
             name="GymProfiles"
             component={SafeGymProfiles}
-            options={createStackScreenOptions('Gym Profiles', { headerBackTitle: 'Workout Settings' })}
+            options={createStackScreenOptions(t('gymProfiles.listTitle', { defaultValue: 'Gym Profiles' }), { headerBackTitle: t('workoutSettings.title', { defaultValue: 'Workout Settings' }) })}
           />
           <Stack.Screen
             name="ExercisePacks"
             component={SafeExercisePacks}
-            options={createStackScreenOptions('Exercise Packs', { headerBackTitle: 'Workout Settings' })}
+            options={createStackScreenOptions(t('exercisePacks.title', { defaultValue: 'Exercise Packs' }), { headerBackTitle: t('workoutSettings.title', { defaultValue: 'Workout Settings' }) })}
           />
           <Stack.Screen
             name="WeeklySetTargets"
             component={SafeWeeklySetTargets}
-            options={createStackScreenOptions('Weekly Set Targets', { headerBackTitle: 'Workout Settings' })}
+            options={createStackScreenOptions(t('weeklySetTargets.title', { defaultValue: 'Weekly Set Targets' }), { headerBackTitle: t('workoutSettings.title', { defaultValue: 'Workout Settings' }) })}
           />
           <Stack.Screen
             name="ServerSettings"

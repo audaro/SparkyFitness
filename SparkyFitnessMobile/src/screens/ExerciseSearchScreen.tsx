@@ -427,7 +427,7 @@ useEffect(() => {
       <View testID="suggested-section">
         <View className="px-4 py-2 bg-background">
           <Text className="text-text-secondary text-sm font-semibold uppercase tracking-wider">
-            Suggested
+            {t('exerciseSearch.suggested', { defaultValue: 'Suggested' })}
           </Text>
         </View>
         {isAlternativesLoading ? (
@@ -440,6 +440,7 @@ useEffect(() => {
       </View>
     );
   }, [
+    t,
     suggestForExerciseId,
     alternatives,
     isAlternativesLoading,
@@ -507,7 +508,14 @@ useEffect(() => {
         />
       );
     }
-    return <StatusView title="No matching exercises found" inline={inline} />;
+    return (
+      <StatusView
+        title={t('exerciseSearch.noMatches', {
+          defaultValue: 'No matching exercises found',
+        })}
+        inline={inline}
+      />
+    );
   };
 
   const renderSearchResults = () => {

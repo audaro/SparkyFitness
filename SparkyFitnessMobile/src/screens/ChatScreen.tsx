@@ -346,6 +346,7 @@ function LocalComposerInput({ autoFocusReady, ...props }: LocalComposerInputProp
  * push-to-talk overlay.
  */
 function ComposerMic() {
+  const { t } = useTranslation();
   const aui = useAui();
   const [dictating, setDictating] = useState(false);
   const voiceAutoStopEnabled = useAppPreferencesStore((s) => s.voiceAutoStopEnabled);
@@ -376,7 +377,11 @@ function ComposerMic() {
     if (!dictating) return;
     setDictating(false);
     if (event.error !== 'no-speech') {
-      Toast.show({ type: 'error', text1: "Couldn't hear that", text2: event.message });
+      Toast.show({
+        type: 'error',
+        text1: t('voice.couldNotHear', { defaultValue: "Couldn't hear that" }),
+        text2: event.message,
+      });
     }
   });
 
@@ -397,8 +402,12 @@ function ComposerMic() {
     if (!granted) {
       Toast.show({
         type: 'error',
-        text1: 'Microphone access needed',
-        text2: 'Enable the microphone and speech recognition in Settings.',
+        text1: t('voice.micPermissionTitle', {
+          defaultValue: 'Microphone access needed',
+        }),
+        text2: t('voice.micPermissionMessage', {
+          defaultValue: 'Enable the microphone and speech recognition in Settings.',
+        }),
       });
       return;
     }
@@ -412,7 +421,7 @@ function ComposerMic() {
       ]);
       setDictating(false);
     }
-  }, [dictating, voiceAutoStopEnabled]);
+  }, [t, dictating, voiceAutoStopEnabled]);
 
   const label = dictating
     ? voiceAutoStopEnabled

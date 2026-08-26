@@ -455,8 +455,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             become unreachable. */}
         <SettingsRow
           icon="medication"
-          title="Medications"
-          subtitle="Your medications and schedules"
+          title={t('medications.title', { defaultValue: 'Medications' })}
+          subtitle={t('dashboard.medicationsSubtitle', {
+            defaultValue: 'Your medications and schedules',
+          })}
           onPress={() => navigation.navigate('MedicationsList')}
           testID="dashboard-medications-row"
         />

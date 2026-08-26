@@ -79,9 +79,9 @@ function printHumanReport() {
       console.log(`  ${locale}: ${coverage.translated}/${coverage.total} complete (${coverage.percent}%), ${coverage.missing} missing${coverage.stale ? `, ${coverage.stale} stale` : ''}`);
     }
   }
-  console.log(`hardcoded UI strings (informational, PR5 scope): ${summary.hardcodedUiFindings}`);
+  console.log(`hardcoded UI strings (blocking): ${summary.hardcodedUiFindings}`);
   console.log(`locale-unsafe number formatting (blocking): ${summary.unsafeNumberFormatFindings ?? 0}`);
-  console.log(`manual pluralization antipatterns (informational, PR5 scope): ${summary.manualPluralizationFindings ?? 0}`);
+  console.log(`manual pluralization antipatterns (blocking): ${summary.manualPluralizationFindings ?? 0}`);
 }
 
 if (showJson) {

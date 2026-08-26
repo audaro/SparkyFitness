@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
+import { useTranslation } from 'react-i18next';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -32,6 +33,7 @@ interface UpNextCardProps {
  * lands on the same screen's Generate CTA.
  */
 const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
+  const { t } = useTranslation();
   const { recommendation, isLoading, isError } = useWorkoutRecommendation();
   const [accentPrimary, textMuted] = useCSSVariable([
     '--color-accent-primary',
@@ -55,11 +57,13 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
       className="bg-surface rounded-xl p-4 mb-3 shadow-sm"
       onPress={() => navigation.navigate('UpNext')}
       accessibilityRole="button"
-      accessibilityLabel="Open your next workout"
+      accessibilityLabel={t('upNext.card.open', { defaultValue: 'Open your next workout' })}
       testID="up-next-card"
     >
       <View className="flex-row items-center justify-between mb-2">
-        <Text className="font-bold text-text-secondary">Up Next</Text>
+        <Text className="font-bold text-text-secondary">
+          {t('upNext.title', { defaultValue: 'Up Next' })}
+        </Text>
         {isLoading ? (
           <ActivityIndicator size="small" color={accentPrimary} />
         ) : (
@@ -75,15 +79,27 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
               .join(' · ')}
           </Text>
           <Text className="text-sm mt-1" style={{ color: textMuted }}>
-            {exerciseCount} {exerciseCount === 1 ? 'exercise' : 'exercises'} ·{' '}
-            {muscleCount} {muscleCount === 1 ? 'muscle' : 'muscles'} ·{' '}
+            {t('upNext.card.exerciseCount', {
+              defaultValue: '{{count}} exercises',
+              defaultValue_one: '{{count}} exercise',
+              defaultValue_other: '{{count}} exercises',
+              count: exerciseCount,
+            })}
+            {' · '}
+            {t('upNext.card.muscleCount', {
+              defaultValue: '{{count}} muscles',
+              defaultValue_one: '{{count}} muscle',
+              defaultValue_other: '{{count}} muscles',
+              count: muscleCount,
+            })}
+            {' · '}
             {formatDuration(payload.estimated_duration_minutes)}
           </Text>
         </>
       ) : (
         !isLoading && (
           <Text className="text-sm" style={{ color: textMuted }}>
-            Generate today&apos;s workout
+            {t('upNext.generateToday', { defaultValue: "Generate today's workout" })}
           </Text>
         )
       )}

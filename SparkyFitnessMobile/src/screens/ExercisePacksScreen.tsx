@@ -1,4 +1,6 @@
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,16 +18,30 @@ import type { RootStackScreenProps } from '../types/navigation';
 
 type ExercisePacksScreenProps = RootStackScreenProps<'ExercisePacks'>;
 
-function remainingLabel(pack: ExercisePack): string {
+function remainingLabel(t: TFunction, pack: ExercisePack): string {
   const remaining = pack.total - pack.alreadyImported;
-  if (remaining <= 0) return 'All of these are already in your library.';
-  if (pack.alreadyImported === 0) {
-    return `${pack.total} exercises, each with demonstration photos.`;
+  if (remaining <= 0) {
+    return t('exercisePacks.allImported', {
+      defaultValue: 'All of these are already in your library.',
+    });
   }
-  return `${remaining} of ${pack.total} still to add — you already have ${pack.alreadyImported}.`;
+  if (pack.alreadyImported === 0) {
+    return t('exercisePacks.noneImported', {
+      defaultValue: '{{total}} exercises, each with demonstration photos.',
+      total: pack.total,
+    });
+  }
+  return t('exercisePacks.someImported', {
+    defaultValue:
+      '{{remaining}} of {{total}} still to add — you already have {{alreadyImported}}.',
+    remaining,
+    total: pack.total,
+    alreadyImported: pack.alreadyImported,
+  });
 }
 
 const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
@@ -34,7 +50,7 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
   const { progress, isImporting, importPack, cancel } = useExercisePackImport();
 
   const header = useScreenHeader({
-    title: 'Exercise Packs',
+    title: t('exercisePacks.title', { defaultValue: 'Exercise Packs' }),
     left: { kind: 'back' },
   });
 
@@ -47,16 +63,26 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
 
   const body = () => {
     if (isLoading) {
-      return <StatusView loading title="Loading packs…" />;
+      return (
+        <StatusView
+          loading
+          title={t('exercisePacks.loading', { defaultValue: 'Loading packs…' })}
+        />
+      );
     }
     if (isError) {
       return (
         <StatusView
           icon="alert-circle"
           iconTone="danger"
-          title="Could not load packs"
-          subtitle="Check your connection and try again."
-          action={{ label: 'Retry', onPress: () => void refetch() }}
+          title={t('exercisePacks.loadFailed', { defaultValue: 'Could not load packs' })}
+          subtitle={t('common.checkConnection', {
+            defaultValue: 'Check your connection and try again.',
+          })}
+          action={{
+            label: t('common.retry', { defaultValue: 'Retry' }),
+            onPress: () => void refetch(),
+          }}
         />
       );
     }
@@ -65,7 +91,7 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
         <StatusView
           icon="exercise-weights"
           iconTone="muted"
-          title="No packs available"
+          title={t('exercisePacks.empty', { defaultValue: 'No packs available' })}
         />
       );
     }
@@ -90,7 +116,7 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
             {pack.description}
           </Text>
           <Text className="mt-2 text-sm text-text-muted">
-            {remainingLabel(pack)}
+            {remainingLabel(t, pack)}
           </Text>
 
           {active && progress ? (
@@ -101,16 +127,26 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
                   className={`text-sm text-text-secondary ${running ? 'ml-2' : ''}`}
                   testID={`pack-progress-${pack.id}`}
                 >
-                  {progress.processed} of {progress.total} · added{' '}
-                  {progress.imported}
+                  {t('exercisePacks.progress', {
+                    defaultValue: '{{processed}} of {{total}} · added {{imported}}',
+                    processed: progress.processed,
+                    total: progress.total,
+                    imported: progress.imported,
+                  })}
                   {progress.skipped > 0
-                    ? ` · skipped ${progress.skipped}`
+                    ? t('exercisePacks.progressSkipped', {
+                        defaultValue: ' · skipped {{skipped}}',
+                        skipped: progress.skipped,
+                      })
                     : ''}
                 </Text>
               </View>
               {progress.failures.length > 0 ? (
                 <Text className="mt-3 text-sm text-text-muted">
-                  {progress.failures.length} could not be added:{' '}
+                  {t('exercisePacks.failures', {
+                    defaultValue: '{{failed}} could not be added:',
+                    failed: progress.failures.length,
+                  })}{' '}
                   {progress.failures
                     .slice(0, 3)
                     .map((failure) => failure.name)
@@ -126,24 +162,29 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
               className="mt-3"
               variant="secondary"
               onPress={cancel}
-              accessibilityLabel="Stop importing"
+              accessibilityLabel={t('exercisePacks.stopImporting', {
+                defaultValue: 'Stop importing',
+              })}
               testID={`stop-pack-${pack.id}`}
             >
-              Stop
+              {t('exercisePacks.stop', { defaultValue: 'Stop' })}
             </Button>
           ) : (
             <Button
               className={active ? 'mt-3' : 'mt-4'}
               onPress={() => handleImport(pack)}
               disabled={isImporting || complete}
-              accessibilityLabel={`Import ${pack.label}`}
+              accessibilityLabel={t('exercisePacks.importA11y', {
+                defaultValue: 'Import {{label}}',
+                label: pack.label,
+              })}
               testID={`import-pack-${pack.id}`}
             >
               {complete
-                ? 'Already added'
+                ? t('exercisePacks.alreadyAdded', { defaultValue: 'Already added' })
                 : active
-                  ? 'Add the rest'
-                  : 'Add to my exercises'}
+                  ? t('exercisePacks.addRest', { defaultValue: 'Add the rest' })
+                  : t('exercisePacks.addAll', { defaultValue: 'Add to my exercises' })}
             </Button>
           )}
         </View>
@@ -165,9 +206,10 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
         contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
       >
         <Text className="mb-4 text-sm text-text-secondary">
-          Add a ready-made set of exercises to your library. Anything you
-          already have — by name or from an earlier import — is left alone, so
-          adding a pack twice is safe.
+          {t('exercisePacks.intro', {
+            defaultValue:
+              'Add a ready-made set of exercises to your library. Anything you already have — by name or from an earlier import — is left alone, so adding a pack twice is safe.',
+          })}
         </Text>
         {body()}
       </ScrollView>

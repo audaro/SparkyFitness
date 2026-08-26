@@ -45,16 +45,15 @@ function expectedFallbackKey(key, fallbackName, hasCount) {
  * Translation completeness and stale target keys are non-blocking coverage diagnostics.
  * Locale-unsafe number formatting is blocking.
  *
- * Informational (reported in the summary, never blocking):
- *   - hardcoded UI strings
- *   - manual English singular/plural branching
- * Both describe the same backlog: whole screens in the exercise/workout family
- * (Up Next, gym profiles, muscle picking, weekly set targets) that were built
- * before the localization contract and have never been translated. Blocking on
- * them would gate every unrelated change on a ~250-finding migration, and
- * localizing only the plural noun inside an otherwise-hardcoded English
- * sentence is not an improvement. The inventory and its migration live in PR5;
- * `locale-unsafe-number-format` stays blocking because it has no backlog.
+ * `hardcoded-ui-text` and `manual-pluralization` are blocking too. This fork
+ * held them informational while the exercise/workout family (Up Next, gym
+ * profiles, muscle picking, weekly set targets, exercise packs) still carried
+ * ~250 untranslated strings — blocking then would have gated every unrelated
+ * change on that migration. The migration is done and both rules stand at
+ * zero, so they block again: the only thing they can catch now is a
+ * regression. A genuinely unrendered literal is exempted per line with
+ * `// i18n-audit-ignore-next-line hardcoded-ui-text -- why`, not by lowering
+ * the severity.
  */
 function runAudit(options = {}) {
   const rootDir = options.rootDir || MOBILE_ROOT;
@@ -198,8 +197,6 @@ function runAudit(options = {}) {
     } else if (finding.kind === 'locale-unsafe-number-format') {
       report.unsafeNumberFormatFindings.push({ rule: 'locale-unsafe-number-format', file: finding.file, line: finding.line, expression: finding.value, context: finding.context });
     } else if (finding.kind === 'hardcoded-ui-text') {
-      // Informational only: the hardcoded-UI inventory and its migration
-      // are PR5 scope (see the header comment).
       report.hardcodedUiFindings.push({
         rule: 'hardcoded-ui-text',
         file: finding.file,
@@ -218,6 +215,8 @@ function runAudit(options = {}) {
     report.missingFallbackFindings.length,
     report.dynamicI18nFindings.length,
     report.unsafeNumberFormatFindings.length,
+    report.hardcodedUiFindings.length,
+    report.manualPluralizationFindings.length,
   ].reduce((a, b) => a + b, 0);
 
   report.summary = buildSummary(report);

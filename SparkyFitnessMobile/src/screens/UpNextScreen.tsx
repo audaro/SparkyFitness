@@ -292,7 +292,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const overflowMenuItems = useMemo<HeaderMenuEntry[]>(() => {
     const items: HeaderMenuEntry[] = [
       {
-        label: 'Save workout',
+        label: t('upNext.saveWorkout', { defaultValue: 'Save workout' }),
         sfSymbol: 'bookmark',
         icon: 'bookmark',
         onPress: handleSaveWorkout,
@@ -302,20 +302,20 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     // one-exercise workout, or one already grouped end to end.
     if (canBuildSuperset) {
       items.push({
-        label: 'Build superset/circuit',
+        label: t('upNext.buildSuperset', { defaultValue: 'Build superset/circuit' }),
         sfSymbol: 'arrow.trianglehead.2.clockwise',
         icon: 'swap-vertical',
         onPress: handleBuildSuperset,
       });
     }
     items.push({
-      label: 'Refresh',
+      label: t('upNext.refresh', { defaultValue: 'Refresh' }),
       sfSymbol: 'arrow.triangle.2.circlepath',
       icon: 'sync',
       onPress: handleRefreshWorkout,
     });
     return items;
-  }, [handleSaveWorkout, canBuildSuperset, handleBuildSuperset, handleRefreshWorkout]);
+  }, [t, handleSaveWorkout, canBuildSuperset, handleBuildSuperset, handleRefreshWorkout]);
 
   // `renderContent()` only reaches the Swap button once a workout exists; every
   // other branch is a `StatusView`, which takes exactly one action — and it is
@@ -324,7 +324,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const showsSwapButton = !isLoading && !isError && !!recommendation && !!payload;
 
   const header = useScreenHeader({
-    title: 'Up Next',
+    title: t('upNext.title', { defaultValue: 'Up Next' }),
     left: { kind: 'back' },
     // With a workout on screen the header carries its ⋯ menu; without one there
     // is nothing to save or refresh, so the slot carries the sheet instead.
@@ -334,7 +334,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
       ? {
           kind: 'menu',
           items: overflowMenuItems,
-          accessibilityLabel: 'Workout options',
+          accessibilityLabel: t('upNext.workoutOptions', { defaultValue: 'Workout options' }),
           identifier: 'up-next-overflow',
         }
       : {
@@ -342,12 +342,14 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           // The sheet is "how do I get a workout" here, not "swap this one" —
           // there is nothing on screen to swap. Neutral (no `role`), so the
           // screen still declares no accent header action.
-          label: 'New',
+          label: t('upNext.newLabel', { defaultValue: 'New' }),
           onPress: handleOpenSwapSheet,
           // Retargeting mid-generate would leave two requests racing for the
           // same recommendation row, and the loser would silently win the cache.
           disabled: isGenerating || isStarting,
-          accessibilityLabel: 'New workout options',
+          accessibilityLabel: t('upNext.newWorkoutOptions', {
+            defaultValue: 'New workout options',
+          }),
           identifier: 'up-next-workout-options',
         },
   });
@@ -386,16 +388,28 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   // targets is not one of these rows — it is the ⋯ menu's Refresh.
   const swapSheetItems = useMemo<ActionSheetItem[]>(
     () => [
-      { key: 'pick-muscles', label: 'Pick Muscles', onPress: handlePickMuscles },
-      { key: 'saved-workouts', label: 'Saved Workouts', onPress: handleSavedWorkouts },
+      {
+        key: 'pick-muscles',
+        label: t('upNext.pickMuscles', { defaultValue: 'Pick Muscles' }),
+        onPress: handlePickMuscles,
+      },
+      {
+        key: 'saved-workouts',
+        label: t('upNext.savedWorkouts', { defaultValue: 'Saved Workouts' }),
+        onPress: handleSavedWorkouts,
+      },
       {
         key: 'create-from-scratch',
-        label: 'Create From Scratch',
+        label: t('upNext.createFromScratch', { defaultValue: 'Create From Scratch' }),
         onPress: handleCreateFromScratch,
       },
-      { key: 'on-demand', label: 'On Demand', onPress: handleOnDemand },
+      {
+        key: 'on-demand',
+        label: t('upNext.onDemand', { defaultValue: 'On Demand' }),
+        onPress: handleOnDemand,
+      },
     ],
-    [handlePickMuscles, handleSavedWorkouts, handleCreateFromScratch, handleOnDemand],
+    [t, handlePickMuscles, handleSavedWorkouts, handleCreateFromScratch, handleOnDemand],
   );
 
   const handleSelectDuration = useCallback(
@@ -461,9 +475,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const gymOptions = useMemo(
     () => [
       ...profiles.map((profile) => ({ label: profile.name, value: profile.id })),
-      { label: 'Any equipment', value: ANY_GYM },
+      { label: t('upNext.anyEquipment', { defaultValue: 'Any equipment' }), value: ANY_GYM },
     ],
-    [profiles],
+    [t, profiles],
   );
 
   // The chips label what THIS workout was built with, not what is active now —
@@ -471,7 +485,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const gymValue = recommendation?.gym_profile_id ?? ANY_GYM;
   const gymLabel =
     profiles.find((profile) => profile.id === recommendation?.gym_profile_id)?.name ??
-    'Any equipment';
+    t('upNext.anyEquipment', { defaultValue: 'Any equipment' });
 
   const renderChip = (
     label: string,
@@ -560,7 +574,10 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           hitSlop={8}
           disabled={isGenerating || isStarting || isReplacing}
           accessibilityRole="button"
-          accessibilityLabel={`More options for ${exercise.exercise_name}`}
+          accessibilityLabel={t('upNext.moreOptionsFor', {
+            defaultValue: 'More options for {{name}}',
+            name: exercise.exercise_name,
+          })}
           testID="up-next-exercise-menu"
           ref={(node) => {
             rowMenuTriggerRefs.current.set(exercise.exercise_id, node);
@@ -585,8 +602,11 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
       return (
         <StatusView
           icon="alert-circle"
-          title="Failed to load your workout"
-          action={{ label: 'Retry', onPress: () => refetch() }}
+          title={t('upNext.loadFailed', { defaultValue: 'Failed to load your workout' })}
+          action={{
+            label: t('common.retry', { defaultValue: 'Retry' }),
+            onPress: () => refetch(),
+          }}
         />
       );
     }
@@ -594,10 +614,15 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
       return (
         <StatusView
           icon="exercise-weights"
-          title="No workout yet"
-          subtitle="Build one from the muscles you have recovered and the equipment you have."
+          title={t('upNext.emptyTitle', { defaultValue: 'No workout yet' })}
+          subtitle={t('upNext.emptySubtitle', {
+            defaultValue:
+              'Build one from the muscles you have recovered and the equipment you have.',
+          })}
           action={{
-            label: isGenerating ? 'Generating…' : "Generate today's workout",
+            label: isGenerating
+              ? t('upNext.generating', { defaultValue: 'Generating…' })
+              : t('upNext.generateToday', { defaultValue: "Generate today's workout" }),
             onPress: () => void runGenerate({}, 'settings'),
             variant: 'primary',
           }}
@@ -617,10 +642,24 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
         >
           <View className="px-4 pt-4 pb-3">
-            <Text className="text-text-primary text-2xl font-bold">Up Next</Text>
+            <Text className="text-text-primary text-2xl font-bold">
+              {t('upNext.title', { defaultValue: 'Up Next' })}
+            </Text>
             <Text className="text-sm mt-1" style={{ color: textSecondary }}>
-              {exerciseCount} {exerciseCount === 1 ? 'Exercise' : 'Exercises'} •{' '}
-              {muscleCount} {muscleCount === 1 ? 'Muscle' : 'Muscles'} •{' '}
+              {t('upNext.exerciseCount', {
+                defaultValue: '{{count}} Exercises',
+                defaultValue_one: '{{count}} Exercise',
+                defaultValue_other: '{{count}} Exercises',
+                count: exerciseCount,
+              })}
+              {' • '}
+              {t('upNext.muscleCount', {
+                defaultValue: '{{count}} Muscles',
+                defaultValue_one: '{{count}} Muscle',
+                defaultValue_other: '{{count}} Muscles',
+                count: muscleCount,
+              })}
+              {' • '}
               {formatDuration(payload.estimated_duration_minutes)}
             </Text>
             <Text className="text-xs mt-1" style={{ color: textMuted }}>
@@ -635,13 +674,15 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
                   value: minutes,
                 }))}
                 onSelect={handleSelectDuration}
-                title="Workout length"
+                title={t('upNext.workoutLength', { defaultValue: 'Workout length' })}
                 renderTrigger={({ onPress }) =>
                   renderChip(
                     formatDuration(recommendation.target_duration_minutes),
                     'clock',
                     onPress,
-                    'Change workout length',
+                    t('upNext.changeWorkoutLength', {
+                      defaultValue: 'Change workout length',
+                    }),
                   )
                 }
               />
@@ -649,9 +690,14 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
                 value={gymValue}
                 options={gymOptions}
                 onSelect={(value) => void handleSelectGym(value)}
-                title="Gym equipment"
+                title={t('upNext.gymEquipment', { defaultValue: 'Gym equipment' })}
                 renderTrigger={({ onPress }) =>
-                  renderChip(gymLabel, 'exercise-weights', onPress, 'Change gym equipment')
+                  renderChip(
+                    gymLabel,
+                    'exercise-weights',
+                    onPress,
+                    t('upNext.changeGymEquipment', { defaultValue: 'Change gym equipment' }),
+                  )
                 }
               />
               {pendingAction === 'settings' && isGenerating && (
@@ -667,7 +713,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
                 loading={pendingAction === 'swap' && isGenerating}
                 testID="up-next-swap"
               >
-                Swap workout
+                {t('upNext.swapWorkout', { defaultValue: 'Swap workout' })}
               </Button>
             </View>
           </View>
@@ -686,7 +732,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
             loading={isStarting}
             testID="up-next-start"
           >
-            Start Workout
+            {t('screens.startWorkout', { defaultValue: 'Start Workout' })}
           </Button>
         </View>
 
@@ -697,7 +743,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           items={[
             {
               key: 'replace',
-              label: 'Replace exercise',
+              label: t('upNext.replaceExercise', { defaultValue: 'Replace exercise' }),
               icon: 'swap-vertical',
               onPress: () => {
                 const exerciseId = rowMenu?.exerciseId;
@@ -711,7 +757,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
               ? [
                   {
                     key: 'ungroup',
-                    label: 'Remove from superset',
+                    label: t('upNext.removeFromSuperset', {
+                      defaultValue: 'Remove from superset',
+                    }),
                     icon: 'close' as const,
                     onPress: () => {
                       const exerciseId = rowMenu.exerciseId;
@@ -738,12 +786,20 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           sheet to present in the loading / error / empty branches. */}
       <ActionSheet
         ref={swapSheetRef}
-        title={payload ? 'Swap Workout' : 'New Workout'}
+        title={
+          payload
+            ? t('upNext.swapWorkoutTitle', { defaultValue: 'Swap Workout' })
+            : t('screens.newWorkout', { defaultValue: 'New Workout' })
+        }
         items={swapSheetItems}
       />
       <ActionSheet
         ref={supersetSheetRef}
-        title={supersetAnchorId == null ? 'Superset which exercise?' : 'Superset with…'}
+        title={
+          supersetAnchorId == null
+            ? t('upNext.supersetWhich', { defaultValue: 'Superset which exercise?' })
+            : t('upNext.supersetWith', { defaultValue: 'Superset with…' })
+        }
         items={supersetSheetItems}
         // Stage two backs out to the anchor list rather than closing, so a
         // mis-tapped anchor costs one tap instead of reopening the sheet.

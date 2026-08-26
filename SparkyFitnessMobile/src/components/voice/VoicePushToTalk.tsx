@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
@@ -81,6 +82,7 @@ function useTopRouteName(): string | null {
 }
 
 export default function VoicePushToTalk() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const voiceButtonVisible = useAppPreferencesStore((s) => s.voiceButtonVisible);
   const voiceRepliesEnabled = useAppPreferencesStore((s) => s.voiceRepliesEnabled);
@@ -171,7 +173,11 @@ export default function VoicePushToTalk() {
     // "no-speech" is a normal outcome of an accidental tap.
     if (event.error !== 'no-speech') {
       addLog('Voice recognition error', 'WARNING', [event.error, event.message]);
-      Toast.show({ type: 'error', text1: "Couldn't hear that", text2: event.message });
+      Toast.show({
+        type: 'error',
+        text1: t('voice.couldNotHear', { defaultValue: "Couldn't hear that" }),
+        text2: event.message,
+      });
     }
     resetToIdle();
   });
@@ -182,8 +188,12 @@ export default function VoicePushToTalk() {
     if (!granted) {
       Toast.show({
         type: 'error',
-        text1: 'Microphone access needed',
-        text2: 'Enable the microphone and speech recognition in Settings.',
+        text1: t('voice.micPermissionTitle', {
+          defaultValue: 'Microphone access needed',
+        }),
+        text2: t('voice.micPermissionMessage', {
+          defaultValue: 'Enable the microphone and speech recognition in Settings.',
+        }),
         onPress: () => Linking.openSettings(),
       });
       return;
@@ -202,7 +212,7 @@ export default function VoicePushToTalk() {
       ]);
       setPhase('idle');
     }
-  }, [voiceAutoStopEnabled]);
+  }, [t, voiceAutoStopEnabled]);
 
   const handleMicPress = useCallback(() => {
     if (phase === 'listening') {
@@ -265,20 +275,29 @@ export default function VoicePushToTalk() {
             <Icon name="sparkles" size={16} color={accent} />
             <Text style={{ color: muted, fontSize: 13, marginLeft: 6, flex: 1 }}>
               {phase === 'listening' &&
-                (voiceAutoStopEnabled ? 'Listening…' : 'Listening… tap the mic when done')}
-              {phase === 'thinking' && 'Sparky is working on it…'}
-              {phase === 'speaking' && 'Sparky'}
-              {phase === 'done' && 'Sparky'}
-              {phase === 'error' && 'Something went wrong'}
+                (voiceAutoStopEnabled
+                  ? t('voice.listening', { defaultValue: 'Listening…' })
+                  : t('voice.listeningManualStop', {
+                      defaultValue: 'Listening… tap the mic when done',
+                    }))}
+              {phase === 'thinking' &&
+                t('voice.thinking', { defaultValue: 'Sparky is working on it…' })}
+              {phase === 'speaking' && t('voice.sparky', { defaultValue: 'Sparky' })}
+              {phase === 'done' && t('voice.sparky', { defaultValue: 'Sparky' })}
+              {phase === 'error' &&
+                t('voice.errorTitle', { defaultValue: 'Something went wrong' })}
             </Text>
-            <Pressable onPress={handleCancel} hitSlop={12} accessibilityLabel="Close voice card">
+            <Pressable onPress={handleCancel} hitSlop={12} accessibilityLabel={t('voice.close', { defaultValue: 'Close voice card' })}>
               <Icon name="close" size={18} color={muted} />
             </Pressable>
           </View>
 
           {phase === 'listening' || phase === 'thinking' ? (
             <Text style={{ color: transcript ? textPrimary : muted, fontSize: 16 }}>
-              {transcript || 'Say something like "log two eggs for breakfast".'}
+              {transcript ||
+                t('voice.prompt', {
+                  defaultValue: 'Say something like "log two eggs for breakfast".',
+                })}
             </Text>
           ) : phase === 'error' ? (
             <Text style={{ color: dangerText, fontSize: 15 }}>{errorText}</Text>
@@ -298,20 +317,28 @@ export default function VoicePushToTalk() {
                   }}
                   hitSlop={8}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                  accessibilityLabel="Stop speaking"
+                  accessibilityLabel={t('voice.stopSpeaking', {
+                    defaultValue: 'Stop speaking',
+                  })}
                 >
                   <Icon name="speaker-off" size={16} color={muted} />
-                  <Text style={{ color: muted, fontSize: 14 }}>Stop</Text>
+                  <Text style={{ color: muted, fontSize: 14 }}>
+                    {t('voice.stop', { defaultValue: 'Stop' })}
+                  </Text>
                 </Pressable>
               )}
               <Pressable
                 onPress={openChat}
                 hitSlop={8}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                accessibilityLabel="Open the full Sparky chat"
+                accessibilityLabel={t('voice.openChatA11y', {
+                  defaultValue: 'Open the full Sparky chat',
+                })}
               >
                 <Icon name="sparkles" size={16} color={accent} />
-                <Text style={{ color: accent, fontSize: 14, fontWeight: '600' }}>Open chat</Text>
+                <Text style={{ color: accent, fontSize: 14, fontWeight: '600' }}>
+                  {t('voice.openChat', { defaultValue: 'Open chat' })}
+                </Text>
               </Pressable>
             </View>
           )}
@@ -320,7 +347,11 @@ export default function VoicePushToTalk() {
 
       <Pressable
         onPress={handleMicPress}
-        accessibilityLabel={phase === 'listening' ? 'Stop listening' : 'Talk to Sparky'}
+        accessibilityLabel={
+          phase === 'listening'
+            ? t('voice.stopListening', { defaultValue: 'Stop listening' })
+            : t('voice.talkToSparky', { defaultValue: 'Talk to Sparky' })
+        }
         style={{
           position: 'absolute',
           right: 16,

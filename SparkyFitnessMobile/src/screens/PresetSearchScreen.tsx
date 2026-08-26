@@ -312,9 +312,13 @@ const PresetSearchScreen: React.FC<PresetSearchScreenProps> = ({ navigation, rou
       >
         <Icon name="sparkles" size={22} color={accentColor} />
         <View className="flex-1 ml-3">
-          <Text className="text-text-primary text-base font-medium">Up Next</Text>
+          <Text className="text-text-primary text-base font-medium">
+            {t('upNext.title', { defaultValue: 'Up Next' })}
+          </Text>
           <Text className="text-sm mt-0.5" style={{ color: textSecondary }}>
-            A workout built for the muscles you have recovered
+            {t('presetSearch.upNextSubtitle', {
+              defaultValue: 'A workout built for the muscles you have recovered',
+            })}
           </Text>
         </View>
         <Icon name="chevron-forward" size={18} color={textMuted} />

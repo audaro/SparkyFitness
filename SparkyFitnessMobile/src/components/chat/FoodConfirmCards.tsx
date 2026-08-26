@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Text, Pressable, View } from 'react-native';
 import type { ToolCallMessagePart } from '@assistant-ui/react-native';
 import { useAui, useAuiState } from '@assistant-ui/react-native';
@@ -39,6 +40,7 @@ function macroLine(c: FoodCandidate): string {
  * @workspace/shared/constants/chatFoodConfirm.
  */
 export default function FoodConfirmCards({ part }: { part: ToolCallMessagePart }) {
+  const { t } = useTranslation();
   const aui = useAui();
   const isLast = useAuiState((s) => s.message.isLast);
   const isRunning = useAuiState((s) => s.thread.isRunning);
@@ -83,7 +85,12 @@ export default function FoodConfirmCards({ part }: { part: ToolCallMessagePart }
               </View>
             </View>
             <Text className="text-text-muted text-xs">
-              {`${candidate.calories} Cal per ${candidate.serving_size} ${candidate.serving_unit}`}
+              {t('foodConfirm.caloriesPerServing', {
+                defaultValue: '{{calories}} Cal per {{size}} {{unit}}',
+                calories: candidate.calories,
+                size: candidate.serving_size,
+                unit: candidate.serving_unit,
+              })}
               {macros ? ` · ${macros}` : ''}
             </Text>
           </Pressable>
@@ -94,7 +101,9 @@ export default function FoodConfirmCards({ part }: { part: ToolCallMessagePart }
         onPress={() => aui.thread().append(CONFIRM_FOOD_REJECT_MESSAGE)}
         className={`self-start px-1 py-1 ${disabled ? 'opacity-50' : ''}`}
       >
-        <Text className="text-text-muted text-sm">None of these</Text>
+        <Text className="text-text-muted text-sm">
+          {t('foodConfirm.noneOfThese', { defaultValue: 'None of these' })}
+        </Text>
       </Pressable>
     </View>
   );

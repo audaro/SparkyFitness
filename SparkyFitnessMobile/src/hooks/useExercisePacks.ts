@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
+import { useTranslation } from 'react-i18next';
 import {
   fetchExercisePacks,
   importExercisePackBatch,
@@ -45,6 +46,7 @@ export function useExercisePacks() {
  * from wherever it stopped the next time it is started.
  */
 export function useExercisePackImport() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<PackImportProgress | null>(null);
   // State, not just the ref, because the screen re-renders off this.
@@ -115,13 +117,24 @@ export function useExercisePackImport() {
             type: failures.length > 0 ? 'error' : 'success',
             text1:
               imported > 0
-                ? `Added ${imported} exercise${imported === 1 ? '' : 's'}`
-                : 'Nothing new to add',
+                ? t('exercisePacks.importedToast', {
+                    defaultValue: 'Added {{count}} exercises',
+                    defaultValue_one: 'Added {{count}} exercise',
+                    defaultValue_other: 'Added {{count}} exercises',
+                    count: imported,
+                  })
+                : t('exercisePacks.nothingNew', { defaultValue: 'Nothing new to add' }),
             text2:
               failures.length > 0
-                ? `${failures.length} could not be added.`
+                ? t('exercisePacks.failedToast', {
+                    defaultValue: '{{failed}} could not be added.',
+                    failed: failures.length,
+                  })
                 : skipped > 0
-                  ? `${skipped} were already in your library.`
+                  ? t('exercisePacks.skippedToast', {
+                      defaultValue: '{{skipped}} were already in your library.',
+                      skipped,
+                    })
                   : undefined,
           });
         }
@@ -129,11 +142,13 @@ export function useExercisePackImport() {
         outcomeUnknown = true;
         Toast.show({
           type: 'error',
-          text1: 'Import stopped',
+          text1: t('exercisePacks.importStopped', { defaultValue: 'Import stopped' }),
           text2:
             error instanceof Error
               ? error.message
-              : 'Please check your connection and try again.',
+              : t('common.connectionRetry', {
+                  defaultValue: 'Please check your connection and try again.',
+                }),
         });
       } finally {
         if (imported > 0 || outcomeUnknown) {
@@ -154,7 +169,7 @@ export function useExercisePackImport() {
         setIsImporting(false);
       }
     },
-    [queryClient],
+    [t, queryClient],
   );
 
   return { progress, isImporting, importPack, cancel };

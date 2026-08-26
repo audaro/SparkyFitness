@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +31,7 @@ type OnDemandWorkoutsScreenProps = RootStackScreenProps<'OnDemandWorkouts'>;
 const OnDemandWorkoutsScreen: React.FC<OnDemandWorkoutsScreenProps> = ({
   navigation,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
@@ -39,7 +41,7 @@ const OnDemandWorkoutsScreen: React.FC<OnDemandWorkoutsScreenProps> = ({
     useGenerateAndShowWorkout(navigation);
 
   const header = useScreenHeader({
-    title: 'On Demand',
+    title: t('upNext.onDemand', { defaultValue: 'On Demand' }),
     left: { kind: 'back' },
   });
 
@@ -57,8 +59,10 @@ const OnDemandWorkoutsScreen: React.FC<OnDemandWorkoutsScreenProps> = ({
         contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
       >
         <Text className="text-sm mb-4" style={{ color: textMuted }}>
-          Pick a session and it is built for you. Your gym profile still applies;
-          the length comes from the workout you choose.
+          {t('onDemand.intro', {
+            defaultValue:
+              'Pick a session and it is built for you. Your gym profile still applies; the length comes from the workout you choose.',
+          })}
         </Text>
 
         <SettingsRowGroup>

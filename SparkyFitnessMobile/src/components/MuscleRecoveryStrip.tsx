@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
+import { useTranslation } from 'react-i18next';
 
 import { useFreshnessToneColors } from '../hooks/useFreshnessToneColors';
 import { useMuscleRecovery } from '../hooks/useMuscleRecovery';
@@ -20,6 +21,7 @@ const TILE_WIDTH = 64;
  * pressable and does nothing is worse than one that does not.
  */
 const MuscleRecoveryStrip: React.FC = () => {
+  const { t } = useTranslation();
   const { muscles, isLoading } = useMuscleRecovery();
 
   const [accentPrimary, trackColor, textMuted] = useCSSVariable([
@@ -43,12 +45,16 @@ const MuscleRecoveryStrip: React.FC = () => {
       testID="exercise-home-recovery-card"
     >
       <View className="flex-row items-center justify-between">
-        <Text className="font-bold text-text-secondary">Recovery</Text>
+        <Text className="font-bold text-text-secondary">
+          {t('recovery.title', { defaultValue: 'Recovery' })}
+        </Text>
         {isLoading ? <ActivityIndicator size="small" color={accentPrimary} /> : null}
       </View>
 
       <Text className="text-xs mt-1" style={{ color: textMuted }}>
-        How fresh each muscle is today — most recovered first
+        {t('recovery.subtitle', {
+          defaultValue: 'How fresh each muscle is today — most recovered first',
+        })}
       </Text>
 
       {muscles.length > 0 && (

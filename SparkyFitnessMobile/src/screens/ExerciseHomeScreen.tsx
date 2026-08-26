@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
@@ -64,6 +65,7 @@ const SHORT_GROUP_LABELS: Record<MuscleGroup, string> = {
  * suggestion — the recovery strip included.
  */
 const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding();
   const usesNativeTabs = useNativeIOSTabsActive();
@@ -164,7 +166,7 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
               className="text-2xl font-bold text-text-primary"
               testID="exercise-home-title"
             >
-              Exercise
+              {t('exerciseHome.title', { defaultValue: 'Exercise' })}
             </Text>
           </View>
         )}
@@ -189,11 +191,15 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             className="bg-surface rounded-xl p-4 mb-6 shadow-sm"
             onPress={() => navigation.navigate('WeeklySetTargets')}
             accessibilityRole="button"
-            accessibilityLabel="Open your weekly set targets"
+            accessibilityLabel={t('exerciseHome.weekCardA11y', {
+              defaultValue: 'Open your weekly set targets',
+            })}
             testID="exercise-home-week-card"
           >
             <View className="flex-row items-center justify-between">
-              <Text className="font-bold text-text-secondary">This week</Text>
+              <Text className="font-bold text-text-secondary">
+                {t('exerciseHome.thisWeek', { defaultValue: 'This week' })}
+              </Text>
               {isLoadingWeek ? (
                 <ActivityIndicator size="small" color={accentPrimary} />
               ) : (
@@ -245,7 +251,9 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             ) : (
               !isLoadingWeek && (
                 <Text className="text-sm mt-1" style={{ color: textMuted }}>
-                  Set a weekly target for each muscle group
+                  {t('exerciseHome.weekEmpty', {
+                    defaultValue: 'Set a weekly target for each muscle group',
+                  })}
                 </Text>
               )
             )}
@@ -259,7 +267,7 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
 
 
         <DateNavigator
-          title="Logged"
+          title={t('exerciseHome.logged', { defaultValue: 'Logged' })}
           selectedDate={selectedDate}
           onPreviousDay={goToPreviousDay}
           onNextDay={goToNextDay}
@@ -283,7 +291,9 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
         </View>
 
         <View className="mb-3">
-          <Text className="text-lg font-semibold text-text-primary">Create</Text>
+          <Text className="text-lg font-semibold text-text-primary">
+            {t('exerciseHome.create', { defaultValue: 'Create' })}
+          </Text>
         </View>
 
         {/* The Library tab used to be the app's only way to author a custom
@@ -292,8 +302,10 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
         <View className="flex-row justify-between mb-6">
           <CreateTile
             icon="exercise-weights"
-            title="Exercise"
-            subtitle="Manual entry"
+            title={t('exerciseHome.createExercise', { defaultValue: 'Exercise' })}
+            subtitle={t('exerciseHome.createExerciseSubtitle', {
+              defaultValue: 'Manual entry',
+            })}
             disabled={isNavigationLocked}
             onPress={() =>
               runNavigationAction(() =>
@@ -305,8 +317,10 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
           />
           <CreateTile
             icon="bookmark-filled"
-            title="Workout preset"
-            subtitle="Exercise routine"
+            title={t('exerciseHome.createPreset', { defaultValue: 'Workout preset' })}
+            subtitle={t('exerciseHome.createPresetSubtitle', {
+              defaultValue: 'Exercise routine',
+            })}
             disabled={isNavigationLocked}
             onPress={() =>
               runNavigationAction(() =>
@@ -319,28 +333,36 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
         </View>
 
         <View className="mb-3">
-          <Text className="text-lg font-semibold text-text-primary">Quick access</Text>
+          <Text className="text-lg font-semibold text-text-primary">
+            {t('exerciseHome.quickAccess', { defaultValue: 'Quick access' })}
+          </Text>
         </View>
 
         <SettingsRowGroup>
           <SettingsRow
             icon="bookmark-filled"
-            title="Workout presets"
-            subtitle="Routines you have saved"
+            title={t('exerciseHome.workoutPresets', { defaultValue: 'Workout presets' })}
+            subtitle={t('exerciseHome.workoutPresetsSubtitle', {
+              defaultValue: 'Routines you have saved',
+            })}
             onPress={() => navigation.navigate('WorkoutPresetsLibrary')}
             testID="exercise-home-workout-presets"
           />
           <SettingsRow
             icon="exercise-weights"
-            title="Exercise library"
-            subtitle="Every exercise you can log"
+            title={t('exerciseHome.exerciseLibrary', { defaultValue: 'Exercise library' })}
+            subtitle={t('exerciseHome.exerciseLibrarySubtitle', {
+              defaultValue: 'Every exercise you can log',
+            })}
             onPress={() => navigation.navigate('ExercisesLibrary')}
             testID="exercise-home-exercises-library"
           />
         </SettingsRowGroup>
 
         <View className="mb-3">
-          <Text className="text-lg font-semibold text-text-primary">Setup</Text>
+          <Text className="text-lg font-semibold text-text-primary">
+            {t('exerciseHome.setup', { defaultValue: 'Setup' })}
+          </Text>
         </View>
 
         {/* Weekly set targets are reachable from the week card above too, but
@@ -350,26 +372,37 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
         <SettingsRowGroup>
           <SettingsRow
             icon="workout-settings"
-            title="Gym profiles"
+            title={t('exerciseHome.gymProfiles', { defaultValue: 'Gym profiles' })}
             subtitle={
               activeProfile
-                ? `Active: ${activeProfile.name}`
-                : 'No active profile — every exercise is available'
+                ? t('exerciseHome.gymProfileActive', {
+                    defaultValue: 'Active: {{name}}',
+                    name: activeProfile.name,
+                  })
+                : t('exerciseHome.gymProfileNone', {
+                    defaultValue: 'No active profile — every exercise is available',
+                  })
             }
             onPress={() => navigation.navigate('GymProfiles')}
             testID="exercise-home-gym-profiles"
           />
           <SettingsRow
             icon="chart-bar"
-            title="Weekly set targets"
-            subtitle="Working sets per muscle group, per week"
+            title={t('exerciseHome.weeklySetTargets', {
+              defaultValue: 'Weekly set targets',
+            })}
+            subtitle={t('exerciseHome.weeklySetTargetsSubtitle', {
+              defaultValue: 'Working sets per muscle group, per week',
+            })}
             onPress={() => navigation.navigate('WeeklySetTargets')}
             testID="exercise-home-weekly-set-targets"
           />
           <SettingsRow
             icon="list"
-            title="Exercise packs"
-            subtitle="Add a ready-made set of exercises"
+            title={t('exerciseHome.exercisePacks', { defaultValue: 'Exercise packs' })}
+            subtitle={t('exerciseHome.exercisePacksSubtitle', {
+              defaultValue: 'Add a ready-made set of exercises',
+            })}
             onPress={() => navigation.navigate('ExercisePacks')}
             testID="exercise-home-exercise-packs"
           />

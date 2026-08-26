@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next';
+
 import { MUSCLES, type Muscle } from '@workspace/shared';
 
 /**
@@ -17,9 +19,13 @@ import { MUSCLES, type Muscle } from '@workspace/shared';
  * rather than silently becoming unpickable.
  */
 export interface MuscleTileDefinition {
-  /** Stable key and testID suffix. Kebab-case, never sent to the server. */
+  /**
+   * Stable key and testID suffix. Kebab-case, never sent to the server. It is
+   * also what {@link tileLabel} switches on to produce the displayed name —
+   * there is deliberately no `label` field, so the English text lives in
+   * exactly one place.
+   */
   id: string;
-  label: string;
   /** The canonical muscles this tile stands for — what actually goes on the wire. */
   muscles: readonly Muscle[];
 }
@@ -37,25 +43,25 @@ export interface MuscleTileSection {
  * along in the request, so the planner still sees them individually.
  */
 const MAIN_MUSCLE_TILES: readonly MuscleTileDefinition[] = [
-  { id: 'abs', label: 'Abs', muscles: ['abdominals'] },
-  { id: 'back', label: 'Back', muscles: ['lats', 'middle back'] },
-  { id: 'biceps', label: 'Biceps', muscles: ['biceps'] },
-  { id: 'chest', label: 'Chest', muscles: ['chest'] },
-  { id: 'glutes', label: 'Glutes', muscles: ['glutes'] },
-  { id: 'hamstrings', label: 'Hamstrings', muscles: ['hamstrings'] },
-  { id: 'quadriceps', label: 'Quadriceps', muscles: ['quadriceps'] },
-  { id: 'shoulders', label: 'Shoulders', muscles: ['shoulders'] },
-  { id: 'triceps', label: 'Triceps', muscles: ['triceps'] },
-  { id: 'lower-back', label: 'Lower Back', muscles: ['lower back'] },
+  { id: 'abs', muscles: ['abdominals'] },
+  { id: 'back', muscles: ['lats', 'middle back'] },
+  { id: 'biceps', muscles: ['biceps'] },
+  { id: 'chest', muscles: ['chest'] },
+  { id: 'glutes', muscles: ['glutes'] },
+  { id: 'hamstrings', muscles: ['hamstrings'] },
+  { id: 'quadriceps', muscles: ['quadriceps'] },
+  { id: 'shoulders', muscles: ['shoulders'] },
+  { id: 'triceps', muscles: ['triceps'] },
+  { id: 'lower-back', muscles: ['lower back'] },
 ];
 
 const ACCESSORY_MUSCLE_TILES: readonly MuscleTileDefinition[] = [
-  { id: 'calves', label: 'Calves', muscles: ['calves'] },
-  { id: 'traps', label: 'Trapezius', muscles: ['traps'] },
-  { id: 'abductors', label: 'Abductors', muscles: ['abductors'] },
-  { id: 'adductors', label: 'Adductors', muscles: ['adductors'] },
-  { id: 'forearms', label: 'Forearms', muscles: ['forearms'] },
-  { id: 'neck', label: 'Neck', muscles: ['neck'] },
+  { id: 'calves', muscles: ['calves'] },
+  { id: 'traps', muscles: ['traps'] },
+  { id: 'abductors', muscles: ['abductors'] },
+  { id: 'adductors', muscles: ['adductors'] },
+  { id: 'forearms', muscles: ['forearms'] },
+  { id: 'neck', muscles: ['neck'] },
 ];
 
 /**
@@ -68,12 +74,16 @@ const ACCESSORY_MUSCLE_TILES: readonly MuscleTileDefinition[] = [
  */
 export const MUSCLE_TILE_SECTIONS: readonly MuscleTileSection[] = [
   {
+    // i18n-audit-ignore-next-line hardcoded-ui-text -- never rendered; see the doc comment above
     title: 'Main',
+    // i18n-audit-ignore-next-line hardcoded-ui-text -- never rendered; see the doc comment above
     subtitle: 'What a workout is usually built around',
     tiles: MAIN_MUSCLE_TILES,
   },
   {
+    // i18n-audit-ignore-next-line hardcoded-ui-text -- never rendered; see the doc comment above
     title: 'Accessory',
+    // i18n-audit-ignore-next-line hardcoded-ui-text -- never rendered; see the doc comment above
     subtitle: 'Smaller movers you add on purpose',
     tiles: ACCESSORY_MUSCLE_TILES,
   },
@@ -111,4 +121,52 @@ export function musclesForTiles(
     MUSCLE_TILES.filter((tile) => picked.has(tile.id)).flatMap((tile) => tile.muscles),
   );
   return MUSCLES.filter((muscle) => selected.has(muscle));
+}
+
+/**
+ * The displayed name of a tile.
+ *
+ * A `switch` over literal keys rather than `t(tile.labelKey)`: the i18n audit
+ * scans `t()` keys statically, and a computed key is invisible to it — which
+ * is a blocking `dynamic-i18n` finding, not a cosmetic one. This is the only
+ * place a tile's English name is written, so there is nothing for it to drift
+ * from; an unrecognised id falls back to the id rather than rendering blank.
+ */
+export function tileLabel(t: TFunction, tile: MuscleTileDefinition): string {
+  switch (tile.id) {
+    case 'abs':
+      return t('muscleTiles.abs', { defaultValue: 'Abs' });
+    case 'back':
+      return t('muscleTiles.back', { defaultValue: 'Back' });
+    case 'biceps':
+      return t('muscleTiles.biceps', { defaultValue: 'Biceps' });
+    case 'chest':
+      return t('muscleTiles.chest', { defaultValue: 'Chest' });
+    case 'glutes':
+      return t('muscleTiles.glutes', { defaultValue: 'Glutes' });
+    case 'hamstrings':
+      return t('muscleTiles.hamstrings', { defaultValue: 'Hamstrings' });
+    case 'quadriceps':
+      return t('muscleTiles.quadriceps', { defaultValue: 'Quadriceps' });
+    case 'shoulders':
+      return t('muscleTiles.shoulders', { defaultValue: 'Shoulders' });
+    case 'triceps':
+      return t('muscleTiles.triceps', { defaultValue: 'Triceps' });
+    case 'lower-back':
+      return t('muscleTiles.lowerBack', { defaultValue: 'Lower Back' });
+    case 'calves':
+      return t('muscleTiles.calves', { defaultValue: 'Calves' });
+    case 'traps':
+      return t('muscleTiles.traps', { defaultValue: 'Trapezius' });
+    case 'abductors':
+      return t('muscleTiles.abductors', { defaultValue: 'Abductors' });
+    case 'adductors':
+      return t('muscleTiles.adductors', { defaultValue: 'Adductors' });
+    case 'forearms':
+      return t('muscleTiles.forearms', { defaultValue: 'Forearms' });
+    case 'neck':
+      return t('muscleTiles.neck', { defaultValue: 'Neck' });
+    default:
+      return tile.id;
+  }
 }

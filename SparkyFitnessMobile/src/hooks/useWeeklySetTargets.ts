@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
+import { useTranslation } from 'react-i18next';
 import {
   fetchWeeklySetTargets,
   updateWeeklySetTargets,
@@ -42,6 +43,7 @@ export function useWeeklySetTargets(
 export function useUpdateWeeklySetTargets(
   historyWeeks: number = WEEKLY_SET_HISTORY_WEEKS,
 ) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   // Saves can overlap: stepping legs and then immediately tapping push fires
   // the second request while the first is still out. Each response carries the
@@ -79,14 +81,19 @@ export function useUpdateWeeklySetTargets(
           response,
         );
       }
-      Toast.show({ type: 'success', text1: 'Targets saved' });
+      Toast.show({
+        type: 'success',
+        text1: t('weeklySetTargets.saved', { defaultValue: 'Targets saved' }),
+      });
     },
     onError: () => {
       needsReconcileRef.current = true;
       Toast.show({
         type: 'error',
-        text1: 'Could not save targets',
-        text2: 'Please check your connection and try again.',
+        text1: t('weeklySetTargets.saveFailed', { defaultValue: 'Could not save targets' }),
+        text2: t('common.connectionRetry', {
+          defaultValue: 'Please check your connection and try again.',
+        }),
       });
     },
     onSettled: () => {
