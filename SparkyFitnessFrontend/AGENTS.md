@@ -94,9 +94,9 @@ between pages.
 ## Coaching Surfaces (`/exercises`)
 
 The suggested-workout family — Up Next, muscle recovery, weekly set targets, gym profiles — is
-`api/Exercises/{workoutRecommendations,weeklySetTargets,gymProfiles}.ts`,
-`hooks/Exercises/use{WorkoutRecommendation,MuscleRecovery,WeeklySetTargets,GymProfiles}.ts` and one
-card per reading under `pages/Exercises/`. Four rules, each of which has already cost something:
+`api/Exercises/{workoutRecommendations,weeklySetTargets,gymProfiles,coachProfile}.ts`,
+`hooks/Exercises/use{WorkoutRecommendation,MuscleRecovery,WeeklySetTargets,GymProfiles,CoachProfile}.ts` and one
+card per reading under `pages/Exercises/`. Five rules, each of which has already cost something:
 
 - **Nothing about a workout's content is decided on the client.** The engine is server-side and
   deterministic; the web sends parameters and renders what comes back.
@@ -104,6 +104,13 @@ card per reading under `pages/Exercises/`. Four rules, each of which has already
   (`useMuscleRecovery`). A second `×100` anywhere is a bug waiting to be a display of 1%.
 - **`isError` does not mean "no data".** It is also true when a _refetch_ fails over cached data, so
   hide a section on `isError && !data`, never on `isError` alone.
+- **The experience select on `UpNextCard` is a profile edit, not a request parameter.** The
+  footer's experience-level select PATCHes `/api/coach-profile` (owner-only, hidden with the
+  rest of the card through `useCoachingContextAvailable`) and applies on the _next_ generate —
+  unlike the duration select beside the Generate button, which travels with one request. What
+  leaves the client is the lowercase catalog token (`beginner`/`intermediate`/`expert`) or an
+  explicit null to clear; `'unset'` is a Radix-only sentinel (Select cannot carry an empty
+  string) and must never reach the wire. The chat coach edits the same row.
 - **Owner-only vs delegatable is per-surface, not per-page.** Recovery rides the `diary` permission
   and stays available to a delegate who has it (so its cache key is scoped by acting user);
   everything else on that page is owner-only and hides itself through

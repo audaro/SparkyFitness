@@ -29,6 +29,7 @@ const PROFILE_FIELDS = [
   'goals',
   'training_days_per_week',
   'session_minutes',
+  'experience_level',
   'equipment',
   'limitations',
   'food_preferences',
@@ -43,6 +44,7 @@ export function renderCoachProfile(profile: CoachProfileRow): string {
   text += `- Training: ${days !== null ? `${days} days/week` : 'days not set'}, ${
     minutes !== null ? `${minutes} min sessions` : 'session length not set'
   }\n`;
+  text += `- Experience: ${profile.experience_level ?? 'not set'}\n`;
   text += `- Equipment: ${
     profile.equipment.length ? profile.equipment.join(', ') : 'none listed'
   }\n`;
@@ -94,7 +96,7 @@ export function buildCoachProfileTools(userId: string, tz: string) {
 
 Actions:
 - get_coach_profile() — read it before proposing programming; a missing profile means the user has not been interviewed yet
-- update_coach_profile(goals?, training_days_per_week?, session_minutes?, equipment?, limitations?, food_preferences?, aliases?) — saves only the provided fields; list/object fields REPLACE the stored value, so send the full updated list when adding one item
+- update_coach_profile(goals?, training_days_per_week?, session_minutes?, experience_level?, equipment?, limitations?, food_preferences?, aliases?) — saves only the provided fields; list/object fields REPLACE the stored value, so send the full updated list when adding one item. experience_level is 'beginner' | 'intermediate' | 'expert' and biases which exercises generated workouts select
 - get_gym_profiles() — the user's named equipment sets ("Home", "Commercial gym") and which one is active; the active one is what constrains generated workouts
 - set_active_gym_profile(gym_profile_name?|gym_profile_id?) — switch where the user is training today ("I'm at home"), then regenerate; only one profile is active at a time`,
       inputSchema: manageCoachProfileInput,
@@ -124,7 +126,7 @@ Actions:
               const profile =
                 await coachProfileRepository.getCoachProfile(userId);
               if (!profile) {
-                return 'No coach profile yet. Interview the user conversationally (goals, training days per week, minutes per session, equipment, injuries/limitations, food preferences) before their first program, then save the answers with update_coach_profile.';
+                return 'No coach profile yet. Interview the user conversationally (goals, training days per week, minutes per session, experience level, equipment, injuries/limitations, food preferences) before their first program, then save the answers with update_coach_profile.';
               }
               return renderCoachProfile(profile);
             }

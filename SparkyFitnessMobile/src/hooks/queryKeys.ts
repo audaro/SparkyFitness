@@ -110,6 +110,9 @@ export const workoutPresetsLibraryQueryKey = (searchTerm: string) =>
 
 export const gymProfilesQueryKey = ['gymProfiles'] as const;
 
+/** The user's stated training constraints; one row per user, owner-only. */
+export const coachProfileQueryKey = ['coachProfile'] as const;
+
 /** Importable exercise catalog packs and the user's progress through each. */
 export const exercisePacksQueryKey = ['exercisePacks'] as const;
 

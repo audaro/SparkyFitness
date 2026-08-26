@@ -6,8 +6,13 @@ import { useCSSVariable } from 'uniwind';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { formatSetCount, type ExerciseSessionResponse } from '@workspace/shared';
+import {
+  formatSetCount,
+  type ExerciseSessionResponse,
+  type ExperienceLevel,
+} from '@workspace/shared';
 
+import BottomSheetPicker from '../components/BottomSheetPicker';
 import CalendarSheet, { type CalendarSheetRef } from '../components/CalendarSheet';
 import CreateTile from '../components/CreateTile';
 import DateNavigator from '../components/DateNavigator';
@@ -21,6 +26,7 @@ import { addSheetRef } from '../components/AddSheet';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
 import { useServerConnection } from '../hooks';
+import { useCoachProfile, useUpdateCoachProfile } from '../hooks/useCoachProfile';
 import { useDailySummary } from '../hooks/useDailySummary';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
 import { useGymProfiles } from '../hooks/useGymProfiles';
@@ -41,6 +47,14 @@ type ExerciseHomeScreenProps = CompositeScreenProps<
 
 const SUMMARY_RING_SIZE = 88;
 const SUMMARY_RING_STROKE = 8;
+
+/**
+ * A picker option cannot carry null, so "no stated level" travels as this
+ * sentinel and is mapped back to null before the wire — null is how the
+ * server spells "unstated", and it is a real edit distinct from omission.
+ */
+const EXPERIENCE_UNSET = 'unset';
+type ExperienceValue = ExperienceLevel | typeof EXPERIENCE_UNSET;
 
 /**
  * Short group names. WeeklySetTargetsScreen spells them out ("Push Muscles")
@@ -113,6 +127,40 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
   // Which gym the user is in constrains every suggestion this tab makes, so
   // the row names it rather than describing what gym profiles are.
   const { activeProfile } = useGymProfiles();
+
+  // The stated experience level shapes exercise selection and set counts on
+  // the next generate; the chat coach edits the same profile row.
+  const { data: coachProfile } = useCoachProfile();
+  const { mutate: saveCoachProfile, isPending: isSavingExperience } = useUpdateCoachProfile();
+
+  const experienceOptions: { value: ExperienceValue; label: string }[] = [
+    {
+      value: EXPERIENCE_UNSET,
+      label: t('exerciseHome.experienceUnset', { defaultValue: 'Not set' }),
+    },
+    {
+      value: 'beginner',
+      label: t('exerciseHome.experienceBeginner', { defaultValue: 'Beginner' }),
+    },
+    {
+      value: 'intermediate',
+      label: t('exerciseHome.experienceIntermediate', { defaultValue: 'Intermediate' }),
+    },
+    {
+      value: 'expert',
+      label: t('exerciseHome.experienceExpert', { defaultValue: 'Expert' }),
+    },
+  ];
+
+  const storedExperience = coachProfile?.experience_level ?? null;
+
+  const handleExperienceSelect = (value: ExperienceValue) => {
+    const next = value === EXPERIENCE_UNSET ? null : value;
+    // Re-picking what is already stored is not an edit; an empty-feeling save
+    // toast for it would read as if something changed.
+    if (next === storedExperience || isSavingExperience) return;
+    saveCoachProfile({ experience_level: next });
+  };
 
   const { summary } = useDailySummary({ date: selectedDate, enabled: isConnected });
 
@@ -396,6 +444,24 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             })}
             onPress={() => navigation.navigate('WeeklySetTargets')}
             testID="exercise-home-weekly-set-targets"
+          />
+          <BottomSheetPicker<ExperienceValue>
+            value={storedExperience ?? EXPERIENCE_UNSET}
+            options={experienceOptions}
+            onSelect={handleExperienceSelect}
+            title={t('exerciseHome.experienceLevel', { defaultValue: 'Experience level' })}
+            renderTrigger={({ onPress, selectedOption }) => (
+              <SettingsRow
+                icon="trophy-outline"
+                title={t('exerciseHome.experienceLevel', { defaultValue: 'Experience level' })}
+                subtitle={
+                  selectedOption?.label ??
+                  t('exerciseHome.experienceUnset', { defaultValue: 'Not set' })
+                }
+                onPress={onPress}
+                testID="exercise-home-experience-level"
+              />
+            )}
           />
           <SettingsRow
             icon="list"

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import ExerciseHomeScreen from '../../src/screens/ExerciseHomeScreen';
@@ -53,6 +53,15 @@ jest.mock('../../src/services/api/gymProfilesApi', () => ({
   activateGymProfile: jest.fn(),
 }));
 
+// Same shape as the gym-profiles mock above: stub the fetch layer so the
+// experience row exercises the real query + mutation path.
+const mockFetchCoachProfile = jest.fn();
+const mockUpdateCoachProfile = jest.fn();
+jest.mock('../../src/services/api/coachProfileApi', () => ({
+  fetchCoachProfile: (...args: unknown[]) => mockFetchCoachProfile(...args),
+  updateCoachProfile: (...args: unknown[]) => mockUpdateCoachProfile(...args),
+}));
+
 jest.mock('../../src/hooks/useWorkoutRecommendation', () => ({
   useWorkoutRecommendation: jest.fn(),
 }));
@@ -99,6 +108,20 @@ function makeWeek(): WeeklySetTargetsResponse {
     },
     history: [],
   } as WeeklySetTargetsResponse;
+}
+
+// The server answers all-null rather than 404 for a user who has never been
+// interviewed, so this is the "no profile yet" case too.
+function makeCoachProfile(
+  level: 'beginner' | 'intermediate' | 'expert' | null,
+) {
+  return {
+    goals: null,
+    training_days_per_week: null,
+    session_minutes: null,
+    experience_level: level,
+    limitations: [],
+  };
 }
 
 // A logged individual activity, shaped the way the daily summary returns one:
@@ -148,6 +171,11 @@ describe('ExerciseHomeScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetchGymProfiles.mockResolvedValue([]);
+    mockFetchCoachProfile.mockResolvedValue(makeCoachProfile(null));
+    mockUpdateCoachProfile.mockImplementation(async (patch) => ({
+      ...makeCoachProfile(null),
+      ...patch,
+    }));
     mockUseDailySummary.mockReturnValue({ summary: { exerciseEntries: [] } });
     mockUseWorkoutRecommendation.mockReturnValue({
       recommendation: null,
@@ -193,6 +221,7 @@ describe('ExerciseHomeScreen', () => {
     expect(getByTestId('exercise-home-exercises-library')).toBeTruthy();
     expect(getByTestId('exercise-home-gym-profiles')).toBeTruthy();
     expect(getByTestId('exercise-home-weekly-set-targets')).toBeTruthy();
+    expect(getByTestId('exercise-home-experience-level')).toBeTruthy();
     expect(getByTestId('exercise-home-exercise-packs')).toBeTruthy();
   });
 
@@ -339,6 +368,63 @@ describe('ExerciseHomeScreen', () => {
     expect(
       await findByText('No active profile — every exercise is available'),
     ).toBeTruthy();
+  });
+
+  it('shows the stated experience level in the setup row', async () => {
+    mockFetchCoachProfile.mockResolvedValue(makeCoachProfile('intermediate'));
+
+    const { getByTestId } = renderScreen();
+
+    // The picker sheet renders the same label as an option, so scope the
+    // lookup to the row rather than the whole tree.
+    const row = getByTestId('exercise-home-experience-level');
+    expect(await within(row).findByText('Intermediate')).toBeTruthy();
+  });
+
+  // The catalog's level vocabulary is exact-match, so what leaves this screen
+  // must be the lowercase token, not the label the row displays.
+  it('saves a picked experience level as its lowercase token', async () => {
+    const { getByRole } = renderScreen();
+
+    fireEvent.press(getByRole('radio', { name: 'Beginner' }));
+
+    await waitFor(() =>
+      expect(mockUpdateCoachProfile).toHaveBeenCalledWith({
+        experience_level: 'beginner',
+      }),
+    );
+  });
+
+  // Null clears a stated level back to unstated; omitting the field would be
+  // a different request (and an empty patch a 400).
+  it('clears the level with an explicit null when Not set is picked', async () => {
+    mockFetchCoachProfile.mockResolvedValue(makeCoachProfile('expert'));
+
+    const { getByTestId, getByRole } = renderScreen();
+    const row = getByTestId('exercise-home-experience-level');
+    await within(row).findByText('Expert');
+
+    fireEvent.press(getByRole('radio', { name: 'Not set' }));
+
+    await waitFor(() =>
+      expect(mockUpdateCoachProfile).toHaveBeenCalledWith({
+        experience_level: null,
+      }),
+    );
+  });
+
+  it('does not save when the stored level is re-picked', async () => {
+    mockFetchCoachProfile.mockResolvedValue(makeCoachProfile('intermediate'));
+
+    const { getByTestId, getByRole } = renderScreen();
+    const row = getByTestId('exercise-home-experience-level');
+    await within(row).findByText('Intermediate');
+
+    fireEvent.press(getByRole('radio', { name: 'Intermediate' }));
+
+    // Give a would-be mutation a tick to fire before asserting it did not.
+    await waitFor(() => expect(mockFetchCoachProfile).toHaveBeenCalled());
+    expect(mockUpdateCoachProfile).not.toHaveBeenCalled();
   });
 
   // The week card is the usual way in, but it hides itself when the read came

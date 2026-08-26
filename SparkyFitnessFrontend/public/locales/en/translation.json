@@ -1305,7 +1305,15 @@
     "estimatedMinutes": "~{{minutes}} min",
     "restChip": "{{rest}} rest",
     "start": "Start workout",
-    "sessionName": "Up Next workout"
+    "sessionName": "Up Next workout",
+    "experienceLabel": "Experience level",
+    "experienceUnset": "Not set",
+    "experienceOption": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "expert": "Expert"
+    },
+    "experienceHint": "Tailors exercise picks and set counts. Applies on the next generate."
   },
   "gymProfilesManager": {
     "cardTitle": "Gym Profiles",
@@ -4993,5 +5001,10 @@
   "foodLibrary": {
     "title": "Food library",
     "description": "Foods, meals and meal plans you can log from"
+  },
+  "coachProfile": {
+    "loadError": "Failed to load your training profile.",
+    "saveSuccess": "Training profile saved.",
+    "saveError": "Failed to save your training profile."
   }
 }

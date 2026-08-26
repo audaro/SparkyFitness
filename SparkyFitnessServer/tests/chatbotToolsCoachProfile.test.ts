@@ -69,7 +69,7 @@ describe('coach profile', () => {
     );
 
     expect(result).toBe(
-      'No coach profile yet. Interview the user conversationally (goals, training days per week, minutes per session, equipment, injuries/limitations, food preferences) before their first program, then save the answers with update_coach_profile.'
+      'No coach profile yet. Interview the user conversationally (goals, training days per week, minutes per session, experience level, equipment, injuries/limitations, food preferences) before their first program, then save the answers with update_coach_profile.'
     );
   });
 
@@ -87,6 +87,7 @@ describe('coach profile', () => {
       '# Coach Profile\n\n' +
         '- Goals: Lose 5 kg and run a 10k\n' +
         '- Training: 4 days/week, 60 min sessions\n' +
+        '- Experience: not set\n' +
         '- Equipment: dumbbells, resistance bands\n' +
         '- Limitations: left knee pain\n' +
         '- Food preferences: {"style":"vegetarian"}\n' +
@@ -122,6 +123,45 @@ describe('coach profile', () => {
       }
     );
     expect(invalidateChatContextInputs).toHaveBeenCalledWith('user-1');
+  });
+
+  it('saves and renders the experience level', async () => {
+    vi.mocked(coachProfileRepository.upsertCoachProfile).mockResolvedValue({
+      ...fullProfile,
+      experience_level: 'beginner',
+    });
+    const updated = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'update_coach_profile', experience_level: 'beginner' },
+      opts
+    );
+    expect(updated).toBe('✅ Coach profile updated (experience_level).');
+    expect(coachProfileRepository.upsertCoachProfile).toHaveBeenCalledWith(
+      'user-1',
+      { experience_level: 'beginner' }
+    );
+
+    vi.mocked(coachProfileRepository.getCoachProfile).mockResolvedValue({
+      ...fullProfile,
+      experience_level: 'beginner',
+    });
+    const rendered = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'get_coach_profile' },
+      opts
+    );
+    expect(rendered).toContain('- Experience: beginner\n');
+  });
+
+  // The generator's level term is an exact string match against
+  // exercises.level, so the schema must refuse synonyms rather than store one
+  // that would silently match nothing.
+  it('rejects an experience level outside the vocabulary', async () => {
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      // Out of vocabulary on purpose, so past the compile-time type.
+      { action: 'update_coach_profile', experience_level: 'advanced' } as never,
+      opts
+    );
+    expect(String(result)).toContain('experience_level');
+    expect(coachProfileRepository.upsertCoachProfile).not.toHaveBeenCalled();
   });
 
   it('accepts an integer id for a workout_preset alias', async () => {

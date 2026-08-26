@@ -41,6 +41,15 @@ const profileEditFields = {
     .max(360)
     .optional()
     .describe('Minutes available per training session'),
+  // The exercises.level vocabulary, exactly — the workout generator matches
+  // this against candidate rows with an exact string comparison, so a synonym
+  // ("advanced", "novice") would silently match nothing.
+  experience_level: z
+    .enum(['beginner', 'intermediate', 'expert'])
+    .optional()
+    .describe(
+      "The user's training experience level: beginner, intermediate, or expert"
+    ),
   equipment: z
     .array(z.string().trim().min(1).max(100))
     .max(50)

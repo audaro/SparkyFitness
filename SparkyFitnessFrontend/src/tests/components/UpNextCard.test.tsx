@@ -1,3 +1,4 @@
+import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import UpNextCard from '@/pages/Exercises/UpNextCard';
@@ -14,7 +15,10 @@ const mockRefetch = jest.fn();
 const mockMarkStatus = jest.fn();
 const mockNavigate = jest.fn();
 
+const mockSaveProfile = jest.fn();
+
 let mockIsActingOnBehalf = false;
+let mockCoachProfile: { experience_level: string | null } | null = null;
 let mockRecommendation: WorkoutRecommendation | null = null;
 let mockProfiles: GymProfile[] = [];
 let mockQueryState = { isLoading: false, isError: false };
@@ -74,6 +78,61 @@ jest.mock('@/contexts/PreferencesContext', () => ({
 jest.mock('@/hooks/Exercises/useGymProfiles', () => ({
   useGymProfiles: () => ({ profiles: mockProfiles }),
 }));
+
+jest.mock('@/hooks/Exercises/useCoachProfile', () => ({
+  useCoachProfile: () => ({ data: mockCoachProfile }),
+  useUpdateCoachProfileMutation: () => ({
+    mutate: mockSaveProfile,
+    isPending: false,
+  }),
+}));
+
+// Radix Select does not open under jsdom, so the primitive is replaced with a
+// flat list of buttons wired to onValueChange — the same stand-in
+// FoodUnitSelector.test.tsx uses.
+jest.mock('@/components/ui/select', () => {
+  const SelectContext = React.createContext<(value: string) => void>(() => {});
+
+  return {
+    Select: ({
+      children,
+      onValueChange,
+    }: {
+      children: React.ReactNode;
+      onValueChange?: (value: string) => void;
+    }) => (
+      <SelectContext.Provider value={onValueChange ?? (() => {})}>
+        {children}
+      </SelectContext.Provider>
+    ),
+    SelectContent: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SelectItem: ({
+      children,
+      value,
+    }: {
+      children: React.ReactNode;
+      value: string;
+    }) => {
+      const onValueChange = React.useContext(SelectContext);
+
+      return (
+        <button
+          type="button"
+          data-value={value}
+          onClick={() => onValueChange(value)}
+        >
+          {children}
+        </button>
+      );
+    },
+    SelectTrigger: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SelectValue: () => <span />,
+  };
+});
 
 jest.mock('@/hooks/Exercises/useWorkoutRecommendation', () => ({
   useWorkoutRecommendation: () => ({
@@ -157,6 +216,7 @@ describe('UpNextCard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockIsActingOnBehalf = false;
+    mockCoachProfile = null;
     mockRecommendation = null;
     mockProfiles = [];
     mockQueryState = { isLoading: false, isError: false };
@@ -172,6 +232,37 @@ describe('UpNextCard', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it('saves a chosen experience level to the coach profile', () => {
+    render(<UpNextCard />);
+
+    fireEvent.click(screen.getByText('Beginner'));
+
+    // The wire carries the lowercase exercises.level token, never the label.
+    expect(mockSaveProfile).toHaveBeenCalledWith({
+      experience_level: 'beginner',
+    });
+  });
+
+  it('clears the experience level with null, not a sentinel string', () => {
+    mockCoachProfile = { experience_level: 'expert' };
+
+    render(<UpNextCard />);
+    fireEvent.click(screen.getByText('Not set'));
+
+    expect(mockSaveProfile).toHaveBeenCalledWith({ experience_level: null });
+  });
+
+  it('does not re-save the level already stored', () => {
+    mockCoachProfile = { experience_level: 'intermediate' };
+
+    render(<UpNextCard />);
+    fireEvent.click(screen.getByText('Intermediate'));
+
+    // An empty-diff PATCH is still a write that touches updated_at and toasts
+    // "saved"; re-picking the current value should be a no-op.
+    expect(mockSaveProfile).not.toHaveBeenCalled();
   });
 
   it('renders nothing while acting on behalf of another user', () => {

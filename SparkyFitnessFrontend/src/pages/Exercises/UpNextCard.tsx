@@ -9,9 +9,11 @@ import {
   Timer,
 } from 'lucide-react';
 import {
+  EXPERIENCE_LEVELS,
   isCardioModality,
   isWarmupSetType,
   todayInZone,
+  type ExperienceLevel,
   type RecommendedExercise,
 } from '@workspace/shared';
 
@@ -32,6 +34,10 @@ import {
   useUpdateWorkoutRecommendationStatusMutation,
   useWorkoutRecommendation,
 } from '@/hooks/Exercises/useWorkoutRecommendation';
+import {
+  useCoachProfile,
+  useUpdateCoachProfileMutation,
+} from '@/hooks/Exercises/useCoachProfile';
 import { useGymProfiles } from '@/hooks/Exercises/useGymProfiles';
 import { useWorkoutPlaybackStart } from '@/hooks/Exercises/useWorkoutPlaybackStart';
 import { titleCaseCanonical } from '@/utils/canonicalVocabulary';
@@ -40,6 +46,14 @@ import { createWorkoutPlaybackDraftFromRecommendation } from '@/utils/workoutPla
 /** The durations the engine accepts, inside the wire's 15–180 bound. */
 const DURATION_CHOICES = [20, 30, 45, 60, 90, 120] as const;
 const FALLBACK_DURATION_MINUTES = 60;
+
+/**
+ * Radix Select cannot carry an empty-string value, so "not stated" needs a
+ * sentinel. It must not collide with the level vocabulary, and it is mapped
+ * back to null before it reaches the wire — the API stores the exercises.level
+ * tokens or null, never this.
+ */
+const EXPERIENCE_UNSET = 'unset';
 
 function formatSeconds(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -118,6 +132,9 @@ const UpNextCard: React.FC = () => {
   const { data, isLoading, isError, refetch } =
     useWorkoutRecommendation(available);
   const { profiles } = useGymProfiles(available);
+  const { data: coachProfile } = useCoachProfile(available);
+  const { mutate: saveProfile, isPending: isSavingProfile } =
+    useUpdateCoachProfileMutation();
   const { mutate: generate, isPending: isGenerating } =
     useGenerateWorkoutRecommendationMutation();
   const { mutate: markStatus } = useUpdateWorkoutRecommendationStatusMutation();
@@ -234,6 +251,56 @@ const UpNextCard: React.FC = () => {
           ))}
       </SelectContent>
     </Select>
+  );
+
+  /**
+   * The experience level, distinct from the duration select on purpose:
+   * duration is a request parameter, this edits the coach profile itself and
+   * so also moves what the chat coach knows. A change applies on the next
+   * generate — the stored workout deliberately does not move underneath the
+   * user, which is why the caption says so instead of regenerating here.
+   */
+  const experienceRow = (
+    <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3">
+      <label
+        htmlFor="upnext-experience"
+        className="text-sm text-muted-foreground"
+      >
+        {t('upNext.experienceLabel', 'Experience level')}
+      </label>
+      <Select
+        value={coachProfile?.experience_level ?? EXPERIENCE_UNSET}
+        onValueChange={(value) => {
+          const next =
+            value === EXPERIENCE_UNSET ? null : (value as ExperienceLevel);
+          if (next === (coachProfile?.experience_level ?? null)) return;
+          saveProfile({ experience_level: next });
+        }}
+        disabled={isSavingProfile}
+      >
+        <SelectTrigger id="upnext-experience" className="w-[10rem]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={EXPERIENCE_UNSET}>
+            {t('upNext.experienceUnset', 'Not set')}
+          </SelectItem>
+          {EXPERIENCE_LEVELS.map((level) => (
+            <SelectItem key={level} value={level}>
+              {t(`upNext.experienceOption.${level}`, {
+                defaultValue: titleCaseCanonical(level),
+              })}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-xs text-muted-foreground">
+        {t(
+          'upNext.experienceHint',
+          'Tailors exercise picks and set counts. Applies on the next generate.'
+        )}
+      </span>
+    </div>
   );
 
   const renderBody = () => {
@@ -389,7 +456,10 @@ const UpNextCard: React.FC = () => {
           </div>
         )}
       </CardHeader>
-      <CardContent>{renderBody()}</CardContent>
+      <CardContent>
+        {renderBody()}
+        {experienceRow}
+      </CardContent>
       {guardDialog}
     </Card>
   );

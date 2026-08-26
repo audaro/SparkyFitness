@@ -48,6 +48,13 @@ export const workoutRecommendationKeys = {
   current: () => [...workoutRecommendationKeys.all, 'current'] as const,
 };
 
+// One row per user and owner-only, like the recommendation above — a single
+// key, and never scoped by acting user because a delegate cannot read it.
+export const coachProfileKeys = {
+  all: ['coachProfile'] as const,
+  current: () => [...coachProfileKeys.all, 'current'] as const,
+};
+
 // Scoped by acting user, unlike the two keys above: recovery is derived from
 // logged exercise entries and rides the `diary` permission, so a delegate reads
 // a different account's vector and the two must not share a cache entry.

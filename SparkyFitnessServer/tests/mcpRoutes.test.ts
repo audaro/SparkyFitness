@@ -233,7 +233,7 @@ describe('POST /mcp', () => {
     expect(res.body.result.content).toEqual([
       {
         type: 'text',
-        text: 'No coach profile yet. Interview the user conversationally (goals, training days per week, minutes per session, equipment, injuries/limitations, food preferences) before their first program, then save the answers with update_coach_profile.',
+        text: 'No coach profile yet. Interview the user conversationally (goals, training days per week, minutes per session, experience level, equipment, injuries/limitations, food preferences) before their first program, then save the answers with update_coach_profile.',
       },
     ]);
   });

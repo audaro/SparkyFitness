@@ -4728,8 +4728,17 @@
     "gymProfileNone": "No active profile — every exercise is available",
     "weeklySetTargets": "Weekly set targets",
     "weeklySetTargetsSubtitle": "Working sets per muscle group, per week",
+    "experienceLevel": "Experience level",
+    "experienceUnset": "Not set",
+    "experienceBeginner": "Beginner",
+    "experienceIntermediate": "Intermediate",
+    "experienceExpert": "Expert",
     "exercisePacks": "Exercise packs",
     "exercisePacksSubtitle": "Add a ready-made set of exercises"
+  },
+  "coachProfile": {
+    "saved": "Training profile saved",
+    "saveFailed": "Could not save training profile"
   },
   "pickMuscles": {
     "viewFront": "Front",
