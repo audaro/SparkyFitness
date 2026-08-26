@@ -4,6 +4,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import {
   catalogRowSubtitle,
+  rankOwnMedications,
   rxTermsStrengthHint,
   searchCatalog,
   type CatalogDrug,
@@ -25,7 +26,14 @@ export type MedicationNamePick =
 
 type Row =
   | { key: string; kind: 'existing'; medication: Medication }
-  | { key: string; kind: 'catalog'; drug: CatalogDrug; matchedOn: string; viaAlias: boolean }
+  | {
+      key: string;
+      kind: 'catalog';
+      drug: CatalogDrug;
+      matchedOn: string;
+      viaAlias: boolean;
+      viaTypo: boolean;
+    }
   | { key: string; kind: 'rxterms'; product: RxTermsProduct }
   | { key: string; kind: 'custom' };
 
@@ -67,19 +75,21 @@ export default function MedicationNameSuggestions({
   // No `active` flag is passed because this component *is* the flag: the form mounts it only
   // while the suggestion list is open, so an edit that never touches the name never renders it
   // and never asks.
-  const { products: rxTermsProducts } = useMedicationCatalogSearch(query, { limit: MAX_RXTERMS });
+  const { products: rxTermsProducts, correctedTerms } = useMedicationCatalogSearch(query, {
+    limit: MAX_RXTERMS,
+  });
 
   const rows = useMemo<Row[]>(() => {
     const trimmed = query.trim();
     if (!trimmed) return [];
-    const needle = trimmed.toLowerCase();
 
-    const own = (ownMedications ?? [])
-      .filter((med) =>
-        `${med.name} ${med.display_name ?? ''}`.toLowerCase().includes(needle),
-      )
-      .slice(0, MAX_OWN)
-      .map<Row>((med) => ({ key: `own:${med.id}`, kind: 'existing', medication: med }));
+    // Ranked by use rather than by alphabet: with more matches than rows, the drugs this user
+    // actually takes are the ones worth the three slots. See `rankOwnMedications`.
+    const own = rankOwnMedications(ownMedications ?? [], trimmed, MAX_OWN).map<Row>((med) => ({
+      key: `own:${med.id}`,
+      kind: 'existing',
+      medication: med,
+    }));
 
     // A drug the user already has under that name is better represented by their own row, which
     // carries their strength and schedule.
@@ -95,6 +105,7 @@ export default function MedicationNameSuggestions({
         drug: hit.drug,
         matchedOn: hit.matchedOn,
         viaAlias: hit.viaAlias,
+        viaTypo: hit.viaTypo,
       }));
 
     // The server already drops any tier 3 product the curated catalog covers. What it cannot know
@@ -119,6 +130,11 @@ export default function MedicationNameSuggestions({
   const firstRxTermsIndex = rows.findIndex((row) => row.kind === 'rxterms');
   const hasOwn = rows.some((row) => row.kind === 'existing');
 
+  // `searchCatalog` runs its fuzzy pass only when the substring pass found nothing, so tier 2 is
+  // all-or-nothing here and the first row speaks for the whole group.
+  const firstCatalogRow = rows[firstCatalogIndex];
+  const catalogViaTypo = firstCatalogRow?.kind === 'catalog' && firstCatalogRow.viaTypo;
+
   /** The right-hand hint on a tier 3 row, in words. Which case a product is in is shared logic. */
   const strengthHintText = (product: RxTermsProduct): string => {
     const hint = rxTermsStrengthHint(product);
@@ -142,20 +158,39 @@ export default function MedicationNameSuggestions({
           )}
           {index === firstCatalogIndex && firstCatalogIndex >= 0 && (
             <Text className="px-3 pt-2 pb-1 text-text-muted text-xs font-semibold uppercase">
-              {t('medications.search.known', { defaultValue: 'Known drugs' })}
+              {/* A near-miss group says so. The difference between "here is your drug" and "here
+                  is a drug spelled a bit like what you typed" is the difference between a
+                  suggestion and a wrong medication record. */}
+              {catalogViaTypo
+                ? t('medications.search.knownTypo', { defaultValue: 'Did you mean' })
+                : t('medications.search.known', { defaultValue: 'Known drugs' })}
             </Text>
           )}
           {index === firstRxTermsIndex && firstRxTermsIndex >= 0 && (
-            <View className="flex-row items-center gap-1.5 px-3 pt-2 pb-1">
-              <Text className="text-text-muted text-xs font-semibold uppercase">
-                {t('medications.search.usCatalog', { defaultValue: 'US drug catalog' })}
-              </Text>
-              {/* Named, not just styled. These rows come from someone else's data — the NIH's —
-                  and a user comparing a row against their own label deserves to know which list
-                  said it. */}
-              <Text className="rounded border border-border-subtle px-1 text-text-muted text-[10px] font-medium">
-                {t('medications.search.nlmTag', { defaultValue: 'NLM' })}
-              </Text>
+            <View className="px-3 pt-2 pb-1">
+              <View className="flex-row items-center gap-1.5">
+                <Text className="text-text-muted text-xs font-semibold uppercase">
+                  {t('medications.search.usCatalog', { defaultValue: 'US drug catalog' })}
+                </Text>
+                {/* Named, not just styled. These rows come from someone else's data — the NIH's —
+                    and a user comparing a row against their own label deserves to know which list
+                    said it. */}
+                <Text className="rounded border border-border-subtle px-1 text-text-muted text-[10px] font-medium">
+                  {t('medications.search.nlmTag', { defaultValue: 'NLM' })}
+                </Text>
+              </View>
+              {correctedTerms.length > 0 && (
+                // The server retried under a different spelling. Saying which one is not a
+                // nicety: without it these rows read as confirmation that the drug was spelled
+                // correctly, and one of them is routinely a different drug — RxNav answers a
+                // metformin typo with merbromin first.
+                <Text className="text-text-muted text-xs">
+                  {t('medications.search.correctedTo', {
+                    defaultValue: 'Showing results for {{terms}}',
+                    terms: correctedTerms.join(', '),
+                  })}
+                </Text>
+              )}
             </View>
           )}
           <TouchableOpacity

@@ -472,6 +472,48 @@ export const RXTERMS_FIXTURES = {
       ['Albuterol/Ipratropium (Inhalant)'],
     ],
   ] as unknown,
+  /**
+   * RxNav's first suggestion for `metfromin`, recorded 2026-08-25.
+   *
+   * A mercury antiseptic, and the reason the spelling fallback searches more than one
+   * suggestion: taking only the top answer to a metformin typo would put this on screen and
+   * nothing else. One product, so it cannot fill a five-row cap on its own — which is exactly
+   * why the interleaving test uses a fabricated long list instead.
+   */
+  merbromin: [
+    1,
+    ['Merbromin (Topical)'],
+    {
+      STRENGTHS_AND_FORMS: [['2% Sol', '2% Spray']],
+      RXCUIS: [['311540', '198748']],
+    },
+    [['Merbromin (Topical)']],
+  ] as unknown,
   retatrutide: [0, [], {}, []] as unknown,
   noHits: [0, [], {}, []] as unknown,
+};
+
+/**
+ * RxNav spelling suggestions, recorded from the live service on 2026-08-25:
+ *
+ *   curl -s "https://rxnav.nlm.nih.gov/REST/spellingsuggestions.json?name=<term>"
+ *
+ * `metfromin` is the case the whole fallback is shaped around — RxNav really does answer a
+ * metformin typo with merbromin first and metformin second. `zzzqqxx` is the other real shape:
+ * an absent `suggestionList`, not an empty one.
+ */
+export const RXNAV_SPELLING_FIXTURES = {
+  metfromin: {
+    suggestionGroup: {
+      name: null,
+      suggestionList: { suggestion: ['merbromin', 'metformin'] },
+    },
+  } as unknown,
+  testoterone: {
+    suggestionGroup: {
+      name: null,
+      suggestionList: { suggestion: ['testosterone'] },
+    },
+  } as unknown,
+  none: { suggestionGroup: { name: null, suggestionList: {} } } as unknown,
 };

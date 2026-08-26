@@ -15,6 +15,7 @@
 
 import {
   convertReconstitutionUnits,
+  reconstitute,
   SYRINGE_UNITS_PER_ML,
   type ReconstitutionUnit,
   type SyringeStandard,
@@ -168,5 +169,79 @@ export function concentrationDraw(input: {
     syringeUnits: roundTo(syringeUnits, 2),
     syringe,
     syringeUnitsPerMl: unitsPerMl,
+  };
+}
+
+/** A bare unit as a user may have typed it — `"MG "` is `mg`. Null for anything else. */
+function normaliseUnit(
+  value: string | null | undefined,
+): ReconstitutionUnit | null {
+  if (!value) return null;
+  const trimmed = value.trim().toLowerCase();
+  return isUnit(trimmed) ? trimmed : null;
+}
+
+/** What the inventory form can fill in for itself once a vial's mix is on record. */
+export interface VialInventoryPrefill {
+  /**
+   * Concentration in **mg per mL**, or null when the vial is measured in IU — the inventory
+   * column is mg/mL and there is no factor from IU to mass, so an HCG vial leaves it blank
+   * rather than carrying a number that means nothing.
+   */
+  concentrationMgMl: number | null;
+  /** The volume the vial holds in solution, in mL: the diluent that was added. */
+  volumeMl: number;
+  /**
+   * Whole doses the vial yields, or null when that is not knowable — no dose on the medication,
+   * a dose in a unit family the vial does not share, or a dose larger than the vial holds.
+   * Null means "ask the user", never "assume the default".
+   */
+  dosesTotal: number | null;
+}
+
+/**
+ * Seed a vial's inventory row from the mix already recorded on the medication.
+ *
+ * The inventory form used to open on constants — a blank concentration, a blank volume and a
+ * doses-per-vial of 10 — for a medication that already knew all three. A user reconstituting a
+ * 10 mg vial in 2 mL for a 2 mg dose has five doses in that bottle, and the run-out date the
+ * inventory card draws from `doses_total` was wrong by a factor of two for as long as nobody
+ * corrected the default by hand.
+ *
+ * Returns null when the medication carries no valid reconstitution record, which is the signal
+ * to leave the form on its own defaults. Every field it does return is derived, never guessed:
+ * `dosesTotal` comes from `reconstitute`, so the same refusals that stop the calculator from
+ * showing a draw also stop it from filling in a dose count here.
+ */
+export function vialInventoryPrefill(input: {
+  /** The medication's `custom_fields`, as stored. */
+  customFields: unknown;
+  doseAmount: number | null | undefined;
+  doseUnit: string | null | undefined;
+}): VialInventoryPrefill | null {
+  const record = readReconstitutionRecord(input.customFields);
+  if (record === null) return null;
+
+  const concentration = record.vial_amount / record.diluent_ml;
+  const concentrationMgMl = Number.isFinite(concentration)
+    ? convertReconstitutionUnits(concentration, record.vial_unit, "mg")
+    : null;
+
+  const doseUnit = normaliseUnit(input.doseUnit);
+  const dose =
+    doseUnit !== null && isPositiveFinite(input.doseAmount)
+      ? reconstitute({
+          vial: { amount: record.vial_amount, unit: record.vial_unit },
+          diluentMl: record.diluent_ml,
+          dose: { amount: input.doseAmount, unit: doseUnit },
+          syringe: record.syringe,
+        })
+      : null;
+
+  return {
+    concentrationMgMl:
+      concentrationMgMl === null ? null : roundTo(concentrationMgMl, 4),
+    volumeMl: record.diluent_ml,
+    dosesTotal: dose?.ok ? dose.dosesPerVial : null,
   };
 }

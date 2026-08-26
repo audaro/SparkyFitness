@@ -44,7 +44,11 @@ export async function searchMedicationCatalog(
   // or who has no row at all, has not opted in — and the safe reading of "no answer recorded" for
   // a question about sending health data to a third party is no.
   if (preferences?.medication_catalog_lookup_enabled !== true) {
-    return { products: [], unavailableReason: 'lookup_disabled' };
+    return {
+      products: [],
+      unavailableReason: 'lookup_disabled',
+      correctedTerms: [],
+    };
   }
 
   return searchRxTerms(term, limit);

@@ -394,6 +394,8 @@
       "results": "Medication suggestions",
       "yours": "Your medications",
       "known": "Known drugs",
+      "knownTypo": "Did you mean",
+      "correctedTo": "Showing results for {{terms}}",
       "weekly": "weekly",
       "daily": "daily",
       "addCustom": "Add \"{{name}}\" as a custom medication",

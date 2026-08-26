@@ -6,6 +6,7 @@ import {
   readReconstitutionRecord,
   RECONSTITUTION_FIELD,
   reconstitute,
+  vialInventoryPrefill,
   type ReconstitutionRecord,
 } from '@workspace/shared';
 
@@ -220,5 +221,160 @@ describe('concentrationDraw', () => {
 
     expect(before?.syringeUnits).toBe(20);
     expect(after?.syringeUnits).toBeCloseTo(16.67, 2);
+  });
+});
+
+describe('vialInventoryPrefill', () => {
+  it('derives the whole vial row from the mix already on record', () => {
+    // The blueprint's worked case, one step on: a 10 mg vial in 2 mL at a 2 mg dose is 5 mg/mL
+    // and five doses in the bottle — not the ten the form used to open on.
+    const prefill = vialInventoryPrefill({
+      customFields: {
+        [RECONSTITUTION_FIELD]: {
+          vial_amount: 10,
+          vial_unit: 'mg',
+          diluent_ml: 2,
+          syringe: 'U-100',
+        },
+      },
+      doseAmount: 2,
+      doseUnit: 'mg',
+    });
+
+    expect(prefill).toEqual({
+      concentrationMgMl: 5,
+      volumeMl: 2,
+      dosesTotal: 5,
+    });
+  });
+
+  it('converts a microgram vial to the mg/mL the inventory column is in', () => {
+    // 5000 mcg in 2 mL is 2.5 mg/mL. Writing 2500 into a column labelled mg/mL is the
+    // factor-of-1000 error this whole module exists to prevent.
+    const prefill = vialInventoryPrefill({
+      customFields: {
+        [RECONSTITUTION_FIELD]: {
+          vial_amount: 5000,
+          vial_unit: 'mcg',
+          diluent_ml: 2,
+          syringe: 'U-100',
+        },
+      },
+      doseAmount: 500,
+      doseUnit: 'mcg',
+    });
+
+    expect(prefill?.concentrationMgMl).toBe(2.5);
+    expect(prefill?.dosesTotal).toBe(10);
+  });
+
+  it('leaves the concentration blank for an IU vial', () => {
+    // HCG is measured in IU and there is no factor from IU to mass. The doses still divide.
+    const prefill = vialInventoryPrefill({
+      customFields: {
+        [RECONSTITUTION_FIELD]: {
+          vial_amount: 5000,
+          vial_unit: 'iu',
+          diluent_ml: 2,
+          syringe: 'U-100',
+        },
+      },
+      doseAmount: 500,
+      doseUnit: 'iu',
+    });
+
+    expect(prefill).toEqual({
+      concentrationMgMl: null,
+      volumeMl: 2,
+      dosesTotal: 10,
+    });
+  });
+
+  it('still gives the vial its size when the dose is unknown', () => {
+    // Concentration and volume are facts about the bottle; only the dose count needs a dose.
+    const prefill = vialInventoryPrefill({
+      customFields: { [RECONSTITUTION_FIELD]: MIX },
+      doseAmount: null,
+      doseUnit: null,
+    });
+
+    expect(prefill).toEqual({
+      concentrationMgMl: 10,
+      volumeMl: 3,
+      dosesTotal: null,
+    });
+  });
+
+  it('refuses a dose count for a dose the vial cannot hold', () => {
+    const prefill = vialInventoryPrefill({
+      customFields: { [RECONSTITUTION_FIELD]: MIX },
+      doseAmount: 50,
+      doseUnit: 'mg',
+    });
+
+    // `reconstitute` refuses this outright, and a form that filled in "0 doses" or "1 dose"
+    // anyway would be inventing the number the calculator declined to give.
+    expect(prefill?.dosesTotal).toBeNull();
+    expect(prefill?.concentrationMgMl).toBe(10);
+  });
+
+  it('refuses a dose count across unit families', () => {
+    const prefill = vialInventoryPrefill({
+      customFields: {
+        [RECONSTITUTION_FIELD]: {
+          vial_amount: 5000,
+          vial_unit: 'iu',
+          diluent_ml: 2,
+          syringe: 'U-100',
+        },
+      },
+      doseAmount: 1,
+      doseUnit: 'mg',
+    });
+
+    expect(prefill?.dosesTotal).toBeNull();
+  });
+
+  it('reads a unit the user typed in their own case', () => {
+    const prefill = vialInventoryPrefill({
+      customFields: { [RECONSTITUTION_FIELD]: MIX },
+      doseAmount: 5,
+      doseUnit: ' MG ',
+    });
+
+    expect(prefill?.dosesTotal).toBe(6);
+  });
+
+  it('says nothing at all when the medication has no mix on record', () => {
+    // Null is the signal to leave the form on its own defaults, distinct from a record that
+    // produced no usable numbers.
+    expect(
+      vialInventoryPrefill({
+        customFields: { catalog_id: 'retatrutide' },
+        doseAmount: 2,
+        doseUnit: 'mg',
+      })
+    ).toBeNull();
+    expect(
+      vialInventoryPrefill({
+        customFields: null,
+        doseAmount: 2,
+        doseUnit: 'mg',
+      })
+    ).toBeNull();
+  });
+
+  it('says nothing for a half-written record', () => {
+    // Same rule `readReconstitutionRecord` is under: custom_fields is free-form JSONB, and a
+    // partial blob must read as "no record" rather than as a vial of unknown size.
+    expect(
+      vialInventoryPrefill({
+        customFields: {
+          [RECONSTITUTION_FIELD]: { vial_amount: 10, vial_unit: 'mg' },
+        },
+        doseAmount: 2,
+        doseUnit: 'mg',
+      })
+    ).toBeNull();
   });
 });

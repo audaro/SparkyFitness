@@ -49,6 +49,13 @@ export interface Medication {
   custom_fields: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  /**
+   * When a dose was last logged as taken ('taken' or 'prn_taken'), or null if none ever was.
+   * Derived, not a column: only the list endpoint computes it, which is why it is optional —
+   * a medication read on its own does not carry it. It exists to rank the name search's tier 1
+   * (see `rankOwnMedications`), and is deliberately not used to order the medications page.
+   */
+  last_taken_at?: string | null;
   schedules?: MedicationSchedule[];
 }
 

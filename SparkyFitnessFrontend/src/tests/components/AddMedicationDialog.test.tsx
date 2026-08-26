@@ -81,9 +81,11 @@ jest.mock('@/contexts/ActiveUserContext', () => ({
 // without a QueryClientProvider. Mocked to a fixed answer so the tests below drive it
 // directly instead of through a debounce and a request.
 let mockCatalogProducts: RxTermsProduct[] = [];
+let mockCorrectedTerms: string[] = [];
 jest.mock('@/hooks/useMedicationCatalogSearch', () => ({
   useMedicationCatalogSearch: () => ({
     products: mockCatalogProducts,
+    correctedTerms: mockCorrectedTerms,
     isFetching: false,
   }),
 }));
@@ -821,6 +823,7 @@ describe('AddMedicationDialog US drug catalog picks', () => {
     jest.clearAllMocks();
     mockOwnMedications = [];
     mockCatalogProducts = [];
+    mockCorrectedTerms = [];
   });
 
   it('fills the name, form and lone strength, and records the RxCUI', () => {

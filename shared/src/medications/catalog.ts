@@ -65,6 +65,7 @@
  */
 
 import { GLP1_DRUG_PROFILES } from "./glp1.ts";
+import { bestTypoMatch } from "./typo.ts";
 
 /** Ids from the `medication_route_types` seed table. */
 export type MedicationRouteId =
@@ -910,6 +911,14 @@ export interface CatalogSearchResult {
   matchedOn: string;
   /** True when `matchedOn` is a brand or synonym rather than the drug's own name. */
   viaAlias: boolean;
+  /**
+   * True when nothing matched what was typed and this row is a near-miss instead.
+   *
+   * The UI must say so. A fuzzy row is offered only because the alternative was an empty list,
+   * and the user has to be able to tell "the drug you named" from "a drug spelled a bit like
+   * what you named" before they record it as something they take.
+   */
+  viaTypo: boolean;
 }
 
 /** Lower is better. Exact beats prefix beats substring; name beats alias at each tier. */
@@ -922,12 +931,55 @@ function matchRank(candidate: string, query: string): number | null {
 }
 
 /**
+ * Near-miss rows, for a query that matched nothing by substring.
+ *
+ * Kept as a separate pass rather than another rank tier because it must never *compete* with a
+ * real match: as long as one drug contains what the user typed, no misspelling of another drug
+ * may appear at all. Merging the two into one scored list would let a distance-1 row outrank a
+ * genuine substring hit on some future weighting tweak, which is precisely the failure the
+ * substring-only rule was protecting against.
+ */
+function typoCatalogMatches(key: string, limit: number): CatalogSearchResult[] {
+  const scored: { result: CatalogSearchResult; distance: number }[] = [];
+
+  for (const drug of Object.values(MEDICATION_CATALOG)) {
+    // The drug's own name first, so a tie with an alias resolves to the name — `bestTypoMatch`
+    // keeps the earlier candidate.
+    const match = bestTypoMatch([drug.displayName, ...drug.aliases], key);
+    if (!match) continue;
+    scored.push({
+      distance: match.distance,
+      result: {
+        drug,
+        matchedOn: match.candidate,
+        viaAlias: match.candidate !== drug.displayName,
+        viaTypo: true,
+      },
+    });
+  }
+
+  // Closest first, then alphabetical for the same stability reason the substring pass sorts that
+  // way. Distance is a real comparison here and it is the one that matters: for `metfromin`,
+  // metformin is one edit away and merbromin is two.
+  scored.sort(
+    (a, b) =>
+      a.distance - b.distance ||
+      a.result.drug.displayName.localeCompare(b.result.drug.displayName),
+  );
+
+  return scored.slice(0, limit).map((entry) => entry.result);
+}
+
+/**
  * Rank the catalog against what the user has typed. Pure and synchronous — this is the local
  * tier of the medication search, so it runs on every keystroke with no network and no debounce
  * of its own.
  *
- * Matching is substring, not fuzzy: the catalog is small and the terms are drug names, where a
- * near-miss suggestion is worse than none. Typo tolerance is a deliberate later step.
+ * Matching is substring first, and substring only, for as long as substring finds anything: the
+ * catalog is small and the terms are drug names, where a near-miss suggestion sitting beside a
+ * real one is worse than no suggestion. Only when that pass comes back empty does a bounded
+ * edit-distance pass run, and every row it produces is flagged `viaTypo` so the UI can say what
+ * it is. See `typo.ts` for why the tolerance is as tight as it is.
  */
 export function searchCatalog(query: string, limit = 8): CatalogSearchResult[] {
   const key = query.trim().toLowerCase();
@@ -960,10 +1012,13 @@ export function searchCatalog(query: string, limit = 8): CatalogSearchResult[] {
           drug,
           matchedOn: best.matchedOn,
           viaAlias: best.viaAlias,
+          viaTypo: false,
         },
       });
     }
   }
+
+  if (scored.length === 0) return typoCatalogMatches(key, limit);
 
   // Alphabetical within a rank, so the list is stable across keystrokes that do not change
   // the ranking — a row must not move out from under a finger already on its way down.

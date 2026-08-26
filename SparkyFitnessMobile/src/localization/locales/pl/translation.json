@@ -1145,6 +1145,8 @@
     "search": {
       "yours": "Twoje leki",
       "known": "Znane leki",
+      "knownTypo": "Czy chodziło o",
+      "correctedTo": "Wyniki dla {{terms}}",
       "addCustom": "Dodaj „{{name}}” jako lek niestandardowy",
       "usCatalog": "Amerykański katalog leków",
       "nlmTag": "NLM",

@@ -30,11 +30,17 @@ const CATALOG_STALE_TIME_MS = 60 * 60 * 1000;
 export interface MedicationCatalogSearchState {
   /** Products to offer, already suppressed against the curated catalog by the server. */
   products: RxTermsProduct[];
+  /**
+   * Spellings the products were found under, when the term as typed matched nothing. Empty in
+   * the ordinary case. Non-empty means the list has to say so — see the shared response type.
+   */
+  correctedTerms: string[];
   /** True while a lookup is in flight. Nothing renders an error state — there isn't one. */
   isFetching: boolean;
 }
 
 const NO_PRODUCTS: RxTermsProduct[] = [];
+const NO_CORRECTIONS: string[] = [];
 
 export function useMedicationCatalogSearch(
   term: string,
@@ -89,12 +95,16 @@ export function useMedicationCatalogSearch(
   // they cleared the box, backspaced, or started a different drug — the rows are dropped rather
   // than left sitting under a name they no longer match.
   const stillDescribesInput = trimmed.startsWith(debounced);
+  const usable = enabled && stillDescribesInput;
 
   return {
-    products:
-      enabled && stillDescribesInput
-        ? (data?.products ?? NO_PRODUCTS)
-        : NO_PRODUCTS,
+    products: usable ? (data?.products ?? NO_PRODUCTS) : NO_PRODUCTS,
+    // Kept together with the products deliberately: a corrected spelling that outlived the rows
+    // it explains would caption someone else's list, and rows that outlived their caption would
+    // read as matches for what was typed.
+    correctedTerms: usable
+      ? (data?.correctedTerms ?? NO_CORRECTIONS)
+      : NO_CORRECTIONS,
     isFetching: enabled && isFetching,
   };
 }

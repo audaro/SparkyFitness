@@ -10,9 +10,14 @@ import MedicationNameSuggestions from '../../src/components/MedicationNameSugges
 
 // `mock`-prefixed so the jest.mock factory below may close over it.
 let mockCatalogProducts: RxTermsProduct[] = [];
+let mockCorrectedTerms: string[] = [];
 
 jest.mock('../../src/hooks/useMedicationCatalogSearch', () => ({
-  useMedicationCatalogSearch: () => ({ products: mockCatalogProducts, isFetching: false }),
+  useMedicationCatalogSearch: () => ({
+    products: mockCatalogProducts,
+    correctedTerms: mockCorrectedTerms,
+    isFetching: false,
+  }),
 }));
 
 jest.mock('../../src/components/Icon', () => {
@@ -42,13 +47,16 @@ const product = (
   strengths,
 });
 
-const medication = (name: string): Medication =>
+const medication = (name: string, overrides: Partial<Medication> = {}): Medication =>
   ({
     id: `med-${name}`,
     name,
     display_name: null,
     strength_value: null,
     strength_unit: null,
+    is_active: true,
+    last_taken_at: null,
+    ...overrides,
   }) as unknown as Medication;
 
 const renderList = (
@@ -66,6 +74,7 @@ const renderList = (
 
 beforeEach(() => {
   mockCatalogProducts = [];
+  mockCorrectedTerms = [];
 });
 
 describe('MedicationNameSuggestions tier 3', () => {
@@ -139,5 +148,69 @@ describe('MedicationNameSuggestions tier 3', () => {
     const row = getByTestId('med-suggestion-rxterms:Testosterone (Injectable)');
     // Nothing invented from a string nobody could read — no number anywhere on the row.
     expect(within(row).queryByText(/\d/)).toBeNull();
+  });
+});
+
+describe('MedicationNameSuggestions tier 1 ordering', () => {
+  it('spends its three rows on the drugs the user actually takes', () => {
+    // Four matches, three slots. Alphabetically the one they take every week is last, so before
+    // recency ranking it was the one row that got dropped.
+    const { getByTestId, queryByTestId } = renderList('t', [
+      medication('Tadalafil'),
+      medication('Telmisartan'),
+      medication('Tetracycline'),
+      medication('Tirzepatide', { last_taken_at: '2026-08-24T09:00:00.000Z' }),
+    ]);
+
+    expect(getByTestId('med-suggestion-own:med-Tirzepatide')).toBeTruthy();
+    expect(queryByTestId('med-suggestion-own:med-Tetracycline')).toBeNull();
+  });
+
+  it('keeps a discontinued drug below the active ones', () => {
+    const { getAllByTestId } = renderList('t', [
+      medication('Tirzepatide', {
+        is_active: false,
+        last_taken_at: '2026-08-24T09:00:00.000Z',
+      }),
+      medication('Tesamorelin', { last_taken_at: '2026-01-01T09:00:00.000Z' }),
+    ]);
+
+    const own = getAllByTestId(/^med-suggestion-own:/);
+    expect(own[0]?.props.testID).toBe('med-suggestion-own:med-Tesamorelin');
+  });
+});
+
+describe('MedicationNameSuggestions — saying a row is a guess', () => {
+  it('names the spellings a tier 3 list was actually found under', () => {
+    // Without this the rows read as confirmation that the drug was spelled correctly, and one of
+    // them is routinely a different drug: RxNav answers a metformin typo with merbromin.
+    mockCatalogProducts = [product('Merbromin'), product('metFORMIN')];
+    mockCorrectedTerms = ['merbromin', 'metformin'];
+
+    const { getByText } = renderList('metfromin');
+
+    expect(getByText('Showing results for merbromin, metformin')).toBeTruthy();
+  });
+
+  it('says nothing about spelling when the term matched as typed', () => {
+    mockCatalogProducts = [product('Testosterone')];
+    const { queryByText } = renderList('testosterone');
+    expect(queryByText(/Showing results for/)).toBeNull();
+  });
+
+  it('labels a near-miss tier 2 group as a guess rather than as known drugs', () => {
+    // 'retatrutdie' matches nothing by substring, so `searchCatalog` falls back to its edit
+    // distance pass — and the heading has to say that is what happened.
+    const { getByText, queryByText } = renderList('retatrutdie');
+
+    expect(getByText('Did you mean')).toBeTruthy();
+    expect(queryByText('Known drugs')).toBeNull();
+    expect(getByText('Retatrutide')).toBeTruthy();
+  });
+
+  it('keeps the ordinary heading for an ordinary match', () => {
+    const { getByText, queryByText } = renderList('retatrutide');
+    expect(getByText('Known drugs')).toBeTruthy();
+    expect(queryByText('Did you mean')).toBeNull();
   });
 });

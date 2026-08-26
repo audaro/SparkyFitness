@@ -94,6 +94,24 @@ async function listMedications(
       [medIds, userId]
     );
 
+    // When each medication was last actually taken. Skipped and snoozed doses say the opposite
+    // of use, so only 'taken' and 'prn_taken' count. This does not touch the ORDER BY above —
+    // the medications page stays alphabetical; the field exists so the name search's tier 1 can
+    // offer the drugs someone takes rather than the ones early in the alphabet.
+    const lastTakenResult = await client.query(
+      `SELECT medication_id, MAX(taken_at) AS last_taken_at
+       FROM medication_entries
+       WHERE medication_id = ANY($1) AND user_id = $2
+         AND status IN ('taken', 'prn_taken')
+       GROUP BY medication_id`,
+      [medIds, userId]
+    );
+
+    const lastTakenByMedId: Record<string, Date> = {};
+    for (const row of lastTakenResult.rows) {
+      lastTakenByMedId[row.medication_id] = row.last_taken_at;
+    }
+
     const schedulesByMedId: Record<string, any[]> = {};
     for (const sched of schedulesResult.rows) {
       if (!schedulesByMedId[sched.medication_id]) {
@@ -104,6 +122,7 @@ async function listMedications(
 
     return medsResult.rows.map((med: any) => ({
       ...med,
+      last_taken_at: lastTakenByMedId[med.id] ?? null,
       schedules: schedulesByMedId[med.id] || [],
     }));
   } finally {

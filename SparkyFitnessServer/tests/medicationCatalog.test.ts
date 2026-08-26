@@ -534,3 +534,72 @@ describe('searchCatalog', () => {
     );
   });
 });
+
+describe('searchCatalog — the typo fallback', () => {
+  it('finds the drug behind a transposition', () => {
+    // The commonest way a typed drug name goes wrong: two adjacent letters swapped. Before the
+    // fuzzy pass these returned nothing at all, which for a peptide meant nothing anywhere —
+    // RxTerms carries none of them either.
+    expect(searchCatalog('retatrutdie')[0]?.drug.id).toBe('retatrutide');
+    expect(searchCatalog('tirzepatdie')[0]?.drug.id).toBe('tirzepatide');
+    expect(searchCatalog('ipamorleni')[0]?.drug.id).toBe('ipamorelin');
+  });
+
+  it('finds the drug behind a dropped or doubled letter', () => {
+    expect(searchCatalog('semaglutde')[0]?.drug.id).toBe('semaglutide');
+    expect(searchCatalog('ozempicc')[0]?.drug.id).toBe('ozempic');
+  });
+
+  it('says a row is a near miss so the UI can', () => {
+    const [hit] = searchCatalog('retatrutdie');
+    expect(hit?.viaTypo).toBe(true);
+    // And an ordinary match is not marked, so the caveat only appears where it is earned.
+    expect(searchCatalog('retatrutide')[0]?.viaTypo).toBe(false);
+  });
+
+  it('never competes with a real match', () => {
+    // The rule the substring-only comment was protecting: as long as one drug contains what was
+    // typed, no misspelling of another may appear beside it. 'tide' matches several molecules
+    // by substring; nothing fuzzy may join them.
+    const hits = searchCatalog('tide');
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((hit) => !hit.viaTypo)).toBe(true);
+  });
+
+  it('reaches a drug through a misspelled synonym', () => {
+    // 'MK-67' would be a plain substring of 'MK-677'; this is the digits transposed.
+    const [hit] = searchCatalog('MK-767');
+    expect(hit?.drug.id).toBe('ibutamoren');
+    expect(hit?.viaTypo).toBe(true);
+    expect(hit?.viaAlias).toBe(true);
+  });
+
+  it('ranks the closest spelling first', () => {
+    // Distance is a real comparison and it is the one that decides the row order, so the drug
+    // one edit away outranks anything two edits away.
+    const ids = searchCatalog('semaglutde').map((hit) => hit.drug.id);
+    expect(ids[0]).toBe('semaglutide');
+  });
+
+  it('refuses to guess at a term too short to be a misspelling', () => {
+    // Three characters is someone typing, not someone erring — and at that length half the
+    // catalog is within an edit of half the alphabet.
+    expect(searchCatalog('xyz')).toEqual([]);
+    expect(searchCatalog('hcx')).toEqual([]);
+  });
+
+  it('still returns nothing for a term that is not a drug name at all', () => {
+    expect(searchCatalog('grocery list')).toEqual([]);
+    expect(searchCatalog('zzzzqqqqxxxx')).toEqual([]);
+  });
+
+  it('never surfaces an inherited Object property through the fuzzy pass either', () => {
+    for (const term of ['constructor', 'toString', '__proto__', 'valueOf']) {
+      expect(searchCatalog(term)).toEqual([]);
+    }
+  });
+
+  it('honours the limit', () => {
+    expect(searchCatalog('semaglutde', 1).length).toBeLessThanOrEqual(1);
+  });
+});

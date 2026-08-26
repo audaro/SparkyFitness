@@ -10,7 +10,10 @@ import {
   searchRxTerms,
 } from '../integrations/rxterms/RxTermsService.js';
 import medicationRoutes from '../routes/v2/medicationRoutes.js';
-import { RXTERMS_FIXTURES } from './fixtures/rxtermsResponses.js';
+import {
+  RXNAV_SPELLING_FIXTURES,
+  RXTERMS_FIXTURES,
+} from './fixtures/rxtermsResponses.js';
 
 /**
  * Tier 3 of the medication search, end to end from the route down to the wire.
@@ -143,6 +146,7 @@ describe('GET /api/v2/medications/catalog-search', () => {
       expect(res.body).toEqual({
         products: [],
         unavailableReason: 'lookup_disabled',
+        correctedTerms: [],
       });
       // The assertion that matters. A response that merely discards the results would still
       // have sent the medication name to NLM.
@@ -186,6 +190,7 @@ describe('GET /api/v2/medications/catalog-search', () => {
       expect(res.body).toEqual({
         products: [],
         unavailableReason: 'upstream_unavailable',
+        correctedTerms: [],
       });
     });
 
@@ -306,8 +311,14 @@ describe('GET /api/v2/medications/catalog-search', () => {
       await search('?q=retatrutide').expect(200);
       const res = await search('?q=retatrutide').expect(200);
 
+      // One request, and no spelling fallback: retatrutide is a curated-catalog drug, so tier 2
+      // has already answered and RxTerms carrying nothing for it is expected, not a typo.
       expect(mockedAxios.get).toHaveBeenCalledTimes(1);
-      expect(res.body).toEqual({ products: [], unavailableReason: null });
+      expect(res.body).toEqual({
+        products: [],
+        unavailableReason: null,
+        correctedTerms: [],
+      });
     });
 
     it('keeps answering after the cache fills up', async () => {
@@ -339,6 +350,205 @@ describe('GET /api/v2/medications/catalog-search', () => {
 
       // A transient outage must not leave the user with an empty catalog for a day.
       expect(res.body.products.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('the typo fallback', () => {
+    /**
+     * Route each URL to its own canned response, so a test can express "RxTerms says nothing,
+     * RxNav suggests these, and each suggestion has its own rows" without caring what order the
+     * service asks in.
+     */
+    function upstreamRoutes(byTerm: Record<string, unknown>) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mockedAxios.get as any).mockImplementation(
+        (url: string, config: { params: Record<string, string> }) => {
+          const term = config.params['name'] ?? config.params['terms'] ?? '';
+          const key = url.includes('rxnav') ? `spelling:${term}` : term;
+          const data = byTerm[key];
+          if (data === undefined) {
+            return Promise.resolve({
+              status: 200,
+              data: RXTERMS_FIXTURES.noHits,
+            });
+          }
+          return Promise.resolve({ status: 200, data });
+        }
+      );
+    }
+
+    it('offers every spelling that produced rows, not just the closest one', async () => {
+      // The case the whole fallback is shaped around. RxNav's first answer to a metformin typo
+      // is merbromin — a topical mercury antiseptic — and stopping there would answer a diabetes
+      // drug with an antiseptic and nothing else.
+      optIn();
+      upstreamRoutes({
+        'spelling:metfromin': RXNAV_SPELLING_FIXTURES.metfromin,
+        merbromin: RXTERMS_FIXTURES.merbromin,
+        metformin: RXTERMS_FIXTURES.metformin,
+      });
+
+      const res = await search('?q=metfromin').expect(200);
+
+      expect(res.body.correctedTerms).toEqual(['merbromin', 'metformin']);
+      const names = res.body.products.map(
+        (p: { baseName: string }) => p.baseName
+      );
+      expect(names).toContain('Merbromin');
+      expect(names).toContain('metFORMIN');
+      // Interleaved, so the drug the user actually meant is in the first two rows rather than
+      // below however many rows the wrong suggestion happened to bring.
+      expect(names.slice(0, 2)).toEqual(['Merbromin', 'metFORMIN']);
+    });
+
+    it('says nothing about a spelling that produced no rows', async () => {
+      // "Did you mean merbromin?" above no merbromin rows is a correction the user can neither
+      // act on nor check.
+      optIn();
+      upstreamRoutes({
+        'spelling:metfromin': RXNAV_SPELLING_FIXTURES.metfromin,
+        metformin: RXTERMS_FIXTURES.metformin,
+      });
+
+      const res = await search('?q=metfromin').expect(200);
+
+      expect(res.body.correctedTerms).toEqual(['metformin']);
+    });
+
+    it('leaves a term that matched something alone', async () => {
+      optIn();
+      upstreamReturns(200, RXTERMS_FIXTURES.testosterone);
+
+      const res = await search('?q=testosterone').expect(200);
+
+      expect(res.body.correctedTerms).toEqual([]);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not spell-check a term whose rows were merely suppressed', async () => {
+      // Every semaglutide row is dropped because the curated catalog describes it better. The
+      // user spelled it perfectly; asking RxNav to fix it would be two wasted requests.
+      optIn();
+      upstreamReturns(200, RXTERMS_FIXTURES.semaglutide);
+
+      const res = await search('?q=semaglutide').expect(200);
+
+      expect(res.body.products).toEqual([]);
+      expect(res.body.correctedTerms).toEqual([]);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not spell-check a drug the bundled catalog already answers', async () => {
+      // RxTerms carries no peptide, so without this guard every ipamorelin search in the app
+      // would spend a spelling lookup plus a search per suggestion to arrive back at the tier 2
+      // row that had already rendered offline.
+      optIn();
+      upstreamReturns(200, RXTERMS_FIXTURES.noHits);
+
+      const res = await search('?q=ipamorelin').expect(200);
+
+      expect(res.body.correctedTerms).toEqual([]);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not spell-check a term short enough to be half-typed', async () => {
+      optIn();
+      upstreamReturns(200, RXTERMS_FIXTURES.noHits);
+
+      const res = await search('?q=zolp').expect(200);
+
+      expect(res.body.correctedTerms).toEqual([]);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('is silent when RxNav has no suggestion', async () => {
+      optIn();
+      upstreamRoutes({ 'spelling:zzzqqxxy': RXNAV_SPELLING_FIXTURES.none });
+
+      const res = await search('?q=zzzqqxxy').expect(200);
+
+      expect(res.body).toEqual({
+        products: [],
+        unavailableReason: null,
+        correctedTerms: [],
+      });
+    });
+
+    it('answers without a correction when RxNav itself is unreachable', async () => {
+      optIn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mockedAxios.get as any).mockImplementation((url: string) =>
+        url.includes('rxnav')
+          ? Promise.reject(new Error('boom'))
+          : Promise.resolve({ status: 200, data: RXTERMS_FIXTURES.noHits })
+      );
+
+      const res = await search('?q=testoterone').expect(200);
+
+      // Not `upstream_unavailable`: RxTerms answered. It answered "nothing", which is a real
+      // answer, and the form must not report an error over a failed spelling guess.
+      expect(res.body.unavailableReason).toBeNull();
+      expect(res.body.correctedTerms).toEqual([]);
+    });
+
+    it('does not freeze an uncorrected miss into the cache when RxNav failed', async () => {
+      optIn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mockedAxios.get as any).mockImplementation((url: string) =>
+        url.includes('rxnav')
+          ? Promise.reject(new Error('boom'))
+          : Promise.resolve({ status: 200, data: RXTERMS_FIXTURES.noHits })
+      );
+      await search('?q=testoterone').expect(200);
+
+      upstreamRoutes({
+        'spelling:testoterone': RXNAV_SPELLING_FIXTURES.testoterone,
+        testosterone: RXTERMS_FIXTURES.testosterone,
+      });
+      const res = await search('?q=testoterone').expect(200);
+
+      // A one-off RxNav blip must not make a typo permanently uncorrectable for this process.
+      expect(res.body.correctedTerms).toEqual(['testosterone']);
+    });
+
+    it('runs the whole chain once and then serves it from the cache', async () => {
+      optIn();
+      upstreamRoutes({
+        'spelling:testoterone': RXNAV_SPELLING_FIXTURES.testoterone,
+        testosterone: RXTERMS_FIXTURES.testosterone,
+      });
+
+      await search('?q=testoterone').expect(200);
+      const callsAfterFirst = vi.mocked(mockedAxios.get).mock.calls.length;
+      const res = await search('?q=Testoterone').expect(200);
+
+      // Three requests: the miss, the spelling lookup, one search for the suggestion.
+      expect(callsAfterFirst).toBe(3);
+      expect(vi.mocked(mockedAxios.get).mock.calls.length).toBe(3);
+      expect(res.body.correctedTerms).toEqual(['testosterone']);
+    });
+
+    it('keeps the mistyped name out of the log when the spelling lookup fails', async () => {
+      optIn();
+      const failure = Object.assign(new Error('connect ECONNREFUSED'), {
+        code: 'ECONNREFUSED',
+        config: {
+          url: 'https://rxnav.nlm.nih.gov/REST/spellingsuggestions.json',
+          params: { name: 'oxycodne' },
+        },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mockedAxios.get as any).mockImplementation((url: string) =>
+        url.includes('rxnav')
+          ? Promise.reject(failure)
+          : Promise.resolve({ status: 200, data: RXTERMS_FIXTURES.noHits })
+      );
+
+      await search('?q=oxycodne').expect(200);
+
+      const everythingLogged = JSON.stringify(vi.mocked(log).mock.calls);
+      expect(everythingLogged).not.toContain('oxycodne');
+      expect(everythingLogged).toContain('ECONNREFUSED');
     });
   });
 

@@ -147,6 +147,15 @@ dialog testable without a dropdown in the way. Mobile mirrors the same pick type
   (shared, so web and mobile make the same call), and a product with several strengths asks in the
   dialog rather than guessing. `rxnorm_rxcui` is stored from the strength picked, never the
   product, and is cleared the moment the name stops describing it.
+- **Tier 1 is ranked by use, not by alphabet.** `rankOwnMedications` (shared) orders the cabinet
+  active-first, then most recently taken, then the never-taken alphabetically, and only then
+  applies the four-row cap — a user with a dozen matches was otherwise offered whichever four
+  sorted first. It reads `last_taken_at`, a **derived** field only the list endpoint fills in.
+- **A tier 2 group can be a guess.** When `searchCatalog` matches nothing by substring it falls
+  back to edit distance and flags the hits `viaTypo`; the heading then says "Did you mean" rather
+  than "Known drugs". Tier 3 does the same in words: `correctedTerms` from the server names the
+  spellings its rows were actually found under, rendered as a sub-line under the NLM row, because
+  RxNav answers a metformin typo with merbromin as well as metformin.
 - The opt-in is `pages/Settings/MedicationSettings.tsx` (wellness tab). There is deliberately no
   nudge inside the dropdown.
 
@@ -184,6 +193,7 @@ dialog testable without a dropdown in the way. Mobile mirrors the same pick type
 - Chat (Sparky) issue: `src/pages/Chat/`, `src/components/ai/`, `src/api/Chatbot/`.
 - Theme/preferences issue: `src/contexts/ThemeContext.tsx`, `src/contexts/PreferencesContext.tsx`, `src/services/preferenceService.ts`, `src/utils/userPreferences.ts`.
 - Medication autofill issue (a suggestion missing, a wrong strength, a name that should not have been sent): "Medication Name Search" above, then `src/pages/Medications/MedicationNameCombobox.tsx`, `src/hooks/useMedicationCatalogSearch.ts`, and `AddMedicationDialog.handleNamePick`. Tier 3's _content_ is decided in `shared/src/medications/rxterms.ts` and on the server, not here.
+- Pen/vial inventory issue (a wrong doses-per-vial, a blank concentration): `src/pages/Medications/Glp1InventoryManager.tsx` opens its vial fields from `vialInventoryPrefill` (shared), which derives concentration, volume and doses-per-vial from the reconstitution record on the medication's `custom_fields`. Every field it declines to fill is a refusal, not an omission — an IU vial has no mg/mL, and a dose the vial cannot divide has no dose count — so the fix for a blank box is almost never to invent a default there. `DEFAULT_PEN_DOSES` / `DEFAULT_VIAL_DOSES` are the fallbacks for a medication with no mix on record.
 - Missing/wrong UI text: the i18n key in `public/locales/en/translation.json` and the `t('...')` call site.
 - Chart issue: Recharts usage in the domain page plus `src/components/ExerciseCharts/` or `ZoomableChart.tsx`.
 

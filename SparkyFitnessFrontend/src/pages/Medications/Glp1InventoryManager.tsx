@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Pencil, Trash2 } from 'lucide-react';
-import { todayInZone, addDays } from '@workspace/shared';
+import { todayInZone, addDays, vialInventoryPrefill } from '@workspace/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,14 @@ import {
 import { usePreferences } from '@/contexts/PreferencesContext';
 import type { Medication, MedicationPen } from '@/types/medications';
 
+/**
+ * What a pen or vial holds when nothing better is known. These are the numbers the form has
+ * always opened on; they stay as the fallback for a medication with no mix on record, and are
+ * named here so it is obvious they are guesses rather than facts about this drug.
+ */
+const DEFAULT_PEN_DOSES = '4';
+const DEFAULT_VIAL_DOSES = '10';
+
 interface Glp1InventoryManagerProps {
   med: Medication;
 }
@@ -57,7 +65,7 @@ export default function Glp1InventoryManager({
   );
   const [concentration, setConcentration] = useState('');
   const [volume, setVolume] = useState('');
-  const [dosesTotal, setDosesTotal] = useState('4');
+  const [dosesTotal, setDosesTotal] = useState(DEFAULT_PEN_DOSES);
   const [openedAt, setOpenedAt] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [reorderFlag, setReorderFlag] = useState(false);
@@ -69,6 +77,19 @@ export default function Glp1InventoryManager({
     preferencesContext?.timezone ||
     Intl.DateTimeFormat().resolvedOptions().timeZone;
   const today = todayInZone(timezone);
+
+  // What the medication already knows about its own vial. A reconstituted peptide carries the
+  // vial size, the diluent and the syringe it was mixed with, which is exactly the arithmetic
+  // this form was making the user redo by hand — see `vialInventoryPrefill`.
+  const vialPrefill = useMemo(
+    () =>
+      vialInventoryPrefill({
+        customFields: med.custom_fields,
+        doseAmount: med.dose_amount,
+        doseUnit: med.dose_unit,
+      }),
+    [med.custom_fields, med.dose_amount, med.dose_unit]
+  );
 
   const calculatedBudDate = useMemo(() => {
     if (!openedAt) return '';
@@ -97,14 +118,41 @@ export default function Glp1InventoryManager({
     }
   };
 
+  /**
+   * Fill the vial-only fields from the medication's own mix, or leave them on the old constants
+   * when there is nothing on record. `null` on a prefilled field is deliberate rather than a
+   * fallback: an IU vial has no mg/mL, and a vial whose dose does not divide it has no dose
+   * count, and inventing either is worse than an empty box the user fills in.
+   */
+  const applyVialFields = () => {
+    setConcentration(
+      vialPrefill?.concentrationMgMl != null
+        ? String(vialPrefill.concentrationMgMl)
+        : ''
+    );
+    setVolume(vialPrefill != null ? String(vialPrefill.volumeMl) : '');
+    setDosesTotal(
+      vialPrefill?.dosesTotal != null
+        ? String(vialPrefill.dosesTotal)
+        : DEFAULT_VIAL_DOSES
+    );
+  };
+
   const resetForm = () => {
     setEditingPen(null);
-    setKind('pen');
+    // A medication with a mix on record is a vial, so the form opens on the kind it is about to
+    // fill in rather than making the user switch before the prefill can appear.
+    const startAsVial = vialPrefill !== null;
+    setKind(startAsVial ? 'vial' : 'pen');
     setLabel('');
     setInventoryDoseMg(med.dose_amount != null ? String(med.dose_amount) : '');
-    setConcentration('');
-    setVolume('');
-    setDosesTotal('4');
+    if (startAsVial) {
+      applyVialFields();
+    } else {
+      setConcentration('');
+      setVolume('');
+      setDosesTotal(DEFAULT_PEN_DOSES);
+    }
     setOpenedAt('');
     setExpiryDate('');
     setReorderFlag(false);
@@ -338,11 +386,12 @@ export default function Glp1InventoryManager({
                 <Select
                   value={kind}
                   onValueChange={(v) => {
-                    setKind(v as 'pen' | 'vial');
-                    if (v === 'pen') {
-                      setDosesTotal('4');
+                    const next = v as 'pen' | 'vial';
+                    setKind(next);
+                    if (next === 'pen') {
+                      setDosesTotal(DEFAULT_PEN_DOSES);
                     } else {
-                      setDosesTotal('10');
+                      applyVialFields();
                     }
                   }}
                 >

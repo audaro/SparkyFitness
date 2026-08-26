@@ -27,8 +27,13 @@ jest.mock('../../src/hooks/useMedications', () => ({
 // the screen without a QueryClientProvider on purpose — the form's own data comes from the mocked
 // hooks above. `mock`-prefixed so the factory below may close over it.
 let mockCatalogProducts: RxTermsProduct[] = [];
+let mockCorrectedTerms: string[] = [];
 jest.mock('../../src/hooks/useMedicationCatalogSearch', () => ({
-  useMedicationCatalogSearch: () => ({ products: mockCatalogProducts, isFetching: false }),
+  useMedicationCatalogSearch: () => ({
+    products: mockCatalogProducts,
+    correctedTerms: mockCorrectedTerms,
+    isFetching: false,
+  }),
 }));
 
 jest.mock('../../src/components/Icon', () => {
@@ -627,6 +632,7 @@ describe('MedicationFormScreen — US catalog autofill', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCatalogProducts = [];
+    mockCorrectedTerms = [];
     mockUseMedications.mockReturnValue(
       { data: [] } as unknown as ReturnType<typeof useMedications>,
     );

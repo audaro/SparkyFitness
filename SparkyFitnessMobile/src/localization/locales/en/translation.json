@@ -1133,6 +1133,8 @@
     "search": {
       "yours": "Your medications",
       "known": "Known drugs",
+      "knownTypo": "Did you mean",
+      "correctedTo": "Showing results for {{terms}}",
       "addCustom": "Add \"{{name}}\" as a custom medication",
       "usCatalog": "US drug catalog",
       "nlmTag": "NLM",

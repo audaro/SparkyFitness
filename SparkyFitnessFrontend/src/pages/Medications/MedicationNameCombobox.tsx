@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Globe, Pill, Plus, Sparkles } from 'lucide-react';
 import {
   catalogRowSubtitle,
+  rankOwnMedications,
   rxTermsStrengthHint,
   searchCatalog,
   type CatalogDrug,
@@ -33,6 +34,7 @@ type Row =
       drug: CatalogDrug;
       matchedOn: string;
       viaAlias: boolean;
+      viaTypo: boolean;
     }
   | { key: string; kind: 'rxterms'; product: RxTermsProduct }
   | { key: string; kind: 'custom' };
@@ -99,28 +101,28 @@ export default function MedicationNameCombobox({
   // Tier 3: the US drug catalog, over the network, only if the user opted in. The hook owns the
   // debounce and the character threshold, and answers with an empty list for every failure — so
   // nothing below has to think about the NIH being down.
-  const { products: rxTermsProducts } = useMedicationCatalogSearch(query, {
-    limit: MAX_RXTERMS,
-    active: open,
-  });
+  const { products: rxTermsProducts, correctedTerms } =
+    useMedicationCatalogSearch(query, {
+      limit: MAX_RXTERMS,
+      active: open,
+    });
 
   const rows = useMemo<Row[]>(() => {
     // Tiers 1 and 2 are local and free, so they render from the first character rather than
     // waiting on a debounce. Only tier 3 waits, and it waits inside its own hook.
     if (!query) return [];
-    const needle = query.toLowerCase();
 
-    const own = (ownMedications ?? [])
-      .filter((med) => {
-        const haystack = `${med.name} ${med.display_name ?? ''}`.toLowerCase();
-        return haystack.includes(needle);
-      })
-      .slice(0, MAX_OWN)
-      .map<Row>((med) => ({
-        key: `own:${med.id}`,
-        kind: 'existing',
-        medication: med,
-      }));
+    // Ranked by use rather than by alphabet: with more matches than rows, the drugs this user
+    // actually takes are the ones worth the four slots. See `rankOwnMedications`.
+    const own = rankOwnMedications(
+      ownMedications ?? [],
+      query,
+      MAX_OWN
+    ).map<Row>((med) => ({
+      key: `own:${med.id}`,
+      kind: 'existing',
+      medication: med,
+    }));
 
     // Do not offer a catalog row for a drug the user already has under that name — the tier-1
     // row above is the same drug with their own strength and schedule already on it.
@@ -138,6 +140,7 @@ export default function MedicationNameCombobox({
         drug: hit.drug,
         matchedOn: hit.matchedOn,
         viaAlias: hit.viaAlias,
+        viaTypo: hit.viaTypo,
       }));
 
     // The server already drops any tier 3 product the curated catalog covers. What it cannot know
@@ -240,6 +243,14 @@ export default function MedicationNameCombobox({
   const firstRxTermsIndex = rows.findIndex((row) => row.kind === 'rxterms');
   const hasOwn = rows.some((row) => row.kind === 'existing');
 
+  // `searchCatalog` runs its fuzzy pass only when the substring pass found nothing, so tier 2 is
+  // all-or-nothing here and the first row speaks for the group. Reading it off the row rather
+  // than recomputing the search keeps the heading and the rows from ever disagreeing.
+  const catalogViaTypo =
+    firstCatalogIndex >= 0 && rows[firstCatalogIndex]?.kind === 'catalog'
+      ? (rows[firstCatalogIndex] as Extract<Row, { kind: 'catalog' }>).viaTypo
+      : false;
+
   return (
     <div ref={containerRef} className="relative">
       <Input
@@ -291,21 +302,39 @@ export default function MedicationNameCombobox({
                     role="presentation"
                     className="px-2 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
                   >
-                    {t('medications.search.known', 'Known drugs')}
+                    {/* A near-miss group says so. These rows are not what the user typed, and
+                        the difference between "here is your drug" and "here is a drug spelled
+                        a bit like what you typed" is the difference between a suggestion and a
+                        wrong medication record. */}
+                    {catalogViaTypo
+                      ? t('medications.search.knownTypo', 'Did you mean')
+                      : t('medications.search.known', 'Known drugs')}
                   </div>
                 )}
                 {index === firstRxTermsIndex && firstRxTermsIndex >= 0 && (
-                  <div
-                    role="presentation"
-                    className="flex items-center gap-1.5 px-2 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
-                  >
-                    {t('medications.search.usCatalog', 'US drug catalog')}
-                    {/* Named, not just styled. These rows come from someone else's data — the
-                        NIH's — and a user comparing a row against their own label deserves to
-                        know which list said it. */}
-                    <span className="rounded border px-1 text-[10px] font-medium normal-case tracking-normal">
-                      {t('medications.search.nlmTag', 'NLM')}
-                    </span>
+                  <div role="presentation" className="px-2 pt-2 pb-0.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t('medications.search.usCatalog', 'US drug catalog')}
+                      {/* Named, not just styled. These rows come from someone else's data — the
+                          NIH's — and a user comparing a row against their own label deserves to
+                          know which list said it. */}
+                      <span className="rounded border px-1 text-[10px] font-medium normal-case tracking-normal">
+                        {t('medications.search.nlmTag', 'NLM')}
+                      </span>
+                    </div>
+                    {correctedTerms.length > 0 && (
+                      // The server retried under a different spelling. Saying which one is not
+                      // a nicety: without it these rows read as confirmation that the drug was
+                      // spelled correctly, and one of them is routinely a different drug —
+                      // RxNav answers a metformin typo with merbromin first.
+                      <div className="text-[11px] normal-case tracking-normal text-muted-foreground">
+                        {t(
+                          'medications.search.correctedTo',
+                          'Showing results for {{terms}}',
+                          { terms: correctedTerms.join(', ') }
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 {row.kind === 'custom' && (

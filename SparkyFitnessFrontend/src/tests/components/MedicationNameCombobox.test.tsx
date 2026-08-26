@@ -5,6 +5,7 @@ import type { Medication } from '@/types/medications';
 
 let ownMedications: Medication[] = [];
 let catalogProducts: RxTermsProduct[] = [];
+let correctedTerms: string[] = [];
 
 jest.mock('@/hooks/useMedications', () => ({
   useMedications: () => ({ data: ownMedications }),
@@ -13,6 +14,7 @@ jest.mock('@/hooks/useMedications', () => ({
 jest.mock('@/hooks/useMedicationCatalogSearch', () => ({
   useMedicationCatalogSearch: () => ({
     products: catalogProducts,
+    correctedTerms,
     isFetching: false,
   }),
 }));
@@ -58,13 +60,19 @@ const strength = (
   unparsedReason: value === null ? 'unrecognised' : null,
 });
 
-const medication = (name: string): Medication =>
+const medication = (
+  name: string,
+  overrides: Partial<Medication> = {}
+): Medication =>
   ({
     id: `med-${name}`,
     name,
     display_name: null,
     strength_value: null,
     strength_unit: null,
+    is_active: true,
+    last_taken_at: null,
+    ...overrides,
   }) as unknown as Medication;
 
 const renderCombobox = (
@@ -95,6 +103,7 @@ const optionAt = (list: HTMLElement, index: number): HTMLElement => {
 beforeEach(() => {
   ownMedications = [];
   catalogProducts = [];
+  correctedTerms = [];
 });
 
 describe('MedicationNameCombobox tier 3', () => {
@@ -225,5 +234,89 @@ describe('MedicationNameCombobox tier 3', () => {
     // catalog row; the highlight resets instead, because the list it belonged to is gone.
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onPick).toHaveBeenCalledWith({ kind: 'existing', medication: own });
+  });
+});
+
+describe('MedicationNameCombobox tier 1 ordering', () => {
+  it('spends its four rows on the drugs the user actually takes', () => {
+    // Five matches, four slots. Alphabetically the one they take every week is last, so before
+    // recency ranking it was the one row that got dropped.
+    ownMedications = [
+      medication('Tadalafil'),
+      medication('Telmisartan'),
+      medication('Tetracycline'),
+      medication('Thiamine'),
+      medication('Tirzepatide', { last_taken_at: '2026-08-24T09:00:00.000Z' }),
+    ];
+
+    renderCombobox('t');
+    const list = openList();
+
+    expect(optionAt(list, 0).textContent).toContain('Tirzepatide');
+    const options = within(list)
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(options.filter((text) => text?.includes('Thiamine'))).toHaveLength(
+      0
+    );
+  });
+
+  it('keeps a discontinued drug below the active ones', () => {
+    ownMedications = [
+      medication('Tirzepatide', {
+        is_active: false,
+        last_taken_at: '2026-08-24T09:00:00.000Z',
+      }),
+      medication('Tesamorelin', { last_taken_at: '2026-01-01T09:00:00.000Z' }),
+    ];
+
+    renderCombobox('t');
+    const list = openList();
+
+    expect(optionAt(list, 0).textContent).toContain('Tesamorelin');
+  });
+});
+
+describe('MedicationNameCombobox — saying a row is a guess', () => {
+  it('names the spellings a tier 3 list was actually found under', () => {
+    // Without this line the rows read as confirmation that the drug was spelled correctly, and
+    // one of them is routinely a different drug: RxNav answers a metformin typo with merbromin.
+    catalogProducts = [product('Merbromin'), product('metFORMIN')];
+    correctedTerms = ['merbromin', 'metformin'];
+
+    renderCombobox('metfromin');
+    const list = openList();
+
+    expect(
+      within(list).getByText('Showing results for merbromin, metformin')
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing about spelling when the term matched as typed', () => {
+    catalogProducts = [product('Testosterone')];
+
+    renderCombobox('testosterone');
+    const list = openList();
+
+    expect(within(list).queryByText(/Showing results for/)).toBeNull();
+  });
+
+  it('labels a near-miss tier 2 group as a guess rather than as known drugs', () => {
+    // 'retatrutdie' matches nothing by substring, so `searchCatalog` falls back to its edit
+    // distance pass — and the heading has to say that is what happened.
+    renderCombobox('retatrutdie');
+    const list = openList();
+
+    expect(within(list).getByText('Did you mean')).toBeInTheDocument();
+    expect(within(list).queryByText('Known drugs')).toBeNull();
+    expect(optionAt(list, 0).textContent).toContain('Retatrutide');
+  });
+
+  it('keeps the ordinary heading for an ordinary match', () => {
+    renderCombobox('retatrutide');
+    const list = openList();
+
+    expect(within(list).getByText('Known drugs')).toBeInTheDocument();
+    expect(within(list).queryByText('Did you mean')).toBeNull();
   });
 });

@@ -35,6 +35,16 @@ const product = (baseName: string) => ({
 const answer = (...baseNames: string[]): MedicationCatalogSearchResponse => ({
   products: baseNames.map(product),
   unavailableReason: null,
+  correctedTerms: [],
+});
+
+const correctedAnswer = (
+  correctedTerms: string[],
+  ...baseNames: string[]
+): MedicationCatalogSearchResponse => ({
+  products: baseNames.map(product),
+  unavailableReason: null,
+  correctedTerms,
 });
 
 const wrapper = ({ children }: { children: React.ReactNode }) => {
@@ -166,6 +176,40 @@ describe('useMedicationCatalogSearch', () => {
     // offering a medication the user is not looking at.
     rerender({ term: 'levo' });
     expect(result.current.products).toEqual([]);
+  });
+
+  it('reports the spellings a corrected search was answered under', async () => {
+    searchMedicationCatalog.mockResolvedValue(
+      correctedAnswer(['merbromin', 'metformin'], 'Merbromin', 'metFORMIN')
+    );
+    const { result } = renderSearch('metfromin');
+    await settle();
+    await waitFor(() => expect(result.current.products).toHaveLength(2));
+    expect(result.current.correctedTerms).toEqual(['merbromin', 'metformin']);
+  });
+
+  it('drops the correction with the rows it explains', async () => {
+    // A caption that outlived its list would sit over someone else's results and claim they were
+    // found under a spelling that had nothing to do with them.
+    searchMedicationCatalog.mockResolvedValue(
+      correctedAnswer(['metformin'], 'metFORMIN')
+    );
+    const { result, rerender } = renderSearch('metfromin');
+    await settle();
+    await waitFor(() =>
+      expect(result.current.correctedTerms).toEqual(['metformin'])
+    );
+
+    rerender({ term: 'levo' });
+    expect(result.current.products).toEqual([]);
+    expect(result.current.correctedTerms).toEqual([]);
+  });
+
+  it('reports no correction for an ordinary match', async () => {
+    const { result } = renderSearch('testosterone');
+    await settle();
+    await waitFor(() => expect(result.current.products).toHaveLength(1));
+    expect(result.current.correctedTerms).toEqual([]);
   });
 
   it('reports no products, and no error, when the lookup fails', async () => {

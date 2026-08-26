@@ -92,6 +92,19 @@ export type MedicationCatalogUnavailableReason =
 export interface MedicationCatalogSearchResponse {
   products: RxTermsProduct[];
   unavailableReason: MedicationCatalogUnavailableReason | null;
+  /**
+   * The spellings these products were actually found under, when the term as typed found none.
+   *
+   * Empty — the ordinary case — means the products match what the user typed. Non-empty means the
+   * search was quietly retried against RxNav's suggested spellings (`rxnav.ts`), and the client
+   * **must say so**: these rows are answers to a question the user did not quite ask, and a row
+   * that appears without that caveat reads as confirmation that they spelled the drug correctly.
+   *
+   * More than one entry is normal and is the safety property, not an edge case. RxNav answers
+   * `metfromin` with `["merbromin", "metformin"]`; searching only the first would offer a mercury
+   * antiseptic and nothing else.
+   */
+  correctedTerms: string[];
 }
 
 /**
@@ -344,14 +357,31 @@ export function catalogCoversRxTermsProduct(displayName: string): boolean {
   return resolveCatalogDrug(baseName) !== undefined;
 }
 
+export interface RxTermsParseResult {
+  /** The products worth offering: everything RxTerms named, less what the catalog covers. */
+  products: RxTermsProduct[];
+  /**
+   * How many names RxTerms returned *before* suppression.
+   *
+   * The distinction this exists for is "RxTerms knows no such drug" versus "RxTerms knows it and
+   * tier 2 describes it better". Both leave `products` empty, and only the first is a spelling
+   * problem — spell-correcting `ozempic` because its rows were suppressed would spend two
+   * upstream requests to answer a question the user got right.
+   */
+  matchedNameCount: number;
+}
+
 /**
- * Turn one RxTerms response into products, dropping those the curated catalog already covers.
+ * Turn one RxTerms response into products, dropping those the curated catalog already covers,
+ * and report how many names it carried before that.
  *
  * Throws if the envelope is not the documented shape — see `rxTermsResponseSchema`. Callers
  * treat that as "tier 3 is unavailable", which is a state the search already has to handle for
  * offline and opt-out anyway.
  */
-export function parseRxTermsResponse(payload: unknown): RxTermsProduct[] {
+export function parseRxTermsResponseWithCounts(
+  payload: unknown,
+): RxTermsParseResult {
   const [, names, extras] = rxTermsResponseSchema.parse(payload);
 
   const strengthLists = extras.STRENGTHS_AND_FORMS ?? [];
@@ -378,5 +408,10 @@ export function parseRxTermsResponse(payload: unknown): RxTermsProduct[] {
     });
   });
 
-  return products;
+  return { products, matchedNameCount: names.length };
+}
+
+/** Products only, for callers with no interest in what suppression removed. */
+export function parseRxTermsResponse(payload: unknown): RxTermsProduct[] {
+  return parseRxTermsResponseWithCounts(payload).products;
 }
