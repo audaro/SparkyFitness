@@ -69,18 +69,32 @@ export const GENERATION_TUNABLES = {
   familiarityBonus: 2,
   /** Score for matching the coach profile's stated experience level. */
   levelMatchBonus: 1,
+  /**
+   * Penalty for a movement rated two levels above the user's stated
+   * experience (beginner ↔ expert) that they have never performed.
+   *
+   * Familiarity suppresses it — a logged session is proof they can do it, and
+   * evidence beats a self-description. One level of gap is deliberately not
+   * penalized: `intermediate` rows are most of the catalog, and beginners
+   * graduate through them. A penalty rather than an exclusion, for the same
+   * reason as `mobilityPenalty`: a muscle whose only candidates are expert
+   * movements should still get one, not an empty slot.
+   */
+  levelTooAdvancedPenalty: -2,
   /** Penalty for an exercise the current workout already used (Swap). */
   swapPenalty: -3,
   /**
    * Penalty for a mobility movement competing for a training slot.
    *
-   * Sized to lose to any real movement, including an unfamiliar one: it has to
-   * beat `familiarityBonus + levelMatchBonus`, or a stretch the user has done
+   * Sized to lose to any real movement: the best-scoring stretch (familiar
+   * and level-matched, `familiarityBonus + levelMatchBonus` = +3) has to land
+   * below the worst-scoring real movement (unfamiliar and two levels too
+   * advanced, `levelTooAdvancedPenalty` = -2), or a stretch the user has done
    * before would outrank a press they have not. Not a hard exclusion, so a
    * muscle whose catalog offers nothing else still gets something — programmed
    * as a hold, which is what {@link isMobilityExercise} is really for.
    */
-  mobilityPenalty: -4,
+  mobilityPenalty: -6,
 
   /** Working sets per exercise; strength trades reps for one more set. */
   workingSetsDefault: 3,
@@ -203,6 +217,18 @@ const DEFAULT_MUSCLE_SIZE_RANK = 1;
 // ---------------------------------------------------------------------------
 
 export type WorkoutGoal = "strength" | "hypertrophy" | "general";
+
+/**
+ * The exercises.level vocabulary as an ordering, so the too-advanced penalty
+ * can measure a gap rather than just equality. A level outside the vocabulary
+ * (free text on a hand-entered row) has no rank and takes no penalty in either
+ * direction — an unknown difficulty is not evidence of anything.
+ */
+const LEVEL_RANK: Readonly<Record<string, number>> = {
+  beginner: 0,
+  intermediate: 1,
+  expert: 2,
+};
 
 /** A catalog row, reduced to what selection needs. */
 export interface CandidateExercise {
@@ -586,8 +612,24 @@ function scoreCandidate(
     score += GENERATION_TUNABLES.familiarityBonus;
   }
   const level = options.experienceLevel?.trim().toLowerCase();
-  if (level && candidate.level?.trim().toLowerCase() === level) {
+  const candidateLevel = candidate.level?.trim().toLowerCase();
+  if (level && candidateLevel === level) {
     score += GENERATION_TUNABLES.levelMatchBonus;
+  }
+  // Both ranks known, never performed, and the gap is the full two levels
+  // (beginner ↔ expert): bias away, but only as a prior — a logged session is
+  // evidence the movement is within reach, and evidence wins. The other
+  // direction is free: a beginner-rated row is merely easy for an expert, not
+  // unsafe, and the match bonus already prefers the expert row when one exists.
+  const userRank = level ? LEVEL_RANK[level] : undefined;
+  const candidateRank = candidateLevel ? LEVEL_RANK[candidateLevel] : undefined;
+  if (
+    userRank !== undefined &&
+    candidateRank !== undefined &&
+    candidate.timesPerformed === 0 &&
+    candidateRank - userRank >= 2
+  ) {
+    score += GENERATION_TUNABLES.levelTooAdvancedPenalty;
   }
   if (excludeIds.has(candidate.id)) {
     score += GENERATION_TUNABLES.swapPenalty;
@@ -747,7 +789,20 @@ export function repTargetFor(goal: WorkoutGoal): number {
   return GENERATION_TUNABLES.repTargetGeneral;
 }
 
-export function workingSetCountFor(goal: WorkoutGoal): number {
+/**
+ * Working sets per exercise. A stated beginner caps at the default even on a
+ * strength goal: sets are the cheapest thing to add back next session and the
+ * most expensive to have prescribed wrongly, and the fourth hard set is where
+ * a new lifter's form goes first. Level shapes volume here and selection in
+ * {@link scoreCandidate} — never progression, which stays history-driven.
+ */
+export function workingSetCountFor(
+  goal: WorkoutGoal,
+  experienceLevel?: string | null,
+): number {
+  if (experienceLevel?.trim().toLowerCase() === "beginner") {
+    return GENERATION_TUNABLES.workingSetsDefault;
+  }
   return goal === "strength"
     ? GENERATION_TUNABLES.workingSetsStrength
     : GENERATION_TUNABLES.workingSetsDefault;
@@ -972,7 +1027,7 @@ export function prescribeSets(
     };
   }
 
-  const setCount = workingSetCountFor(options.goal);
+  const setCount = workingSetCountFor(options.goal, options.experienceLevel);
 
   if (exercise.modality === "duration") {
     const duration =

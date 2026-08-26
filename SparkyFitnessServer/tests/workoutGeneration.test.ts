@@ -17,6 +17,7 @@ import {
   selectTargetMuscles,
   warmupSetsFor,
   withWarmups,
+  workingSetCountFor,
   type CandidateExercise,
   type ExerciseHistoryInput,
   type FittableExercise,
@@ -677,6 +678,126 @@ describe('planWorkout', () => {
     ).toBe('c9');
   });
 
+  it('biases a stated beginner away from an unperformed expert movement', () => {
+    // The expert row gets the LOWER id, so if the two scored equally the
+    // tiebreak would pick it — the unleveled row winning is the penalty.
+    const expert = candidate({
+      id: 'c0-expert',
+      primaryMuscles: ['chest'],
+      mechanic: 'compound',
+      level: 'expert',
+    });
+    const unleveled = candidate({
+      id: 'c8-plain',
+      primaryMuscles: ['chest'],
+      mechanic: 'compound',
+    });
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [expert, unleveled],
+      options({ experienceLevel: 'beginner' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('c8-plain');
+  });
+
+  it('lets familiarity override the too-advanced penalty', () => {
+    // A logged session is evidence the movement is within reach; the stated
+    // level is only a prior. The familiar expert row must win on score — it
+    // has the higher id, so a tie would go the other way.
+    const familiarExpert = candidate({
+      id: 'c9-expert',
+      primaryMuscles: ['chest'],
+      mechanic: 'compound',
+      level: 'expert',
+      timesPerformed: 12,
+    });
+    const matchedUnfamiliar = candidate({
+      id: 'c0-beginner',
+      primaryMuscles: ['chest'],
+      mechanic: 'compound',
+      level: 'beginner',
+    });
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [familiarExpert, matchedUnfamiliar],
+      options({ experienceLevel: 'beginner' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('c9-expert');
+  });
+
+  it('does not penalize a one-level gap, in either direction', () => {
+    // Intermediate rows are most of the catalog; penalizing them would starve
+    // a beginner's workout. Both pairs tie on score, so the lower id winning
+    // is what proves no penalty term fired against the off-level row.
+    const forBeginner = planWorkout(
+      [fresh('chest', 1)],
+      [
+        candidate({
+          id: 'a-intermediate',
+          primaryMuscles: ['chest'],
+          mechanic: 'compound',
+          level: 'intermediate',
+        }),
+        candidate({
+          id: 'b-plain',
+          primaryMuscles: ['chest'],
+          mechanic: 'compound',
+        }),
+      ],
+      options({ experienceLevel: 'beginner' })
+    );
+    expect(forBeginner.exercises[0]!.candidate.id).toBe('a-intermediate');
+
+    // And the full gap downward is free too: a beginner-rated row is merely
+    // easy for an expert, not unsafe.
+    const forExpert = planWorkout(
+      [fresh('chest', 1)],
+      [
+        candidate({
+          id: 'a-beginner',
+          primaryMuscles: ['chest'],
+          mechanic: 'compound',
+          level: 'beginner',
+        }),
+        candidate({
+          id: 'b-plain',
+          primaryMuscles: ['chest'],
+          mechanic: 'compound',
+        }),
+      ],
+      options({ experienceLevel: 'expert' })
+    );
+    expect(forExpert.exercises[0]!.candidate.id).toBe('a-beginner');
+  });
+
+  it('keeps the best-scoring stretch below the worst-scoring real movement', () => {
+    // The invariant behind mobilityPenalty's size, asserted as behaviour
+    // rather than as arithmetic on the constants: a familiar, level-matched
+    // stretch must still lose the slot to an unfamiliar movement rated two
+    // levels above the user.
+    const bestStretch = {
+      ...STRETCH,
+      primaryMuscles: ['chest'],
+      level: 'beginner',
+      timesPerformed: 20,
+    };
+    const worstReal = candidate({
+      id: 'z-expert',
+      primaryMuscles: ['chest'],
+      mechanic: 'compound',
+      level: 'expert',
+    });
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [bestStretch, worstReal],
+      options({ experienceLevel: 'beginner' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('z-expert');
+  });
+
   it('never uses the same exercise twice, even when it is the only option for two muscles', () => {
     // A soft score penalty would let this through, and the result is not a
     // slightly worse workout — it is the same card rendered twice.
@@ -855,6 +976,37 @@ describe('prescribeSets', () => {
     );
     expect(hypertrophy.sets[0]!.reps).toBe(
       GENERATION_TUNABLES.repTargetHypertrophy
+    );
+  });
+
+  it('caps a stated beginner at the default set count, even for strength', () => {
+    // Sets are the cheapest thing to add back next session and the most
+    // expensive to have prescribed wrongly. Only the count moves: the rep
+    // target and the progression rules stay exactly as the goal set them.
+    const beginner = prescribeSets(
+      candidate({ id: 'a' }),
+      null,
+      options({ goal: 'strength', experienceLevel: 'beginner' })
+    );
+    expect(beginner.sets).toHaveLength(GENERATION_TUNABLES.workingSetsDefault);
+    expect(beginner.sets[0]!.reps).toBe(GENERATION_TUNABLES.repTargetStrength);
+
+    expect(workingSetCountFor('strength', 'beginner')).toBe(
+      GENERATION_TUNABLES.workingSetsDefault
+    );
+    expect(workingSetCountFor('hypertrophy', 'beginner')).toBe(
+      GENERATION_TUNABLES.workingSetsDefault
+    );
+    // Anyone else — expert, unstated, or an unknown token — keeps the goal's
+    // own count.
+    expect(workingSetCountFor('strength', 'expert')).toBe(
+      GENERATION_TUNABLES.workingSetsStrength
+    );
+    expect(workingSetCountFor('strength', null)).toBe(
+      GENERATION_TUNABLES.workingSetsStrength
+    );
+    expect(workingSetCountFor('strength')).toBe(
+      GENERATION_TUNABLES.workingSetsStrength
     );
   });
 
