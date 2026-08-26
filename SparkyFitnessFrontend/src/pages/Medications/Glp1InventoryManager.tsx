@@ -40,6 +40,17 @@ import type { Medication, MedicationPen } from '@/types/medications';
 const DEFAULT_PEN_DOSES = '4';
 const DEFAULT_VIAL_DOSES = '10';
 
+/**
+ * The beyond-use window offered for a vial once it is opened.
+ *
+ * 28 days is the figure for a multi-dose vial reconstituted with **bacteriostatic** water — the
+ * benzyl alcohol in it is what buys the month — kept refrigerated. It is badly wrong for sterile
+ * preservative-free water, which is hours to a day, and the reconstitution record does not
+ * capture which diluent was used. So this is a starting point the user can overwrite, labelled
+ * with the assumption it makes, rather than a date the form asserts.
+ */
+const BUD_WINDOW_DAYS = 28;
+
 interface Glp1InventoryManagerProps {
   med: Medication;
 }
@@ -68,6 +79,11 @@ export default function Glp1InventoryManager({
   const [dosesTotal, setDosesTotal] = useState(DEFAULT_PEN_DOSES);
   const [openedAt, setOpenedAt] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
+  const [budDate, setBudDate] = useState('');
+  // Once the user has a BUD of their own — typed here, or already saved on the row — the
+  // opened date stops rewriting it. Silently recomputing over a date someone set by hand is
+  // how a shorter, deliberate window gets replaced by the generous default.
+  const [budTouched, setBudTouched] = useState(false);
   const [reorderFlag, setReorderFlag] = useState(false);
   const [reorderThreshold, setReorderThreshold] = useState('1');
   const [notes, setNotes] = useState('');
@@ -91,14 +107,20 @@ export default function Glp1InventoryManager({
     [med.custom_fields, med.dose_amount, med.dose_unit]
   );
 
-  const calculatedBudDate = useMemo(() => {
-    if (!openedAt) return '';
+  /** The BUD the window suggests for a given opened date, or '' when there is nothing to add to. */
+  const suggestBudDate = (opened: string) => {
+    if (!opened) return '';
     try {
-      return addDays(openedAt, 28);
+      return addDays(opened, BUD_WINDOW_DAYS);
     } catch {
       return '';
     }
-  }, [openedAt]);
+  };
+
+  const handleOpenedAtChange = (next: string) => {
+    setOpenedAt(next);
+    if (!budTouched) setBudDate(suggestBudDate(next));
+  };
 
   const getExpiryStatus = (
     targetDateStr: string | null,
@@ -125,16 +147,24 @@ export default function Glp1InventoryManager({
    * count, and inventing either is worse than an empty box the user fills in.
    */
   const applyVialFields = () => {
+    if (vialPrefill === null) {
+      // Nothing on record, so the old constants are all there is to open on.
+      setConcentration('');
+      setVolume('');
+      setDosesTotal(DEFAULT_VIAL_DOSES);
+      return;
+    }
     setConcentration(
-      vialPrefill?.concentrationMgMl != null
+      vialPrefill.concentrationMgMl != null
         ? String(vialPrefill.concentrationMgMl)
         : ''
     );
-    setVolume(vialPrefill != null ? String(vialPrefill.volumeMl) : '');
+    setVolume(String(vialPrefill.volumeMl));
+    // A refused dose count leaves an empty box, not the constant. `doses_total` is what the
+    // run-out date is computed from, and a 10 sitting on a vial whose mix we *have* measured
+    // reads as derived when it is a guess — which is the failure this prefill exists to end.
     setDosesTotal(
-      vialPrefill?.dosesTotal != null
-        ? String(vialPrefill.dosesTotal)
-        : DEFAULT_VIAL_DOSES
+      vialPrefill.dosesTotal != null ? String(vialPrefill.dosesTotal) : ''
     );
   };
 
@@ -155,6 +185,8 @@ export default function Glp1InventoryManager({
     }
     setOpenedAt('');
     setExpiryDate('');
+    setBudDate('');
+    setBudTouched(false);
     setReorderFlag(false);
     setReorderThreshold('1');
     setNotes('');
@@ -177,6 +209,10 @@ export default function Glp1InventoryManager({
     setDosesTotal(pen.doses_total != null ? String(pen.doses_total) : '');
     setOpenedAt(pen.opened_at ?? '');
     setExpiryDate(pen.expiry_date ?? '');
+    setBudDate(pen.bud_date ?? '');
+    // A stored BUD is already someone's answer; only a row without one is still open to the
+    // suggestion.
+    setBudTouched(pen.bud_date != null);
     setReorderFlag(pen.reorder_flag);
     setReorderThreshold(
       pen.reorder_threshold != null ? String(pen.reorder_threshold) : '1'
@@ -196,7 +232,7 @@ export default function Glp1InventoryManager({
       doses_total: dosesTotal ? Number(dosesTotal) : null,
       opened_at: openedAt || null,
       expiry_date: expiryDate || null,
-      bud_date: calculatedBudDate || null,
+      bud_date: budDate || null,
       reorder_flag: reorderFlag,
       reorder_threshold:
         reorderFlag && reorderThreshold ? Number(reorderThreshold) : null,
@@ -479,7 +515,7 @@ export default function Glp1InventoryManager({
                   id="inv-opened"
                   type="date"
                   value={openedAt}
-                  onChange={(e) => setOpenedAt(e.target.value)}
+                  onChange={(e) => handleOpenedAtChange(e.target.value)}
                 />
               </div>
 
@@ -495,15 +531,22 @@ export default function Glp1InventoryManager({
             </div>
 
             {openedAt && (
-              <div className="rounded-md bg-muted p-2 text-xs">
-                <span className="font-semibold text-muted-foreground">
-                  Calculated Beyond-Use Date (BUD):
-                </span>{' '}
-                <span className="font-medium">
-                  {calculatedBudDate || 'N/A'}
-                </span>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Based on 28-day stability window from first opening.
+              <div className="space-y-1">
+                <Label htmlFor="inv-bud">Beyond-Use Date (BUD)</Label>
+                <Input
+                  id="inv-bud"
+                  type="date"
+                  value={budDate}
+                  onChange={(e) => {
+                    setBudDate(e.target.value);
+                    setBudTouched(true);
+                  }}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Suggested as {BUD_WINDOW_DAYS} days from opening — the window
+                  for a vial reconstituted with bacteriostatic water and kept
+                  refrigerated. Sterile preservative-free water is far shorter.
+                  Edit the date if that is not your mix.
                 </p>
               </div>
             )}

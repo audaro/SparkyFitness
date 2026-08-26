@@ -122,11 +122,26 @@ two until someone corrected it by hand.
 | dose the vial cannot hold, or a cross-family dose | `dosesTotal: null` — `reconstitute` refuses, so this does too |
 | no record, or a half-written one | returns `null`; the form stays on `DEFAULT_PEN_DOSES` / `DEFAULT_VIAL_DOSES` |
 
-**The 28-day BUD window was left alone.** It is hardcoded in `calculatedBudDate` and is the
-pen-in-use figure, not a reconstituted peptide's beyond-use date. Changing a safety-adjacent
-default without a source is exactly what the blueprint's "it converts numbers the user entered, it
-does not recommend" framing rules out. Flagging it as an open question rather than silently
-picking a number.
+**The 28-day BUD window — resolved 2026-08-26.** 28 days is not arbitrary and not wrong: it is the
+figure for a multi-dose vial reconstituted with **bacteriostatic** water (the benzyl alcohol in it
+is what buys the month) and kept refrigerated. It is badly wrong for sterile preservative-free
+water, which is hours to a day — and `ReconstitutionRecord` records the syringe but **not the
+diluent**, so the form cannot tell which case it is in.
+
+So it stayed 28 days and stopped being asserted. `BUD_WINDOW_DAYS` prefills an **editable** date
+field, captioned with the assumption it makes. `budTouched` stops the opened date from recomputing
+a BUD the user typed, or one already stored on the row — silently overwriting a deliberately
+shorter window with the generous default is the failure mode that matters here. Adding `diluent`
+to the reconstitution record would let this be derived rather than assumed; that is a real
+follow-up, not a blocker.
+
+**`dosesTotal`'s fallback — resolved 2026-08-26.** Writing the component tests surfaced that
+`applyVialFields` contradicted its own JSDoc: it blanked a refused *concentration* but fell back to
+`DEFAULT_VIAL_DOSES` for a refused *dose count*. It now leaves the box empty, and
+`handleSaveInventory` already turns that into `doses_total: null`. The constants are now reached
+only when there is no mix on record at all. The reasoning: `doses_total` is what the run-out date
+is computed from, and a plausible `10` sitting on a vial whose mix was actually measured reads as
+derived when it is a guess — the exact failure this prefill exists to end.
 
 ---
 
@@ -137,9 +152,13 @@ a real exit code:
 
 | Package | validate | tests |
 |---|---|---|
-| Server | pass | 299 suites, 4446 passed, 2 skipped |
-| Frontend | pass | 116 suites, 1145 passed |
+| Server | pass | 300 suites, 4453 passed, 2 skipped |
+| Frontend | pass | 117 suites, 1176 passed |
 | Mobile | pass | 381 suites, 6156 passed |
+
+The server figures include `medicationLastTaken.integration.test.ts`, which **skips** rather than
+fails when no database is reachable — a contributor without Postgres will see 299 suites and one
+skipped file, which is the intended behaviour, not a broken gate.
 
 New suites: `medicationTypo.test.ts` (14), `medicationOwnRanking.test.ts` (12). Extended:
 `medicationCatalogSearch.test.ts`, `medicationCatalog.test.ts`, `medicationRepository.test.ts`
@@ -166,9 +185,41 @@ isolation; run the server suite on its own.
 — the medication-search sections now carry the typo guards, the tier-1 ranking rule, and (web) the
 vial prefill.
 
+## Coverage added 2026-08-26
+
+Two gaps found by auditing this work rather than by a failing test, both now closed.
+
+**`Glp1InventoryManager` had zero tests.** It was mocked to `() => null` in the only suite that
+referenced it, so the Phase 5 behaviour change — the dialog now opening on `vial` and prefilling
+three fields — shipped with nothing but typecheck behind it. It now has 31
+(`src/tests/components/Glp1InventoryManager.test.tsx`): the inventory list, the prefill including
+the mcg and IU conversions and every `reconstitute` refusal, kind switching, the save bodies, the
+BUD rules, and the edit path (a saved row outranks the prefill). Radix `Select` is swapped for
+buttons and `Dialog` for a passthrough, both following `EditFoodEntryDialog.test.tsx`.
+
+Checked for vacuousness by mutation, since they passed first run: forcing `startAsVial = false`
+fails 10 of them, and neutering the kind-switch prefill fails exactly the one test that covers
+that path.
+
+**`last_taken_at` had never run against a real Postgres.** `medicationRepository.test.ts` mocks
+the pg client and `medicationRoutes.test.ts` mocks the repository, so both could only assert the
+SQL's shape. `tests/medicationLastTaken.integration.test.ts` runs the real query on a real
+database, following the probe/seed/cleanup pattern of `exerciseEntryStats.integration.test.ts` and
+skipping cleanly when no DB is reachable. Seven assertions, of which the load-bearing one is that
+**`medication_id = ANY($1)` infers `uuid[]` from a JS string array** — the query has no explicit
+`::uuid[]` cast (the neighbouring exercise test does cast), and had the inference not held, every
+medications list read would fail at runtime with the entire mocked suite green. Verified by
+mutation: widening the status filter to include `'skipped'` fails the refusal test.
+
 ## Open risks / next step
 
-- **The 28-day BUD window** above. Needs a decision, not a guess.
+- **The reconstitution record does not capture the diluent**, so the BUD suggestion assumes
+  bacteriostatic water and says so rather than deriving it. Adding `diluent` to
+  `ReconstitutionRecord` would make it derivable — the natural follow-up.
 - `last_taken_at` is one extra aggregate on every medications list read. Indexed by
   `idx_medication_entries_user_id`; watch it if a user's entry history gets large.
-- Phase 5 is complete. The blueprint's remaining phases are what to pick up next.
+- The inventory dialog's strings are hardcoded English (`Kind`, `Total Doses`, and now the BUD
+  caption). That predates this work and the new strings match the file; converting the dialog to
+  `t()` is its own change.
+- Phase 5 is complete and its open questions are closed. Phase 6 (openFDA enrichment, a persistent
+  cache table) is marked optional in the blueprint.
