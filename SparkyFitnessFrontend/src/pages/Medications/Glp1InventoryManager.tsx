@@ -301,7 +301,11 @@ export default function Glp1InventoryManager({
               <div key={p.id} className="rounded-lg border p-3 text-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium capitalize">{p.kind}</span>
+                    <span className="font-medium">
+                      {p.kind === 'vial'
+                        ? t('medications.glp1.inv.kindVial', 'Vial')
+                        : t('medications.glp1.inv.kindPen', 'Pen')}
+                    </span>
                     {p.label && (
                       <span className="text-muted-foreground">({p.label})</span>
                     )}
@@ -317,7 +321,7 @@ export default function Glp1InventoryManager({
                     ) : null}
                     {p.status === 'in_use' && (
                       <Badge variant="secondary" className="text-[10px]">
-                        in use
+                        {t('medications.glp1.inv.inUse', 'in use')}
                       </Badge>
                     )}
                   </div>
@@ -329,13 +333,14 @@ export default function Glp1InventoryManager({
                           variant="destructive"
                           className="flex items-center gap-1 text-[10px]"
                         >
-                          <AlertTriangle className="h-3 w-3" /> Reorder
+                          <AlertTriangle className="h-3 w-3" />{' '}
+                          {t('medications.glp1.inv.reorder', 'Reorder')}
                         </Badge>
                       )}
                     <span className="font-medium tabular-nums">
                       {left}/{total || '?'}{' '}
                       <span className="font-normal text-muted-foreground">
-                        doses
+                        {t('medications.glp1.inv.doses', 'doses')}
                       </span>
                     </span>
                     <Button
@@ -343,7 +348,10 @@ export default function Glp1InventoryManager({
                       size="icon"
                       className="h-7 w-7 text-muted-foreground"
                       onClick={() => openEditDialog(p)}
-                      aria-label="Edit pen/vial"
+                      aria-label={t(
+                        'medications.glp1.inv.editAria',
+                        'Edit pen/vial'
+                      )}
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -353,7 +361,10 @@ export default function Glp1InventoryManager({
                       className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                       onClick={() => deletePenMutation.mutate(p.id)}
                       disabled={deletePenMutation.isPending}
-                      aria-label="Remove pen/vial"
+                      aria-label={t(
+                        'medications.glp1.inv.removeAria',
+                        'Remove pen/vial'
+                      )}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -369,36 +380,46 @@ export default function Glp1InventoryManager({
                   <div className="mt-1.5 flex gap-3 text-xs text-muted-foreground flex-wrap items-center">
                     {p.expiry_date && (
                       <span className="flex items-center gap-1">
-                        Exp {p.expiry_date}
+                        {t('medications.glp1.inv.expiry', 'Exp {{date}}', {
+                          date: p.expiry_date,
+                        })}
                         {expStatus === 'expired' && (
                           <Badge
                             variant="destructive"
                             className="text-[9px] px-1 py-0 h-4"
                           >
-                            Expired
+                            {t('medications.glp1.inv.expired', 'Expired')}
                           </Badge>
                         )}
                         {expStatus === 'near' && (
                           <Badge className="text-[9px] px-1 py-0 h-4 bg-amber-500 text-white hover:bg-amber-600">
-                            Near Exp
+                            {t('medications.glp1.inv.nearExpiry', 'Near Exp')}
                           </Badge>
                         )}
                       </span>
                     )}
                     {p.bud_date && (
                       <span className="flex items-center gap-1">
-                        BUD {p.bud_date}
+                        {t('medications.glp1.inv.bud', 'BUD {{date}}', {
+                          date: p.bud_date,
+                        })}
                         {budStatus === 'expired' && (
                           <Badge
                             variant="destructive"
                             className="text-[9px] px-1 py-0 h-4"
                           >
-                            Expired (BUD)
+                            {t(
+                              'medications.glp1.inv.budExpired',
+                              'Expired (BUD)'
+                            )}
                           </Badge>
                         )}
                         {budStatus === 'near' && (
                           <Badge className="text-[9px] px-1 py-0 h-4 bg-amber-500 text-white hover:bg-amber-600 font-semibold">
-                            BUD Warning
+                            {t(
+                              'medications.glp1.inv.budWarning',
+                              'BUD Warning'
+                            )}
                           </Badge>
                         )}
                       </span>
@@ -407,7 +428,9 @@ export default function Glp1InventoryManager({
                 )}
                 {p.notes && (
                   <p className="mt-1.5 text-xs text-muted-foreground italic border-t pt-1">
-                    Notes: {p.notes}
+                    {t('medications.glp1.inv.notesLine', 'Notes: {{notes}}', {
+                      notes: p.notes,
+                    })}
                   </p>
                 )}
               </div>
@@ -422,14 +445,22 @@ export default function Glp1InventoryManager({
           <DialogHeader>
             <DialogTitle>
               {editingPen
-                ? 'Edit Pen / Vial Inventory'
-                : 'Add Pen / Vial Inventory'}
+                ? t(
+                    'medications.glp1.inv.editTitle',
+                    'Edit Pen / Vial Inventory'
+                  )
+                : t(
+                    'medications.glp1.inv.addTitle',
+                    'Add Pen / Vial Inventory'
+                  )}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="inv-kind">Kind</Label>
+                <Label htmlFor="inv-kind">
+                  {t('medications.glp1.inv.kind', 'Kind')}
+                </Label>
                 <Select
                   value={kind}
                   onValueChange={(v) => {
@@ -446,17 +477,26 @@ export default function Glp1InventoryManager({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pen">Pen</SelectItem>
-                    <SelectItem value="vial">Vial</SelectItem>
+                    <SelectItem value="pen">
+                      {t('medications.glp1.inv.kindPen', 'Pen')}
+                    </SelectItem>
+                    <SelectItem value="vial">
+                      {t('medications.glp1.inv.kindVial', 'Vial')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="inv-label">Label / Name</Label>
+                <Label htmlFor="inv-label">
+                  {t('medications.glp1.inv.label', 'Label / Name')}
+                </Label>
                 <Input
                   id="inv-label"
-                  placeholder="e.g. Pen #2, Vial Batch A"
+                  placeholder={t(
+                    'medications.glp1.inv.labelPlaceholder',
+                    'e.g. Pen #2, Vial Batch A'
+                  )}
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                 />
@@ -465,7 +505,9 @@ export default function Glp1InventoryManager({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="inv-dose">Dose Strength (mg)</Label>
+                <Label htmlFor="inv-dose">
+                  {t('medications.glp1.inv.doseStrength', 'Dose Strength (mg)')}
+                </Label>
                 <Input
                   id="inv-dose"
                   type="number"
@@ -479,7 +521,9 @@ export default function Glp1InventoryManager({
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="inv-doses-total">Total Doses</Label>
+                <Label htmlFor="inv-doses-total">
+                  {t('medications.glp1.inv.totalDoses', 'Total Doses')}
+                </Label>
                 <Input
                   id="inv-doses-total"
                   type="number"
@@ -493,25 +537,36 @@ export default function Glp1InventoryManager({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="inv-concentration">
-                    Concentration (mg/mL)
+                    {t(
+                      'medications.glp1.inv.concentration',
+                      'Concentration (mg/mL)'
+                    )}
                   </Label>
                   <Input
                     id="inv-concentration"
                     type="number"
                     step="0.1"
-                    placeholder="e.g. 5"
+                    placeholder={t(
+                      'medications.glp1.inv.concentrationPlaceholder',
+                      'e.g. 5'
+                    )}
                     value={concentration}
                     onChange={(e) => setConcentration(e.target.value)}
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="inv-volume">Volume (mL)</Label>
+                  <Label htmlFor="inv-volume">
+                    {t('medications.glp1.inv.volume', 'Volume (mL)')}
+                  </Label>
                   <Input
                     id="inv-volume"
                     type="number"
                     step="0.1"
-                    placeholder="e.g. 2"
+                    placeholder={t(
+                      'medications.glp1.inv.volumePlaceholder',
+                      'e.g. 2'
+                    )}
                     value={volume}
                     onChange={(e) => setVolume(e.target.value)}
                   />
@@ -521,7 +576,9 @@ export default function Glp1InventoryManager({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="inv-opened">Date Opened</Label>
+                <Label htmlFor="inv-opened">
+                  {t('medications.glp1.inv.dateOpened', 'Date Opened')}
+                </Label>
                 <Input
                   id="inv-opened"
                   type="date"
@@ -531,7 +588,9 @@ export default function Glp1InventoryManager({
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="inv-expiry">Expiry Date</Label>
+                <Label htmlFor="inv-expiry">
+                  {t('medications.glp1.inv.expiryDate', 'Expiry Date')}
+                </Label>
                 <Input
                   id="inv-expiry"
                   type="date"
@@ -543,7 +602,9 @@ export default function Glp1InventoryManager({
 
             {openedAt && (
               <div className="space-y-1">
-                <Label htmlFor="inv-bud">Beyond-Use Date (BUD)</Label>
+                <Label htmlFor="inv-bud">
+                  {t('medications.glp1.inv.budLabel', 'Beyond-Use Date (BUD)')}
+                </Label>
                 <Input
                   id="inv-bud"
                   type="date"
@@ -555,10 +616,21 @@ export default function Glp1InventoryManager({
                 />
                 <p className="text-[10px] text-muted-foreground">
                   {budGuidance.reason === 'preservative_free'
-                    ? 'This mix was made with a preservative-free diluent, so there is no multi-day window to suggest. Set a date from your own supply and storage.'
+                    ? t(
+                        'medications.glp1.inv.budPreservativeFree',
+                        'This mix was made with a preservative-free diluent, so there is no multi-day window to suggest. Set a date from your own supply and storage.'
+                      )
                     : budGuidance.reason === 'preserved'
-                      ? `Suggested as ${budGuidance.days} days from opening, from the preserved diluent recorded for this mix, kept refrigerated.`
-                      : `Suggested as ${budGuidance.days} days from opening. This mix does not record what it was diluted with, so that figure assumes a preserved diluent — edit the date if it was not.`}
+                      ? t(
+                          'medications.glp1.inv.budPreserved',
+                          'Suggested as {{days}} days from opening, from the preserved diluent recorded for this mix, kept refrigerated.',
+                          { days: budGuidance.days }
+                        )
+                      : t(
+                          'medications.glp1.inv.budUnstated',
+                          'Suggested as {{days}} days from opening. This mix does not record what it was diluted with, so that figure assumes a preserved diluent — edit the date if it was not.',
+                          { days: budGuidance.days }
+                        )}
                 </p>
               </div>
             )}
@@ -566,9 +638,17 @@ export default function Glp1InventoryManager({
             <div className="rounded-md border p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="inv-reorder" className="flex flex-col gap-0.5">
-                  <span>Enable Reorder Warning</span>
+                  <span>
+                    {t(
+                      'medications.glp1.inv.reorderToggle',
+                      'Enable Reorder Warning'
+                    )}
+                  </span>
                   <span className="font-normal text-[10px] text-muted-foreground">
-                    Alert when remaining doses are low
+                    {t(
+                      'medications.glp1.inv.reorderHint',
+                      'Alert when remaining doses are low'
+                    )}
                   </span>
                 </Label>
                 <Switch
@@ -581,7 +661,10 @@ export default function Glp1InventoryManager({
               {reorderFlag && (
                 <div className="space-y-1 pt-1">
                   <Label htmlFor="inv-threshold">
-                    Reorder Threshold (doses left)
+                    {t(
+                      'medications.glp1.inv.reorderThreshold',
+                      'Reorder Threshold (doses left)'
+                    )}
                   </Label>
                   <Input
                     id="inv-threshold"
@@ -594,10 +677,15 @@ export default function Glp1InventoryManager({
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="inv-notes">Notes</Label>
+              <Label htmlFor="inv-notes">
+                {t('medications.glp1.inv.notes', 'Notes')}
+              </Label>
               <Textarea
                 id="inv-notes"
-                placeholder="Batch number, brand, pharmacy info..."
+                placeholder={t(
+                  'medications.glp1.inv.notesPlaceholder',
+                  'Batch number, brand, pharmacy info...'
+                )}
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -606,14 +694,14 @@ export default function Glp1InventoryManager({
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setInventoryOpen(false)}>
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button onClick={handleSaveInventory} disabled={savePending}>
               {savePending
-                ? 'Saving...'
+                ? t('common.saving', 'Saving...')
                 : editingPen
-                  ? 'Save Changes'
-                  : 'Add Inventory'}
+                  ? t('common.saveChanges', 'Save Changes')
+                  : t('medications.glp1.addInventory', 'Add Inventory')}
             </Button>
           </DialogFooter>
         </DialogContent>

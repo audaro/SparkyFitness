@@ -9,8 +9,15 @@ import { syringeBarrel, type SyringeStandard } from '@workspace/shared';
  * to picture; a barrel filled to a mark is neither. The geometry is `syringeBarrel()` in shared,
  * so this and the web component of the same name mark their barrels identically.
  *
+ * **Position 0 is the needle end**, which fixes both ends of the drawing: the 0 graduation sits
+ * where the stopper rests on an empty syringe, which is against the needle, and the liquid fills
+ * the barrel between the needle and the stopper. So the needle goes on the left, the fill grows
+ * away from it, and the numbers count up toward the plunger. Drawn the other way round the mark
+ * still lands on the right number — the answer survives — but it renders a syringe held backwards.
+ *
  * It renders **horizontally**, unlike the tall syringe this was modelled on: the calculator is a
  * single column of fields, and a vertical barrel would need a second column there is no room for.
+ * The web component takes an `orientation` for exactly that reason and defaults to this one.
  */
 
 /** The drawing's own coordinate space. Nothing here is in pixels; the Svg scales to its box. */
@@ -20,8 +27,8 @@ const VIEW_HEIGHT = 64;
 /** The Svg has no intrinsic height, so the container fixes the ratio or it collapses to nothing. */
 const VIEW_ASPECT = VIEW_WIDTH / VIEW_HEIGHT;
 
-/** The barrel, leaving room for the flange at the plunger end and the needle at the other. */
-const BARREL_X = 30;
+/** The barrel, leaving room for the needle at its 0 end and the plunger flange at the other. */
+const BARREL_X = 38;
 const BARREL_WIDTH = 232;
 const BARREL_Y = 10;
 const BARREL_HEIGHT = 26;
@@ -78,27 +85,29 @@ export default function SyringeDiagram({
       })}
     >
       <Svg width="100%" height="100%" viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}>
-        {/* Plunger rod and thumb flange, at the left. Decoration: it is what makes the shape
-            read as a syringe rather than as a progress bar. */}
-        <Rect x={0} y={19} width={4} height={8} fill={detailColor} opacity={0.4} />
-        <Rect x={4} y={21} width={26} height={4} fill={detailColor} opacity={0.4} />
+        {/* Needle and its hub, at the barrel's 0 end, so the fill grows away from the needle as
+            it does in the hand. Decoration, but the kind that carries meaning: it is what makes
+            the shape read as a syringe rather than as a progress bar, and it is what says which
+            end the fill is at. */}
+        <Rect x={0} y={22.4} width={30} height={1.2} fill={detailColor} opacity={0.6} />
+        <Rect x={30} y={21} width={8} height={4} fill={detailColor} opacity={0.4} />
 
-        {/* Needle, at the right, so the barrel fills from the needle end as it does in the hand. */}
+        {/* Plunger rod and thumb flange, at the far end. */}
         <Rect
           x={BARREL_X + BARREL_WIDTH}
           y={21}
-          width={8}
+          width={4}
           height={4}
           fill={detailColor}
           opacity={0.4}
         />
         <Rect
-          x={BARREL_X + BARREL_WIDTH + 8}
-          y={22.4}
-          width={30}
-          height={1.2}
+          x={BARREL_X + BARREL_WIDTH + 4}
+          y={19}
+          width={4}
+          height={8}
           fill={detailColor}
-          opacity={0.6}
+          opacity={0.4}
         />
 
         <Rect

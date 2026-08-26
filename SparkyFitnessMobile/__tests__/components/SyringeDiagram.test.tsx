@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react-native';
-import { Rect, Text as SvgText } from 'react-native-svg';
+import { Line, Rect, Text as SvgText } from 'react-native-svg';
 
 import SyringeDiagram from '../../src/components/SyringeDiagram';
 
@@ -77,5 +77,32 @@ describe('SyringeDiagram', () => {
     const screen = render(<SyringeDiagram units={1} syringe="U-100" capacityUnits={100} />);
 
     expect(fillFraction(screen)).toBeCloseTo(0.01, 5);
+  });
+
+  it('puts the 0 graduation at the needle, so the fill grows away from it', () => {
+    // The mark lands on the right number either way round, so nothing else in this file would
+    // catch a barrel drawn backwards — and a backwards barrel is a syringe nobody has held.
+    const screen = render(<SyringeDiagram units={30} syringe="U-100" capacityUnits={100} />);
+
+    const barrel = screen.UNSAFE_getAllByType(Rect).find((node) => node.props.rx === 3);
+    if (!barrel) throw new Error('no barrel drawn');
+    const near = Number(barrel.props.x);
+    const far = near + Number(barrel.props.width);
+
+    // Graduations are every Line except the mark, which is drawn last.
+    const ticks = screen.UNSAFE_getAllByType(Line).slice(0, -1);
+    expect(Number(ticks[0]?.props.x1)).toBe(near);
+    expect(Number(ticks[ticks.length - 1]?.props.x1)).toBe(far);
+
+    // The needle shaft is the one rect drawn in the darker decoration tone; it sits outside the
+    // barrel on the 0 side.
+    const needle = screen
+      .UNSAFE_getAllByType(Rect)
+      .find((node) => node.props.opacity === 0.6);
+    expect(Number(needle?.props.x)).toBeLessThan(near);
+
+    // ...and the fill hangs off that same edge.
+    const fill = screen.UNSAFE_getAllByType(Rect).filter((node) => node.props.rx === 3)[1];
+    expect(Number(fill?.props.x)).toBe(near);
   });
 });

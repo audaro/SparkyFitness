@@ -336,47 +336,55 @@ export default function ReconstitutionCalculator({
 
       {result?.ok && (
         <div className="space-y-3">
-          <div className="rounded-md border bg-background p-3">
-            <SyringeDiagram
-              units={result.syringeUnits}
-              syringe={result.syringe}
-              capacityUnits={result.syringeCapacityUnits}
-            />
-            <p
-              data-testid="recon-units"
-              className="mt-1 text-2xl font-bold tabular-nums"
-            >
-              {result.syringeUnits}{' '}
-              <span className="text-base font-medium text-muted-foreground">
-                {t('medications.recon.units', 'units')} ({result.syringe})
-              </span>
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t(
-                'medications.recon.detail',
-                '{{concentration}} {{unit}}/mL · draw {{volume}} mL · {{doses}} doses per vial',
-                {
-                  concentration: result.concentration,
-                  unit:
-                    result.concentrationUnit === 'iu'
-                      ? 'IU'
-                      : result.concentrationUnit,
-                  volume: result.drawVolumeMl,
-                  doses: result.dosesPerVial,
-                }
-              )}
-            </p>
-            {result.vialLastsDays != null && (
-              <p className="text-sm text-muted-foreground">
+          {/* The syringe stands beside its numbers rather than above them: upright is how it is
+              held, and a tall barrel next to a short stack of figures uses the width this form
+              already has. Below `sm` there is no width to spare, so it stacks. */}
+          <div className="flex flex-col gap-3 rounded-md border bg-background p-3 sm:flex-row sm:items-stretch">
+            <div className="h-48 shrink-0 self-center sm:self-stretch">
+              <SyringeDiagram
+                units={result.syringeUnits}
+                syringe={result.syringe}
+                capacityUnits={result.syringeCapacityUnits}
+                orientation="vertical"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p
+                data-testid="recon-units"
+                className="text-2xl font-bold tabular-nums"
+              >
+                {result.syringeUnits}{' '}
+                <span className="text-base font-medium text-muted-foreground">
+                  {t('medications.recon.units', 'units')} ({result.syringe})
+                </span>
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
                 {t(
-                  'medications.recon.lasts',
-                  'Vial lasts about {{days}} days',
+                  'medications.recon.detail',
+                  '{{concentration}} {{unit}}/mL · draw {{volume}} mL · {{doses}} doses per vial',
                   {
-                    days: result.vialLastsDays,
+                    concentration: result.concentration,
+                    unit:
+                      result.concentrationUnit === 'iu'
+                        ? 'IU'
+                        : result.concentrationUnit,
+                    volume: result.drawVolumeMl,
+                    doses: result.dosesPerVial,
                   }
                 )}
               </p>
-            )}
+              {result.vialLastsDays != null && (
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    'medications.recon.lasts',
+                    'Vial lasts about {{days}} days',
+                    {
+                      days: result.vialLastsDays,
+                    }
+                  )}
+                </p>
+              )}
+            </div>
           </div>
 
           {result.warnings.map((warning) => (

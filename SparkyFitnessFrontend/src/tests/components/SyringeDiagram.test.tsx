@@ -24,19 +24,56 @@ jest.mock('react-i18next', () => ({
  * asserted here is the fill geometry rather than the markup: how wide the filled rectangle is
  * against the barrel behind it.
  */
-function fillFraction(): number {
-  const rects = document.querySelectorAll('svg rect');
-  // The barrel is the widest rect (it is the one every other measurement is against); the fill
-  // is the rect drawn immediately after it, at the same x.
-  const barrel = Array.from(rects).find(
+function roundedRects(): Element[] {
+  return Array.from(document.querySelectorAll('svg rect')).filter(
     (rect) => rect.getAttribute('rx') === '3'
   );
-  const fill = Array.from(rects).filter(
-    (rect) => rect.getAttribute('rx') === '3'
-  )[1];
+}
+
+function fillFraction(axis: 'width' | 'height' = 'width'): number {
+  // The barrel is the first rounded rect (it is the one every other measurement is against);
+  // the fill is the rect drawn immediately after it, from the same corner.
+  const [barrel, fill] = roundedRects();
   if (!barrel) throw new Error('no barrel drawn');
-  const width = Number(barrel.getAttribute('width'));
-  return fill === undefined ? 0 : Number(fill.getAttribute('width')) / width;
+  const span = Number(barrel.getAttribute(axis));
+  return fill === undefined ? 0 : Number(fill.getAttribute(axis)) / span;
+}
+
+/**
+ * Where the 0 graduation sits, and where the needle does, along the axis the barrel runs on.
+ * They belong at the same end: 0 is where the stopper rests on an empty syringe, which is
+ * against the needle, and the fill grows away from it. Drawn the other way round the picture is
+ * a syringe held backwards — the mark still lands on the right number, which is why nothing
+ * else here would catch it.
+ */
+function endsAlong(axis: 'x' | 'y'): {
+  zeroTick: number;
+  lastTick: number;
+  needle: number;
+  barrelNear: number;
+  barrelFar: number;
+} {
+  // Graduations are the only `<line>`s except the mark, which is drawn last.
+  const lines = Array.from(document.querySelectorAll('svg line')).slice(0, -1);
+  const zero = lines[0];
+  const last = lines[lines.length - 1];
+  if (!zero || !last) throw new Error('no graduations drawn');
+  // The needle shaft is the only rect in the darker decoration tone.
+  const needle = Array.from(document.querySelectorAll('svg rect')).find(
+    (rect) => rect.getAttribute('class')?.includes('fill-muted-foreground/60')
+  );
+  const barrel = roundedRects()[0];
+  if (!needle || !barrel) throw new Error('no needle or barrel drawn');
+  const start = axis === 'x' ? 'x1' : 'y1';
+  const near = Number(barrel.getAttribute(axis));
+  return {
+    zeroTick: Number(zero.getAttribute(start)),
+    lastTick: Number(last.getAttribute(start)),
+    needle: Number(needle.getAttribute(axis)),
+    barrelNear: near,
+    barrelFar:
+      near + Number(barrel.getAttribute(axis === 'x' ? 'width' : 'height')),
+  };
 }
 
 describe('SyringeDiagram', () => {
@@ -91,10 +128,7 @@ describe('SyringeDiagram', () => {
     expect(fillFraction()).toBe(1);
     // A full barrel in the ordinary colour would read as "draw to the top"; the amber matches
     // the over-capacity warning sitting under it.
-    const fill = Array.from(document.querySelectorAll('svg rect')).filter(
-      (rect) => rect.getAttribute('rx') === '3'
-    )[1];
-    expect(fill).toHaveClass('fill-amber-500/40');
+    expect(roundedRects()[1]).toHaveClass('fill-amber-500/40');
     // The label still reports the number the syringe cannot hold, not the clamped one.
     expect(screen.getByRole('img')).toHaveAccessibleName(
       'A U-100 syringe barrel holding 100 units, filled to 140.'
@@ -115,5 +149,101 @@ describe('SyringeDiagram', () => {
     render(<SyringeDiagram units={1} syringe="U-100" capacityUnits={100} />);
 
     expect(fillFraction()).toBeCloseTo(0.01, 5);
+  });
+
+  it('puts the 0 graduation at the needle, so the fill grows away from it', () => {
+    render(<SyringeDiagram units={30} syringe="U-100" capacityUnits={100} />);
+
+    const { zeroTick, lastTick, needle, barrelNear, barrelFar } =
+      endsAlong('x');
+    // The needle is left of the barrel; the 0 mark is on that same left edge and the capacity
+    // mark on the far one, so the numbers count up toward the plunger.
+    expect(needle).toBeLessThan(barrelNear);
+    expect(zeroTick).toBe(barrelNear);
+    expect(lastTick).toBe(barrelFar);
+    // ...and the fill starts from that same edge.
+    const [barrel, fill] = roundedRects();
+    expect(fill?.getAttribute('x')).toBe(barrel?.getAttribute('x'));
+  });
+
+  describe('vertical', () => {
+    it('fills the barrel downward to the fraction the draw occupies', () => {
+      render(
+        <SyringeDiagram
+          units={30}
+          syringe="U-100"
+          capacityUnits={100}
+          orientation="vertical"
+        />
+      );
+
+      expect(fillFraction('height')).toBeCloseTo(0.3, 5);
+      // Same corner as the barrel, so the liquid hangs from the needle end rather than
+      // floating in the middle of the tube.
+      const [barrel, fill] = roundedRects();
+      expect(fill?.getAttribute('y')).toBe(barrel?.getAttribute('y'));
+    });
+
+    it('hangs needle-up, with the 0 graduation at the top', () => {
+      render(
+        <SyringeDiagram
+          units={30}
+          syringe="U-100"
+          capacityUnits={100}
+          orientation="vertical"
+        />
+      );
+
+      const { zeroTick, lastTick, needle, barrelNear, barrelFar } =
+        endsAlong('y');
+      expect(needle).toBeLessThan(barrelNear);
+      expect(zeroTick).toBe(barrelNear);
+      expect(lastTick).toBe(barrelFar);
+    });
+
+    it('numbers the barrel exactly as the horizontal one does', () => {
+      // The two orientations are one drawing turned on its side. A user who reads the dose on
+      // the phone and mixes it at the desk must not meet a differently-marked barrel.
+      render(
+        <SyringeDiagram
+          units={30}
+          syringe="U-40"
+          capacityUnits={40}
+          orientation="vertical"
+        />
+      );
+
+      const labels = Array.from(document.querySelectorAll('svg text')).map(
+        (node) => node.textContent
+      );
+      expect(labels).toEqual([
+        '0',
+        '5',
+        '10',
+        '15',
+        '20',
+        '25',
+        '30',
+        '35',
+        '40',
+      ]);
+    });
+
+    it('still names the barrel and the draw for a screen reader', () => {
+      render(
+        <SyringeDiagram
+          units={140}
+          syringe="U-100"
+          capacityUnits={100}
+          orientation="vertical"
+        />
+      );
+
+      expect(fillFraction('height')).toBe(1);
+      expect(roundedRects()[1]).toHaveClass('fill-amber-500/40');
+      expect(screen.getByRole('img')).toHaveAccessibleName(
+        'A U-100 syringe barrel holding 100 units, filled to 140.'
+      );
+    });
   });
 });
