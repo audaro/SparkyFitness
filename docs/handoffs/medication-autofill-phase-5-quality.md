@@ -128,12 +128,15 @@ is what buys the month) and kept refrigerated. It is badly wrong for sterile pre
 water, which is hours to a day — and `ReconstitutionRecord` records the syringe but **not the
 diluent**, so the form cannot tell which case it is in.
 
-So it stayed 28 days and stopped being asserted. `BUD_WINDOW_DAYS` prefills an **editable** date
-field, captioned with the assumption it makes. `budTouched` stops the opened date from recomputing
-a BUD the user typed, or one already stored on the row — silently overwriting a deliberately
-shorter window with the generous default is the failure mode that matters here. Adding `diluent`
-to the reconstitution record would let this be derived rather than assumed; that is a real
-follow-up, not a blocker.
+So it stayed 28 days and stopped being asserted: an **editable** date field, prefilled and
+captioned with the assumption it makes. `budTouched` stops the opened date from recomputing a BUD
+the user typed, or one already stored on the row — silently overwriting a deliberately shorter
+window with the generous default is the failure mode that matters here.
+
+**Superseded later the same day.** The follow-up named here — adding `diluent` to the record so
+this is derived rather than assumed — shipped; see *Diluent on the reconstitution record* below.
+`BUD_WINDOW_DAYS` is gone, replaced by `vialBudGuidance()`, and the preservative-free case now
+suggests **no** date rather than 28 days.
 
 **`dosesTotal`'s fallback — resolved 2026-08-26.** Writing the component tests surfaced that
 `applyVialFields` contradicted its own JSDoc: it blanked a refused *concentration* but fell back to
@@ -152,9 +155,9 @@ a real exit code:
 
 | Package | validate | tests |
 |---|---|---|
-| Server | pass | 300 suites, 4471 passed, 2 skipped |
-| Frontend | pass | 117 suites, 1183 passed |
-| Mobile | pass | 381 suites, 6157 passed |
+| Server | pass | 301 suites, 4482 passed, 2 skipped |
+| Frontend | pass | 118 suites, 1190 passed |
+| Mobile | pass | 382 suites, 6164 passed |
 
 The server figures include `medicationLastTaken.integration.test.ts`, which **skips** rather than
 fails when no database is reachable — a contributor without Postgres will see 299 suites and one
@@ -262,6 +265,48 @@ Tests: `reconstitutionRecord.test.ts` (+3 describes covering the diluent read, `
 and the prefill's `bud`), `AddMedicationDialog.test.tsx` and `MedicationFormScreen.test.tsx` each
 gained a preservative-free pick, and the mobile round-trip fixture is deliberately left as a
 legacy record with no diluent so the null path stays covered.
+
+## The draw, drawn — 2026-08-26
+
+The calculator answered with a number of units and nothing else. "30 units" is easy to misread —
+5 for 50 is one glance away — and hard to picture, and it is the number a needle acts on.
+`SyringeDiagram` now renders a barrel filled to that mark above it, on both platforms.
+
+**The geometry is shared, the drawing is not.** `syringeBarrel()` (`shared/src/medications/`)
+returns tick positions as **fractions of the barrel**, which ones carry a printed number, and the
+fill fraction — no pixels, no orientation. Web draws it in SVG and mobile in `react-native-svg`
+from the same numbers, so the two barrels cannot be marked differently. Tick spacing comes off a
+fixed ladder of nice steps rather than a formula: a barrel numbered every 7 units is
+arithmetically fine and useless to read against. A U-100 gets a number every 10 and a U-40 every
+5, which is how both are actually printed.
+
+**`ReconstitutionSuccess` gained `syringeCapacityUnits`.** The picture has to be scaled to the
+barrel the *answer* was measured against, and `reconstitute()` accepts a custom
+`syringeCapacityUnits` it previously never echoed. Re-deriving capacity from the standard would
+draw a half-mL barrel at full-mL scale and the picture would silently disagree with the number
+printed beside it. Mutation-checked: making `syringeBarrel` ignore the argument fails three tests
+across two packages.
+
+**Three refusals, all deliberate.** A draw that does not fit renders as a **full** barrel in amber
+— matching the over-capacity warning already on screen — with the un-clamped number still in the
+accessible name, because a full barrel in the ordinary colour reads as "draw to the top" for a
+dose the syringe cannot hold. A below-precision dose gets no special case at all: 1 unit *looking*
+like almost nothing is the same thing the warning says in words. And `syringeBarrel` returns
+`null` for a capacity that is not a positive finite number, which renders nothing — a barrel drawn
+to a scale nobody can name is worse than no picture.
+
+**It is horizontal**, unlike the tall syringe it was modelled on. The calculator is a single
+column of fields on both platforms; a vertical barrel would need a second column that mobile does
+not have.
+
+**Two mobile-test traps**, both now in `SparkyFitnessMobile/AGENTS.md`: an SVG `Text` renders as
+`RNSVGText` and its string child is **not** reachable by `getByText` (query
+`UNSAFE_getAllByType(Text)` and read `props.children`), and colours cannot be asserted there at
+all because `jest.setup.js` answers every `useCSSVariable` with one grey — the web suite covers
+that half.
+
+New suites: `SparkyFitnessServer/tests/syringeBarrel.test.ts` (11, the shared arithmetic —
+`shared/` has no runner of its own), plus a 7-test `SyringeDiagram` suite on each platform.
 
 ## Open risks / next step
 

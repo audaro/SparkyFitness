@@ -1172,6 +1172,7 @@
       },
       "dose": "Twoja dawka",
       "syringe": "Strzykawka",
+      "syringeAlt": "Cylinder strzykawki {{syringe}} o pojemności {{capacity}} jednostek, napełniony do {{units}}.",
       "unitsPerMl": "jednostek/ml",
       "units": "jednostek",
       "detail": "{{concentration}} {{unit}}/ml · nabierz {{volume}} ml · {{doses}} dawek z fiolki",

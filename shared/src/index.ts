@@ -140,6 +140,7 @@ export * from "./medications/typo.ts";
 export * from "./medications/ownRanking.ts";
 export * from "./medications/reconstitution.ts";
 export * from "./medications/reconstitutionRecord.ts";
+export * from "./medications/syringeBarrel.ts";
 export * from "./medications/schedules.ts";
 export * from "./medications/format.ts";
 export * from "./medications/symptoms.ts";

@@ -411,6 +411,7 @@
       "diluent": "Diluent (mL)",
       "dose": "Your dose",
       "syringe": "Syringe",
+      "syringeAlt": "A {{syringe}} syringe barrel holding {{capacity}} units, filled to {{units}}.",
       "unitsPerMl": "units/mL",
       "units": "units",
       "detail": "{{concentration}} {{unit}}/mL · draw {{volume}} mL · {{doses}} doses per vial",

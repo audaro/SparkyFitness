@@ -24,6 +24,7 @@ import {
   reconstitutionFailureMessage,
   reconstitutionWarningMessage,
 } from './reconstitutionMessages';
+import SyringeDiagram from './SyringeDiagram';
 
 const UNITS: ReconstitutionUnit[] = ['mg', 'mcg', 'iu'];
 const SYRINGES: SyringeStandard[] = ['U-100', 'U-40'];
@@ -336,9 +337,14 @@ export default function ReconstitutionCalculator({
       {result?.ok && (
         <div className="space-y-3">
           <div className="rounded-md border bg-background p-3">
+            <SyringeDiagram
+              units={result.syringeUnits}
+              syringe={result.syringe}
+              capacityUnits={result.syringeCapacityUnits}
+            />
             <p
               data-testid="recon-units"
-              className="text-2xl font-bold tabular-nums"
+              className="mt-1 text-2xl font-bold tabular-nums"
             >
               {result.syringeUnits}{' '}
               <span className="text-base font-medium text-muted-foreground">

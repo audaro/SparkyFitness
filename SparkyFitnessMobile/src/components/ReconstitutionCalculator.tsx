@@ -16,6 +16,7 @@ import {
 } from '../utils/reconstitutionLocalization';
 import FormInput from './FormInput';
 import SegmentedControl from './SegmentedControl';
+import SyringeDiagram from './SyringeDiagram';
 
 const UNITS: ReconstitutionUnit[] = ['mg', 'mcg', 'iu'];
 const SYRINGES: SyringeStandard[] = ['U-100', 'U-40'];
@@ -263,6 +264,11 @@ export default function ReconstitutionCalculator({
       {result?.ok && (
         <View className="gap-2">
           <View className="rounded-lg bg-raised p-3">
+            <SyringeDiagram
+              units={result.syringeUnits}
+              syringe={result.syringe}
+              capacityUnits={result.syringeCapacityUnits}
+            />
             <Text testID="recon-units" className="text-text-primary text-2xl font-bold">
               {result.syringeUnits}{' '}
               <Text className="text-text-muted text-base font-medium">

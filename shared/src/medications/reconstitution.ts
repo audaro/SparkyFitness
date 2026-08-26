@@ -114,6 +114,13 @@ export interface ReconstitutionSuccess {
   /** Echoed back so the number is never read against the wrong barrel. */
   syringe: SyringeStandard;
   syringeUnitsPerMl: number;
+  /**
+   * The barrel `syringeUnits` was measured against, in marks. Echoed for the same reason as
+   * `syringe`: a caller drawing the barrel must scale it to the capacity this answer assumed,
+   * not to a capacity it re-derives, or a custom `syringeCapacityUnits` renders to the wrong
+   * scale and the picture disagrees with the number printed beside it.
+   */
+  syringeCapacityUnits: number;
   /** Whole doses the vial yields. */
   dosesPerVial: number;
   /** `dosesPerVial × intervalDays`, or null when no interval was supplied. */
@@ -353,6 +360,7 @@ export function reconstitute(input: ReconstitutionInput): ReconstitutionResult {
     syringeUnits: roundedSyringeUnits,
     syringe,
     syringeUnitsPerMl: unitsPerMl,
+    syringeCapacityUnits: capacityUnits,
     dosesPerVial,
     vialLastsDays,
     warnings,
