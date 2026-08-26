@@ -40,6 +40,7 @@ const fullProfile = {
   goals: 'Lose 5 kg and run a 10k',
   training_days_per_week: 4,
   session_minutes: 60,
+  experience_level: null,
   equipment: ['dumbbells', 'resistance bands'],
   limitations: ['left knee pain'],
   food_preferences: { style: 'vegetarian' },

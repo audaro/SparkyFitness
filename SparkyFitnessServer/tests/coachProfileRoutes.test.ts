@@ -41,6 +41,7 @@ const row = {
   goals: 'Get stronger',
   training_days_per_week: 4,
   session_minutes: 60,
+  experience_level: 'intermediate',
   equipment: ['barbell'],
   limitations: ['left shoulder'],
   food_preferences: {},
@@ -72,6 +73,7 @@ describe('GET /coach-profile', () => {
       goals: 'Get stronger',
       training_days_per_week: 4,
       session_minutes: 60,
+      experience_level: 'intermediate',
       limitations: ['left shoulder'],
     });
   });
@@ -98,6 +100,7 @@ describe('GET /coach-profile', () => {
       goals: null,
       training_days_per_week: null,
       session_minutes: null,
+      experience_level: null,
       limitations: [],
     });
   });
@@ -140,6 +143,34 @@ describe('PATCH /coach-profile', () => {
   it('leaves the cached chat context alone when the patch is rejected', async () => {
     await request(app).patch('/coach-profile').send({ session_minutes: 1 });
     expect(invalidateChatContextInputs).not.toHaveBeenCalled();
+  });
+
+  // The vocabulary is exercises.level's, and the enum is what keeps a mismatch
+  // at the write side: the generator compares the stored value to candidate
+  // levels with an exact string match, so "advanced" or "Beginner" would not be
+  // a synonym — it would silently match nothing.
+  it('accepts each experience level token, and null to clear', async () => {
+    for (const value of ['beginner', 'intermediate', 'expert', null]) {
+      mocked(coachProfileRepository.upsertCoachProfile).mockClear();
+      const res = await request(app)
+        .patch('/coach-profile')
+        .send({ experience_level: value });
+      expect(res.status).toBe(200);
+      expect(coachProfileRepository.upsertCoachProfile).toHaveBeenCalledWith(
+        'owner-1',
+        { experience_level: value }
+      );
+    }
+  });
+
+  it('rejects an experience level outside the vocabulary', async () => {
+    for (const value of ['advanced', 'Beginner', 'novice', 3]) {
+      const res = await request(app)
+        .patch('/coach-profile')
+        .send({ experience_level: value });
+      expect(res.status).toBe(400);
+    }
+    expect(coachProfileRepository.upsertCoachProfile).not.toHaveBeenCalled();
   });
 
   it('rejects a training week longer than a week', async () => {

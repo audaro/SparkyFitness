@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EXPERIENCE_LEVELS } from "../../constants/experience.ts";
 
 // Branded so a public.coach_profiles id cannot be passed where another
 // table's id belongs.
@@ -28,6 +29,9 @@ const coachProfilesFieldsSchema = z.object({
   goals: z.string().nullable(),
   training_days_per_week: z.number().int().nullable(),
   session_minutes: z.number().int().nullable(),
+  // Self-stated training experience, in the exercises.level vocabulary so the
+  // generator's exact-match level term can compare the two. Null = not stated.
+  experience_level: z.enum(EXPERIENCE_LEVELS).nullable(),
   equipment: z.array(z.string()),
   limitations: z.array(z.string()),
   food_preferences: z.record(z.string(), z.unknown()),

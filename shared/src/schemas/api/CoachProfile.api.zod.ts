@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EXPERIENCE_LEVELS } from "../../constants/experience.ts";
 
 /**
  * The coach profile: the training constraints a user states once and every
@@ -6,7 +7,7 @@ import { z } from "zod";
  * they train, what they are working towards, and what their body will not do.
  *
  * These columns predate any REST route; they were written only by the AI chat.
- * This contract exposes the four a person edits directly. `equipment`,
+ * This contract exposes the five a person edits directly. `equipment`,
  * `food_preferences`, `aliases` and `weekly_set_targets` are deliberately
  * absent: gym profiles own equipment, and weekly set targets have their own
  * endpoint whose partial-merge semantics a general PATCH would break.
@@ -33,6 +34,14 @@ export const sessionMinutesSchema = z.number().int().min(5).max(300);
 export const coachGoalsSchema = z.string().trim().max(2000);
 
 /**
+ * The exercises.level vocabulary, not a synonym set — the generator compares
+ * this value to candidate rows' levels with an exact string match, so
+ * "advanced" or "Beginner" would silently match nothing. The enum is what
+ * keeps that failure at the write side, as a 400.
+ */
+export const experienceLevelSchema = z.enum(EXPERIENCE_LEVELS);
+
+/**
  * Injuries and constraints, free text by design — the catalog cannot enumerate
  * what a given shoulder will not tolerate. Bounded in both directions so one
  * profile cannot carry an unbounded jsonb blob.
@@ -51,6 +60,7 @@ export const coachProfileResponseSchema = z
     goals: z.string().nullable(),
     training_days_per_week: z.number().int().nullable(),
     session_minutes: z.number().int().nullable(),
+    experience_level: experienceLevelSchema.nullable(),
     limitations: z.array(z.string()),
   })
   .strict();
@@ -74,6 +84,7 @@ export const updateCoachProfileRequestSchema = z
     goals: coachGoalsSchema.nullable().optional(),
     training_days_per_week: trainingDaysPerWeekSchema.nullable().optional(),
     session_minutes: sessionMinutesSchema.nullable().optional(),
+    experience_level: experienceLevelSchema.nullable().optional(),
     limitations: coachLimitationsSchema.optional(),
   })
   .strict()

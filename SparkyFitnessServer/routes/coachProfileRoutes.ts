@@ -53,6 +53,7 @@ function toResponse(row: CoachProfileRow | null): CoachProfileResponse {
     goals: row?.goals ?? null,
     training_days_per_week: row?.training_days_per_week ?? null,
     session_minutes: row?.session_minutes ?? null,
+    experience_level: row?.experience_level ?? null,
     limitations: row?.limitations ?? [],
   });
 }
@@ -64,9 +65,11 @@ function toResponse(row: CoachProfileRow | null): CoachProfileResponse {
  *     summary: The user's stated training constraints
  *     tags: [Exercise & Workouts]
  *     description: |
- *       Session length, training days per week, goals, and limitations. These are the fields a
- *       person edits directly; equipment lives in gym profiles and weekly set targets have their
- *       own endpoint.
+ *       Session length, training days per week, goals, experience level, and limitations. These
+ *       are the fields a person edits directly; equipment lives in gym profiles and weekly set
+ *       targets have their own endpoint. `experience_level` uses the exercises.level vocabulary
+ *       (`beginner` | `intermediate` | `expert`) and biases which exercises the workout generator
+ *       selects.
  *
  *       A user with no profile row gets every field null rather than a 404 — "no profile yet" and
  *       "profile with nothing stated" mean the same thing to every reader. `training_days_per_week`
