@@ -11,6 +11,7 @@ import type {
   CreateScheduleInput,
   UpdateScheduleInput,
   MedicationCatalogSearchResponse,
+  OpenFdaLookupResponse,
 } from '@workspace/shared';
 
 const SERVICE_NAME = 'Medications API';
@@ -154,3 +155,22 @@ export const searchMedicationCatalog = async (
     operation: 'search drug catalog',
   });
 };
+
+/**
+ * Who labels the drug on a saved medication, from the FDA's NDC directory.
+ *
+ * Read-only, and nothing it returns is written to the medication row: a labeler is a fact about
+ * the drug rather than about this prescription, so an FDA relisting should change what the panel
+ * shows, not silently rewrite a record the user has never edited.
+ *
+ * The server answers 200 with an `unavailableReason` for every ordinary outcome — no RxCUI, not
+ * opted in, not listed, FDA unreachable — so a rejection here means our own backend is down or
+ * the session expired. `useMedicationLabel` treats that as "nothing to show" rather than as an
+ * error, for the same reason the catalog search does.
+ */
+export const getMedicationLabel = (medicationId: string): Promise<OpenFdaLookupResponse> =>
+  apiFetch<OpenFdaLookupResponse>({
+    endpoint: `/api/v2/medications/${medicationId}/label`,
+    serviceName: SERVICE_NAME,
+    operation: 'get medication label',
+  });

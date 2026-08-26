@@ -108,13 +108,13 @@ const MedicationSettingsScreen: React.FC<MedicationSettingsScreenProps> = () => 
           <Text className="text-text-secondary text-sm mt-4">
             {t('medicationSettings.catalogLookup.description', {
               defaultValue:
-                'Adds around 20,000 US prescription products to the suggestions when you type a medication name, with their strengths and forms. Off by default.',
+                'Adds around 20,000 US prescription products to the suggestions when you type a medication name, with their strengths and forms, and shows who makes a medication you saved from it. Off by default.',
             })}
           </Text>
           <Text className="text-text-secondary text-sm mt-2">
             {t('medicationSettings.catalogLookup.privacy', {
               defaultValue:
-                'What this sends: the name you are typing, from this server to the US National Library of Medicine. Your account, your medication list and everything else about you stay here. Your own medications and the built-in drug list are searched offline either way.',
+                'What this sends: the name you are typing, from this server to the US National Library of Medicine. For a medication you saved from that catalog, this server also asks the US Food and Drug Administration who makes it, sending only a public numeric drug code — never your name for it. Your account, your medication list and everything else about you stay here. Your own medications and the built-in drug list are searched offline either way.',
             })}
           </Text>
         </View>

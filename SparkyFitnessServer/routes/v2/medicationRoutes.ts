@@ -33,6 +33,7 @@ import glp1Service from '../../services/glp1Service.js';
 import medicationEntryRepository from '../../models/medicationEntryRepository.js';
 import medicationDisplayPreferenceRepository from '../../models/medicationDisplayPreferenceRepository.js';
 import medicationCatalogService from '../../services/medicationCatalogService.js';
+import medicationLabelService from '../../services/medicationLabelService.js';
 import { loadUserTimezone } from '../../utils/timezoneLoader.js';
 import { instantToDay, todayInZone } from '@workspace/shared';
 
@@ -555,6 +556,51 @@ const getMedication: RequestHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * @openapi
+ * /api/v2/medications/{id}/label:
+ *   get:
+ *     summary: Who labels the drug on a medication record (openFDA NDC directory)
+ *     description: >
+ *       Read-only provenance for a saved medication — labeler, brand and generic name, dosage
+ *       form, route, and product NDC — looked up by the medication's stored `rxnorm_rxcui`.
+ *       Nothing is written to the medication row; a labeler is a fact about the drug, not about
+ *       the user's prescription. Requires the record owner's
+ *       `medication_catalog_lookup_enabled` preference, the same opt-in as `/catalog-search`,
+ *       because the outbound request is strictly less than that one — an RxCUI rather than a
+ *       medication name. Never an error: a medication with no RxCUI, an owner who has not opted
+ *       in, a drug the directory does not list, and an unreachable FDA all return 200 with an
+ *       empty `products` array and a distinguishing `unavailableReason`.
+ *     tags: [Medications & GLP-1]
+ *     security: [{ cookieAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+ *     responses:
+ *       200:
+ *         description: >
+ *           Labelled products, possibly empty. `totalMatches` is how many the FDA holds, which
+ *           can exceed the returned list; `unavailableReason` is one of `lookup_disabled`,
+ *           `no_rxcui`, `not_found`, `lookup_failed`, or null.
+ *       400: { description: Invalid request. }
+ */
+const getMedicationLabel: RequestHandler = async (req, res, next) => {
+  try {
+    const params = UuidParamSchema.safeParse(req.params);
+    if (!params.success) return badRequest(res, params.error);
+    // `req.userId` is the record's owner. The service reads the medication under that user's
+    // RLS context and reads *their* opt-in, for the reason `searchDrugCatalog` documents: a
+    // caregiver looking at a dependent's medication is not the person whose decision it is
+    // whether that drug may be described to a third party.
+    const result = await medicationLabelService.lookupMedicationLabel(
+      req.userId,
+      params.data.id
+    );
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const updateMedication: RequestHandler = async (req, res, next) => {
   try {
     const params = UuidParamSchema.safeParse(req.params);
@@ -772,6 +818,7 @@ router.delete(
 );
 
 router.get('/:id', getMedication);
+router.get('/:id/label', getMedicationLabel);
 router.put(
   '/:id',
   stripNutrientFieldsWithoutDiaryAccess({ keepSupplementFlag: false }),

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import i18n, { getAppLocale, initializeI18n } from '../../src/localization/i18n';
 import MedicationDetailScreen from '../../src/screens/MedicationDetailScreen';
@@ -161,10 +162,19 @@ function setupScreen(med: MedicationDetail, entries: MedicationEntry[] = []) {
 
   const insets = { top: 0, left: 0, right: 0, bottom: 0 };
   const frame = { x: 0, y: 0, width: 390, height: 844 };
+  // Every hook this screen calls directly is mocked above, but `MedicationLabelPanel` reaches the
+  // query client for real. With no preferences seeded it reads as not-opted-in, makes no request
+  // and renders nothing — which is the correct shape for these cases and keeps the panel's own
+  // behaviour where it is asserted, in `__tests__/components/MedicationLabelPanel.test.tsx`.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <SafeAreaProvider initialMetrics={{ insets, frame }}>
-      <MedicationDetailScreen route={route} navigation={mockNavigation} />
-    </SafeAreaProvider>,
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider initialMetrics={{ insets, frame }}>
+        <MedicationDetailScreen route={route} navigation={mockNavigation} />
+      </SafeAreaProvider>
+    </QueryClientProvider>,
   );
 }
 

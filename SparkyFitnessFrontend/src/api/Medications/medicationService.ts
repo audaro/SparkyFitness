@@ -1,5 +1,8 @@
 import { apiCall } from '@/api/api';
-import type { MedicationCatalogSearchResponse } from '@workspace/shared';
+import type {
+  MedicationCatalogSearchResponse,
+  OpenFdaLookupResponse,
+} from '@workspace/shared';
 import type {
   Medication,
   MedicationDetail,
@@ -179,5 +182,27 @@ export const searchMedicationCatalog = (
   apiCall('/v2/medications/catalog-search', {
     method: 'GET',
     params: { q, limit },
+    suppressErrorToast: true,
+  });
+
+// --- Label provenance (openFDA NDC directory) ------------------------------
+
+/**
+ * Who labels the drug on a saved medication, from the FDA's NDC directory.
+ *
+ * Read-only, and nothing it returns is written to the medication row: a labeler is a fact about
+ * the drug rather than about this prescription, so an FDA relisting should change what the panel
+ * shows, not silently rewrite a record the user has never edited.
+ *
+ * `suppressErrorToast` for the same reason as the catalog search above. The server answers 200
+ * with an `unavailableReason` for every ordinary outcome — no RxCUI, not opted in, not listed,
+ * FDA unreachable — so a rejection here means our own backend is down or the session expired,
+ * and neither deserves a toast thrown over a detail panel the user did not ask to load.
+ */
+export const getMedicationLabel = (
+  medicationId: string
+): Promise<OpenFdaLookupResponse> =>
+  apiCall(`/v2/medications/${medicationId}/label`, {
+    method: 'GET',
     suppressErrorToast: true,
   });

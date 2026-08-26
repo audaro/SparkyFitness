@@ -185,3 +185,7 @@ export const medicationEntriesQueryKey = (opts?: { fromDate?: string; toDate?: s
 // `metformin` are one answer and must not be two requests.
 export const medicationCatalogSearchQueryKey = (term: string, limit?: number) =>
   ['medications', 'catalog-search', term.toLowerCase(), limit ?? null] as const;
+// Label provenance is keyed by medication rather than by RxCUI: the panel is per-record, and the
+// server caches by RxCUI behind it, so two medications sharing a code cost one upstream request.
+export const medicationLabelQueryKey = (medicationId: string) =>
+  ['medications', 'label', medicationId] as const;

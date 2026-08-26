@@ -17,6 +17,7 @@ import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import Icon from '../components/Icon';
 import DoseRow from '../components/medications/DoseRow';
+import MedicationLabelPanel from '../components/medications/MedicationLabelPanel';
 import {
   getDueDosesForDate,
   formatDose,
@@ -277,6 +278,11 @@ const MedicationDetailScreen: React.FC<MedicationDetailScreenProps> = ({ route, 
             {med.notes && <InfoRow label={t('medications.detail.notes', { defaultValue: 'Notes' })} value={med.notes} />}
           </View>
         )}
+
+        {/* Renders itself only when the FDA had something to say about this drug — silent for a
+            row with no RxCUI, an owner who has not opted in, and an unhelpful or unreachable FDA
+            alike. */}
+        <MedicationLabelPanel medicationId={medicationId} rxcui={med.rxnorm_rxcui} />
 
         <TouchableOpacity
           className="rounded-xl p-4 mb-3"

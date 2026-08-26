@@ -47,6 +47,7 @@ import {
   type MedSubtype,
 } from './medicationUtils';
 import ScheduleManager from './ScheduleManager';
+import MedicationLabelPanel from './MedicationLabelPanel';
 import TodayMedications from './TodayMedications';
 import SymptomDashboard from './SymptomDashboard';
 import MedicationDisclaimer from './MedicationDisclaimer';
@@ -655,6 +656,11 @@ export default function Medications() {
                       )}
                     </CardContent>
                   </Card>
+
+                  {/* Renders itself only when the FDA had something to say about this drug —
+                      see the panel, which is silent for a row with no RxCUI, an owner who has
+                      not opted in, and an unreachable or unhelpful FDA alike. */}
+                  <MedicationLabelPanel medication={selected} />
 
                   {selected.is_glp1 ? (
                     <div className="space-y-4">

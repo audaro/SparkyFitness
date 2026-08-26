@@ -49,6 +49,11 @@ describe('MedicationSettingsScreen', () => {
     const { getByText } = renderScreen({});
     expect(getByText('Search the US drug catalog')).toBeTruthy();
     expect(getByText(/US National Library of Medicine/)).toBeTruthy();
+    // This one preference now covers two recipients: the name search, and the label lookup that
+    // asks the FDA who makes a saved medication. Reusing it is only defensible while the copy
+    // names both — if a future lookup sends something this text does not describe, either the
+    // text changes with it or that lookup gets its own opt-in.
+    expect(getByText(/US Food and Drug Administration/)).toBeTruthy();
     // The half that says what does *not* travel matters as much as the half that does.
     expect(getByText(/searched offline either way/)).toBeTruthy();
   });

@@ -136,6 +136,7 @@ export * from "./medications/glp1.ts";
 export * from "./medications/catalog.ts";
 export * from "./medications/rxterms.ts";
 export * from "./medications/rxnav.ts";
+export * from "./medications/openfda.ts";
 export * from "./medications/typo.ts";
 export * from "./medications/ownRanking.ts";
 export * from "./medications/reconstitution.ts";

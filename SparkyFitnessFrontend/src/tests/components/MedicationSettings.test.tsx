@@ -55,6 +55,13 @@ describe('MedicationSettings', () => {
     expect(
       screen.getByText(/National Library of Medicine/)
     ).toBeInTheDocument();
+    // This one preference now covers two recipients: the name search, and the label lookup that
+    // asks the FDA who makes a saved medication. Reusing it is only defensible while the copy
+    // names both — if a future lookup sends something this text does not describe, either the
+    // text changes with it or that lookup gets its own opt-in.
+    expect(
+      screen.getByText(/US Food and Drug Administration/)
+    ).toBeInTheDocument();
   });
 
   it('persists the opt-in', async () => {

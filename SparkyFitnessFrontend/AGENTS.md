@@ -159,6 +159,33 @@ dialog testable without a dropdown in the way. Mobile mirrors the same pick type
 - The opt-in is `pages/Settings/MedicationSettings.tsx` (wellness tab). There is deliberately no
   nudge inside the dropdown.
 
+## Medication Label Provenance (`/medications`)
+
+`MedicationLabelPanel.tsx` sits under the selected medication's detail card and says who makes the
+drug, from the FDA's NDC directory — `api/Medications/medicationService.getMedicationLabel` →
+`hooks/useMedicationLabel.ts` → `GET /api/v2/medications/:id/label`. Mobile mirrors it component
+for component; the server half is `SparkyFitnessServer/AGENTS.md`.
+
+- **It renders nothing in every unavailable case.** No RxCUI, not opted in, not listed, FDA
+  unreachable — four different answers, told apart only so the panel can be sure none is worth
+  showing. It is provenance layered under a record that has already rendered, and a card
+  explaining why there is no card is worse than no card. The tests are mostly assertions of
+  absence, and that is deliberate.
+- **It rides the same `medicationCatalogLookupEnabled` preference** as tier 3 of the name search,
+  because it sends strictly less: an RxCUI, a public numeric drug code, rather than a name being
+  typed. The condition on that is the copy — `settings.medications.catalogLookupPrivacy` names
+  **both** the NLM and the FDA and says which gets what, and `MedicationSettings.test.tsx` asserts
+  the FDA is named. **If a future lookup sends something that copy does not describe, either the
+  copy changes with it or that lookup gets its own opt-in.**
+- **Nothing it returns is written to the medication row.** A labeler is a fact about the drug, not
+  about this prescription; an FDA relisting should change what the panel shows, not rewrite a
+  record the user never edited. `medications.ndc` stays theirs to fill in by hand.
+- The preference and the RxCUI are checked in the hook as well as on the server, so a medication
+  with no RxCUI costs no request at all rather than a round trip answering `no_rxcui`.
+- A truncated list always states the real total (`totalMatches` can far exceed the five products
+  returned — a generic is listed by every manufacturer that packages it), or it reads as a
+  complete list when it is a sample.
+
 ## Translations (i18n)
 
 - Only ever edit `public/locales/en/translation.json`. The other 27 locales are machine-synced through the `sync-translations.yml` workflow and a separate SparkyFitnessTranslations repo; hand-editing them creates conflicts with that pipeline.
@@ -197,6 +224,7 @@ dialog testable without a dropdown in the way. Mobile mirrors the same pick type
 - Beyond-use date: the suggestion is `vialBudGuidance(record.diluent)` (shared), reached through `vialInventoryPrefill(...).bud`, and it is a _suggestion_ — prefilled from the opened date, overwritable, with the assumption it makes spelled out next to the field. It has **three** answers, and the caption must say which one it is giving: `preserved` (28 days, because the mix records a bacteriostatic diluent and the benzyl alcohol is what buys the month), `preservative_free` (**no date at all** — sterile water and saline are good for hours, not days, and the calculator refuses to invent a number rather than suggesting a dangerous one), and `unstated` (28 days from a record saved before the diluent field existed, captioned as the assumption it is). A pen has no mix, so it takes `PEN_BUD_GUIDANCE` — 28 days, `unstated`. Once a BUD is the user's (typed here, or already stored on the row) `budTouched` stops the opened date from recomputing it; do not "fix" that by re-deriving on every change.
 - The draw is drawn: `SyringeDiagram.tsx` renders a barrel filled to `result.syringeUnits` above the number, because a unit count is easy to misread (5 for 50 is one glance away) and hard to picture. The geometry is `syringeBarrel()` in shared — tick spacing, which marks carry a number, and the fill fraction — so the web SVG and the mobile `react-native-svg` component mark their barrels identically. Three rules: it takes `result.syringeCapacityUnits` rather than re-deriving capacity from the standard (a custom barrel would otherwise render to the wrong scale and the picture would disagree with the number beside it); an over-capacity draw renders as a **full** barrel in amber, matching the warning already on screen, with the un-clamped number still in the accessible name; and `syringeBarrel` returning `null` renders nothing, because a barrel at a scale nobody can name is worse than no picture. **Position 0 is the needle end**, and that fixes both ends of the drawing: the 0 graduation is where the stopper rests on an empty syringe, which is against the needle, and the liquid sits between the needle and the stopper. So the needle goes at the 0 end, the fill grows away from it, and the numbers count up toward the plunger — in both orientations. Drawn the other way round the mark still lands on the right number, so the answer survives and only the dedicated orientation tests catch it; what it renders is a syringe held backwards. The web component takes an `orientation`: the calculator passes `vertical`, standing the barrel beside its numbers in a two-column panel that stacks below `sm`, while `horizontal` is the default and is what mobile draws, having only one column.
 - The diluent itself is picked in `ReconstitutionCalculator.tsx` and stored on the record as `ReconstitutionDiluent | null`. It is the **one** optional field on `ReconstitutionRecord`: `readReconstitutionRecord` is otherwise all-or-nothing, and making this one required would have voided every mix already saved. Absent, null, and a value this version does not recognise all read back as `null`, "not stated" — which is a real answer, not a parse failure, because the field feeds only the beyond-use suggestion and never the syringe arithmetic.
+- Medication label panel missing, or showing the wrong maker: "Medication Label Provenance" above, then `src/pages/Medications/MedicationLabelPanel.tsx` and `src/hooks/useMedicationLabel.ts`. A missing panel is almost always correct — it is silent for a row with no `rxnorm_rxcui`, an owner who has not opted in, a drug the FDA does not list, and an unreachable FDA alike, so check `unavailableReason` on the response before suspecting the component. The _content_ of a listing is decided in `shared/src/medications/openfda.ts` and on the server, not here.
 - Missing/wrong UI text: the i18n key in `public/locales/en/translation.json` and the `t('...')` call site.
 - Chart issue: Recharts usage in the domain page plus `src/components/ExerciseCharts/` or `ZoomableChart.tsx`.
 
