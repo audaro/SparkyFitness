@@ -1,6 +1,7 @@
 import {
   addDays,
   computeMuscleFreshness,
+  deriveExperienceLevel,
   estimateDurationMinutes,
   fitToDuration,
   isCompound,
@@ -131,6 +132,14 @@ export interface GenerateOptions {
 }
 
 const DEFAULT_SESSION_MINUTES = 60;
+
+/**
+ * How far back the derived-experience fallback counts training days. A year
+ * covers seasonal lifters without letting a long-abandoned training age keep
+ * someone "expert" forever; the thresholds it feeds live in
+ * `GENERATION_TUNABLES` next to the level scoring they shape.
+ */
+const DERIVED_EXPERIENCE_WINDOW_DAYS = 365;
 
 /**
  * Read the training goal out of the coach profile's free-text goals.
@@ -399,11 +408,12 @@ async function generateRecommendation(
   userId: string,
   opts: GenerateOptions = {}
 ): Promise<WorkoutRecommendationResponse> {
-  const [{ muscles }, coachProfile, activeGymProfile] = await Promise.all([
-    loadFreshness(userId),
-    coachProfileRepository.getCoachProfile(userId),
-    gymEquipmentProfileRepository.getActiveGymProfile(userId),
-  ]);
+  const [{ today, muscles }, coachProfile, activeGymProfile] =
+    await Promise.all([
+      loadFreshness(userId),
+      coachProfileRepository.getCoachProfile(userId),
+      gymEquipmentProfileRepository.getActiveGymProfile(userId),
+    ]);
 
   const targetDurationMinutes =
     opts.durationMinutes ??
@@ -430,6 +440,22 @@ async function generateRecommendation(
     : null;
   const excludeIds = opts.swap ? previousExerciseIds(previous?.payload) : [];
 
+  // Stated beats derived: the profile is the user's own claim about
+  // themselves, and the fallback only fills silence. The derived level is
+  // recomputed here per generation and never written back to the profile, so
+  // it tracks the training log instead of freezing a guess the user then has
+  // to find and correct.
+  let experienceLevel: string | null = coachProfile?.experience_level ?? null;
+  if (experienceLevel === null) {
+    const sessionDays =
+      await workoutRecommendationRepository.getStrengthSessionDayCount(
+        userId,
+        addDays(today, -DERIVED_EXPERIENCE_WINDOW_DAYS),
+        today
+      );
+    experienceLevel = deriveExperienceLevel(sessionDays);
+  }
+
   const options: GenerationOptions = {
     targetDurationMinutes,
     availableEquipment: gymProfile ? gymProfile.equipment : null,
@@ -437,7 +463,7 @@ async function generateRecommendation(
       String(value).toLowerCase()
     ),
     goal: deriveGoal(coachProfile?.goals),
-    experienceLevel: coachProfile?.experience_level ?? null,
+    experienceLevel,
     excludeIds,
     targetMuscles: opts.targetMuscles,
   };
@@ -693,6 +719,11 @@ async function replaceRecommendationExercise(
       String(value).toLowerCase()
     ),
     goal: deriveGoal(coachProfile?.goals),
+    // Deliberately no derived-level fallback here, unlike generate: Replace
+    // re-prescribes one exercise inside a workout that was already built
+    // under some level, and deriving a fresh one mid-workout could prescribe
+    // the swapped-in exercise under a different level than its neighbours.
+    // Null is level-neutral scoring, which is the conservative choice.
     experienceLevel: coachProfile?.experience_level ?? null,
     excludeIds: [],
   };

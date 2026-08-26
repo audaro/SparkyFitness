@@ -3,6 +3,7 @@ import {
   COLD_START_LOAD_KG,
   GENERATION_TUNABLES,
   decideProgression,
+  deriveExperienceLevel,
   estimateDurationMinutes,
   fitToDuration,
   isEquipmentAvailable,
@@ -1736,5 +1737,22 @@ describe('fitToDuration', () => {
     expect(fitToDuration(items, 30, [], ['chest', 'lats'])).toEqual(
       fitToDuration(items, 30, [], ['chest', 'lats'])
     );
+  });
+});
+
+describe('deriveExperienceLevel', () => {
+  // Boundaries asserted against the tunables, not literals, so retuning the
+  // thresholds does not orphan this test — what it pins is that the bounds
+  // are inclusive and the vocabulary is the catalog's own.
+  it('maps training-day counts to levels at the tunable thresholds', () => {
+    const mid = GENERATION_TUNABLES.derivedIntermediateSessionDays;
+    const expert = GENERATION_TUNABLES.derivedExpertSessionDays;
+
+    expect(deriveExperienceLevel(0)).toBe('beginner');
+    expect(deriveExperienceLevel(mid - 1)).toBe('beginner');
+    expect(deriveExperienceLevel(mid)).toBe('intermediate');
+    expect(deriveExperienceLevel(expert - 1)).toBe('intermediate');
+    expect(deriveExperienceLevel(expert)).toBe('expert');
+    expect(deriveExperienceLevel(expert * 3)).toBe('expert');
   });
 });

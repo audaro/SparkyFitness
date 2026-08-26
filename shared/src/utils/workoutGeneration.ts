@@ -16,6 +16,7 @@ import {
   type ExerciseModality,
 } from "../constants/exercise.ts";
 import { DEFAULT_SET_TYPE, isWarmupSetType } from "../constants/setTypes.ts";
+import type { ExperienceLevel } from "../constants/experience.ts";
 import { quantizeLoadKg } from "./strengthMath.ts";
 import type { MuscleFreshness } from "./muscleRecovery.ts";
 import type {
@@ -81,6 +82,17 @@ export const GENERATION_TUNABLES = {
    * movements should still get one, not an empty slot.
    */
   levelTooAdvancedPenalty: -2,
+  /**
+   * Thresholds for {@link deriveExperienceLevel}: distinct days with at least
+   * one non-warm-up set over the trailing year. Twenty days is a person a few
+   * months into training consistently — past the point where everything is
+   * new. A hundred and fifty is training most of the week, most of the year;
+   * fewer sessions than a real intermediate-to-advanced transition takes, but
+   * the cost of overshooting is only that unfamiliar expert movements stop
+   * being penalized, not that anything is prescribed heavier.
+   */
+  derivedIntermediateSessionDays: 20,
+  derivedExpertSessionDays: 150,
   /** Penalty for an exercise the current workout already used (Swap). */
   swapPenalty: -3,
   /**
@@ -229,6 +241,31 @@ const LEVEL_RANK: Readonly<Record<string, number>> = {
   intermediate: 1,
   expert: 2,
 };
+
+/**
+ * Maps a training-history volume — distinct days with at least one non-warm-up
+ * set over the trailing year — to an experience level, for users who have not
+ * stated one. Stated always beats derived: the caller only reaches for this
+ * when the coach profile's `experience_level` is null, and the result is never
+ * persisted — it is recomputed per generation so it tracks the log rather than
+ * freezing a guess into the profile.
+ */
+export function deriveExperienceLevel(
+  loggedStrengthSessionDays: number,
+): ExperienceLevel {
+  if (
+    loggedStrengthSessionDays >= GENERATION_TUNABLES.derivedExpertSessionDays
+  ) {
+    return "expert";
+  }
+  if (
+    loggedStrengthSessionDays >=
+    GENERATION_TUNABLES.derivedIntermediateSessionDays
+  ) {
+    return "intermediate";
+  }
+  return "beginner";
+}
 
 /** A catalog row, reduced to what selection needs. */
 export interface CandidateExercise {

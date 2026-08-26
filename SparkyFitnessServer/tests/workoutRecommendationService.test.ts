@@ -24,6 +24,7 @@ import { loadUserTimezone } from '../utils/timezoneLoader.js';
 vi.mock('../models/workoutRecommendationRepository.js', () => {
   const mock = {
     getMuscleFatigueInputs: vi.fn(),
+    getStrengthSessionDayCount: vi.fn(),
     getCandidateExercises: vi.fn(),
     getCandidateExerciseById: vi.fn(),
     getWorkoutRecommendation: vi.fn(),
@@ -304,6 +305,7 @@ beforeEach(() => {
   repo.getMuscleFatigueInputs.mockResolvedValue(
     fatigueEverythingExcept('chest', 'lats')
   );
+  repo.getStrengthSessionDayCount.mockResolvedValue(0);
   repo.getCandidateExercises.mockResolvedValue([BENCH, FLY, BARBELL_ROW]);
   repo.getCandidateExerciseById.mockResolvedValue(null);
   repo.getWorkoutRecommendation.mockResolvedValue(null);
@@ -415,6 +417,51 @@ describe('generateRecommendation', () => {
 
     // Otherwise identical candidates: only the level-match bonus separates
     // them, so the beginner-rated row winning is the profile value arriving.
+    expect(result.payload.exercises[0].exercise_id).toBe(beginnerBench.id);
+  });
+
+  it('does not derive a level when the profile states one', async () => {
+    coachRepo.getCoachProfile.mockResolvedValue({
+      goals: null,
+      session_minutes: null,
+      experience_level: 'expert',
+      limitations: [],
+    });
+
+    await workoutRecommendationService.generateRecommendation(USER_ID);
+
+    // Stated beats derived, and skipping the count is also the cheap path:
+    // the query only runs for the users it can help.
+    expect(repo.getStrengthSessionDayCount).not.toHaveBeenCalled();
+  });
+
+  it('derives a level from the training log when the profile is silent', async () => {
+    // No profile row at all (the beforeEach default). One day short of the
+    // intermediate threshold derives 'beginner', so the beginner-rated
+    // candidate winning is the derived value reaching selection.
+    repo.getStrengthSessionDayCount.mockResolvedValue(
+      GENERATION_TUNABLES.derivedIntermediateSessionDays - 1
+    );
+    const beginnerBench = candidate({
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Push-Up',
+      level: 'beginner',
+    });
+    const unleveledBench = candidate({
+      id: '11111111-aaaa-4aaa-8aaa-111111111111',
+      name: 'Machine Press',
+    });
+    repo.getCandidateExercises.mockResolvedValue([
+      unleveledBench,
+      beginnerBench,
+    ]);
+
+    const result = await workoutRecommendationService.generateRecommendation(
+      USER_ID,
+      { targetMuscles: ['chest'] }
+    );
+
+    expect(repo.getStrengthSessionDayCount).toHaveBeenCalledTimes(1);
     expect(result.payload.exercises[0].exercise_id).toBe(beginnerBench.id);
   });
 
@@ -1282,6 +1329,24 @@ describe('replaceRecommendationExercise', () => {
         .filter((_, index) => index !== at)
         .map((exercise) => exercise.exercise_id)
     );
+  });
+
+  it('does not derive a level for a single-exercise replace', async () => {
+    await storeGenerated();
+    repo.getStrengthSessionDayCount.mockClear();
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    await workoutRecommendationService.replaceRecommendationExercise(
+      USER_ID,
+      BENCH_ID,
+      DIP_ID
+    );
+
+    // Replace re-prescribes one exercise inside a workout already built under
+    // some level; deriving a fresh one mid-workout could program the incoming
+    // row under a different level than its neighbours. Null level scoring is
+    // the deliberate choice, so the count query must not run here.
+    expect(repo.getStrengthSessionDayCount).not.toHaveBeenCalled();
   });
 
   it('prescribes the replacement for its own slot, not the outgoing one’s', async () => {

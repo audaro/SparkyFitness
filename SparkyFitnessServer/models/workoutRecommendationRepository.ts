@@ -132,6 +132,47 @@ async function getMuscleFatigueInputs(
   }
 }
 
+/**
+ * Distinct days on which the user performed at least one non-warm-up set —
+ * the input `deriveExperienceLevel` maps to a level when the coach profile
+ * does not state one. Counting days rather than entries or sets makes the
+ * measure hard to inflate: a six-exercise session and a two-exercise one are
+ * each one day of training experience.
+ *
+ * The warm-up and plan-linked-`completed_at` predicates are byte-identical to
+ * `getMuscleFatigueInputs` above, and for the same reason: a prescription is
+ * not experience until it is performed. The `JOIN` is inner where the fatigue
+ * read's is `LEFT` — a set-less entry (cardio, imports) establishes recovery
+ * state but says nothing about resistance-training experience.
+ */
+async function getStrengthSessionDayCount(
+  userId: string,
+  sinceDate: string,
+  untilDate: string
+): Promise<number> {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `SELECT COUNT(DISTINCT ee.entry_date) AS session_days
+         FROM exercise_entries ee
+         JOIN exercise_entry_sets ees ON ees.exercise_entry_id = ee.id
+        WHERE ee.user_id = $1
+          AND ee.entry_date IS NOT NULL
+          AND ee.entry_date >= $2::date
+          AND ee.entry_date <= $3::date
+          AND (ees.set_type IS NULL
+           OR regexp_replace(LOWER(ees.set_type), '[^a-z0-9]', '', 'g') NOT LIKE 'warmup%')
+          AND (ee.workout_plan_assignment_id IS NULL
+           OR ees.completed_at IS NOT NULL)`,
+      [userId, sinceDate, untilDate]
+    );
+    // COUNT is bigint, which node-postgres hands back as a string.
+    return Number(result.rows[0]?.session_days ?? 0);
+  } finally {
+    client.release();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Candidate catalog
 // ---------------------------------------------------------------------------
@@ -561,6 +602,7 @@ async function getWeeklySetCountInputs(
 export {
   getMuscleFatigueInputs,
   getWeeklySetCountInputs,
+  getStrengthSessionDayCount,
   getCandidateExercises,
   getCandidateExerciseById,
   getWorkoutRecommendation,
@@ -571,6 +613,7 @@ export {
 export default {
   getMuscleFatigueInputs,
   getWeeklySetCountInputs,
+  getStrengthSessionDayCount,
   getCandidateExercises,
   getCandidateExerciseById,
   getWorkoutRecommendation,
