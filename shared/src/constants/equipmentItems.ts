@@ -7,6 +7,10 @@ import {
   APPARATUS_OVERRIDE_SOURCE,
   type ExerciseApparatus,
 } from "./exerciseApparatus.ts";
+import {
+  EXERCISEDB_ITEM_REQUIREMENTS_LOOKUP,
+  EXERCISEDB_SOURCE,
+} from "./exercisedb.ts";
 
 /**
  * Granular equipment vocabulary — the items a real gym actually contains.
@@ -868,6 +872,19 @@ const ITEM_REQUIREMENTS_LOOKUP: ReadonlyMap<
 > = new Map(Object.entries(ITEM_REQUIREMENTS_BY_SOURCE_ID));
 
 /**
+ * Curated per-row requirements, one map per external catalog. Keys are the
+ * normalized `source` values the importers stamp on rows; a source absent
+ * here (user-created rows included) gets only the generic bucket defaults.
+ */
+const CURATED_ITEM_LOOKUP_BY_SOURCE: ReadonlyMap<
+  string,
+  ReadonlyMap<string, readonly EquipmentItemSlug[]>
+> = new Map([
+  [APPARATUS_OVERRIDE_SOURCE, ITEM_REQUIREMENTS_LOOKUP],
+  [EXERCISEDB_SOURCE, EXERCISEDB_ITEM_REQUIREMENTS_LOOKUP],
+]);
+
+/**
  * Defaults for rows the curated map does not name, in ONE place so the rule
  * cannot drift between the engine and its tests:
  *
@@ -903,18 +920,21 @@ const GENERIC_MACHINE_ANY_OF: readonly EquipmentItemSlug[] =
  * requirement beyond coarse equipment. The single source of the
  * curated-map-plus-defaults rule described above.
  *
- * Only rows from {@link APPARATUS_OVERRIDE_SOURCE} consult the curated map —
- * its keys are that catalog's ids — but the generic-bucket defaults apply to
- * every row, because a user-created "cable fly" needs a pulley just as much
- * as the imported one does.
+ * Only rows from a catalog with a curated map consult it — each map's keys
+ * are that catalog's ids — but the generic-bucket defaults apply to every
+ * row, because a user-created "cable fly" needs a pulley just as much as the
+ * imported one does.
  */
 export function requiredItemsFor(
   source: string | null | undefined,
   sourceId: string | null | undefined,
   coarseEquipment: readonly string[],
 ): readonly EquipmentItemSlug[] {
-  if (source?.trim().toLowerCase() === APPARATUS_OVERRIDE_SOURCE && sourceId) {
-    const curated = ITEM_REQUIREMENTS_LOOKUP.get(sourceId.trim());
+  const curatedForSource = source
+    ? CURATED_ITEM_LOOKUP_BY_SOURCE.get(source.trim().toLowerCase())
+    : undefined;
+  if (curatedForSource && sourceId) {
+    const curated = curatedForSource.get(sourceId.trim());
     if (curated !== undefined) return curated;
   }
   const coarse = new Set(coarseEquipment.map(normalizeEquipmentName));
