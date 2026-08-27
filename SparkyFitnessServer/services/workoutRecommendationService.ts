@@ -383,7 +383,8 @@ async function programExercise(
     warmupSetsFor(
       prescription.workingWeightKg,
       planned.candidate.equipment,
-      prescription.modality
+      prescription.modality,
+      options.loadLimits
     )
   );
 
@@ -474,6 +475,7 @@ async function generateRecommendation(
     // future reader that leaves the column off — `undefined` would read as
     // "stated" downstream, which is the opposite of what silence means.
     availableApparatus: gymProfile ? (gymProfile.apparatus ?? null) : null,
+    loadLimits: gymProfile ? (gymProfile.load_limits ?? null) : null,
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
     ),
@@ -732,6 +734,7 @@ async function replaceRecommendationExercise(
     targetDurationMinutes: row.target_duration_minutes,
     availableEquipment: gymProfile ? gymProfile.equipment : null,
     availableApparatus: gymProfile ? (gymProfile.apparatus ?? null) : null,
+    loadLimits: gymProfile ? (gymProfile.load_limits ?? null) : null,
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
     ),

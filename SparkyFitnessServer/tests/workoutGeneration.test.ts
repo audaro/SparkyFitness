@@ -70,6 +70,7 @@ function options(
     targetDurationMinutes: 60,
     availableEquipment: null,
     availableApparatus: null,
+    loadLimits: null,
     limitations: [],
     goal: 'general',
     ...overrides,
@@ -1102,6 +1103,133 @@ describe('prescribeSets', () => {
     expect(result.workingWeightKg).toBe(105);
   });
 
+  it('caps a progression at the heaviest load the gym stocks', () => {
+    // 24 kg dumbbell rows going up 2.5% → 24.6 → quantized 24; the gym's
+    // dumbbells stop at 22.5, which floors to the 22 the rack actually holds
+    // (never up to 24). The description must then be what happened — the
+    // load went DOWN to fit the gym — not the "+2.5%" the progression wanted.
+    const result = prescribeSets(
+      candidate({ id: 'a', equipment: ['dumbbell'], primaryMuscles: ['lats'] }),
+      history(
+        session('2026-08-20', [
+          { reps: 10, weight: 24 },
+          { reps: 10, weight: 24 },
+        ])
+      ),
+      options({ loadLimits: { dumbbell: { max_kg: 22.5 } } })
+    );
+
+    expect(result.workingWeightKg).toBe(22);
+    expect(result.capped).toBe(true);
+    expect(result.progression).toBe('decrease');
+    expect(result.appliedMultiplier).toBeCloseTo(22 / 24, 6);
+    expect(result.sets.every((s) => s.weight === 22)).toBe(true);
+  });
+
+  it('keeps an increase honest when the cap only trims it', () => {
+    // Quads at 100 kg want +5% = 105; the gym tops out at 104, which floors
+    // to 102.5 — still an increase, just a smaller one, and the multiplier
+    // reports the step that was actually applied.
+    const result = prescribeSets(
+      candidate({ id: 'a', primaryMuscles: ['quadriceps'] }),
+      history(session('2026-08-20', [{ reps: 10, weight: 100 }])),
+      options({ loadLimits: { barbell: { max_kg: 104 } } })
+    );
+
+    expect(result.workingWeightKg).toBe(102.5);
+    expect(result.capped).toBe(true);
+    expect(result.progression).toBe('increase');
+    expect(result.appliedMultiplier).toBeCloseTo(1.025, 6);
+  });
+
+  it('remaps a cap that lands exactly on the baseline to a hold', () => {
+    // Dumbbell lunges at 22 kg want +5% = 23.1 → quantized 24; the gym's
+    // 22.5 max floors back to 22 — exactly last session's load.
+    const result = prescribeSets(
+      candidate({
+        id: 'a',
+        equipment: ['dumbbell'],
+        primaryMuscles: ['quadriceps'],
+      }),
+      history(session('2026-08-20', [{ reps: 10, weight: 22 }])),
+      options({ loadLimits: { dumbbell: { max_kg: 22.5 } } })
+    );
+
+    expect(result.workingWeightKg).toBe(22);
+    expect(result.capped).toBe(true);
+    expect(result.progression).toBe('hold');
+    expect(result.appliedMultiplier).toBe(1);
+  });
+
+  it('clamps a cold start to a gym stocked lighter than the assumption', () => {
+    const result = prescribeSets(
+      candidate({ id: 'a' }),
+      null,
+      options({ loadLimits: { barbell: { max_kg: 15 } } })
+    );
+
+    expect(result.progression).toBe('cold-start');
+    expect(result.workingWeightKg).toBe(15);
+    expect(result.capped).toBe(true);
+  });
+
+  it("quantizes to the profile's increment override", () => {
+    // The gym's dumbbells step in 5 lb (2.27 kg) jumps, not the metric 2.0
+    // default: 20 × 1.025 = 20.5 snaps to 9 × 2.27 = 20.43.
+    const result = prescribeSets(
+      candidate({
+        id: 'a',
+        equipment: ['dumbbell'],
+        primaryMuscles: ['chest'],
+      }),
+      history(session('2026-08-20', [{ reps: 10, weight: 20 }])),
+      options({
+        loadLimits: { dumbbell: { max_kg: 50, increment_kg: 2.27 } },
+      })
+    );
+
+    expect(result.workingWeightKg).toBe(20.43);
+    expect(result.capped).toBe(false);
+  });
+
+  it('prescribes byte-identically with null limits — the legacy pin', () => {
+    // Every profile written before load limits existed reads back NULL, and
+    // NULL must mean "exactly what the engine always did".
+    const make = (loadLimits: GenerationOptions['loadLimits']) =>
+      prescribeSets(
+        candidate({ id: 'a', primaryMuscles: ['chest'] }),
+        history(
+          session('2026-08-20', [
+            { reps: 10, weight: 80 },
+            { reps: 10, weight: 80 },
+          ])
+        ),
+        options({ loadLimits })
+      );
+
+    const pinned = make(null);
+    expect(pinned).toEqual({
+      sets: Array.from({ length: 3 }, (_, index) => ({
+        set_number: index + 1,
+        set_type: 'Working Set',
+        reps: 10,
+        weight: 82.5,
+        duration: null,
+        distance: null,
+        rest_time: 120,
+      })),
+      restSeconds: 120,
+      progression: 'increase',
+      workingWeightKg: 82.5,
+      appliedMultiplier: 1.025,
+      modality: 'weight_reps',
+      mobility: false,
+      capped: false,
+    });
+    // And a limits object that never binds changes nothing either.
+    expect(make({ barbell: { max_kg: 500 } })).toEqual(pinned);
+  });
+
   it('holds when even one working set missed the target', () => {
     const result = prescribeSets(
       candidate({ id: 'a' }),
@@ -1501,6 +1629,35 @@ describe('rationaleFor', () => {
       rationaleFor('hamstrings', prescribeSets(STRETCH, null, options()))
     ).toBe('fresh hamstrings · mobility hold');
   });
+
+  it('blames the gym, not the lifter, when the cap forces a drop', () => {
+    // "-8.3% after two short sessions" would be a lie twice over: the
+    // sessions were fine, and the drop is the dumbbell rack ending at 22.5.
+    const capped = prescribeSets(
+      candidate({ id: 'a', equipment: ['dumbbell'], primaryMuscles: ['lats'] }),
+      history(session('2026-08-20', [{ reps: 10, weight: 24 }])),
+      options({ loadLimits: { dumbbell: { max_kg: 22.5 } } })
+    );
+
+    expect(capped.progression).toBe('decrease');
+    expect(rationaleFor('lats', capped)).toBe(
+      "fresh lats · at this gym's max load"
+    );
+  });
+
+  it('keeps the standard sentence for a cap that still allows an increase', () => {
+    const trimmed = prescribeSets(
+      candidate({ id: 'a', primaryMuscles: ['quadriceps'] }),
+      history(session('2026-08-20', [{ reps: 10, weight: 100 }])),
+      options({ loadLimits: { barbell: { max_kg: 104 } } })
+    );
+
+    expect(trimmed.capped).toBe(true);
+    // 102.5 / 100 — the multiplier that was actually applied.
+    expect(rationaleFor('quadriceps', trimmed)).toBe(
+      'fresh quadriceps · +2.5% from last session'
+    );
+  });
 });
 
 // --- warm-ups ---------------------------------------------------------------
@@ -1540,6 +1697,20 @@ describe('warmupSetsFor', () => {
   it('never ramps a non-weight modality', () => {
     expect(warmupSetsFor(100, ['barbell'], 'duration')).toEqual([]);
     expect(warmupSetsFor(100, ['barbell'], 'duration_distance')).toEqual([]);
+  });
+
+  it("quantizes the ramp with the profile's increment override", () => {
+    // 60% of 36 kg on 2.27 kg dumbbell steps: 21.6 → 22.7, not the metric
+    // 22. (The working weight arrives already capped, so the limits matter
+    // here only for the step size.)
+    const result = warmupSetsFor(36, ['dumbbell'], 'weight_reps', {
+      dumbbell: { max_kg: 50, increment_kg: 2.27 },
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.weight).toBe(22.7);
+    // Null limits keep the metric default.
+    expect(warmupSetsFor(36, ['dumbbell'])[0]!.weight).toBe(22);
   });
 });
 

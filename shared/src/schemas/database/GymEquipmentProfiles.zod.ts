@@ -28,11 +28,26 @@ export const gymEquipmentSchema = z.enum(EQUIPMENT);
  */
 export const gymApparatusSchema = z.enum(EXERCISE_APPARATUS);
 
+/**
+ * One equipment type's limit, kg (dumbbell: per hand). `max_kg` is the
+ * heaviest load the gym stocks; `increment_kg` overrides the global step
+ * used to quantize prescriptions. NULL on the column = no limits stated.
+ */
+export const gymLoadLimitSchema = z
+  .object({
+    max_kg: z.number().positive().max(500),
+    increment_kg: z.number().positive().max(50).optional(),
+  })
+  .strict();
+
 const gymEquipmentProfilesFieldsSchema = z.object({
   user_id: userIdSchema,
   name: z.string().min(1).max(100),
   equipment: z.array(gymEquipmentSchema),
   apparatus: z.array(gymApparatusSchema).nullable(),
+  load_limits: z
+    .partialRecord(gymEquipmentSchema, gymLoadLimitSchema)
+    .nullable(),
   is_active: z.boolean(),
   created_at: z.date(),
   updated_at: z.date(),

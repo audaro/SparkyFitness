@@ -50,6 +50,7 @@ const ROW = {
   name: 'Home',
   equipment: ['dumbbell', 'bands'],
   apparatus: null,
+  load_limits: null,
   is_active: true,
   created_at: new Date('2026-08-23T10:00:00.000Z'),
   updated_at: new Date('2026-08-23T11:00:00.000Z'),
@@ -78,6 +79,7 @@ describe('Gym Equipment Profile Routes', () => {
             name: 'Home',
             equipment: ['dumbbell', 'bands'],
             apparatus: null,
+            load_limits: null,
             is_active: true,
             created_at: '2026-08-23T10:00:00.000Z',
             updated_at: '2026-08-23T11:00:00.000Z',
@@ -148,6 +150,57 @@ describe('Gym Equipment Profile Routes', () => {
         equipment: ['dumbbell', 'bands'],
         apparatus: ['bench'],
       });
+    });
+
+    it('creates a profile with load limits', async () => {
+      repo.createGymProfile.mockResolvedValue({
+        ...ROW,
+        load_limits: { dumbbell: { max_kg: 22.5 } },
+      });
+
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({
+          name: 'Home',
+          equipment: ['dumbbell'],
+          load_limits: { dumbbell: { max_kg: 22.5 } },
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.load_limits).toEqual({ dumbbell: { max_kg: 22.5 } });
+      expect(repo.createGymProfile).toHaveBeenCalledWith('test-user-id', {
+        name: 'Home',
+        equipment: ['dumbbell'],
+        load_limits: { dumbbell: { max_kg: 22.5 } },
+      });
+    });
+
+    it('rejects a load-limit key outside the equipment vocabulary', async () => {
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        // A `Dumbbell` entry would never match the lowercase equipment value
+        // the engine caps against — it would silently limit nothing.
+        .send({
+          name: 'Home',
+          equipment: ['dumbbell'],
+          load_limits: { Dumbbell: { max_kg: 22.5 } },
+        });
+
+      expect(res.statusCode).toBe(400);
+      expect(repo.createGymProfile).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-positive load ceiling', async () => {
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({
+          name: 'Home',
+          equipment: ['dumbbell'],
+          load_limits: { dumbbell: { max_kg: 0 } },
+        });
+
+      expect(res.statusCode).toBe(400);
+      expect(repo.createGymProfile).not.toHaveBeenCalled();
     });
 
     it('rejects an apparatus value outside the vocabulary', async () => {
@@ -250,6 +303,22 @@ describe('Gym Equipment Profile Routes', () => {
         'test-user-id',
         PROFILE_ID,
         { apparatus: [] }
+      );
+    });
+
+    it('accepts explicit null to clear load limits', async () => {
+      repo.updateGymProfile.mockResolvedValue(ROW);
+
+      const res = await request(app)
+        .put(`/api/gym-equipment-profiles/${PROFILE_ID}`)
+        .send({ load_limits: null });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.load_limits).toBeNull();
+      expect(repo.updateGymProfile).toHaveBeenCalledWith(
+        'test-user-id',
+        PROFILE_ID,
+        { load_limits: null }
       );
     });
 

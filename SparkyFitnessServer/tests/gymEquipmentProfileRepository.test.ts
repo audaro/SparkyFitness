@@ -90,6 +90,7 @@ describe('gymEquipmentProfileRepository', () => {
         'Home',
         JSON.stringify(['dumbbell', 'bands']),
         null,
+        null,
         false,
       ]);
     });
@@ -126,6 +127,33 @@ describe('gymEquipmentProfileRepository', () => {
       );
       expect(insert[0]).toContain('$4::jsonb');
       expect(insert[1][3]).toBe(JSON.stringify(['bench', 'pull-up bar']));
+    });
+
+    it('serializes load limits as jsonb, and their absence as SQL NULL', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Home',
+        equipment: ['dumbbell'],
+        load_limits: { dumbbell: { max_kg: 22.5 } },
+      });
+
+      const insert = mockClient.query.mock.calls.find((call: string[]) =>
+        call[0].includes('INSERT INTO gym_equipment_profiles')
+      );
+      expect(insert[0]).toContain('$5::jsonb');
+      expect(insert[1][4]).toBe(JSON.stringify({ dumbbell: { max_kg: 22.5 } }));
+
+      mockClient.query.mockClear();
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Bare',
+        equipment: [],
+      });
+      const bare = mockClient.query.mock.calls.find((call: string[]) =>
+        call[0].includes('INSERT INTO gym_equipment_profiles')
+      );
+      expect(bare[1][4]).toBeNull();
     });
 
     it('does not touch other rows when the new profile is inactive', async () => {
@@ -240,6 +268,29 @@ describe('gymEquipmentProfileRepository', () => {
       // see a non-SQL-NULL value and the engine would stop inferring.
       expect(params[2]).toBeNull();
       expect(params[2]).not.toBe('null');
+    });
+
+    it('serializes a load-limits patch, and clears it to SQL NULL', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.updateGymProfile('user-1', ROW.id, {
+        load_limits: { dumbbell: { max_kg: 22.5, increment_kg: 2.27 } },
+      });
+
+      let [text, params] = mockClient.query.mock.calls[0];
+      expect(text).toContain('load_limits = $3::jsonb');
+      expect(params[2]).toBe(
+        JSON.stringify({ dumbbell: { max_kg: 22.5, increment_kg: 2.27 } })
+      );
+
+      mockClient.query.mockClear();
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+      await gymEquipmentProfileRepository.updateGymProfile('user-1', ROW.id, {
+        load_limits: null,
+      });
+      [text, params] = mockClient.query.mock.calls[0];
+      expect(text).toContain('load_limits = $3::jsonb');
+      expect(params[2]).toBeNull();
     });
 
     it('returns null when the row does not belong to the user', async () => {

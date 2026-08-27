@@ -610,6 +610,51 @@ describe('generateRecommendation', () => {
     expect(bench!.sets.filter((s) => s.set_type === 'Warmup')).toHaveLength(2);
   });
 
+  it("caps prescriptions at the gym profile's stated load limits", async () => {
+    gymRepo.getActiveGymProfile.mockResolvedValue({
+      id: 'gym-1',
+      equipment: ['barbell', 'cable'],
+      load_limits: { barbell: { max_kg: 60 } },
+    });
+    entries.getRecentSessionsForExercise.mockImplementation(
+      (_userId: string, exerciseId: string) =>
+        Promise.resolve(
+          exerciseId === BENCH_ID
+            ? [
+                {
+                  entry_date: '2026-08-20',
+                  sets: [
+                    {
+                      set_type: 'Working Set',
+                      reps: 10,
+                      weight: 80,
+                      duration: null,
+                      distance: null,
+                    },
+                  ],
+                },
+              ]
+            : []
+        )
+    );
+
+    const result =
+      await workoutRecommendationService.generateRecommendation(USER_ID);
+    const bench = result.payload.exercises.find(
+      (e) => e.exercise_id === BENCH_ID
+    );
+
+    expect(bench).toBeDefined();
+    // 80 → +2.5% wants 82.5; the gym's bar maxes at 60, and the rationale
+    // says so instead of claiming a deload the lifter never earned.
+    const working = bench!.sets.filter((s) => s.set_type === 'Working Set');
+    expect(working.every((s) => s.weight === 60)).toBe(true);
+    expect(bench!.rationale).toContain("at this gym's max load");
+    // Warm-ups ramp off the capped weight, so they respect the cap too.
+    const warmups = bench!.sets.filter((s) => s.set_type === 'Warmup');
+    expect(warmups.every((s) => (s.weight ?? 0) < 60)).toBe(true);
+  });
+
   it('reads history one exercise at a time, not all at once', async () => {
     // The pool caps at 10 clients and each reader takes one; a Promise.all
     // over a ten-exercise workout would take the whole pool and deadlock

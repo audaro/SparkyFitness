@@ -34,6 +34,7 @@ function toResponse(row: GymEquipmentProfileRow): GymEquipmentProfileResponse {
     name: row.name,
     equipment: row.equipment,
     apparatus: row.apparatus,
+    load_limits: row.load_limits,
     is_active: row.is_active,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
@@ -83,6 +84,9 @@ const listHandler: RequestHandler = async (req, res, next) => {
  *       `apparatus` is optional and tri-state: omitted means "never stated" (the workout engine
  *       keeps inferring apparatus from barbell/cable/machine), `[]` means "stated: none", and an
  *       array of `pull-up bar` / `dip station` / `squat rack` / `bench` means "stated: exactly these".
+ *       `load_limits` is optional: per-equipment ceilings and step overrides in kg (dumbbell values
+ *       are per hand), e.g. `{"dumbbell": {"max_kg": 22.68, "increment_kg": 2.27}}` — prescriptions
+ *       never exceed a stated `max_kg`. Omitted means no limits.
  *       Passing `is_active: true` deactivates the previous active profile in the same transaction.
  *     security:
  *       - cookieAuth: []
@@ -132,7 +136,8 @@ const createHandler: RequestHandler = async (req, res, next) => {
  *       Only the supplied fields are written. `is_active` is not accepted here — activation is a
  *       cross-row operation owned by `POST /{id}/activate`. `apparatus` accepts an array (stated
  *       exactly), `[]` (stated none), or explicit `null` to clear back to "never stated" so the
- *       workout engine resumes inferring it from the equipment list.
+ *       workout engine resumes inferring it from the equipment list. `load_limits` accepts a map
+ *       (replacing the whole column, never merging) or explicit `null` to clear every limit.
  *     security:
  *       - cookieAuth: []
  *     responses:

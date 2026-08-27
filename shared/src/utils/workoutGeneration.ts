@@ -18,7 +18,7 @@ import {
 } from "../constants/exercise.ts";
 import { DEFAULT_SET_TYPE, isWarmupSetType } from "../constants/setTypes.ts";
 import type { ExperienceLevel } from "../constants/experience.ts";
-import { quantizeLoadKg } from "./strengthMath.ts";
+import { capLoadKg, quantizeLoadKg, type LoadLimits } from "./strengthMath.ts";
 import type { MuscleFreshness } from "./muscleRecovery.ts";
 import type {
   RecommendationSet,
@@ -308,6 +308,13 @@ export interface GenerationOptions {
    * silent regression to inference.
    */
   availableApparatus: ExerciseApparatus[] | null;
+  /**
+   * The gym profile's per-equipment load ceilings and step overrides
+   * (`gym_equipment_profiles.load_limits`). `null` = none stated =
+   * prescription exactly as before. Required for the same fail-loud reason
+   * as `availableApparatus`.
+   */
+  loadLimits: LoadLimits | null;
   /** `coach_profiles.limitations`, lowercased. */
   limitations: string[];
   goal: WorkoutGoal;
@@ -388,6 +395,14 @@ export interface Prescription {
   modality: ExerciseModality;
   /** True when this was programmed as mobility work rather than a training set. */
   mobility: boolean;
+  /**
+   * True when the gym profile's load limit bound the working weight — the
+   * prescription wanted more than the gym stocks. `appliedMultiplier` and
+   * `progression` already describe what actually happened; this flag lets
+   * {@link rationaleFor} say *why* when the honest description would
+   * otherwise read as a deload the user never earned.
+   */
+  capped: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -1067,6 +1082,7 @@ export function prescribeSets(
       appliedMultiplier: 1,
       modality: "duration",
       mobility: true,
+      capped: false,
     };
   }
 
@@ -1092,6 +1108,7 @@ export function prescribeSets(
       appliedMultiplier: 1,
       modality,
       mobility: false,
+      capped: false,
     };
   }
 
@@ -1117,6 +1134,7 @@ export function prescribeSets(
       appliedMultiplier: 1,
       modality,
       mobility: false,
+      capped: false,
     };
   }
 
@@ -1124,19 +1142,30 @@ export function prescribeSets(
     history && history.lastSessions.length > 0
       ? history.lastSessions[0]
       : undefined;
-  const decision = latest
+  let decision: ProgressionDecision = latest
     ? decideProgression(history!, repTarget)
     : "cold-start";
 
   let workingWeightKg: number | null = null;
   let appliedMultiplier = 1;
+  let capped = false;
   if (exercise.modality === "weight_reps") {
     // A logged session with no usable weights (all reps-only, or all zero)
     // leaves nothing to progress from, so it cold-starts like a first session
     // rather than progressing off a number that was never lifted.
     const baseline = latest ? modalWorkingWeightKg(latest) : null;
     if (baseline == null) {
-      workingWeightKg = coldStartLoadKg(exercise.equipment);
+      const coldStart = coldStartLoadKg(exercise.equipment);
+      if (coldStart != null) {
+        // A tiny home setup can stock less than the cold start assumes.
+        const clamped = capLoadKg(
+          coldStart,
+          exercise.equipment[0],
+          options.loadLimits,
+        );
+        workingWeightKg = clamped;
+        capped = clamped < coldStart;
+      }
     } else {
       appliedMultiplier = progressionMultiplier(
         decision,
@@ -1145,7 +1174,29 @@ export function prescribeSets(
       workingWeightKg = quantizeLoadKg(
         baseline * appliedMultiplier,
         exercise.equipment[0],
+        options.loadLimits,
       );
+      const clamped = capLoadKg(
+        workingWeightKg,
+        exercise.equipment[0],
+        options.loadLimits,
+      );
+      if (clamped < workingWeightKg) {
+        // The gym stops where the progression wanted to go. Prescribe what
+        // is actually on the rack, and keep the description honest: the
+        // multiplier becomes the one that was really applied, and the
+        // decision is remapped from it so `rationaleFor` never claims a step
+        // the sets were not built with.
+        workingWeightKg = clamped;
+        capped = true;
+        appliedMultiplier = baseline > 0 ? workingWeightKg / baseline : 1;
+        decision =
+          appliedMultiplier > 1
+            ? "increase"
+            : appliedMultiplier === 1
+              ? "hold"
+              : "decrease";
+      }
     }
     if (workingWeightKg != null && workingWeightKg <= 0) workingWeightKg = null;
   }
@@ -1166,6 +1217,7 @@ export function prescribeSets(
     appliedMultiplier,
     modality,
     mobility: false,
+    capped,
   };
 }
 
@@ -1190,6 +1242,14 @@ export function rationaleFor(
   // below say anything true about it: "first time — starting light" reads as a
   // conservative weight on a movement that has no weight.
   if (prescription.mobility) return `${fresh} · mobility hold`;
+  // A cap-bound decrease is the one case the standard sentences get wrong:
+  // "after two short sessions" would blame a deload on performance when the
+  // load simply is not stocked at this gym. Cap-bound increases and holds
+  // stay on the standard strings, which already render the multiplier that
+  // was actually applied.
+  if (prescription.capped && prescription.progression === "decrease") {
+    return `${fresh} · at this gym's max load`;
+  }
   switch (prescription.progression) {
     case "cold-start":
       return `${fresh} · first time — starting light`;
@@ -1222,6 +1282,7 @@ export function warmupSetsFor(
   workingWeightKg: number | null,
   equipment: readonly string[],
   modality = "weight_reps",
+  loadLimits: LoadLimits | null = null,
 ): RecommendationSet[] {
   if (modality !== "weight_reps") return [];
   if (
@@ -1231,8 +1292,10 @@ export function warmupSetsFor(
     return [];
   }
   const increment = equipment[0];
+  // Fractions of an already-capped working weight cannot exceed the cap, so
+  // the limits matter here only for the increment override.
   const ramp = (fraction: number, reps: number) => ({
-    weight: quantizeLoadKg(workingWeightKg * fraction, increment),
+    weight: quantizeLoadKg(workingWeightKg * fraction, increment, loadLimits),
     reps,
   });
   const steps =

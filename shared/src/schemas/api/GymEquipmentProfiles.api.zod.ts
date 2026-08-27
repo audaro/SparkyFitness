@@ -15,7 +15,9 @@ import { EXERCISE_APPARATUS } from "../../constants/exerciseApparatus.ts";
 export const gymEquipmentValueSchema = z.enum(EQUIPMENT);
 
 /** Bounded so one profile cannot carry an unbounded jsonb blob. */
-const equipmentListSchema = z.array(gymEquipmentValueSchema).max(EQUIPMENT.length);
+const equipmentListSchema = z
+  .array(gymEquipmentValueSchema)
+  .max(EQUIPMENT.length);
 
 /**
  * Apparatus the gym physically has (pull-up bar, dip station, squat rack,
@@ -31,6 +33,22 @@ const apparatusListSchema = z
   .array(gymApparatusValueSchema)
   .max(EXERCISE_APPARATUS.length);
 
+/**
+ * Per-equipment load ceilings and step overrides, kg (dumbbell: per hand),
+ * keyed by canonical equipment value. Keys outside the enum are rejected —
+ * a `Dumbbell` entry would silently cap nothing. Absent/NULL means "no
+ * limits stated": prescription keeps the global increments and no ceiling.
+ */
+export const loadLimitsSchema = z.partialRecord(
+  gymEquipmentValueSchema,
+  z
+    .object({
+      max_kg: z.number().positive().max(500),
+      increment_kg: z.number().positive().max(50).optional(),
+    })
+    .strict(),
+);
+
 const profileNameSchema = z.string().trim().min(1).max(100);
 
 // --- Response contracts ---
@@ -44,6 +62,7 @@ export const gymEquipmentProfileResponseSchema = z
     name: z.string(),
     equipment: z.array(z.string()),
     apparatus: z.array(z.string()).nullable(),
+    load_limits: loadLimitsSchema.nullable(),
     is_active: z.boolean(),
     created_at: z.string(),
     updated_at: z.string(),
@@ -67,6 +86,8 @@ export const createGymEquipmentProfileRequestSchema = z
     equipment: equipmentListSchema,
     /** Omitted = "never stated" (stored NULL; the engine keeps inferring). */
     apparatus: apparatusListSchema.optional(),
+    /** Omitted = no limits (stored NULL; prescription is unconstrained). */
+    load_limits: loadLimitsSchema.optional(),
     /**
      * Creating a profile already active is a real flow (the first profile a
      * user makes). The server routes it through the same transaction the
@@ -89,6 +110,8 @@ export const updateGymEquipmentProfileRequestSchema = z
     equipment: equipmentListSchema.optional(),
     /** Explicit null clears back to "never stated" (inference resumes). */
     apparatus: apparatusListSchema.nullable().optional(),
+    /** Explicit null clears every limit; the map replaces, never merges. */
+    load_limits: loadLimitsSchema.nullable().optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, {
@@ -97,6 +120,7 @@ export const updateGymEquipmentProfileRequestSchema = z
 
 export type GymEquipmentValue = z.infer<typeof gymEquipmentValueSchema>;
 export type GymApparatusValue = z.infer<typeof gymApparatusValueSchema>;
+export type GymLoadLimits = z.infer<typeof loadLimitsSchema>;
 export type GymEquipmentProfileResponse = z.infer<
   typeof gymEquipmentProfileResponseSchema
 >;

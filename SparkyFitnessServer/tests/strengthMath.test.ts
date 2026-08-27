@@ -8,6 +8,7 @@ import {
   EQUIPMENT_INCREMENT_KG,
   LOWER_BODY_MUSCLES,
   MUSCLES,
+  capLoadKg,
   epley1RmKg,
   estimateRepMaxKg,
   incrementForEquipmentKg,
@@ -235,6 +236,52 @@ describe('equipment load increments', () => {
     expect(incrementForEquipmentKg('smith machine')).toBe(DEFAULT_INCREMENT_KG);
     expect(incrementForEquipmentKg(null)).toBe(DEFAULT_INCREMENT_KG);
     expect(incrementForEquipmentKg(undefined)).toBe(DEFAULT_INCREMENT_KG);
+  });
+
+  it("lets a profile's increment override beat the global table", () => {
+    const limits = { dumbbell: { max_kg: 50, increment_kg: 2.27 } };
+    expect(incrementForEquipmentKg('dumbbell', limits)).toBe(2.27);
+    // Canonicalized on the way in, like the global lookup.
+    expect(incrementForEquipmentKg('  Dumbbell ', limits)).toBe(2.27);
+    // Other equipment, and a limit entry with no increment, fall through.
+    expect(incrementForEquipmentKg('barbell', limits)).toBe(2.5);
+    expect(
+      incrementForEquipmentKg('dumbbell', { dumbbell: { max_kg: 50 } })
+    ).toBe(2.0);
+    expect(incrementForEquipmentKg('dumbbell', null)).toBe(2.0);
+  });
+});
+
+describe('capLoadKg', () => {
+  it('passes through with no limits, no matching entry, or a load within them', () => {
+    expect(capLoadKg(24, 'dumbbell', null)).toBe(24);
+    expect(capLoadKg(24, 'dumbbell', {})).toBe(24);
+    expect(capLoadKg(24, 'dumbbell', { barbell: { max_kg: 20 } })).toBe(24);
+    expect(capLoadKg(22, 'dumbbell', { dumbbell: { max_kg: 22.5 } })).toBe(22);
+    expect(capLoadKg(22.5, 'dumbbell', { dumbbell: { max_kg: 22.5 } })).toBe(
+      22.5
+    );
+  });
+
+  it('floors a binding cap to the increment rather than rounding up through it', () => {
+    // 22.5 on 2.0 kg dumbbell steps: nearest-rounding would say 22 or 24;
+    // 24 exceeds what the gym stocks, so the cap must floor to 22.
+    expect(capLoadKg(24, 'dumbbell', { dumbbell: { max_kg: 22.5 } })).toBe(22);
+    // A max sitting exactly on a step keeps the whole step.
+    expect(capLoadKg(30, 'dumbbell', { dumbbell: { max_kg: 22 } })).toBe(22);
+    // The profile's own increment override drives the flooring:
+    // floor(22.5 / 2.27) = 9 pins ⇒ 20.43 kg.
+    expect(
+      capLoadKg(30, 'dumbbell', {
+        dumbbell: { max_kg: 22.5, increment_kg: 2.27 },
+      })
+    ).toBe(20.43);
+  });
+
+  it('returns the raw ceiling for zero-increment equipment and sub-step caps', () => {
+    expect(capLoadKg(30, 'bands', { bands: { max_kg: 15 } })).toBe(15);
+    // A cap below the first step is still the ceiling, not zero.
+    expect(capLoadKg(5, 'dumbbell', { dumbbell: { max_kg: 1.5 } })).toBe(1.5);
   });
 });
 
