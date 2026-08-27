@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EQUIPMENT } from "../../constants/exerciseTaxonomy.ts";
 import { EXERCISE_APPARATUS } from "../../constants/exerciseApparatus.ts";
+import { EQUIPMENT_ITEM_SLUGS } from "../../constants/equipmentItems.ts";
 
 // Branded so a public.gym_equipment_profiles id cannot be passed where
 // another table's id belongs.
@@ -29,6 +30,15 @@ export const gymEquipmentSchema = z.enum(EQUIPMENT);
 export const gymApparatusSchema = z.enum(EXERCISE_APPARATUS);
 
 /**
+ * Granular item slugs from the shared EQUIPMENT_ITEMS vocabulary — the
+ * engine-side overlay, deliberately NOT the upstream equipment enum: a slug
+ * must never reach the `?|` catalog filter. NULL on the column means "never
+ * stated" (legacy profile, coarse behavior everywhere); an array is an
+ * authoritative statement, with `[]` meaning "nothing here".
+ */
+export const equipmentItemSlugSchema = z.enum(EQUIPMENT_ITEM_SLUGS);
+
+/**
  * One equipment type's limit, kg (dumbbell: per hand). `max_kg` is the
  * heaviest load the gym stocks; `increment_kg` overrides the global step
  * used to quantize prescriptions. NULL on the column = no limits stated.
@@ -45,6 +55,10 @@ const gymEquipmentProfilesFieldsSchema = z.object({
   name: z.string().min(1).max(100),
   equipment: z.array(gymEquipmentSchema),
   apparatus: z.array(gymApparatusSchema).nullable(),
+  equipment_items: z
+    .array(equipmentItemSlugSchema)
+    .max(EQUIPMENT_ITEM_SLUGS.length)
+    .nullable(),
   load_limits: z
     .partialRecord(gymEquipmentSchema, gymLoadLimitSchema)
     .nullable(),

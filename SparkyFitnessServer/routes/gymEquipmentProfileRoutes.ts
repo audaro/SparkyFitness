@@ -2,14 +2,19 @@ import express, { RequestHandler } from 'express';
 import { z } from 'zod';
 import {
   createGymEquipmentProfileRequestSchema,
+  deriveApparatusFromItems,
+  deriveEquipmentFromItems,
   gymEquipmentProfileResponseSchema,
   gymEquipmentProfilesListResponseSchema,
   updateGymEquipmentProfileRequestSchema,
+  type EquipmentItemSlug,
   type GymEquipmentProfileResponse,
 } from '@workspace/shared';
 import { authenticate } from '../middleware/authMiddleware.js';
 import checkPermissionMiddleware from '../middleware/checkPermissionMiddleware.js';
 import gymEquipmentProfileRepository, {
+  type GymEquipmentProfileCreate,
+  type GymEquipmentProfilePatch,
   type GymEquipmentProfileRow,
 } from '../models/gymEquipmentProfileRepository.js';
 import { log } from '../config/logging.js';
@@ -25,6 +30,12 @@ router.use(checkPermissionMiddleware('diary'));
 
 const profileIdParamSchema = z.object({ id: z.string().uuid() });
 
+// First-seen order preserved so the stored array is exactly what the client
+// meant, minus repeats.
+function dedupeItems(items: readonly EquipmentItemSlug[]): EquipmentItemSlug[] {
+  return [...new Set(items)];
+}
+
 // Postgres hands back `Date` for timestamptz (poolManager only overrides
 // DATE), but the contract puts ISO strings on the wire.
 function toResponse(row: GymEquipmentProfileRow): GymEquipmentProfileResponse {
@@ -34,6 +45,8 @@ function toResponse(row: GymEquipmentProfileRow): GymEquipmentProfileResponse {
     name: row.name,
     equipment: row.equipment,
     apparatus: row.apparatus,
+    // `?? null` guards a row read before the equipment_items migration ran.
+    equipment_items: row.equipment_items ?? null,
     load_limits: row.load_limits,
     is_active: row.is_active,
     created_at: row.created_at.toISOString(),
@@ -87,6 +100,10 @@ const listHandler: RequestHandler = async (req, res, next) => {
  *       `load_limits` is optional: per-equipment ceilings and step overrides in kg (dumbbell values
  *       are per hand), e.g. `{"dumbbell": {"max_kg": 22.68, "increment_kg": 2.27}}` — prescriptions
  *       never exceed a stated `max_kg`. Omitted means no limits.
+ *       `equipment_items` states the gym's granular items (kebab-case slugs such as `smith-machine`,
+ *       `lat-pulldown`); when present the server derives `equipment` and `apparatus` from the items,
+ *       and a payload carrying items together with either coarse field is rejected 400. One of
+ *       `equipment` or `equipment_items` is required.
  *       Passing `is_active: true` deactivates the previous active profile in the same transaction.
  *     security:
  *       - cookieAuth: []
@@ -110,9 +127,32 @@ const createHandler: RequestHandler = async (req, res, next) => {
       });
       return;
     }
+    // Derivation contract: an item-stated payload has its coarse columns
+    // derived here — the one place the rule lives — so `equipment` and
+    // `apparatus` can never disagree with the items. The schema already
+    // rejected payloads carrying both.
+    const body = bodyResult.data;
+    let create: GymEquipmentProfileCreate;
+    if (body.equipment_items !== undefined) {
+      const items = dedupeItems(body.equipment_items);
+      create = {
+        name: body.name,
+        equipment: deriveEquipmentFromItems(items),
+        apparatus: deriveApparatusFromItems(items),
+        equipment_items: items,
+        load_limits: body.load_limits,
+        is_active: body.is_active,
+      };
+    } else if (body.equipment !== undefined) {
+      create = { ...body, equipment: body.equipment };
+    } else {
+      // Unreachable: the schema requires equipment or equipment_items.
+      res.status(400).json({ error: 'Invalid request body' });
+      return;
+    }
     const row = await gymEquipmentProfileRepository.createGymProfile(
       req.userId,
-      bodyResult.data
+      create
     );
     res.status(201).json(toResponse(row));
   } catch (error: unknown) {
@@ -138,6 +178,10 @@ const createHandler: RequestHandler = async (req, res, next) => {
  *       exactly), `[]` (stated none), or explicit `null` to clear back to "never stated" so the
  *       workout engine resumes inferring it from the equipment list. `load_limits` accepts a map
  *       (replacing the whole column, never merging) or explicit `null` to clear every limit.
+ *       `equipment_items` accepts an array (stated exactly; `equipment` and `apparatus` are derived
+ *       from it and may not ride along) or explicit `null` to drop the profile back to coarse mode.
+ *       Rewriting `equipment` or `apparatus` on an item-stated profile also drops it back to coarse
+ *       mode, so the stored items can never silently disagree with the coarse columns.
  *     security:
  *       - cookieAuth: []
  *     responses:
@@ -170,10 +214,30 @@ const updateHandler: RequestHandler = async (req, res, next) => {
       });
       return;
     }
+    const body = bodyResult.data;
+    let patch: GymEquipmentProfilePatch = { ...body };
+    if (body.equipment_items !== undefined && body.equipment_items !== null) {
+      // Same derivation contract as create.
+      const items = dedupeItems(body.equipment_items);
+      patch = {
+        ...body,
+        equipment_items: items,
+        equipment: deriveEquipmentFromItems(items),
+        apparatus: deriveApparatusFromItems(items),
+      };
+    } else if (
+      body.equipment_items === undefined &&
+      (body.equipment !== undefined || body.apparatus !== undefined)
+    ) {
+      // A coarse rewrite of an item-stated profile drops it back to coarse
+      // mode: keeping the stored items while the coarse columns move out
+      // from under them would leave two disagreeing sources of truth.
+      patch = { ...body, equipment_items: null };
+    }
     const row = await gymEquipmentProfileRepository.updateGymProfile(
       req.userId,
       paramResult.data.id,
-      bodyResult.data
+      patch
     );
     if (!row) {
       res.status(404).json({ error: 'Gym profile not found.' });

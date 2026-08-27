@@ -91,6 +91,7 @@ describe('gymEquipmentProfileRepository', () => {
         JSON.stringify(['dumbbell', 'bands']),
         null,
         null,
+        null,
         false,
       ]);
     });
@@ -141,8 +142,8 @@ describe('gymEquipmentProfileRepository', () => {
       const insert = mockClient.query.mock.calls.find((call: string[]) =>
         call[0].includes('INSERT INTO gym_equipment_profiles')
       );
-      expect(insert[0]).toContain('$5::jsonb');
-      expect(insert[1][4]).toBe(JSON.stringify({ dumbbell: { max_kg: 22.5 } }));
+      expect(insert[0]).toContain('$6::jsonb');
+      expect(insert[1][5]).toBe(JSON.stringify({ dumbbell: { max_kg: 22.5 } }));
 
       mockClient.query.mockClear();
       mockClient.query.mockResolvedValue({ rows: [ROW] });
@@ -153,7 +154,41 @@ describe('gymEquipmentProfileRepository', () => {
       const bare = mockClient.query.mock.calls.find((call: string[]) =>
         call[0].includes('INSERT INTO gym_equipment_profiles')
       );
-      expect(bare[1][4]).toBeNull();
+      expect(bare[1][5]).toBeNull();
+    });
+
+    it('serializes stated equipment items as jsonb, absence as SQL NULL', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'PF',
+        equipment: ['dumbbell', 'machine'],
+        apparatus: ['bench'],
+        equipment_items: ['dumbbells', 'smith-machine', 'flat-bench'],
+      });
+
+      const insert = mockClient.query.mock.calls.find((call: string[]) =>
+        call[0].includes('INSERT INTO gym_equipment_profiles')
+      );
+      expect(insert[0]).toContain('$5::jsonb');
+      expect(insert[1][4]).toBe(
+        JSON.stringify(['dumbbells', 'smith-machine', 'flat-bench'])
+      );
+
+      mockClient.query.mockClear();
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Legacy',
+        equipment: [],
+      });
+      const legacy = mockClient.query.mock.calls.find((call: string[]) =>
+        call[0].includes('INSERT INTO gym_equipment_profiles')
+      );
+      // SQL NULL, never the jsonb string "null" — same tri-state contract
+      // as apparatus: NULL means "never stated", and a legacy write must
+      // leave the profile in coarse mode.
+      expect(legacy[1][4]).toBeNull();
+      expect(legacy[1][4]).not.toBe('null');
     });
 
     it('does not touch other rows when the new profile is inactive', async () => {
@@ -268,6 +303,33 @@ describe('gymEquipmentProfileRepository', () => {
       // see a non-SQL-NULL value and the engine would stop inferring.
       expect(params[2]).toBeNull();
       expect(params[2]).not.toBe('null');
+    });
+
+    it('serializes an equipment-items patch, and clears it to SQL NULL', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.updateGymProfile('user-1', 'p1', {
+        equipment_items: ['cable-tower'],
+        equipment: ['cable'],
+        apparatus: [],
+      });
+      let update = mockClient.query.mock.calls.find((call: string[]) =>
+        call[0].includes('UPDATE gym_equipment_profiles')
+      );
+      expect(update[0]).toContain('equipment_items = $5::jsonb');
+      expect(update[1]).toContain(JSON.stringify(['cable-tower']));
+
+      mockClient.query.mockClear();
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+      await gymEquipmentProfileRepository.updateGymProfile('user-1', 'p1', {
+        equipment_items: null,
+      });
+      update = mockClient.query.mock.calls.find((call: string[]) =>
+        call[0].includes('UPDATE gym_equipment_profiles')
+      );
+      // Dropping back to coarse mode is SQL NULL, not jsonb "null".
+      expect(update[1][2]).toBeNull();
+      expect(update[1][2]).not.toBe('null');
     });
 
     it('serializes a load-limits patch, and clears it to SQL NULL', async () => {

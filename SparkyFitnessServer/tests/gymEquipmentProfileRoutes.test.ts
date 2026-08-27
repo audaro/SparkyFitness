@@ -50,6 +50,7 @@ const ROW = {
   name: 'Home',
   equipment: ['dumbbell', 'bands'],
   apparatus: null,
+  equipment_items: null,
   load_limits: null,
   is_active: true,
   created_at: new Date('2026-08-23T10:00:00.000Z'),
@@ -79,6 +80,7 @@ describe('Gym Equipment Profile Routes', () => {
             name: 'Home',
             equipment: ['dumbbell', 'bands'],
             apparatus: null,
+            equipment_items: null,
             load_limits: null,
             is_active: true,
             created_at: '2026-08-23T10:00:00.000Z',
@@ -255,6 +257,111 @@ describe('Gym Equipment Profile Routes', () => {
       expect(repo.createGymProfile).not.toHaveBeenCalled();
     });
 
+    it('derives equipment and apparatus when items are stated', async () => {
+      repo.createGymProfile.mockResolvedValue({
+        ...ROW,
+        equipment: ['dumbbell', 'machine'],
+        apparatus: ['bench'],
+        equipment_items: ['dumbbells', 'smith-machine', 'flat-bench'],
+      });
+
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({
+          name: 'PF',
+          equipment_items: [
+            'dumbbells',
+            'smith-machine',
+            'flat-bench',
+            'dumbbells',
+          ],
+        });
+
+      expect(res.statusCode).toBe(201);
+      // Deduped items, coarse columns derived — the route owns the contract.
+      expect(repo.createGymProfile).toHaveBeenCalledWith('test-user-id', {
+        name: 'PF',
+        equipment: ['dumbbell', 'machine'],
+        apparatus: ['bench'],
+        equipment_items: ['dumbbells', 'smith-machine', 'flat-bench'],
+        load_limits: undefined,
+        is_active: undefined,
+      });
+    });
+
+    it('treats stated-but-empty items as an authoritative nothing', async () => {
+      repo.createGymProfile.mockResolvedValue({
+        ...ROW,
+        equipment: [],
+        apparatus: [],
+        equipment_items: [],
+      });
+
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({ name: 'Bodyweight', equipment_items: [] });
+
+      expect(res.statusCode).toBe(201);
+      expect(repo.createGymProfile).toHaveBeenCalledWith('test-user-id', {
+        name: 'Bodyweight',
+        equipment: [],
+        apparatus: [],
+        equipment_items: [],
+        load_limits: undefined,
+        is_active: undefined,
+      });
+    });
+
+    it('rejects a payload stating both items and coarse equipment', async () => {
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({
+          name: 'Both',
+          equipment: ['dumbbell'],
+          equipment_items: ['dumbbells'],
+        });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.details.equipment_items[0]).toBe(
+        'equipment and apparatus are derived from equipment_items; send one or the other, not both'
+      );
+      expect(repo.createGymProfile).not.toHaveBeenCalled();
+    });
+
+    it('rejects a payload stating both items and apparatus', async () => {
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({
+          name: 'Both',
+          apparatus: ['bench'],
+          equipment_items: ['dumbbells'],
+        });
+
+      expect(res.statusCode).toBe(400);
+      expect(repo.createGymProfile).not.toHaveBeenCalled();
+    });
+
+    it('rejects a payload with neither equipment nor items', async () => {
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({ name: 'Nothing stated' });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.details.equipment[0]).toBe(
+        'Provide equipment or equipment_items'
+      );
+      expect(repo.createGymProfile).not.toHaveBeenCalled();
+    });
+
+    it('rejects an item slug outside the vocabulary', async () => {
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({ name: 'Typo', equipment_items: ['smith machine'] });
+
+      expect(res.statusCode).toBe(400);
+      expect(repo.createGymProfile).not.toHaveBeenCalled();
+    });
+
     it('maps a duplicate name to 409', async () => {
       repo.createGymProfile.mockRejectedValue(
         Object.assign(new Error('duplicate key value'), {
@@ -302,7 +409,8 @@ describe('Gym Equipment Profile Routes', () => {
       expect(repo.updateGymProfile).toHaveBeenCalledWith(
         'test-user-id',
         PROFILE_ID,
-        { apparatus: [] }
+        // A coarse apparatus rewrite drops stored items to coarse mode.
+        { apparatus: [], equipment_items: null }
       );
     });
 
@@ -334,8 +442,88 @@ describe('Gym Equipment Profile Routes', () => {
       expect(repo.updateGymProfile).toHaveBeenCalledWith(
         'test-user-id',
         PROFILE_ID,
-        { apparatus: null }
+        { apparatus: null, equipment_items: null }
       );
+    });
+
+    it('re-derives the coarse columns when a patch states items', async () => {
+      repo.updateGymProfile.mockResolvedValue({
+        ...ROW,
+        equipment: ['cable'],
+        apparatus: [],
+        equipment_items: ['cable-tower'],
+      });
+
+      const res = await request(app)
+        .put(`/api/gym-equipment-profiles/${PROFILE_ID}`)
+        .send({ equipment_items: ['cable-tower', 'cable-tower'] });
+
+      expect(res.statusCode).toBe(200);
+      expect(repo.updateGymProfile).toHaveBeenCalledWith(
+        'test-user-id',
+        PROFILE_ID,
+        {
+          equipment_items: ['cable-tower'],
+          equipment: ['cable'],
+          apparatus: [],
+        }
+      );
+    });
+
+    it('accepts explicit null to drop the profile back to coarse mode', async () => {
+      repo.updateGymProfile.mockResolvedValue(ROW);
+
+      const res = await request(app)
+        .put(`/api/gym-equipment-profiles/${PROFILE_ID}`)
+        .send({ equipment_items: null });
+
+      expect(res.statusCode).toBe(200);
+      expect(repo.updateGymProfile).toHaveBeenCalledWith(
+        'test-user-id',
+        PROFILE_ID,
+        { equipment_items: null }
+      );
+    });
+
+    it('drops stored items when a patch rewrites coarse equipment', async () => {
+      repo.updateGymProfile.mockResolvedValue(ROW);
+
+      const res = await request(app)
+        .put(`/api/gym-equipment-profiles/${PROFILE_ID}`)
+        .send({ equipment: ['dumbbell'] });
+
+      expect(res.statusCode).toBe(200);
+      // The route adds equipment_items: null so stored items cannot drift
+      // out of agreement with the edited coarse columns.
+      expect(repo.updateGymProfile).toHaveBeenCalledWith(
+        'test-user-id',
+        PROFILE_ID,
+        { equipment: ['dumbbell'], equipment_items: null }
+      );
+    });
+
+    it('leaves stored items alone for a rename-only patch', async () => {
+      repo.updateGymProfile.mockResolvedValue({ ...ROW, name: 'Renamed' });
+
+      const res = await request(app)
+        .put(`/api/gym-equipment-profiles/${PROFILE_ID}`)
+        .send({ name: 'Renamed' });
+
+      expect(res.statusCode).toBe(200);
+      expect(repo.updateGymProfile).toHaveBeenCalledWith(
+        'test-user-id',
+        PROFILE_ID,
+        { name: 'Renamed' }
+      );
+    });
+
+    it('rejects a patch stating both items and coarse equipment', async () => {
+      const res = await request(app)
+        .put(`/api/gym-equipment-profiles/${PROFILE_ID}`)
+        .send({ equipment: ['dumbbell'], equipment_items: ['dumbbells'] });
+
+      expect(res.statusCode).toBe(400);
+      expect(repo.updateGymProfile).not.toHaveBeenCalled();
     });
 
     it('rejects a non-uuid id', async () => {

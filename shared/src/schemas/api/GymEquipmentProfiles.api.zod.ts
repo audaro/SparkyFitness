@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EQUIPMENT } from "../../constants/exerciseTaxonomy.ts";
 import { EXERCISE_APPARATUS } from "../../constants/exerciseApparatus.ts";
+import { EQUIPMENT_ITEM_SLUGS } from "../../constants/equipmentItems.ts";
 
 /**
  * Gym equipment profiles: named, switchable equipment sets. The active one
@@ -34,6 +35,26 @@ const apparatusListSchema = z
   .max(EXERCISE_APPARATUS.length);
 
 /**
+ * Granular equipment items, as kebab-case slugs from the shared
+ * EQUIPMENT_ITEMS vocabulary. Tri-state like apparatus: absent/NULL means
+ * "never stated" (the profile stays coarse), an array is authoritative and
+ * `[]` means "nothing here".
+ *
+ * The derivation contract makes items and the coarse fields mutually
+ * exclusive in one payload: when items are stated the server *derives*
+ * `equipment` and `apparatus` from them, because accepting both would be two
+ * sources of truth, and two sources of truth is how they drift.
+ */
+export const gymEquipmentItemValueSchema = z.enum(EQUIPMENT_ITEM_SLUGS);
+
+const equipmentItemsListSchema = z
+  .array(gymEquipmentItemValueSchema)
+  .max(EQUIPMENT_ITEM_SLUGS.length);
+
+const DUAL_SOURCE_MESSAGE =
+  "equipment and apparatus are derived from equipment_items; send one or the other, not both";
+
+/**
  * Per-equipment load ceilings and step overrides, kg (dumbbell: per hand),
  * keyed by canonical equipment value. Keys outside the enum are rejected —
  * a `Dumbbell` entry would silently cap nothing. Absent/NULL means "no
@@ -62,6 +83,7 @@ export const gymEquipmentProfileResponseSchema = z
     name: z.string(),
     equipment: z.array(z.string()),
     apparatus: z.array(z.string()).nullable(),
+    equipment_items: z.array(z.string()).nullable(),
     load_limits: loadLimitsSchema.nullable(),
     is_active: z.boolean(),
     created_at: z.string(),
@@ -83,9 +105,18 @@ export const gymEquipmentProfilesListResponseSchema = z
 export const createGymEquipmentProfileRequestSchema = z
   .object({
     name: profileNameSchema,
-    equipment: equipmentListSchema,
+    /**
+     * Required for a coarse-mode create (the legacy contract, unchanged);
+     * forbidden alongside `equipment_items`, whose derivation writes it.
+     */
+    equipment: equipmentListSchema.optional(),
     /** Omitted = "never stated" (stored NULL; the engine keeps inferring). */
     apparatus: apparatusListSchema.optional(),
+    /**
+     * Stated granular items. When present the server derives `equipment`
+     * and `apparatus` from them and this payload must not carry either.
+     */
+    equipment_items: equipmentItemsListSchema.optional(),
     /** Omitted = no limits (stored NULL; prescription is unconstrained). */
     load_limits: loadLimitsSchema.optional(),
     /**
@@ -96,7 +127,24 @@ export const createGymEquipmentProfileRequestSchema = z
      */
     is_active: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.equipment_items !== undefined) {
+      if (body.equipment !== undefined || body.apparatus !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["equipment_items"],
+          message: DUAL_SOURCE_MESSAGE,
+        });
+      }
+    } else if (body.equipment === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment"],
+        message: "Provide equipment or equipment_items",
+      });
+    }
+  });
 
 /**
  * `is_active` is deliberately absent: activation is a cross-row operation
@@ -110,15 +158,39 @@ export const updateGymEquipmentProfileRequestSchema = z
     equipment: equipmentListSchema.optional(),
     /** Explicit null clears back to "never stated" (inference resumes). */
     apparatus: apparatusListSchema.nullable().optional(),
+    /**
+     * An array states items (the server re-derives `equipment` and
+     * `apparatus`, so neither may ride along); explicit null clears back to
+     * a coarse-mode profile, keeping the last derived coarse columns.
+     * Conversely, a patch that rewrites `equipment` or `apparatus` on an
+     * item-stated profile drops the row back to coarse mode server-side —
+     * stale items silently disagreeing with edited coarse columns would be
+     * worse than losing the detail.
+     */
+    equipment_items: equipmentItemsListSchema.nullable().optional(),
     /** Explicit null clears every limit; the map replaces, never merges. */
     load_limits: loadLimitsSchema.nullable().optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, {
     message: "Provide at least one field to update",
+  })
+  .superRefine((patch, ctx) => {
+    if (
+      patch.equipment_items !== undefined &&
+      patch.equipment_items !== null &&
+      (patch.equipment !== undefined || patch.apparatus !== undefined)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment_items"],
+        message: DUAL_SOURCE_MESSAGE,
+      });
+    }
   });
 
 export type GymEquipmentValue = z.infer<typeof gymEquipmentValueSchema>;
+export type GymEquipmentItemValue = z.infer<typeof gymEquipmentItemValueSchema>;
 export type GymApparatusValue = z.infer<typeof gymApparatusValueSchema>;
 export type GymLoadLimits = z.infer<typeof loadLimitsSchema>;
 export type GymEquipmentProfileResponse = z.infer<
