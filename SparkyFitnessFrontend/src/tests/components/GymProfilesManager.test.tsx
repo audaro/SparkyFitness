@@ -11,6 +11,21 @@ const mockActivateProfile = jest.fn();
 let mockProfiles: GymProfile[] = [];
 let mockIsActingOnBehalf = false;
 let mockQueryState = { isLoading: false, isError: false, hasData: true };
+let mockWeightUnit = 'kg';
+
+const KG_PER_LB = 0.45359237;
+
+jest.mock('@/contexts/PreferencesContext', () => ({
+  usePreferences: () => ({
+    weightUnit: mockWeightUnit,
+    convertWeight: (value: number, from: string, to: string) => {
+      if (from === to) return value;
+      if (from === 'kg' && to === 'lbs') return value / KG_PER_LB;
+      if (from === 'lbs' && to === 'kg') return value * KG_PER_LB;
+      return value;
+    },
+  }),
+}));
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -89,6 +104,7 @@ describe('GymProfilesManager', () => {
     mockProfiles = [];
     mockIsActingOnBehalf = false;
     mockQueryState = { isLoading: false, isError: false, hasData: true };
+    mockWeightUnit = 'kg';
   });
 
   it('renders nothing while acting on behalf of another user', () => {
@@ -176,7 +192,12 @@ describe('GymProfilesManager', () => {
     await waitFor(() => {
       expect(mockUpdateProfile).toHaveBeenCalledWith({
         id: inactive.id,
-        payload: { name: 'Commercial Gym', equipment: ['barbell'] },
+        payload: {
+          name: 'Commercial Gym',
+          equipment: ['barbell'],
+          apparatus: null,
+          load_limits: null,
+        },
       });
     });
     expect(mockActivateProfile).toHaveBeenCalledWith(inactive.id);
@@ -197,9 +218,167 @@ describe('GymProfilesManager', () => {
     await waitFor(() => {
       expect(mockUpdateProfile).toHaveBeenCalledWith({
         id: stale.id,
-        payload: { name: 'Home', equipment: ['dumbbell'] },
+        payload: {
+          name: 'Home',
+          equipment: ['dumbbell'],
+          apparatus: null,
+          load_limits: null,
+        },
       });
     });
+  });
+
+  it('creates a profile with stated apparatus and a dumbbell ceiling', async () => {
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Profile' }));
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Planet Fitness' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Specify apparatus' }));
+    fireEvent.click(screen.getByLabelText('Bench'));
+    fireEvent.change(screen.getByLabelText('Heaviest dumbbell (kg)'), {
+      target: { value: '22.5' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockCreateProfile).toHaveBeenCalledWith({
+        name: 'Planet Fitness',
+        equipment: [],
+        apparatus: ['bench'],
+        load_limits: { dumbbell: { max_kg: 22.5 } },
+        is_active: true,
+      });
+    });
+  });
+
+  it('converts the dumbbell ceiling from the display unit to kg', async () => {
+    mockWeightUnit = 'lbs';
+
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Profile' }));
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Hotel' },
+    });
+    fireEvent.change(screen.getByLabelText('Heaviest dumbbell (lbs)'), {
+      target: { value: '50' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockCreateProfile).toHaveBeenCalledWith({
+        name: 'Hotel',
+        equipment: [],
+        load_limits: { dumbbell: { max_kg: 22.68 } },
+        is_active: true,
+      });
+    });
+  });
+
+  it('round-trips an untouched dumbbell ceiling without unit drift', async () => {
+    // 22.5 kg displays as 49.6 lbs; saving without touching the field must
+    // store 22.5 again, not the double-converted 22.4982.
+    mockWeightUnit = 'lbs';
+    const profile = makeProfile({
+      is_active: false,
+      load_limits: { dumbbell: { max_kg: 22.5 } },
+    });
+    mockProfiles = [profile];
+
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Home' }));
+    expect(screen.getByLabelText('Heaviest dumbbell (lbs)')).toHaveValue(49.6);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        id: profile.id,
+        payload: {
+          name: 'Home',
+          equipment: ['dumbbell', 'bands'],
+          apparatus: null,
+          load_limits: { dumbbell: { max_kg: 22.5 } },
+        },
+      });
+    });
+  });
+
+  it('clearing the dumbbell ceiling keeps the profile’s other load limits', async () => {
+    const profile = makeProfile({
+      is_active: false,
+      apparatus: ['bench'],
+      load_limits: {
+        barbell: { max_kg: 60 },
+        dumbbell: { max_kg: 20, increment_kg: 2 },
+      },
+    });
+    mockProfiles = [profile];
+
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Home' }));
+    // Stated apparatus opens the checkbox group pre-checked.
+    expect(screen.getByLabelText('Bench')).toBeChecked();
+    expect(screen.getByLabelText('Pull-Up Bar')).not.toBeChecked();
+    fireEvent.change(screen.getByLabelText('Heaviest dumbbell (kg)'), {
+      target: { value: '' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        id: profile.id,
+        payload: {
+          name: 'Home',
+          equipment: ['dumbbell', 'bands'],
+          apparatus: ['bench'],
+          load_limits: { barbell: { max_kg: 60 } },
+        },
+      });
+    });
+  });
+
+  it('clears stated apparatus back to unspecified as null', async () => {
+    const profile = makeProfile({ is_active: false, apparatus: [] });
+    mockProfiles = [profile];
+
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Let Sparky assume' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        id: profile.id,
+        payload: {
+          name: 'Home',
+          equipment: ['dumbbell', 'bands'],
+          apparatus: null,
+          load_limits: null,
+        },
+      });
+    });
+  });
+
+  it('blocks saving while the dumbbell ceiling is not a positive weight', () => {
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Profile' }));
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Garage' },
+    });
+    fireEvent.change(screen.getByLabelText('Heaviest dumbbell (kg)'), {
+      target: { value: '-5' },
+    });
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(
+      screen.getByText('Enter a weight above zero, or leave it empty.')
+    ).toBeInTheDocument();
   });
 
   it('deletes only after the confirmation is accepted', async () => {

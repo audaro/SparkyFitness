@@ -21,6 +21,7 @@ vi.mock('../models/coachProfileRepository', () => ({
 vi.mock('../models/gymEquipmentProfileRepository', () => ({
   default: {
     listGymProfiles: vi.fn(),
+    getGymProfile: vi.fn(),
     setActiveGymProfile: vi.fn(),
     createGymProfile: vi.fn(),
     updateGymProfile: vi.fn(),
@@ -544,6 +545,182 @@ describe('gym profiles', () => {
     );
   });
 
+  it('lists stated apparatus and dumbbell ceilings, and says nothing for unstated ones', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      // homeProfile keeps apparatus/load_limits null: its row must not change.
+      homeProfile,
+      {
+        ...gymProfile,
+        name: 'Planet Fitness',
+        equipment: ['machine', 'dumbbell'],
+        apparatus: ['bench'],
+        load_limits: { dumbbell: { max_kg: 22.5 } },
+      },
+    ]);
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'get_gym_profiles' },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Gym Profiles\n\n' +
+        `- **Home** — dumbbell, bands — ID: ${HOME_ID}\n` +
+        `- **Planet Fitness** (active) — machine, dumbbell; apparatus: bench; dumbbells up to 22.5 kg — ID: ${GYM_ID}`
+    );
+  });
+
+  it('renders a stated-empty apparatus list as "none", not as unstated', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      { ...homeProfile, apparatus: [] },
+    ]);
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'get_gym_profiles' },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Gym Profiles\n\n' +
+        `- **Home** — dumbbell, bands; apparatus: none — ID: ${HOME_ID}`
+    );
+  });
+
+  it('creates a profile with stated apparatus and a dumbbell ceiling', async () => {
+    vi.mocked(gymEquipmentProfileRepository.createGymProfile).mockResolvedValue(
+      {
+        ...homeProfile,
+        name: 'Planet Fitness',
+        equipment: ['machine', 'dumbbell', 'cable'],
+        apparatus: ['bench'],
+        load_limits: { dumbbell: { max_kg: 22.5 } },
+      }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Planet Fitness',
+        gym_equipment: ['machine', 'dumbbell', 'cable'],
+        // Title case and duplicates are the model mistakes the preprocess
+        // forgives, same as gym_equipment.
+        gym_apparatus: ['Bench', 'bench'],
+        gym_dumbbell_max_kg: 22.5,
+      } as never,
+      opts
+    );
+
+    expect(gymEquipmentProfileRepository.createGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      {
+        name: 'Planet Fitness',
+        equipment: ['machine', 'dumbbell', 'cable'],
+        apparatus: ['bench'],
+        load_limits: { dumbbell: { max_kg: 22.5 } },
+        is_active: false,
+      }
+    );
+    expect(result).toBe(
+      '✅ Created gym profile "Planet Fitness" (machine, dumbbell, cable; apparatus: bench; dumbbells up to 22.5 kg). It is not active yet — set_active_gym_profile makes generated workouts use it.'
+    );
+  });
+
+  it('rejects apparatus outside the vocabulary without writing', async () => {
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Planet Fitness',
+        gym_equipment: ['machine'],
+        gym_apparatus: ['smith machine'],
+      } as never,
+      opts
+    );
+
+    expect(String(result)).toContain('Error [VALIDATION]');
+    expect(String(result)).toContain('gym_apparatus');
+    expect(
+      gymEquipmentProfileRepository.createGymProfile
+    ).not.toHaveBeenCalled();
+  });
+
+  it('updates apparatus to a stated-empty list without touching load limits', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      homeProfile,
+      gymProfile,
+    ]);
+    vi.mocked(gymEquipmentProfileRepository.updateGymProfile).mockResolvedValue(
+      { ...homeProfile, apparatus: [] }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'update_gym_profile',
+        gym_profile_name: 'Home',
+        gym_apparatus: [],
+      } as never,
+      opts
+    );
+
+    // No dumbbell ceiling in the patch, so the row is never re-read.
+    expect(gymEquipmentProfileRepository.getGymProfile).not.toHaveBeenCalled();
+    expect(gymEquipmentProfileRepository.updateGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      HOME_ID,
+      { apparatus: [] }
+    );
+    expect(result).toBe(
+      '✅ Gym profile "Home" updated (dumbbell, bands; apparatus: none).'
+    );
+  });
+
+  it('merges a dumbbell ceiling into the profile’s existing load limits', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      homeProfile,
+      gymProfile,
+    ]);
+    vi.mocked(gymEquipmentProfileRepository.getGymProfile).mockResolvedValue({
+      ...homeProfile,
+      load_limits: {
+        barbell: { max_kg: 60 },
+        dumbbell: { max_kg: 20, increment_kg: 2 },
+      },
+    });
+    vi.mocked(gymEquipmentProfileRepository.updateGymProfile).mockResolvedValue(
+      {
+        ...homeProfile,
+        load_limits: {
+          barbell: { max_kg: 60 },
+          dumbbell: { max_kg: 24, increment_kg: 2 },
+        },
+      }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'update_gym_profile',
+        gym_profile_name: 'Home',
+        gym_dumbbell_max_kg: 24,
+      } as never,
+      opts
+    );
+
+    // The whole column is replaced, so the barbell entry and the dumbbell
+    // increment override must ride along unchanged.
+    expect(gymEquipmentProfileRepository.updateGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      HOME_ID,
+      {
+        load_limits: {
+          barbell: { max_kg: 60 },
+          dumbbell: { max_kg: 24, increment_kg: 2 },
+        },
+      }
+    );
+    expect(result).toBe(
+      '✅ Gym profile "Home" updated (dumbbell, bands; dumbbells up to 24 kg).'
+    );
+  });
+
   it('rejects equipment outside the canonical vocabulary without writing', async () => {
     const result = await tools.sparky_manage_coach_profile.execute!(
       {
@@ -666,7 +843,7 @@ describe('gym profiles', () => {
     );
 
     expect(result).toBe(
-      'Error [VALIDATION]: Nothing to update — provide new_name and/or gym_equipment.'
+      'Error [VALIDATION]: Nothing to update — provide new_name, gym_equipment, gym_apparatus, and/or gym_dumbbell_max_kg.'
     );
     expect(
       gymEquipmentProfileRepository.listGymProfiles

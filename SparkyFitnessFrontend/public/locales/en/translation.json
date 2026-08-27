@@ -1341,7 +1341,15 @@
     "deleteSuccess": "Gym profile deleted.",
     "deleteError": "Failed to delete gym profile.",
     "activateSuccess": "Gym profile switched.",
-    "activateError": "Failed to switch gym profile."
+    "activateError": "Failed to switch gym profile.",
+    "apparatusLabel": "Apparatus",
+    "apparatusSpecifyButton": "Specify apparatus",
+    "apparatusClearButton": "Let Sparky assume",
+    "apparatusHelper": "What's physically at this gym — pull-up bars, racks, benches. Left unspecified, Sparky assumes from your equipment.",
+    "dumbbellMaxLabel": "Heaviest dumbbell ({{unit}})",
+    "dumbbellMaxPlaceholder": "No limit",
+    "dumbbellMaxHelper": "Per hand. Suggested workouts never prescribe a heavier dumbbell. Leave empty for no limit.",
+    "dumbbellMaxInvalid": "Enter a weight above zero, or leave it empty."
   },
   "exerciseCard": {
     "title": "Exercise",

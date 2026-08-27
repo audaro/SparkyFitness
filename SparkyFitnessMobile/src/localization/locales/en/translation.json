@@ -4671,7 +4671,16 @@
     "emptySubtitle": "Create one for each place you train so workouts only use equipment you actually have.",
     "listHelp": "Tap a profile to make it active. With no active profile, every exercise is fair game.",
     "rowActiveA11y": "{{name}}, active",
-    "editRowA11y": "Edit {{name}}"
+    "editRowA11y": "Edit {{name}}",
+    "apparatusLabel": "Apparatus",
+    "apparatusHelp": "What's physically at this gym — pull-up bars, racks, benches. Left unspecified, Sparky assumes from your equipment.",
+    "apparatusSpecify": "Specify apparatus",
+    "apparatusClear": "Let Sparky assume",
+    "dumbbellMaxLabel": "Heaviest dumbbell ({{unit}})",
+    "dumbbellMaxHelp": "Per hand. Suggested workouts never prescribe a heavier dumbbell. Leave empty for no limit.",
+    "dumbbellMaxPlaceholder": "No limit",
+    "dumbbellMaxA11y": "Heaviest dumbbell",
+    "dumbbellMaxInvalid": "Enter a weight above zero, or leave it empty."
   },
   "weeklySetTargets": {
     "saved": "Targets saved",

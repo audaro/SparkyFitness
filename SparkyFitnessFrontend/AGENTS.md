@@ -111,6 +111,14 @@ card per reading under `pages/Exercises/`. Five rules, each of which has already
   leaves the client is the lowercase catalog token (`beginner`/`intermediate`/`expert`) or an
   explicit null to clear; `'unset'` is a Radix-only sentinel (Select cannot carry an empty
   string) and must never reach the wire. The chat coach edits the same row.
+- **The gym-profile editor's apparatus field is tri-state, and the dumbbell max is a partial edit
+  of a whole-column value.** In `GymProfilesManager`, "Specify apparatus" off saves `apparatus: null`
+  ("never stated" — the engine infers from equipment); on, it saves the checked list exactly, `[]`
+  included ("stated none", authoritative). Use `Array.isArray(profile.apparatus)` to decide, never
+  `!== null`. The "Heaviest dumbbell" input is kept as display-unit text and converted to kg only at
+  save (so an untouched prefill round-trips without unit drift), and because `load_limits` REPLACES
+  the stored map on `PUT`, the save spreads the profile's existing limits and edits only the
+  `dumbbell` entry — clearing the input deletes that key, not the whole map.
 - **Owner-only vs delegatable is per-surface, not per-page.** Recovery rides the `diary` permission
   and stays available to a delegate who has it (so its cache key is scoped by acting user);
   everything else on that page is owner-only and hides itself through

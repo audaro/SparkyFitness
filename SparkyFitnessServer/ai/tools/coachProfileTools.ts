@@ -75,9 +75,23 @@ export function renderCoachProfile(profile: CoachProfileRow): string {
 }
 
 function describeGymProfile(profile: GymEquipmentProfileRow): string {
-  return profile.equipment.length
-    ? profile.equipment.join(', ')
-    : 'no equipment listed';
+  const parts = [
+    profile.equipment.length
+      ? profile.equipment.join(', ')
+      : 'no equipment listed',
+  ];
+  // Stated apparatus is authoritative (null means "unstated: inferred from
+  // equipment"), so the model has to see it to reason about pull-ups/racks.
+  if (profile.apparatus !== null) {
+    parts.push(
+      `apparatus: ${profile.apparatus.length ? profile.apparatus.join(', ') : 'none'}`
+    );
+  }
+  const dumbbellMaxKg = profile.load_limits?.dumbbell?.max_kg;
+  if (dumbbellMaxKg !== undefined) {
+    parts.push(`dumbbells up to ${dumbbellMaxKg} kg`);
+  }
+  return parts.join('; ');
 }
 
 export function renderGymProfiles(profiles: GymEquipmentProfileRow[]): string {
@@ -151,10 +165,10 @@ Actions:
 - get_coach_profile() — read it before proposing programming; a missing profile means the user has not been interviewed yet
 - update_coach_profile(goals?, training_days_per_week?, session_minutes?, experience_level?, equipment?, limitations?, food_preferences?, aliases?) — saves only the provided fields; list/object fields REPLACE the stored value, so send the full updated list when adding one item. experience_level is 'beginner' | 'intermediate' | 'expert' and biases which exercises generated workouts select
 - get_gym_profiles() — the user's named equipment sets ("Home", "Commercial gym") and which one is active; the active one is what constrains generated workouts
-- create_gym_profile(gym_profile_name, gym_equipment, make_active?) — save a named equipment set when the user describes a gym ("Planet Fitness has..."). gym_equipment only accepts the canonical catalog values (${EQUIPMENT.join(
+- create_gym_profile(gym_profile_name, gym_equipment, gym_apparatus?, gym_dumbbell_max_kg?, make_active?) — save a named equipment set when the user describes a gym ("Planet Fitness has..."). gym_equipment only accepts the canonical catalog values (${EQUIPMENT.join(
         ', '
-      )}) — map real equipment to the closest value (racks, smith machines, leg presses and cardio machines → machine) instead of inventing new ones
-- update_gym_profile(gym_profile_id?|gym_profile_name?, new_name?, gym_equipment?) — rename a profile or change its equipment; gym_equipment REPLACES the stored list, so send the full updated list when adding one item
+      )}) — map real equipment to the closest value (racks, smith machines, leg presses and cardio machines → machine) instead of inventing new ones. gym_apparatus states what bodyweight movements can hang from or brace against (pull-up bar, dip station, squat rack, bench) — an explicit list (empty included) is authoritative and is the fix for "my gym has no squat rack"; omitted, it is inferred from the equipment. gym_dumbbell_max_kg is the heaviest dumbbell in kg per hand — prescriptions cap at it
+- update_gym_profile(gym_profile_id?|gym_profile_name?, new_name?, gym_equipment?, gym_apparatus?, gym_dumbbell_max_kg?) — rename a profile or change its equipment/apparatus/dumbbell ceiling; gym_equipment and gym_apparatus REPLACE the stored lists, so send the full updated list when adding one item
 - set_active_gym_profile(gym_profile_name?|gym_profile_id?) — switch where the user is training today ("I'm at home"), then regenerate; only one profile is active at a time`,
       inputSchema: manageCoachProfileInput,
       execute: async (rawArgs) => {
@@ -224,6 +238,16 @@ Actions:
                   // Duplicates are harmless to the jsonb filter but would
                   // render twice everywhere the list is shown.
                   equipment: [...new Set(args.gym_equipment)],
+                  // Omitted stays undefined → stored SQL NULL ("unstated");
+                  // an explicit list ([] included) is stored as stated.
+                  apparatus:
+                    args.gym_apparatus !== undefined
+                      ? [...new Set(args.gym_apparatus)]
+                      : undefined,
+                  load_limits:
+                    args.gym_dumbbell_max_kg !== undefined
+                      ? { dumbbell: { max_kg: args.gym_dumbbell_max_kg } }
+                      : undefined,
                   is_active: args.make_active === true,
                 });
               return formatConfirmation(
@@ -239,10 +263,12 @@ Actions:
             case 'update_gym_profile': {
               if (
                 args.new_name === undefined &&
-                args.gym_equipment === undefined
+                args.gym_equipment === undefined &&
+                args.gym_apparatus === undefined &&
+                args.gym_dumbbell_max_kg === undefined
               ) {
                 return ERRORS.VALIDATION(
-                  'Nothing to update — provide new_name and/or gym_equipment.'
+                  'Nothing to update — provide new_name, gym_equipment, gym_apparatus, and/or gym_dumbbell_max_kg.'
                 );
               }
               const resolved = await resolveGymProfileId(userId, args);
@@ -251,6 +277,34 @@ Actions:
               if (args.new_name !== undefined) patch.name = args.new_name;
               if (args.gym_equipment !== undefined) {
                 patch.equipment = [...new Set(args.gym_equipment)];
+              }
+              if (args.gym_apparatus !== undefined) {
+                patch.apparatus = [...new Set(args.gym_apparatus)];
+              }
+              if (args.gym_dumbbell_max_kg !== undefined) {
+                // load_limits replaces the whole column, and this tool edits
+                // only the dumbbell ceiling — merge onto the row's current map
+                // so other equipment limits (and a dumbbell increment
+                // override) survive the edit.
+                const current =
+                  await gymEquipmentProfileRepository.getGymProfile(
+                    userId,
+                    resolved.profileId
+                  );
+                if (!current) {
+                  return ERRORS.NOT_FOUND(
+                    'Gym profile',
+                    args.gym_profile_id ?? (args.gym_profile_name as string)
+                  );
+                }
+                const existingLimits = current.load_limits ?? {};
+                patch.load_limits = {
+                  ...existingLimits,
+                  dumbbell: {
+                    ...existingLimits.dumbbell,
+                    max_kg: args.gym_dumbbell_max_kg,
+                  },
+                };
               }
               const updated =
                 await gymEquipmentProfileRepository.updateGymProfile(

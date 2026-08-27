@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EQUIPMENT } from '@workspace/shared';
+import { EQUIPMENT, EXERCISE_APPARATUS } from '@workspace/shared';
 import { uuidSchema } from './common.js';
 
 // An alias maps a personal phrase ("my usual walk") to a concrete record the
@@ -123,6 +123,32 @@ const gymEquipmentListSchema = z
     )}. Map real equipment to the closest value — REPLACES the stored list on update`
   );
 
+// Apparatus is a separate, smaller vocabulary from equipment: things a
+// bodyweight movement hangs from or braces against. Stating it is what fixes
+// "my gym has no squat rack" — an explicit list (empty included) overrides the
+// engine's inference from barbell/cable/machine; omitted leaves it unstated.
+const gymApparatusValueSchema = z.preprocess(
+  (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+  z.enum(EXERCISE_APPARATUS)
+);
+
+const gymApparatusListSchema = z
+  .array(gymApparatusValueSchema)
+  .max(EXERCISE_APPARATUS.length)
+  .describe(
+    `Apparatus physically present, only from: ${EXERCISE_APPARATUS.join(
+      ', '
+    )}. An empty array states the gym has none of them; omit to leave it unstated (inferred from equipment) — REPLACES the stored list on update`
+  );
+
+const gymDumbbellMaxSchema = z.coerce
+  .number()
+  .positive()
+  .max(200)
+  .describe(
+    'Heaviest dumbbell at this gym, in kg per hand (50 lb ≈ 22.5 kg). Prescriptions cap at it'
+  );
+
 const getCoachProfileSchema = z
   .object({
     action: z.literal('get_coach_profile'),
@@ -149,6 +175,8 @@ const createGymProfileSchema = z
       'Name for the new gym profile (e.g. "Home", "Planet Fitness")'
     ),
     gym_equipment: gymEquipmentListSchema,
+    gym_apparatus: gymApparatusListSchema.optional(),
+    gym_dumbbell_max_kg: gymDumbbellMaxSchema.optional(),
     make_active: z
       .boolean()
       .optional()
@@ -166,6 +194,8 @@ const updateGymProfileSchema = z
       .optional()
       .describe('New name for the profile (update_gym_profile only)'),
     gym_equipment: gymEquipmentListSchema.optional(),
+    gym_apparatus: gymApparatusListSchema.optional(),
+    gym_dumbbell_max_kg: gymDumbbellMaxSchema.optional(),
   })
   .strict();
 
@@ -205,6 +235,8 @@ export const manageCoachProfileInput = z.object({
   ...profileEditFields,
   ...gymProfileSelectorFields,
   gym_equipment: gymEquipmentListSchema.optional(),
+  gym_apparatus: gymApparatusListSchema.optional(),
+  gym_dumbbell_max_kg: gymDumbbellMaxSchema.optional(),
   new_name: gymProfileNameSchema
     .optional()
     .describe('New name for the profile (update_gym_profile only)'),

@@ -39,6 +39,14 @@ jest.mock('@react-navigation/native', () => ({
   useNavigation: () => mockNavigation,
 }));
 
+let mockWeightUnit = 'kg';
+jest.mock('../../src/hooks/usePreferences', () => ({
+  usePreferences: () => ({
+    preferences: { default_weight_unit: mockWeightUnit },
+    isLoading: false,
+  }),
+}));
+
 const route = { params: {} } as any;
 
 function makeProfile(overrides: Partial<Record<string, unknown>> = {}) {
@@ -47,6 +55,8 @@ function makeProfile(overrides: Partial<Record<string, unknown>> = {}) {
     user_id: 'user-1',
     name: 'Home',
     equipment: ['dumbbell', 'bands'],
+    apparatus: null,
+    load_limits: null,
     is_active: false,
     created_at: '2026-08-23T00:00:00.000Z',
     updated_at: '2026-08-23T00:00:00.000Z',
@@ -64,6 +74,7 @@ describe('GymProfilesScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetchGymProfiles.mockResolvedValue([]);
+    mockWeightUnit = 'kg';
   });
 
   it('lists profiles with their equipment, capitalized for display only', async () => {
@@ -166,9 +177,131 @@ describe('GymProfilesScreen', () => {
       expect(mockUpdateGymProfile).toHaveBeenCalledWith('profile-home', {
         name: 'Home Gym',
         equipment: ['dumbbell', 'bands'],
+        apparatus: null,
+        load_limits: null,
       }),
     );
     expect(mockActivateGymProfile).not.toHaveBeenCalled();
+  });
+
+  it('creates a profile with stated apparatus and a dumbbell ceiling', async () => {
+    mockCreateGymProfile.mockResolvedValue(makeProfile({ id: 'profile-pf', name: 'Planet Fitness' }));
+    const { findByTestId, getByTestId, getByLabelText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-empty-create'));
+    fireEvent.changeText(getByTestId('gym-profile-name-input'), 'Planet Fitness');
+    fireEvent.press(getByTestId('gym-profile-apparatus-specify'));
+    fireEvent.press(getByTestId('gym-profile-apparatus-bench'));
+    fireEvent.changeText(getByTestId('gym-profile-dumbbell-max-input'), '22.5');
+    fireEvent.press(getByLabelText('Save'));
+
+    await waitFor(() =>
+      expect(mockCreateGymProfile).toHaveBeenCalledWith({
+        name: 'Planet Fitness',
+        equipment: [],
+        apparatus: ['bench'],
+        load_limits: { dumbbell: { max_kg: 22.5 } },
+        is_active: true,
+      }),
+    );
+  });
+
+  it('converts the dumbbell ceiling from the display unit to kg', async () => {
+    mockWeightUnit = 'lbs';
+    mockCreateGymProfile.mockResolvedValue(makeProfile({ id: 'profile-hotel', name: 'Hotel' }));
+    const { findByTestId, getByTestId, getByLabelText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-empty-create'));
+    fireEvent.changeText(getByTestId('gym-profile-name-input'), 'Hotel');
+    fireEvent.changeText(getByTestId('gym-profile-dumbbell-max-input'), '50');
+    fireEvent.press(getByLabelText('Save'));
+
+    await waitFor(() =>
+      expect(mockCreateGymProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ load_limits: { dumbbell: { max_kg: 22.68 } } }),
+      ),
+    );
+  });
+
+  it('round-trips an untouched dumbbell ceiling without unit drift', async () => {
+    // 22.5 kg displays as 49.6 lbs; saving without touching the field must
+    // store 22.5 again, not the double-converted 22.4982.
+    mockWeightUnit = 'lbs';
+    mockFetchGymProfiles.mockResolvedValue([
+      makeProfile({ load_limits: { dumbbell: { max_kg: 22.5 } } }),
+    ]);
+    mockUpdateGymProfile.mockResolvedValue(makeProfile());
+    const { findByTestId, getByTestId, getByLabelText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
+    expect(getByTestId('gym-profile-dumbbell-max-input').props.value).toBe('49.6');
+    fireEvent.press(getByLabelText('Save'));
+
+    await waitFor(() =>
+      expect(mockUpdateGymProfile).toHaveBeenCalledWith(
+        'profile-home',
+        expect.objectContaining({ load_limits: { dumbbell: { max_kg: 22.5 } } }),
+      ),
+    );
+  });
+
+  it('clearing the dumbbell ceiling keeps the profile’s other load limits', async () => {
+    mockFetchGymProfiles.mockResolvedValue([
+      makeProfile({
+        apparatus: ['bench'],
+        load_limits: {
+          barbell: { max_kg: 60 },
+          dumbbell: { max_kg: 20, increment_kg: 2 },
+        },
+      }),
+    ]);
+    mockUpdateGymProfile.mockResolvedValue(makeProfile());
+    const { findByTestId, getByTestId, getByLabelText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
+    // Stated apparatus opens the chip group pre-selected.
+    expect(
+      getByTestId('gym-profile-apparatus-bench').props.accessibilityState.checked,
+    ).toBe(true);
+    fireEvent.changeText(getByTestId('gym-profile-dumbbell-max-input'), '');
+    fireEvent.press(getByLabelText('Save'));
+
+    await waitFor(() =>
+      expect(mockUpdateGymProfile).toHaveBeenCalledWith('profile-home', {
+        name: 'Home',
+        equipment: ['dumbbell', 'bands'],
+        apparatus: ['bench'],
+        load_limits: { barbell: { max_kg: 60 } },
+      }),
+    );
+  });
+
+  it('clears stated apparatus back to unspecified as null', async () => {
+    mockFetchGymProfiles.mockResolvedValue([makeProfile({ apparatus: [] })]);
+    mockUpdateGymProfile.mockResolvedValue(makeProfile());
+    const { findByTestId, getByTestId, getByLabelText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
+    fireEvent.press(getByTestId('gym-profile-apparatus-clear'));
+    fireEvent.press(getByLabelText('Save'));
+
+    await waitFor(() =>
+      expect(mockUpdateGymProfile).toHaveBeenCalledWith(
+        'profile-home',
+        expect.objectContaining({ apparatus: null }),
+      ),
+    );
+  });
+
+  it('blocks saving while the dumbbell ceiling is not a positive weight', async () => {
+    const { findByTestId, getByTestId, getByText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-empty-create'));
+    fireEvent.changeText(getByTestId('gym-profile-name-input'), 'Garage');
+    fireEvent.changeText(getByTestId('gym-profile-dumbbell-max-input'), '0');
+
+    expect(getByText('Enter a weight above zero, or leave it empty.')).toBeTruthy();
+    expect(mockCreateGymProfile).not.toHaveBeenCalled();
   });
 
   it('activates an edited profile that was switched on in the editor', async () => {
