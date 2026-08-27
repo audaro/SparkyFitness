@@ -13,6 +13,11 @@ import {
   type ExerciseApparatus,
 } from "../constants/exerciseApparatus.ts";
 import {
+  areItemsAvailable,
+  requiredItemsFor,
+  type EquipmentItemSlug,
+} from "../constants/equipmentItems.ts";
+import {
   resolveExerciseModality,
   type ExerciseModality,
 } from "../constants/exercise.ts";
@@ -315,6 +320,18 @@ export interface GenerationOptions {
    * as `availableApparatus`.
    */
   loadLimits: LoadLimits | null;
+  /**
+   * The gym profile's stated granular items
+   * (`gym_equipment_profiles.equipment_items`). `null` = never stated — the
+   * coarse equipment and apparatus tests decide alone, exactly as before the
+   * column existed. Non-null is authoritative: `isPerformable` additionally
+   * requires each candidate's `requiredItemsFor` set (curated per catalog row,
+   * generic any-of for coarse cable/machine otherwise) to intersect the stated
+   * items, with no familiarity escape — stating the room's contents is a fact
+   * about the room, not a guess. Required, not defaulted, for the same
+   * fail-loud reason as `availableApparatus`.
+   */
+  availableEquipmentItems: readonly EquipmentItemSlug[] | null;
   /** `coach_profiles.limitations`, lowercased. */
   limitations: string[];
   goal: WorkoutGoal;
@@ -584,14 +601,33 @@ export function isEquipmentAvailable(
  * that one is the user's own statement of what is in the room, and a barbell
  * squat logged at the gym last month is still not doable in a dumbbell-only
  * garage today.
+ *
+ * The item test (`availableEquipmentItems` non-null) is the granular version
+ * of the same statement and gets the same treatment: authoritative both ways,
+ * no familiarity escape. It runs *on top of* the coarse test rather than
+ * replacing it, because an item-stated profile's coarse columns are derived
+ * from its items — the coarse test stays the honest first gate for legacy
+ * readers and the item test narrows within it (a Smith machine says `machine`,
+ * and only rows a Smith machine can actually perform pass the second gate).
  */
 export function isPerformable(
   candidate: CandidateExercise,
   availableEquipment: readonly string[] | null,
   availableApparatus: readonly string[] | null,
+  availableEquipmentItems: readonly EquipmentItemSlug[] | null,
 ): boolean {
   if (!isEquipmentAvailable(candidate.equipment, availableEquipment)) {
     return false;
+  }
+  if (availableEquipmentItems !== null) {
+    const requiredItems = requiredItemsFor(
+      candidate.source,
+      candidate.sourceId,
+      candidate.equipment,
+    );
+    if (!areItemsAvailable(requiredItems, availableEquipmentItems)) {
+      return false;
+    }
   }
   const apparatus = requiredApparatus(candidate.source, candidate.sourceId);
   if (apparatus.length === 0) return true;
@@ -782,6 +818,7 @@ export function planWorkout(
         candidate,
         options.availableEquipment,
         options.availableApparatus,
+        options.availableEquipmentItems,
       ) && !isExcludedByLimitations(candidate, options.limitations),
   );
 

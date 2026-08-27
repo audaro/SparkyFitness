@@ -31,6 +31,9 @@ import {
   MUSCLES,
   MUSCLE_SIZE_RANK,
   MUSCLE_SPLIT_MEMBERS,
+  GYM_TEMPLATES,
+  deriveApparatusFromItems,
+  deriveEquipmentFromItems,
 } from '@workspace/shared';
 
 // --- fixtures ---------------------------------------------------------------
@@ -71,6 +74,7 @@ function options(
     availableEquipment: null,
     availableApparatus: null,
     loadLimits: null,
+    availableEquipmentItems: null,
     limitations: [],
     goal: 'general',
     ...overrides,
@@ -393,6 +397,7 @@ describe('isPerformable', () => {
       isPerformable(
         candidate({ id: 'a', equipment: ['barbell'] }),
         ['dumbbell'],
+        null,
         null
       )
     ).toBe(false);
@@ -405,16 +410,18 @@ describe('isPerformable', () => {
     expect(isEquipmentAvailable(CHIN_UP.equipment, ['dumbbell', 'bands'])).toBe(
       true
     );
-    expect(isPerformable(CHIN_UP, ['dumbbell', 'bands'], null)).toBe(false);
+    expect(isPerformable(CHIN_UP, ['dumbbell', 'bands'], null, null)).toBe(
+      false
+    );
   });
 
   it('allows it where the profile implies a bar', () => {
-    expect(isPerformable(CHIN_UP, ['dumbbell', 'cable', 'machine'], null)).toBe(
-      true
-    );
-    expect(isPerformable(CHIN_UP, ['barbell'], null)).toBe(true);
+    expect(
+      isPerformable(CHIN_UP, ['dumbbell', 'cable', 'machine'], null, null)
+    ).toBe(true);
+    expect(isPerformable(CHIN_UP, ['barbell'], null, null)).toBe(true);
     // And with no profile at all, like every other availability rule here.
-    expect(isPerformable(CHIN_UP, null, null)).toBe(true);
+    expect(isPerformable(CHIN_UP, null, null, null)).toBe(true);
   });
 
   it('lets logged history overrule the inference', () => {
@@ -424,6 +431,7 @@ describe('isPerformable', () => {
       isPerformable(
         { ...CHIN_UP, timesPerformed: 10 },
         ['dumbbell', 'bands'],
+        null,
         null
       )
     ).toBe(true);
@@ -436,6 +444,7 @@ describe('isPerformable', () => {
       isPerformable(
         candidate({ id: 'a', equipment: ['barbell'], timesPerformed: 50 }),
         ['dumbbell'],
+        null,
         null
       )
     ).toBe(false);
@@ -444,19 +453,19 @@ describe('isPerformable', () => {
   it('admits an exercise its stated apparatus covers', () => {
     // A dumbbell garage with a stated pull-up bar gets Chin-Up, which the
     // inference would have denied it — that's what stating apparatus is FOR.
-    expect(isPerformable(CHIN_UP, ['dumbbell', 'bands'], ['pull-up bar'])).toBe(
-      true
-    );
+    expect(
+      isPerformable(CHIN_UP, ['dumbbell', 'bands'], ['pull-up bar'], null)
+    ).toBe(true);
   });
 
   it('rules out an exercise a stated "none" denies, whatever the equipment implies', () => {
     // Planet Fitness in a sentence: machines and cables everywhere, and no
     // pull-up bar anywhere. The inference would say "bar"; the statement wins.
-    expect(isPerformable(CHIN_UP, ['machine', 'cable', 'dumbbell'], [])).toBe(
-      false
-    );
     expect(
-      isPerformable(CHIN_UP, ['machine', 'cable', 'dumbbell'], ['bench'])
+      isPerformable(CHIN_UP, ['machine', 'cable', 'dumbbell'], [], null)
+    ).toBe(false);
+    expect(
+      isPerformable(CHIN_UP, ['machine', 'cable', 'dumbbell'], ['bench'], null)
     ).toBe(false);
   });
 
@@ -468,7 +477,8 @@ describe('isPerformable', () => {
       isPerformable(
         { ...CHIN_UP, timesPerformed: 50 },
         ['machine', 'cable'],
-        []
+        [],
+        null
       )
     ).toBe(false);
   });
@@ -479,7 +489,8 @@ describe('isPerformable', () => {
       isPerformable(
         candidate({ id: 'a', equipment: ['barbell'] }),
         ['dumbbell'],
-        ['bench', 'squat rack']
+        ['bench', 'squat rack'],
+        null
       )
     ).toBe(false);
   });
@@ -492,11 +503,17 @@ describe('isPerformable', () => {
       isPerformable(
         { ...CHIN_UP, sourceId: 'constructor' },
         ['dumbbell', 'bands'],
+        null,
         null
       )
     ).toBe(true);
     expect(
-      isPerformable({ ...CHIN_UP, sourceId: 'toString' }, ['dumbbell'], null)
+      isPerformable(
+        { ...CHIN_UP, sourceId: 'toString' },
+        ['dumbbell'],
+        null,
+        null
+      )
     ).toBe(true);
   });
 
@@ -508,9 +525,168 @@ describe('isPerformable', () => {
       isPerformable(
         { ...CHIN_UP, source: 'manual', sourceId: null },
         ['dumbbell'],
-        []
+        [],
+        null
       )
     ).toBe(true);
+  });
+});
+
+describe('isPerformable with stated equipment items', () => {
+  // Stated exactly as the route stores them: the profile's coarse columns
+  // are DERIVED from the items, so every test threads all three the way the
+  // service would after a real item-stated write.
+  function statedProfile(items: readonly string[]) {
+    const slugs = items as (typeof GYM_TEMPLATES)['planet-fitness'];
+    return {
+      equipment: deriveEquipmentFromItems(slugs),
+      apparatus: deriveApparatusFromItems(slugs),
+      items: slugs,
+    };
+  }
+  const PF = statedProfile(GYM_TEMPLATES['planet-fitness']);
+
+  const SMITH_SQUAT = candidate({
+    id: 'sm1',
+    name: 'Smith Machine Squat',
+    source: 'free-exercise-db',
+    sourceId: 'Smith_Machine_Squat',
+    primaryMuscles: ['quadriceps'],
+    mechanic: 'compound',
+    equipment: ['machine'],
+  });
+  const BARBELL_SQUAT = candidate({
+    id: 'bb1',
+    name: 'Barbell Squat',
+    source: 'free-exercise-db',
+    sourceId: 'Barbell_Squat',
+    primaryMuscles: ['quadriceps'],
+    mechanic: 'compound',
+    equipment: ['barbell'],
+  });
+  const LAT_PULLDOWN = candidate({
+    id: 'lp1',
+    name: 'Wide-Grip Lat Pulldown',
+    source: 'free-exercise-db',
+    sourceId: 'Wide-Grip_Lat_Pulldown',
+    primaryMuscles: ['lats'],
+    mechanic: 'compound',
+    equipment: ['cable'],
+  });
+  const SLED_PUSH = candidate({
+    id: 'sl1',
+    name: 'Sled Push',
+    source: 'free-exercise-db',
+    sourceId: 'Sled_Push',
+    primaryMuscles: ['quadriceps'],
+    mechanic: 'compound',
+    equipment: ['other'],
+  });
+  const ATLAS_STONES = candidate({
+    id: 'at1',
+    name: 'Atlas Stones',
+    source: 'free-exercise-db',
+    sourceId: 'Atlas_Stones',
+    primaryMuscles: ['lower back'],
+    mechanic: 'compound',
+    equipment: ['other'],
+  });
+  const DECLINE_CRUNCH = candidate({
+    id: 'dc1',
+    name: 'Decline Crunch',
+    source: 'free-exercise-db',
+    sourceId: 'Decline_Crunch',
+    primaryMuscles: ['abdominals'],
+    mechanic: 'isolation',
+    equipment: ['body only'],
+  });
+
+  it('admits Smith rows and blocks free-barbell rows at Planet Fitness', () => {
+    // PF's fixed bars derive coarse `barbell`, so the coarse test alone would
+    // wave Barbell Squat through — the item gate is what knows the room has
+    // no Olympic bar.
+    expect(
+      isPerformable(SMITH_SQUAT, PF.equipment, PF.apparatus, PF.items)
+    ).toBe(true);
+    expect(PF.equipment).toContain('barbell');
+    expect(
+      isPerformable(BARBELL_SQUAT, PF.equipment, PF.apparatus, PF.items)
+    ).toBe(false);
+  });
+
+  it('satisfies the pulldown any-of with a tower alone', () => {
+    const garage = statedProfile(['cable-tower']);
+    expect(
+      isPerformable(
+        LAT_PULLDOWN,
+        garage.equipment,
+        garage.apparatus,
+        garage.items
+      )
+    ).toBe(true);
+  });
+
+  it('admits sled rows and blocks Atlas Stones in a sled-only garage', () => {
+    const garage = statedProfile(['sled', 'dumbbells']);
+    expect(
+      isPerformable(SLED_PUSH, garage.equipment, garage.apparatus, garage.items)
+    ).toBe(true);
+    expect(
+      isPerformable(
+        ATLAS_STONES,
+        garage.equipment,
+        garage.apparatus,
+        garage.items
+      )
+    ).toBe(false);
+  });
+
+  it('blocks Decline Crunch through the derived-apparatus path, not the items path', () => {
+    // Stating items states apparatus too (the route derives it), so the
+    // apparatus tri-state's authoritative branch is always active for an
+    // item-stated profile. No bench item -> derived apparatus without
+    // `bench` -> the apparatus stage is what says no.
+    const noBench = statedProfile(['dumbbells']);
+    expect(noBench.apparatus).toEqual([]);
+    expect(
+      isPerformable(
+        DECLINE_CRUNCH,
+        noBench.equipment,
+        noBench.apparatus,
+        noBench.items
+      )
+    ).toBe(false);
+    const withBench = statedProfile(['dumbbells', 'flat-bench']);
+    expect(withBench.apparatus).toEqual(['bench']);
+    expect(
+      isPerformable(
+        DECLINE_CRUNCH,
+        withBench.equipment,
+        withBench.apparatus,
+        withBench.items
+      )
+    ).toBe(true);
+  });
+
+  it('does not let familiarity overrule stated items', () => {
+    // Fifty logged barbell squats happened somewhere with a bar. This
+    // profile says this room has fixed bars only.
+    expect(
+      isPerformable(
+        { ...BARBELL_SQUAT, timesPerformed: 50 },
+        PF.equipment,
+        PF.apparatus,
+        PF.items
+      )
+    ).toBe(false);
+  });
+
+  it('null items leaves every legacy answer untouched', () => {
+    // The same calls the pre-items tests make: a null fourth argument is the
+    // never-stated branch and must change nothing.
+    expect(isPerformable(BARBELL_SQUAT, ['barbell'], null, null)).toBe(true);
+    expect(isPerformable(SMITH_SQUAT, ['machine'], null, null)).toBe(true);
+    expect(isPerformable(LAT_PULLDOWN, ['cable'], null, null)).toBe(true);
   });
 });
 

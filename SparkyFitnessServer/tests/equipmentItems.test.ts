@@ -212,14 +212,27 @@ describe('requiredItemsFor', () => {
       'cable-tower',
       'cable-crossover',
     ]);
+    // The curated map is keyed on free-exercise-db ids; a user row that
+    // happens to share one still gets only the generic bucket defaults.
     expect(
       requiredItemsFor('user', 'Smith_Machine_Squat', ['barbell'])
-    ).toEqual([]);
+    ).toEqual(['barbell']);
+  });
+
+  it('defaults a free-barbell row to the Olympic bar item', () => {
+    // `fixed-barbells` derives the coarse bucket (search, legacy readers,
+    // the load-limits key) but a rack of fixed bars cannot squat — the item
+    // gate for the 170 free-bar rows is the actual barbell.
+    expect(requiredItemsFor(SOURCE, 'Barbell_Squat', ['barbell'])).toEqual([
+      'barbell',
+    ]);
+    expect(areItemsAvailable(['barbell'], ['fixed-barbells'])).toBe(false);
+    expect(areItemsAvailable(['barbell'], ['barbell'])).toBe(true);
   });
 
   it('requires nothing for rows outside the generic buckets', () => {
-    expect(requiredItemsFor(SOURCE, 'Barbell_Squat', ['barbell'])).toEqual([]);
     expect(requiredItemsFor(SOURCE, null, ['dumbbell'])).toEqual([]);
+    expect(requiredItemsFor(SOURCE, null, ['kettlebells'])).toEqual([]);
   });
 
   it('is immune to the prototype-key trap', () => {

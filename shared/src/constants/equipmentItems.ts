@@ -882,6 +882,17 @@ const GENERIC_CABLE_ANY_OF: readonly EquipmentItemSlug[] = [
   "cable-tower",
   "cable-crossover",
 ];
+/**
+ * The 170 `barbell`-bucket rows are free-bar movements (squats, pulls,
+ * presses off a rack or the floor). `fixed-barbells` derives the coarse
+ * bucket — that keeps catalog search and every legacy reader honest, and it
+ * is what `load_limits.barbell` caps — but a rack of fixed bars to 60 lb
+ * cannot perform them, so it does not satisfy the item gate. This is the one
+ * bucket where a deriving item and the bucket's rows genuinely part ways;
+ * without this default a Planet Fitness profile (fixed bars, no Olympic bar)
+ * would be prescribed free-barbell squats.
+ */
+const GENERIC_FREE_BARBELL_ANY_OF: readonly EquipmentItemSlug[] = ["barbell"];
 const GENERIC_MACHINE_ANY_OF: readonly EquipmentItemSlug[] =
   EQUIPMENT_ITEMS.filter((item) =>
     (item.derives as readonly Equipment[]).includes("machine"),
@@ -908,6 +919,9 @@ export function requiredItemsFor(
   }
   const coarse = new Set(coarseEquipment.map(normalizeEquipmentName));
   const anyOf = new Set<EquipmentItemSlug>();
+  if (coarse.has("barbell")) {
+    for (const slug of GENERIC_FREE_BARBELL_ANY_OF) anyOf.add(slug);
+  }
   if (coarse.has("cable")) {
     for (const slug of GENERIC_CABLE_ANY_OF) anyOf.add(slug);
   }

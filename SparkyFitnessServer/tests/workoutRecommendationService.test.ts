@@ -1111,6 +1111,46 @@ describe('generateRecommendation', () => {
         result.payload.exercises.map((exercise) => exercise.exercise_id)
       ).toEqual([DUMBBELL_ROW.id]);
     });
+
+    it('threads stated equipment items into the gate', async () => {
+      // An item-stated row exactly as the route stores it: coarse columns
+      // derived from the items. Fixed bars derive coarse `barbell`, so only
+      // the item gate knows this room has no Olympic bar — a smith row
+      // passes, a free-bar row does not, and familiarity does not argue.
+      gymRepo.getActiveGymProfile.mockResolvedValue({
+        id: 'gym-1',
+        equipment: ['barbell', 'machine'],
+        apparatus: [],
+        equipment_items: ['fixed-barbells', 'smith-machine'],
+      });
+      const SMITH_ROW = candidate({
+        id: BENCH_ID,
+        name: 'Smith Machine Bent Over Row',
+        source: 'free-exercise-db',
+        sourceId: 'Smith_Machine_Bent_Over_Row',
+        primaryMuscles: ['lats'],
+        mechanic: 'compound',
+        equipment: ['machine'],
+      });
+      const BARBELL_ROW = candidate({
+        id: FLY_ID,
+        name: 'Bent Over Barbell Row',
+        source: 'free-exercise-db',
+        sourceId: 'Bent_Over_Barbell_Row',
+        primaryMuscles: ['lats'],
+        mechanic: 'compound',
+        equipment: ['barbell'],
+        timesPerformed: 50,
+      });
+      repo.getCandidateExercises.mockResolvedValue([SMITH_ROW, BARBELL_ROW]);
+
+      const result =
+        await workoutRecommendationService.generateRecommendation(USER_ID);
+
+      expect(
+        result.payload.exercises.map((exercise) => exercise.exercise_id)
+      ).toEqual([SMITH_ROW.id]);
+    });
   });
 
   it('refuses to persist an empty workout', async () => {

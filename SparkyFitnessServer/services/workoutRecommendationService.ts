@@ -20,6 +20,7 @@ import {
   GENERATION_TUNABLES,
   RECOVERY_TUNABLES,
   type CandidateExercise,
+  type EquipmentItemSlug,
   type ExerciseApparatus,
   type ExerciseHistoryInput,
   type GenerationOptions,
@@ -216,7 +217,8 @@ async function importMissingMuscles(
   userId: string,
   missingMuscles: readonly string[],
   availableEquipment: string[] | null,
-  availableApparatus: ExerciseApparatus[] | null
+  availableApparatus: ExerciseApparatus[] | null,
+  availableEquipmentItems: readonly EquipmentItemSlug[] | null
 ): Promise<number> {
   const { default: freeExerciseDBService } =
     await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
@@ -261,7 +263,8 @@ async function importMissingMuscles(
           isPerformable(
             asExternalCandidate(item),
             availableEquipment,
-            availableApparatus
+            availableApparatus,
+            availableEquipmentItems
           )
       );
       // A stretch is why this import was triggered in the first place — the
@@ -323,7 +326,8 @@ function unservedMuscles(
       isPerformable(
         candidate,
         options.availableEquipment,
-        options.availableApparatus
+        options.availableApparatus,
+        options.availableEquipmentItems
       ) &&
       !isExcludedByLimitations(candidate, options.limitations) &&
       !isMobilityExercise(candidate)
@@ -476,6 +480,11 @@ async function generateRecommendation(
     // "stated" downstream, which is the opposite of what silence means.
     availableApparatus: gymProfile ? (gymProfile.apparatus ?? null) : null,
     loadLimits: gymProfile ? (gymProfile.load_limits ?? null) : null,
+    // Same guard as apparatus: a row read before the equipment_items
+    // migration ran must read as "never stated", not as a statement.
+    availableEquipmentItems: gymProfile
+      ? (gymProfile.equipment_items ?? null)
+      : null,
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
     ),
@@ -500,7 +509,8 @@ async function generateRecommendation(
       userId,
       missing,
       options.availableEquipment,
-      options.availableApparatus
+      options.availableApparatus,
+      options.availableEquipmentItems
     );
     if (imported > 0) {
       candidates = await workoutRecommendationRepository.getCandidateExercises(
@@ -735,6 +745,9 @@ async function replaceRecommendationExercise(
     availableEquipment: gymProfile ? gymProfile.equipment : null,
     availableApparatus: gymProfile ? (gymProfile.apparatus ?? null) : null,
     loadLimits: gymProfile ? (gymProfile.load_limits ?? null) : null,
+    availableEquipmentItems: gymProfile
+      ? (gymProfile.equipment_items ?? null)
+      : null,
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
     ),
@@ -877,6 +890,9 @@ async function getAlternatives(
   const availableApparatus = activeGymProfile
     ? (activeGymProfile.apparatus ?? null)
     : null;
+  const availableEquipmentItems = activeGymProfile
+    ? (activeGymProfile.equipment_items ?? null)
+    : null;
 
   const candidates =
     await workoutRecommendationRepository.getCandidateExercises(
@@ -889,7 +905,12 @@ async function getAlternatives(
     .filter(
       (candidate) =>
         candidate.id !== source.id &&
-        isPerformable(candidate, availableEquipment, availableApparatus)
+        isPerformable(
+          candidate,
+          availableEquipment,
+          availableApparatus,
+          availableEquipmentItems
+        )
     )
     .map((candidate) => ({
       candidate,
@@ -929,6 +950,7 @@ async function getAlternatives(
     muscle,
     availableEquipment,
     availableApparatus,
+    availableEquipmentItems,
     limit - local.length,
     new Set(local.map((item) => item.exercise_name.toLowerCase()))
   );
@@ -961,6 +983,7 @@ async function searchExternalAlternatives(
   muscle: string,
   availableEquipment: string[] | null,
   availableApparatus: ExerciseApparatus[] | null,
+  availableEquipmentItems: readonly EquipmentItemSlug[] | null,
   limit: number,
   seenNames: ReadonlySet<string>
 ): Promise<AlternativeExercise[]> {
@@ -988,7 +1011,8 @@ async function searchExternalAlternatives(
           isPerformable(
             asExternalCandidate(item),
             availableEquipment,
-            availableApparatus
+            availableApparatus,
+            availableEquipmentItems
           )
       )
       .slice(0, limit)
