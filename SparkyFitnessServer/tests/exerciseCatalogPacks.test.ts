@@ -129,7 +129,7 @@ describe('exercise catalog packs', () => {
     },
     {
       id: '4242',
-      name: 'lever future machine',
+      name: 'lever zebra press',
       equipment: 'leverage machine',
       target: 'brand new muscle',
       instruction_steps: { en: ['Do it.'] },
@@ -339,10 +339,12 @@ describe('exercise catalog packs', () => {
     });
 
     it('maps a mirror record onto the local vocabulary on import', async () => {
+      // Sorted by CLEANED name: Hack Squat, Machine Chest Press, Machine
+      // Zebra Press — so the chest press sits at offset 1.
       const result = await exerciseService.importExerciseCatalogPack(
         userId,
         'exercisedb-machines',
-        0,
+        1,
         1
       );
 
@@ -351,7 +353,8 @@ describe('exercise catalog packs', () => {
       const created = exerciseDb.createExercise.mock.calls[0][0];
       expect(created.source).toBe('exercisedb');
       expect(created.source_id).toBe('0577');
-      expect(created.name).toBe('lever chest press');
+      // The catalog's "lever chest press" jargon becomes a plain gym name.
+      expect(created.name).toBe('Machine Chest Press');
       // "leverage machine" collapses to the coarse enum; the granular half
       // lives in the shared per-source item map, not on the row.
       expect(created.equipment).toEqual(['machine']);
@@ -379,14 +382,14 @@ describe('exercise catalog packs', () => {
       const result = await exerciseService.importExerciseCatalogPack(
         userId,
         'exercisedb-machines',
-        2,
+        0,
         1
       );
 
       expect(result.imported).toBe(1);
       // @ts-expect-error TS(2339): mock method not on typed function.
       const created = exerciseDb.createExercise.mock.calls[0][0];
-      expect(created.name).toBe('sled hack squat');
+      expect(created.name).toBe('Hack Squat');
       expect(created.primary_muscles).toEqual(['quadriceps']);
       // 'ankle stabilizers' is a curated null (no canonical home); 'glutes'
       // survives.
@@ -403,7 +406,8 @@ describe('exercise catalog packs', () => {
 
       expect(result.imported).toBe(2);
       expect(result.failed).toBe(1);
-      expect(result.failures[0].name).toBe('lever future machine');
+      // Failures are named by the cleaned display name the user would see.
+      expect(result.failures[0].name).toBe('Machine Zebra Press');
       expect(result.failures[0].reason).toContain('brand new muscle');
     });
 

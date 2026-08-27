@@ -21,6 +21,7 @@ import { resolveExerciseIdToUuid } from '../utils/uuidUtils.js';
 import { normalizeToStringArray } from '../utils/exerciseJsonFields.js';
 import type { FreeExerciseDbExercise } from '../integrations/freeexercisedb/FreeExerciseDBService.js';
 import type { ExerciseDbMirrorRecord } from '../integrations/exercisedb/ExerciseDbMirrorService.js';
+import { cleanExerciseDbExerciseName } from '../integrations/exercisedb/exerciseDbNames.js';
 import {
   EXERCISE_CATALOG_PACKS,
   getExerciseCatalogPack,
@@ -1648,11 +1649,12 @@ async function createExerciseFromExerciseDbRecord(
   }
   const instructions = normalizeToStringArray(record.instruction_steps?.en);
   const localImagePaths = await downloadExerciseDbImages(record);
+  const displayName = cleanExerciseDbExerciseName(record.name);
   const exerciseData = {
     id: uuidv4(),
     source: EXERCISEDB_SOURCE,
     source_id: String(record.id),
-    name: record.name,
+    name: displayName,
     force: null,
     level: null,
     mechanic: null,
@@ -1671,7 +1673,7 @@ async function createExerciseFromExerciseDbRecord(
         authenticatedUserId,
         undefined
       ),
-    description: instructions[0] ?? record.name,
+    description: instructions[0] ?? displayName,
     user_id: authenticatedUserId,
     is_custom: true,
     shared_with_public: false,
@@ -1716,21 +1718,30 @@ async function exerciseCatalogPackMembers(
     const { default: exerciseDbMirrorService } =
       await import('../integrations/exercisedb/ExerciseDbMirrorService.js');
     const catalog = await exerciseDbMirrorService.getAllExercises();
-    return catalog
-      .filter(
-        (entry) =>
-          entry?.id &&
-          entry?.name &&
-          wanted.has(String(entry.equipment).toLowerCase()) &&
-          // The cardio-machine rows the muscle vocabulary deliberately skips
-          // are not importable strength work and leave the pack here; an
-          // *unknown* target stays in so import fails loudly on it instead of
-          // silently shrinking the pack.
-          EXERCISEDB_TARGET_TO_MUSCLE[String(entry.target).toLowerCase()] !==
-            null
-      )
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((record) => ({ source: 'exercisedb' as const, record }));
+    return (
+      catalog
+        .filter(
+          (entry) =>
+            entry?.id &&
+            entry?.name &&
+            wanted.has(String(entry.equipment).toLowerCase()) &&
+            // The cardio-machine rows the muscle vocabulary deliberately skips
+            // are not importable strength work and leave the pack here; an
+            // *unknown* target stays in so import fails loudly on it instead of
+            // silently shrinking the pack.
+            EXERCISEDB_TARGET_TO_MUSCLE[String(entry.target).toLowerCase()] !==
+              null
+        )
+        // Cleaned here as well as in the mapper (the function is idempotent) so
+        // sorting, progress listing and name dedup all see the stored name.
+        // Upstream duplicate names and pov re-films clean to identical names on
+        // purpose; the importer's name dedup keeps one copy.
+        .map((record) => ({
+          source: 'exercisedb' as const,
+          record: { ...record, name: cleanExerciseDbExerciseName(record.name) },
+        }))
+        .sort((a, b) => a.record.name.localeCompare(b.record.name))
+    );
   }
   const { default: freeExerciseDBService } =
     await import('../integrations/freeexercisedb/FreeExerciseDBService.js');

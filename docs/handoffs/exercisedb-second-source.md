@@ -84,8 +84,13 @@ what the committed fixture and maps contain.
   exercisedb media (free-db-only by design); a wiped uploads dir means
   re-importing. Acceptable for now; extend the route only with care — it is
   unauthenticated.
-- Upstream names carry occasional mojibake (e.g. `sled 45в° leg press`);
-  cosmetic, imported verbatim. A name-cleanup pass at import time is possible
-  if it grates.
+- ~~Upstream names carry occasional mojibake~~ Resolved: import-time name
+  cleanup (`integrations/exercisedb/exerciseDbNames.ts`) maps the mirror's
+  jargon onto plain gym names — `lever lateral raise` → `Machine Lateral
+  Raise`, `smith squat` → `Smith Machine Squat`, `sled 45в° leg press (back
+  pov)` → `45° Leg Press` — with `v. 2` suffixes kept distinct as
+  `(Variation N)` and pov re-films deliberately collapsing onto their base
+  movement via the importer's name dedup (the pack now lands ~137 rows, not
+  139, because the four upstream duplicates/re-films are skipped).
 - The user's own account has not imported the pack yet — it is one tap on the
   mobile packs screen ("Machine Exercises (Extended)").
