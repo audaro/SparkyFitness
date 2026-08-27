@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-08-26_
+_Last updated: 2026-08-27_
 
 SparkyFitness Server is the backend API package for the SparkyFitness monorepo. Use this file as the primary guide for work inside `SparkyFitnessServer/`.
 
@@ -189,7 +189,7 @@ When searching, ignore noisy/generated directories unless you explicitly need th
 ### Integrations and Background Work
 
 - Provider-specific adapters live under `integrations/`; coordinating logic usually lives in `services/` and persistence in `models/`
-- Current adapters span food/nutrition (OpenFoodFacts, FatSecret, Nutritionix, USDA, Mealie, Tandoor, Norish, SwissFood, Yazio), fitness devices (Garmin Connect sync plus FIT file import via `integrations/garminfit/` + `services/fitImportService.ts`, Withings, Fitbit, Oura, Polar, Strava, Hevy), exercise databases (Wger, FreeExerciseDB), drug catalogs (NLM RxTerms, openFDA NDC directory), and health-data import (Google Health, generic/mobile health data)
+- Current adapters span food/nutrition (OpenFoodFacts, FatSecret, Nutritionix, USDA, Mealie, Tandoor, Norish, SwissFood, Yazio), fitness devices (Garmin Connect sync plus FIT file import via `integrations/garminfit/` + `services/fitImportService.ts`, Withings, Fitbit, Oura, Polar, Strava, Hevy), exercise databases (Wger, FreeExerciseDB, and the ExerciseDB v1 mirror in `integrations/exercisedb/` — catalog-pack import only, granular machine tags mapped through `../shared/src/constants/exercisedb.ts`; its media is © Gym Visual, localized into the importing user's uploads and never redistributed, and the unauthenticated `/uploads/exercises` image-recovery route is free-exercise-db-only, which is why its download directories carry an `exercisedb_` prefix), drug catalogs (NLM RxTerms, openFDA NDC directory), and health-data import (Google Health, generic/mobile health data)
 - Scheduled jobs currently include backups, session cleanup, and hourly sync loops for Withings, Garmin, Fitbit, Oura, Polar, and Strava
 - Integration work often spans route, service, repository, cron, and external-provider settings code; inspect the whole path before calling the work complete
 

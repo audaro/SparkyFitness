@@ -20,12 +20,17 @@ import { fileURLToPath } from 'url';
 import { resolveExerciseIdToUuid } from '../utils/uuidUtils.js';
 import { normalizeToStringArray } from '../utils/exerciseJsonFields.js';
 import type { FreeExerciseDbExercise } from '../integrations/freeexercisedb/FreeExerciseDBService.js';
+import type { ExerciseDbMirrorRecord } from '../integrations/exercisedb/ExerciseDbMirrorService.js';
 import {
   EXERCISE_CATALOG_PACKS,
   getExerciseCatalogPack,
   type ExerciseCatalogPack,
 } from '../constants/exerciseCatalogPacks.js';
 import {
+  EXERCISEDB_SOURCE,
+  EXERCISEDB_EQUIPMENT_TO_COARSE,
+  EXERCISEDB_TARGET_TO_MUSCLE,
+  EXERCISEDB_SECONDARY_TO_MUSCLE,
   deriveExerciseModality,
   canEditGroupedWorkout,
   setsDistanceKm,
@@ -1554,6 +1559,126 @@ async function createExerciseFromFreeExerciseDbRecord(
   return await exerciseDb.createExercise(exerciseData);
 }
 
+/**
+ * Downloads a mirror record's still photo and animated demonstration into the
+ * local uploads dir, mirroring how free-exercise-db photos are localized. The
+ * media is © Gym Visual (via the ExerciseDB mirror); it is stored only in the
+ * importing user's own library. A failed download is logged and skipped, not
+ * fatal.
+ */
+async function downloadExerciseDbImages(
+  record: ExerciseDbMirrorRecord
+): Promise<string[]> {
+  const { default: exerciseDbMirrorService } =
+    await import('../integrations/exercisedb/ExerciseDbMirrorService.js');
+  const mediaPaths = [record.image, record.gif_url].filter(
+    (mediaPath): mediaPath is string =>
+      typeof mediaPath === 'string' && mediaPath.length > 0
+  );
+  // Sanitized before it reaches downloadImage, which path.join()s the value
+  // into the uploads dir without checking it. The `exercisedb_` prefix keeps
+  // these directories out of the unauthenticated /uploads/exercises recovery
+  // route's namespace, which treats a bare directory name as a
+  // free-exercise-db id and would try to re-download a missing file from the
+  // wrong upstream.
+  const entityDir = `exercisedb_${String(record.id).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  const localPaths = await Promise.all(
+    mediaPaths.map(async (mediaPath) => {
+      const mediaUrl = exerciseDbMirrorService.getMediaUrl(mediaPath);
+      try {
+        const fullPath = await downloadImage(mediaUrl, entityDir);
+        return (fullPath as string).replace('/uploads/exercises/', '');
+      } catch (imgError) {
+        log(
+          'error',
+          `Failed to download exercisedb media ${mediaUrl}:`,
+          imgError
+        );
+        return null;
+      }
+    })
+  );
+  return localPaths.filter((p): p is string => p !== null);
+}
+
+/**
+ * Maps one ExerciseDB-mirror record onto the local Exercise model and
+ * persists it, downloading its photo and animation on the way. Unlike the
+ * free-exercise-db mapper this one translates vocabulary: the mirror's
+ * granular equipment tag collapses to the coarse enum (the granular half
+ * lives in the shared per-source item-requirements map, keyed by source_id),
+ * and its target/secondary muscles map onto the canonical MUSCLES names. An
+ * unmapped tag or muscle is a thrown error, never a guess — the pack importer
+ * records it as a named failure, so an upstream vocabulary addition surfaces
+ * instead of importing a row the engine cannot classify.
+ */
+async function createExerciseFromExerciseDbRecord(
+  authenticatedUserId: string,
+  record: ExerciseDbMirrorRecord
+) {
+  const equipmentTag = String(record.equipment ?? '').toLowerCase();
+  const coarseEquipment = EXERCISEDB_EQUIPMENT_TO_COARSE[equipmentTag];
+  if (coarseEquipment === undefined) {
+    throw new Error(`Unmapped exercisedb equipment tag "${record.equipment}".`);
+  }
+  const target = String(record.target ?? '').toLowerCase();
+  const primaryMuscle = EXERCISEDB_TARGET_TO_MUSCLE[target];
+  if (primaryMuscle === undefined) {
+    throw new Error(`Unmapped exercisedb target "${record.target}".`);
+  }
+  if (primaryMuscle === null) {
+    // The cardio-target rows; pack membership excludes them, so reaching
+    // here means a caller fed a row the vocabulary deliberately skips.
+    throw new Error(
+      `Exercisedb target "${record.target}" is not importable as strength work.`
+    );
+  }
+  const secondaryMuscles: string[] = [];
+  for (const raw of record.secondary_muscles ?? []) {
+    const mapped = EXERCISEDB_SECONDARY_TO_MUSCLE[String(raw).toLowerCase()];
+    if (mapped === undefined) {
+      throw new Error(`Unmapped exercisedb secondary muscle "${raw}".`);
+    }
+    if (mapped === null || mapped === primaryMuscle) {
+      continue;
+    }
+    if (!secondaryMuscles.includes(mapped)) {
+      secondaryMuscles.push(mapped);
+    }
+  }
+  const instructions = normalizeToStringArray(record.instruction_steps?.en);
+  const localImagePaths = await downloadExerciseDbImages(record);
+  const exerciseData = {
+    id: uuidv4(),
+    source: EXERCISEDB_SOURCE,
+    source_id: String(record.id),
+    name: record.name,
+    force: null,
+    level: null,
+    mechanic: null,
+    equipment: coarseEquipment === null ? [] : [coarseEquipment],
+    primary_muscles: [primaryMuscle],
+    secondary_muscles: secondaryMuscles,
+    instructions,
+    // The mirror's own `category` is a body region ("upper legs"), not a
+    // modality. Every importable row is resistance work, so the local
+    // modality-bearing category is strength.
+    category: 'strength',
+    images: localImagePaths,
+    calories_per_hour:
+      await calorieCalculationService.estimateCaloriesBurnedPerHour(
+        { category: 'strength' },
+        authenticatedUserId,
+        undefined
+      ),
+    description: instructions[0] ?? record.name,
+    user_id: authenticatedUserId,
+    is_custom: true,
+    shared_with_public: false,
+  };
+  return await exerciseDb.createExercise(exerciseData);
+}
+
 /** One exercise's outcome inside a catalog-pack import batch. */
 interface CatalogPackImportBatch {
   packId: string;
@@ -1567,6 +1692,11 @@ interface CatalogPackImportBatch {
   done: boolean;
 }
 
+/** A pack member paired with the catalog it came from, so import can route it. */
+type CatalogPackMember =
+  | { source: 'free-exercise-db'; record: FreeExerciseDbExercise }
+  | { source: 'exercisedb'; record: ExerciseDbMirrorRecord };
+
 /**
  * Catalog entries belonging to a pack, ordered by name. The order has to be
  * stable across calls: the client walks the pack with offset/limit batches, so
@@ -1578,11 +1708,33 @@ interface CatalogPackImportBatch {
  * one: the pack list reports how many members are still missing, and importing
  * again picks them up because import skips what is already present.
  */
-function exerciseCatalogPackMembers(
-  catalog: FreeExerciseDbExercise[],
+async function exerciseCatalogPackMembers(
   pack: ExerciseCatalogPack
-): FreeExerciseDbExercise[] {
+): Promise<CatalogPackMember[]> {
   const wanted = new Set(pack.equipment);
+  if (pack.source === 'exercisedb') {
+    const { default: exerciseDbMirrorService } =
+      await import('../integrations/exercisedb/ExerciseDbMirrorService.js');
+    const catalog = await exerciseDbMirrorService.getAllExercises();
+    return catalog
+      .filter(
+        (entry) =>
+          entry?.id &&
+          entry?.name &&
+          wanted.has(String(entry.equipment).toLowerCase()) &&
+          // The cardio-machine rows the muscle vocabulary deliberately skips
+          // are not importable strength work and leave the pack here; an
+          // *unknown* target stays in so import fails loudly on it instead of
+          // silently shrinking the pack.
+          EXERCISEDB_TARGET_TO_MUSCLE[String(entry.target).toLowerCase()] !==
+            null
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((record) => ({ source: 'exercisedb' as const, record }));
+  }
+  const { default: freeExerciseDBService } =
+    await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
+  const catalog = await freeExerciseDBService.getAllExercises();
   return catalog
     .filter(
       (entry) =>
@@ -1592,34 +1744,37 @@ function exerciseCatalogPackMembers(
           wanted.has(String(value).toLowerCase())
         )
     )
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((record) => ({ source: 'free-exercise-db' as const, record }));
 }
 
 /**
  * The importable catalog packs with this user's progress through each.
  */
 async function listExerciseCatalogPacks(authenticatedUserId: string) {
-  const { default: freeExerciseDBService } =
-    await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
-  const catalog = await freeExerciseDBService.getAllExercises();
-  const [importedIds, existingNames] = await Promise.all([
-    exerciseDb
-      .getImportedSourceIds('free-exercise-db', authenticatedUserId)
-      .then((ids: string[]) => new Set(ids)),
-    userExerciseNameIndex(authenticatedUserId),
-  ]);
-  return EXERCISE_CATALOG_PACKS.map((pack) => {
-    const members = exerciseCatalogPackMembers(catalog, pack);
-    return {
+  const existingNames = await userExerciseNameIndex(authenticatedUserId);
+  const importedIdsBySource = new Map<string, Set<string>>();
+  const packs = [];
+  for (const pack of EXERCISE_CATALOG_PACKS) {
+    let importedIds = importedIdsBySource.get(pack.source);
+    if (!importedIds) {
+      importedIds = new Set<string>(
+        await exerciseDb.getImportedSourceIds(pack.source, authenticatedUserId)
+      );
+      importedIdsBySource.set(pack.source, importedIds);
+    }
+    const members = await exerciseCatalogPackMembers(pack);
+    packs.push({
       id: pack.id,
       label: pack.label,
       description: pack.description,
       total: members.length,
       alreadyImported: members.filter((member) =>
-        alreadyInLibrary(member, importedIds, existingNames)
+        alreadyInLibrary(member.record, importedIds, existingNames)
       ).length,
-    };
-  });
+    });
+  }
+  return packs;
 }
 
 /** Normalized names of everything already in the user's exercise library. */
@@ -1640,7 +1795,7 @@ async function userExerciseNameIndex(
  * history across two near-identical library rows.
  */
 function alreadyInLibrary(
-  member: FreeExerciseDbExercise,
+  member: { id: string; name: string },
   importedIds: Set<string>,
   existingNames: Set<string>
 ): boolean {
@@ -1674,10 +1829,7 @@ async function importExerciseCatalogPack(
     error.statusCode = 400;
     throw error;
   }
-  const { default: freeExerciseDBService } =
-    await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
-  const catalog = await freeExerciseDBService.getAllExercises();
-  const members = exerciseCatalogPackMembers(catalog, pack);
+  const members = await exerciseCatalogPackMembers(pack);
   const batch = members.slice(offset, offset + limit);
   // Read once per batch rather than per exercise, with names this batch
   // creates added as it goes. This is a snapshot, so an exercise created by
@@ -1690,11 +1842,12 @@ async function importExerciseCatalogPack(
   let skipped = 0;
   const failures: { name: string; reason: string }[] = [];
 
-  for (const record of batch) {
+  for (const member of batch) {
+    const record = member.record;
     const sourceId = String(record.id);
     try {
       const existing = await exerciseDb.getExerciseBySourceAndSourceId(
-        'free-exercise-db',
+        member.source,
         sourceId,
         authenticatedUserId
       );
@@ -1705,11 +1858,18 @@ async function importExerciseCatalogPack(
         skipped++;
         continue;
       }
-      await createExerciseFromFreeExerciseDbRecord(
-        authenticatedUserId,
-        record,
-        sourceId
-      );
+      if (member.source === 'exercisedb') {
+        await createExerciseFromExerciseDbRecord(
+          authenticatedUserId,
+          member.record
+        );
+      } else {
+        await createExerciseFromFreeExerciseDbRecord(
+          authenticatedUserId,
+          member.record,
+          sourceId
+        );
+      }
       // Only after the insert lands: claiming the name up front would make a
       // failed create block a later retry of the same name in this batch.
       existingNames.add(normalizedName);
