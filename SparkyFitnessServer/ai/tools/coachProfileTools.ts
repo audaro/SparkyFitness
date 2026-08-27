@@ -6,8 +6,13 @@ import type {
   CoachProfileRow,
 } from '../../models/coachProfileRepository.js';
 import gymEquipmentProfileRepository from '../../models/gymEquipmentProfileRepository.js';
-import type { GymEquipmentProfileRow } from '../../models/gymEquipmentProfileRepository.js';
+import type {
+  GymEquipmentProfilePatch,
+  GymEquipmentProfileRow,
+} from '../../models/gymEquipmentProfileRepository.js';
 import { invalidateChatContextInputs } from '../../services/chatContextCache.js';
+import { isDuplicateNameError } from '../../utils/errors.js';
+import { EQUIPMENT } from '@workspace/shared';
 import { ERRORS, formatZodError } from './errors.js';
 import { normalizeActionArgs } from './dates.js';
 import { formatConfirmation } from './formatting.js';
@@ -22,6 +27,8 @@ export const VALID_ACTIONS = [
   'get_coach_profile',
   'update_coach_profile',
   'get_gym_profiles',
+  'create_gym_profile',
+  'update_gym_profile',
   'set_active_gym_profile',
 ];
 
@@ -78,7 +85,7 @@ export function renderGymProfiles(profiles: GymEquipmentProfileRow[]): string {
     // Not an error: no profile means no equipment constraint at all, which is
     // the default every account starts in. Saying so stops the model from
     // reporting a missing feature.
-    return 'No gym equipment profiles yet. Without one, every exercise in the catalog counts as available. The user can create profiles in the app under Workout Settings → Gym Profiles.';
+    return 'No gym equipment profiles yet. Without one, every exercise in the catalog counts as available. Create one with create_gym_profile when the user describes their gym; the user can also manage profiles in the app on the Exercise tab under Setup → Gym profiles.';
   }
   let text = '# Gym Profiles\n\n';
   for (const profile of profiles) {
@@ -87,6 +94,52 @@ export function renderGymProfiles(profiles: GymEquipmentProfileRow[]): string {
     )} — ID: ${profile.id}\n`;
   }
   return text.trimEnd();
+}
+
+/**
+ * Resolves a gym-profile selector (id or name) to a profile id. Names resolve
+ * here rather than making the model round-trip through get_gym_profiles:
+ * "I'm at home today" names a profile, and the ids are never in the
+ * conversation. A substring hit must be UNIQUE — "gym" against "Home Gym" and
+ * "Commercial Gym" would otherwise silently pick whichever the repository
+ * listed first, and the wrong profile then shapes every generated workout
+ * without anything in the conversation showing that it happened.
+ */
+async function resolveGymProfileId(
+  userId: string,
+  selector: { gym_profile_id?: string; gym_profile_name?: string }
+): Promise<{ profileId: string } | { error: string }> {
+  if (selector.gym_profile_id) {
+    return { profileId: selector.gym_profile_id };
+  }
+  if (!selector.gym_profile_name) {
+    return {
+      error: ERRORS.MISSING_PARAMS(['gym_profile_id or gym_profile_name']),
+    };
+  }
+  const wanted = selector.gym_profile_name.toLowerCase();
+  const profiles = await gymEquipmentProfileRepository.listGymProfiles(userId);
+  const exact = profiles.filter((p) => p.name.toLowerCase() === wanted);
+  const matches = exact.length
+    ? exact
+    : profiles.filter((p) => p.name.toLowerCase().includes(wanted));
+  if (matches.length === 0) {
+    return {
+      error: ERRORS.NOT_FOUND('Gym profile', selector.gym_profile_name),
+    };
+  }
+  if (matches.length > 1) {
+    return {
+      error: ERRORS.VALIDATION(
+        `"${selector.gym_profile_name}" matches ${matches.length} gym profiles (${matches
+          .map((p) => p.name)
+          .join(
+            ', '
+          )}). Ask the user which one, then call again with that exact name or its ID.`
+      ),
+    };
+  }
+  return { profileId: matches[0].id };
 }
 
 export function buildCoachProfileTools(userId: string, tz: string) {
@@ -98,6 +151,10 @@ Actions:
 - get_coach_profile() — read it before proposing programming; a missing profile means the user has not been interviewed yet
 - update_coach_profile(goals?, training_days_per_week?, session_minutes?, experience_level?, equipment?, limitations?, food_preferences?, aliases?) — saves only the provided fields; list/object fields REPLACE the stored value, so send the full updated list when adding one item. experience_level is 'beginner' | 'intermediate' | 'expert' and biases which exercises generated workouts select
 - get_gym_profiles() — the user's named equipment sets ("Home", "Commercial gym") and which one is active; the active one is what constrains generated workouts
+- create_gym_profile(gym_profile_name, gym_equipment, make_active?) — save a named equipment set when the user describes a gym ("Planet Fitness has..."). gym_equipment only accepts the canonical catalog values (${EQUIPMENT.join(
+        ', '
+      )}) — map real equipment to the closest value (racks, smith machines, leg presses and cardio machines → machine) instead of inventing new ones
+- update_gym_profile(gym_profile_id?|gym_profile_name?, new_name?, gym_equipment?) — rename a profile or change its equipment; gym_equipment REPLACES the stored list, so send the full updated list when adding one item
 - set_active_gym_profile(gym_profile_name?|gym_profile_id?) — switch where the user is training today ("I'm at home"), then regenerate; only one profile is active at a time`,
       inputSchema: manageCoachProfileInput,
       execute: async (rawArgs) => {
@@ -160,51 +217,70 @@ Actions:
                 await gymEquipmentProfileRepository.listGymProfiles(userId);
               return renderGymProfiles(profiles);
             }
-            case 'set_active_gym_profile': {
-              if (!args.gym_profile_id && !args.gym_profile_name) {
-                return ERRORS.MISSING_PARAMS([
-                  'gym_profile_id or gym_profile_name',
-                ]);
-              }
-              let profileId = args.gym_profile_id;
-              if (!profileId && args.gym_profile_name) {
-                // Resolve names here rather than making the model round-trip
-                // through get_gym_profiles: "I'm at home today" names a
-                // profile, and the ids are never in the conversation.
-                const wanted = args.gym_profile_name.toLowerCase();
-                const profiles =
-                  await gymEquipmentProfileRepository.listGymProfiles(userId);
-                const exact = profiles.filter(
-                  (p) => p.name.toLowerCase() === wanted
+            case 'create_gym_profile': {
+              const created =
+                await gymEquipmentProfileRepository.createGymProfile(userId, {
+                  name: args.gym_profile_name,
+                  // Duplicates are harmless to the jsonb filter but would
+                  // render twice everywhere the list is shown.
+                  equipment: [...new Set(args.gym_equipment)],
+                  is_active: args.make_active === true,
+                });
+              return formatConfirmation(
+                created.is_active
+                  ? `Created gym profile "${created.name}" (${describeGymProfile(
+                      created
+                    )}) and made it active. Generated workouts will only use this equipment — regenerate to apply it.`
+                  : `Created gym profile "${created.name}" (${describeGymProfile(
+                      created
+                    )}). It is not active yet — set_active_gym_profile makes generated workouts use it.`
+              );
+            }
+            case 'update_gym_profile': {
+              if (
+                args.new_name === undefined &&
+                args.gym_equipment === undefined
+              ) {
+                return ERRORS.VALIDATION(
+                  'Nothing to update — provide new_name and/or gym_equipment.'
                 );
-                // A substring hit must be UNIQUE. "gym" against "Home Gym"
-                // and "Commercial Gym" would otherwise silently activate
-                // whichever the repository listed first, and the wrong
-                // equipment set then shapes every generated workout without
-                // anything in the conversation showing that it happened.
-                const matches = exact.length
-                  ? exact
-                  : profiles.filter((p) =>
-                      p.name.toLowerCase().includes(wanted)
-                    );
-                if (matches.length === 0) {
-                  return ERRORS.NOT_FOUND('Gym profile', args.gym_profile_name);
-                }
-                if (matches.length > 1) {
-                  return ERRORS.VALIDATION(
-                    `"${args.gym_profile_name}" matches ${matches.length} gym profiles (${matches
-                      .map((p) => p.name)
-                      .join(
-                        ', '
-                      )}). Ask the user which one, then call again with that exact name or its ID.`
-                  );
-                }
-                profileId = matches[0].id;
               }
+              const resolved = await resolveGymProfileId(userId, args);
+              if ('error' in resolved) return resolved.error;
+              const patch: GymEquipmentProfilePatch = {};
+              if (args.new_name !== undefined) patch.name = args.new_name;
+              if (args.gym_equipment !== undefined) {
+                patch.equipment = [...new Set(args.gym_equipment)];
+              }
+              const updated =
+                await gymEquipmentProfileRepository.updateGymProfile(
+                  userId,
+                  resolved.profileId,
+                  patch
+                );
+              if (!updated) {
+                return ERRORS.NOT_FOUND(
+                  'Gym profile',
+                  args.gym_profile_id ?? (args.gym_profile_name as string)
+                );
+              }
+              return formatConfirmation(
+                `Gym profile "${updated.name}" updated (${describeGymProfile(
+                  updated
+                )}).${
+                  updated.is_active
+                    ? ' It is the active profile — regenerate workouts to apply the change.'
+                    : ''
+                }`
+              );
+            }
+            case 'set_active_gym_profile': {
+              const resolved = await resolveGymProfileId(userId, args);
+              if ('error' in resolved) return resolved.error;
               const activated =
                 await gymEquipmentProfileRepository.setActiveGymProfile(
                   userId,
-                  profileId as string
+                  resolved.profileId
                 );
               if (!activated) {
                 return ERRORS.NOT_FOUND(
@@ -225,6 +301,13 @@ Actions:
               );
           }
         } catch (error) {
+          // Same 23505-on-name special case the REST routes make: a duplicate
+          // profile name is a user-correctable conflict, not a DB failure.
+          if (isDuplicateNameError(error)) {
+            return ERRORS.VALIDATION(
+              'A gym profile with this name already exists — pick a different name, or change the existing profile with update_gym_profile.'
+            );
+          }
           log('error', '[Coach Profile Tool] Error:', error);
           return ERRORS.DB_ERROR(error);
         }

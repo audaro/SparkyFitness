@@ -22,6 +22,8 @@ vi.mock('../models/gymEquipmentProfileRepository', () => ({
   default: {
     listGymProfiles: vi.fn(),
     setActiveGymProfile: vi.fn(),
+    createGymProfile: vi.fn(),
+    updateGymProfile: vi.fn(),
   },
 }));
 vi.mock('../services/chatContextCache', () => ({
@@ -319,7 +321,7 @@ describe('gym profiles', () => {
     );
 
     expect(result).toBe(
-      'No gym equipment profiles yet. Without one, every exercise in the catalog counts as available. The user can create profiles in the app under Workout Settings → Gym Profiles.'
+      'No gym equipment profiles yet. Without one, every exercise in the catalog counts as available. Create one with create_gym_profile when the user describes their gym; the user can also manage profiles in the app on the Exercise tab under Setup → Gym profiles.'
     );
   });
 
@@ -479,6 +481,196 @@ describe('gym profiles', () => {
     );
     expect(
       gymEquipmentProfileRepository.setActiveGymProfile
+    ).not.toHaveBeenCalled();
+  });
+
+  // Equipment must land as the canonical lowercase catalog vocabulary — the
+  // generator filter is `equipment::jsonb ?|`, exact and case-sensitive, so a
+  // profile stored with "Machine" or "treadmill" would silently match nothing.
+  it('creates a profile with canonical, deduped, lowercased equipment', async () => {
+    vi.mocked(gymEquipmentProfileRepository.createGymProfile).mockResolvedValue(
+      {
+        ...homeProfile,
+        name: 'Planet Fitness',
+        equipment: ['machine', 'dumbbell', 'cable'],
+      }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Planet Fitness',
+        gym_equipment: ['Machine', 'dumbbell', 'cable', 'machine'],
+      } as never,
+      opts
+    );
+
+    expect(gymEquipmentProfileRepository.createGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      {
+        name: 'Planet Fitness',
+        equipment: ['machine', 'dumbbell', 'cable'],
+        is_active: false,
+      }
+    );
+    expect(result).toBe(
+      '✅ Created gym profile "Planet Fitness" (machine, dumbbell, cable). It is not active yet — set_active_gym_profile makes generated workouts use it.'
+    );
+  });
+
+  it('creates an active profile when asked and says regenerate', async () => {
+    vi.mocked(gymEquipmentProfileRepository.createGymProfile).mockResolvedValue(
+      { ...homeProfile, is_active: true }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Home',
+        gym_equipment: ['dumbbell', 'bands'],
+        make_active: true,
+      },
+      opts
+    );
+
+    expect(gymEquipmentProfileRepository.createGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      { name: 'Home', equipment: ['dumbbell', 'bands'], is_active: true }
+    );
+    expect(result).toBe(
+      '✅ Created gym profile "Home" (dumbbell, bands) and made it active. Generated workouts will only use this equipment — regenerate to apply it.'
+    );
+  });
+
+  it('rejects equipment outside the canonical vocabulary without writing', async () => {
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Planet Fitness',
+        // Real machines have to be mapped to the enum, not passed through.
+        gym_equipment: ['treadmill', 'machine'],
+      } as never,
+      opts
+    );
+
+    expect(String(result)).toContain('Error [VALIDATION]');
+    expect(String(result)).toContain('gym_equipment');
+    expect(
+      gymEquipmentProfileRepository.createGymProfile
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects a create with no name or an empty equipment list', async () => {
+    const noName = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'create_gym_profile', gym_equipment: ['dumbbell'] },
+      opts
+    );
+    expect(String(noName)).toContain('Error [VALIDATION]');
+    expect(String(noName)).toContain('gym_profile_name');
+
+    const noEquipment = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Home',
+        gym_equipment: [],
+      },
+      opts
+    );
+    expect(String(noEquipment)).toContain('Error [VALIDATION]');
+    expect(
+      gymEquipmentProfileRepository.createGymProfile
+    ).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a duplicate profile name as a correctable conflict', async () => {
+    vi.mocked(gymEquipmentProfileRepository.createGymProfile).mockRejectedValue(
+      Object.assign(new Error('duplicate key'), {
+        code: '23505',
+        constraint: 'gym_equipment_profiles_user_id_name_key',
+      })
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Home',
+        gym_equipment: ['dumbbell'],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: A gym profile with this name already exists — pick a different name, or change the existing profile with update_gym_profile.'
+    );
+  });
+
+  it('updates a profile by name and flags the active one for regeneration', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      homeProfile,
+      gymProfile,
+    ]);
+    vi.mocked(gymEquipmentProfileRepository.updateGymProfile).mockResolvedValue(
+      { ...gymProfile, equipment: ['barbell', 'cable', 'machine'] }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'update_gym_profile',
+        gym_profile_name: 'commercial gym',
+        gym_equipment: ['barbell', 'cable', 'machine'],
+      },
+      opts
+    );
+
+    expect(gymEquipmentProfileRepository.updateGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      GYM_ID,
+      { equipment: ['barbell', 'cable', 'machine'] }
+    );
+    expect(result).toBe(
+      '✅ Gym profile "Commercial Gym" updated (barbell, cable, machine). It is the active profile — regenerate workouts to apply the change.'
+    );
+  });
+
+  it('renames a profile by id without listing first', async () => {
+    vi.mocked(gymEquipmentProfileRepository.updateGymProfile).mockResolvedValue(
+      { ...homeProfile, name: 'Garage' }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'update_gym_profile',
+        gym_profile_id: HOME_ID,
+        new_name: 'Garage',
+      },
+      opts
+    );
+
+    expect(
+      gymEquipmentProfileRepository.listGymProfiles
+    ).not.toHaveBeenCalled();
+    expect(gymEquipmentProfileRepository.updateGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      HOME_ID,
+      { name: 'Garage' }
+    );
+    expect(result).toBe('✅ Gym profile "Garage" updated (dumbbell, bands).');
+  });
+
+  it('update_gym_profile rejects an empty patch before resolving', async () => {
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'update_gym_profile', gym_profile_name: 'Home' },
+      opts
+    );
+
+    expect(result).toBe(
+      'Error [VALIDATION]: Nothing to update — provide new_name and/or gym_equipment.'
+    );
+    expect(
+      gymEquipmentProfileRepository.listGymProfiles
+    ).not.toHaveBeenCalled();
+    expect(
+      gymEquipmentProfileRepository.updateGymProfile
     ).not.toHaveBeenCalled();
   });
 

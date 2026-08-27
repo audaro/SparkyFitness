@@ -13,6 +13,7 @@ import gymEquipmentProfileRepository, {
   type GymEquipmentProfileRow,
 } from '../models/gymEquipmentProfileRepository.js';
 import { log } from '../config/logging.js';
+import { isDuplicateNameError } from '../utils/errors.js';
 
 const router = express.Router();
 
@@ -36,16 +37,6 @@ function toResponse(row: GymEquipmentProfileRow): GymEquipmentProfileResponse {
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
   });
-}
-
-// A duplicate (user_id, name) is a user-correctable conflict, not a 500.
-function isDuplicateNameError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { code?: string }).code === '23505' &&
-    String((error as { constraint?: string }).constraint ?? '').includes('name')
-  );
 }
 
 /**

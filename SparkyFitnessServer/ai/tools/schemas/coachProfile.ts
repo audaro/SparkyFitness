@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EQUIPMENT } from '@workspace/shared';
 import { uuidSchema } from './common.js';
 
 // An alias maps a personal phrase ("my usual walk") to a concrete record the
@@ -86,18 +87,41 @@ const profileEditFields = {
 // Both selectors are optional because the model normally has neither on the
 // first turn — get_gym_profiles hands it the names, and a name is what the
 // user actually said.
+const gymProfileNameSchema = z.string().trim().min(1).max(100);
+
 const gymProfileSelectorFields = {
   gym_profile_id: uuidSchema
     .optional()
     .describe('UUID of the gym equipment profile, from get_gym_profiles'),
-  gym_profile_name: z
-    .string()
-    .trim()
-    .min(1)
-    .max(100)
+  gym_profile_name: gymProfileNameSchema
     .optional()
-    .describe('Name of the gym equipment profile (alternative to the UUID)'),
+    .describe(
+      'Name of the gym equipment profile (alternative to the UUID); for create_gym_profile, the name for the new profile'
+    ),
 };
+
+// Gym-profile equipment must be the canonical free-exercise-db vocabulary —
+// the catalog filter is `equipment::jsonb ?|`, exact and case-sensitive, so a
+// freeform name ("treadmill", "Smith machine") would not error, it would
+// silently match nothing. Lowercasing forgives the one mistake a model
+// actually makes (title case); everything else has to be mapped to the enum.
+const gymEquipmentValueSchema = z.preprocess(
+  (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+  z.enum(EQUIPMENT)
+);
+
+const gymEquipmentListSchema = z
+  .array(gymEquipmentValueSchema)
+  .min(
+    1,
+    'Provide at least one equipment value — use "body only" for a no-equipment profile'
+  )
+  .max(EQUIPMENT.length)
+  .describe(
+    `Equipment at this gym, only from the canonical vocabulary: ${EQUIPMENT.join(
+      ', '
+    )}. Map real equipment to the closest value — REPLACES the stored list on update`
+  );
 
 const getCoachProfileSchema = z
   .object({
@@ -118,6 +142,33 @@ const setActiveGymProfileSchema = z
   })
   .strict();
 
+const createGymProfileSchema = z
+  .object({
+    action: z.literal('create_gym_profile'),
+    gym_profile_name: gymProfileNameSchema.describe(
+      'Name for the new gym profile (e.g. "Home", "Planet Fitness")'
+    ),
+    gym_equipment: gymEquipmentListSchema,
+    make_active: z
+      .boolean()
+      .optional()
+      .describe(
+        'Make the new profile active immediately (deactivates the current one); defaults to false'
+      ),
+  })
+  .strict();
+
+const updateGymProfileSchema = z
+  .object({
+    action: z.literal('update_gym_profile'),
+    ...gymProfileSelectorFields,
+    new_name: gymProfileNameSchema
+      .optional()
+      .describe('New name for the profile (update_gym_profile only)'),
+    gym_equipment: gymEquipmentListSchema.optional(),
+  })
+  .strict();
+
 const updateCoachProfileSchema = z
   .object({
     action: z.literal('update_coach_profile'),
@@ -129,6 +180,8 @@ export const manageCoachProfileSchema = z.discriminatedUnion('action', [
   getCoachProfileSchema,
   updateCoachProfileSchema,
   getGymProfilesSchema,
+  createGymProfileSchema,
+  updateGymProfileSchema,
   setActiveGymProfileSchema,
 ]);
 
@@ -143,10 +196,22 @@ export const manageCoachProfileInput = z.object({
       'get_coach_profile',
       'update_coach_profile',
       'get_gym_profiles',
+      'create_gym_profile',
+      'update_gym_profile',
       'set_active_gym_profile',
     ])
     .optional()
     .describe('Action to perform; see tool description for per-action fields.'),
   ...profileEditFields,
   ...gymProfileSelectorFields,
+  gym_equipment: gymEquipmentListSchema.optional(),
+  new_name: gymProfileNameSchema
+    .optional()
+    .describe('New name for the profile (update_gym_profile only)'),
+  make_active: z
+    .boolean()
+    .optional()
+    .describe(
+      'create_gym_profile only: make the new profile active immediately'
+    ),
 });
