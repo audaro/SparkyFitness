@@ -115,11 +115,11 @@ describe('equipmentIconFor', () => {
   });
 
   it('pins which slugs still ride their category fallback', () => {
-    // The bespoke drawing backlog, explicit. Shrink this list as icons land;
-    // it reaches [] when every item has its own drawing.
+    // The bespoke drawing backlog, explicit. Every item has its own drawing;
+    // a new item added without one must be listed here on purpose.
     const missing = EQUIPMENT_ITEM_SLUGS.filter(
       (slug) => EQUIPMENT_ITEM_ICONS[slug] === undefined
     );
-    expect(missing).toEqual([...EQUIPMENT_ITEM_SLUGS]);
+    expect(missing).toEqual([]);
   });
 });
