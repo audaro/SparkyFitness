@@ -161,13 +161,15 @@ describe('GymProfilesManager', () => {
     fireEvent.change(screen.getByLabelText('Name'), {
       target: { value: '  Garage  ' },
     });
-    fireEvent.click(screen.getByLabelText('Dumbbell'));
+    // Creation is detailed mode: granular items, and the server derives the
+    // coarse columns from them.
+    fireEvent.click(screen.getByLabelText('Dumbbells'));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(mockCreateProfile).toHaveBeenCalledWith({
         name: 'Garage',
-        equipment: ['dumbbell'],
+        equipment_items: ['dumbbells'],
         is_active: true,
       });
     });
@@ -229,15 +231,18 @@ describe('GymProfilesManager', () => {
     });
   });
 
-  it('creates a profile with stated apparatus and a dumbbell ceiling', async () => {
+  it('creates a profile with equipment items and a dumbbell ceiling', async () => {
+    // The apparatus section folds into the item picker for detailed
+    // profiles: a flat bench is an item, and the server derives the
+    // `bench` apparatus from it.
     render(<GymProfilesManager />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Profile' }));
     fireEvent.change(screen.getByLabelText('Name'), {
-      target: { value: 'Planet Fitness' },
+      target: { value: 'Basement' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Specify apparatus' }));
-    fireEvent.click(screen.getByLabelText('Bench'));
+    fireEvent.click(screen.getByLabelText('Dumbbells'));
+    fireEvent.click(screen.getByLabelText('Flat bench'));
     fireEvent.change(screen.getByLabelText('Heaviest dumbbell (kg)'), {
       target: { value: '22.5' },
     });
@@ -245,11 +250,104 @@ describe('GymProfilesManager', () => {
 
     await waitFor(() => {
       expect(mockCreateProfile).toHaveBeenCalledWith({
-        name: 'Planet Fitness',
-        equipment: [],
-        apparatus: ['bench'],
+        name: 'Basement',
+        equipment_items: ['dumbbells', 'flat-bench'],
         load_limits: { dumbbell: { max_kg: 22.5 } },
         is_active: true,
+      });
+    });
+  });
+
+  it('prefills the selection from a template', async () => {
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Profile' }));
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'PF' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Planet Fitness' }));
+    // Editable after: the template is a prefill, not a lock.
+    expect(screen.getByLabelText('Smith machine')).toBeChecked();
+    expect(screen.getByLabelText('Barbell (Olympic)')).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText('Smith machine'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockCreateProfile).toHaveBeenCalledWith({
+        name: 'PF',
+        equipment_items: expect.not.arrayContaining(['smith-machine']),
+        is_active: true,
+      });
+    });
+    const payload = mockCreateProfile.mock.calls[0][0];
+    expect(payload.equipment_items).toContain('fixed-barbells');
+    expect(payload.equipment_items).not.toContain('barbell');
+  });
+
+  it('upgrades a legacy profile to detailed equipment, never silently', async () => {
+    const legacy = makeProfile({
+      equipment: ['dumbbell'],
+      apparatus: ['bench'],
+      is_active: false,
+    });
+    mockProfiles = [legacy];
+
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Home' }));
+    // A legacy profile still gets the coarse editor.
+    expect(screen.getByLabelText('Dumbbell')).toBeChecked();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Upgrade to detailed equipment' })
+    );
+    // The expansion pre-selects items deriving the coarse values, stated
+    // apparatus included, as a starting point to prune.
+    expect(screen.getByLabelText('Dumbbells')).toBeChecked();
+    expect(screen.getByLabelText('Flat bench')).toBeChecked();
+    expect(screen.getByLabelText('Smith machine')).not.toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        id: legacy.id,
+        payload: {
+          name: 'Home',
+          equipment_items: expect.arrayContaining(['dumbbells', 'flat-bench']),
+          load_limits: null,
+        },
+      });
+    });
+    const payload = mockUpdateProfile.mock.calls[0][0].payload;
+    expect(payload).not.toHaveProperty('equipment');
+    expect(payload).not.toHaveProperty('apparatus');
+  });
+
+  it('summarizes an item-stated profile as a count and edits it in detailed mode', async () => {
+    const detailed = makeProfile({
+      equipment: ['machine'],
+      apparatus: [],
+      equipment_items: ['smith-machine', 'leg-press', 'treadmill'],
+      is_active: false,
+    });
+    mockProfiles = [detailed];
+
+    render(<GymProfilesManager />);
+
+    expect(screen.getByText('3 equipment items')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Home' }));
+    expect(screen.getByLabelText('Smith machine')).toBeChecked();
+    fireEvent.click(screen.getByLabelText('Leg press'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        id: detailed.id,
+        payload: {
+          name: 'Home',
+          equipment_items: ['smith-machine', 'treadmill'],
+          load_limits: null,
+        },
       });
     });
   });
@@ -271,7 +369,7 @@ describe('GymProfilesManager', () => {
     await waitFor(() => {
       expect(mockCreateProfile).toHaveBeenCalledWith({
         name: 'Hotel',
-        equipment: [],
+        equipment_items: [],
         load_limits: { dumbbell: { max_kg: 22.68 } },
         is_active: true,
       });

@@ -10,9 +10,16 @@ import {
 } from 'lucide-react';
 import {
   EQUIPMENT,
+  EQUIPMENT_ITEMS,
+  EQUIPMENT_ITEM_CATEGORIES,
   EXERCISE_APPARATUS,
+  GYM_TEMPLATES,
+  GYM_TEMPLATE_SLUGS,
+  expandCoarseEquipment,
   isKnownEquipment,
+  isKnownEquipmentItem,
   type Equipment,
+  type EquipmentItemSlug,
   type ExerciseApparatus,
   type GymLoadLimits,
 } from '@workspace/shared';
@@ -44,6 +51,11 @@ import {
 import { useCoachingContextAvailable } from '@/hooks/Exercises/useCoachingContextAvailable';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { titleCaseCanonical } from '@/utils/canonicalVocabulary';
+import {
+  localizeEquipmentItem,
+  localizeEquipmentItemCategory,
+  localizeGymTemplate,
+} from '@/utils/equipmentItemLabels';
 
 // Matches gym_equipment_profiles.name, capped by the shared request schema.
 const MAX_PROFILE_NAME_LENGTH = 100;
@@ -67,6 +79,11 @@ function toCanonicalApparatus(apparatus: string[]): ExerciseApparatus[] {
   );
 }
 
+/** And again for granular items, whose vocabulary can also grow past a row. */
+function toCanonicalItems(items: string[]): EquipmentItemSlug[] {
+  return items.filter(isKnownEquipmentItem);
+}
+
 // Matches the shared request schema's ceiling for load_limits.max_kg.
 const MAX_LOAD_LIMIT_KG = 500;
 
@@ -74,6 +91,15 @@ interface EditorState {
   /** null while creating; the profile being edited otherwise. */
   profile: GymProfile | null;
   name: string;
+  /**
+   * Detailed mode edits granular items and the save states `equipment_items`
+   * (the server derives the coarse columns). Coarse mode is the legacy
+   * editor, kept for item-less profiles so nothing upgrades silently; its
+   * "Upgrade to detailed equipment" action is the only way across.
+   */
+  detailed: boolean;
+  items: EquipmentItemSlug[];
+  itemFilter: string;
   equipment: Equipment[];
   /**
    * The apparatus field is tri-state: with `apparatusSpecified` off the save
@@ -116,6 +142,11 @@ const GymProfilesManager: React.FC = () => {
     setEditor({
       profile: null,
       name: '',
+      // New profiles start in detailed mode: the granular picker is the
+      // full-fidelity editor, and every template lives there.
+      detailed: true,
+      items: [],
+      itemFilter: '',
       equipment: [],
       apparatusSpecified: false,
       apparatus: [],
@@ -132,6 +163,11 @@ const GymProfilesManager: React.FC = () => {
       setEditor({
         profile,
         name: profile.name,
+        // Array.isArray for the same reason as apparatus below: undefined
+        // (pre-migration row) must read as "never stated".
+        detailed: Array.isArray(profile.equipment_items),
+        items: toCanonicalItems(profile.equipment_items ?? []),
+        itemFilter: '',
         equipment: toCanonicalList(profile.equipment),
         // Array.isArray, not `!== null`: an undefined field (a pre-migration
         // row through a permissive client, or a test fixture) must read as
@@ -174,6 +210,71 @@ const GymProfilesManager: React.FC = () => {
         apparatus: current.apparatus.includes(value)
           ? current.apparatus.filter((item) => item !== value)
           : [...current.apparatus, value],
+      };
+    });
+  }, []);
+
+  const toggleItem = useCallback((value: EquipmentItemSlug) => {
+    setEditor((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.includes(value)
+          ? current.items.filter((item) => item !== value)
+          : [...current.items, value],
+      };
+    });
+  }, []);
+
+  const applyTemplate = useCallback(
+    (template: (typeof GYM_TEMPLATE_SLUGS)[number]) => {
+      // A prefill, not a merge: tapping a template answers "what kind of gym is
+      // this", and layering it over a half-made selection would answer neither.
+      setEditor((current) =>
+        current ? { ...current, items: [...GYM_TEMPLATES[template]] } : current
+      );
+    },
+    []
+  );
+
+  const setCategoryItems = useCallback(
+    (
+      category: (typeof EQUIPMENT_ITEM_CATEGORIES)[number],
+      selected: boolean
+    ) => {
+      const categorySlugs = EQUIPMENT_ITEMS.filter(
+        (item) => item.category === category
+      ).map((item) => item.slug);
+      setEditor((current) => {
+        if (!current) return current;
+        const withoutCategory = current.items.filter(
+          (item) => !categorySlugs.includes(item)
+        );
+        return {
+          ...current,
+          items: selected
+            ? [...withoutCategory, ...categorySlugs]
+            : withoutCategory,
+        };
+      });
+    },
+    []
+  );
+
+  const upgradeToDetailed = useCallback(() => {
+    // Never silently: this runs from its own button on a legacy profile, and
+    // the expansion is labeled as a starting point to prune. Apparatus-backed
+    // items come along only when apparatus was stated, so "never stated"
+    // cannot become "stated present" on the way across.
+    setEditor((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        detailed: true,
+        items: expandCoarseEquipment(
+          current.equipment,
+          current.apparatusSpecified ? current.apparatus : null
+        ),
       };
     });
   }, []);
@@ -229,12 +330,21 @@ const GymProfilesManager: React.FC = () => {
       if (editor.profile) {
         await updateProfile({
           id: editor.profile.id,
-          payload: {
-            name,
-            equipment: editor.equipment,
-            apparatus,
-            load_limits: loadLimits,
-          },
+          // Detailed mode states items and nothing coarse — the server
+          // derives `equipment` and `apparatus`, and a payload carrying both
+          // is a 400 by design.
+          payload: editor.detailed
+            ? {
+                name,
+                equipment_items: editor.items,
+                load_limits: loadLimits,
+              }
+            : {
+                name,
+                equipment: editor.equipment,
+                apparatus,
+                load_limits: loadLimits,
+              },
         });
         // Activation is its own server-side transaction (it clears the previous
         // active row), so a profile switched on while editing needs a second
@@ -242,6 +352,13 @@ const GymProfilesManager: React.FC = () => {
         if (editor.makeActive && !editor.profile.is_active) {
           await activateProfile(editor.profile.id);
         }
+      } else if (editor.detailed) {
+        await createProfile({
+          name,
+          equipment_items: editor.items,
+          ...(loadLimits !== null ? { load_limits: loadLimits } : {}),
+          is_active: editor.makeActive,
+        });
       } else {
         await createProfile({
           name,
@@ -287,10 +404,19 @@ const GymProfilesManager: React.FC = () => {
   }, [deleteProfile, profilePendingDeletion]);
 
   const equipmentSummary = useCallback(
-    (equipment: string[]): string =>
-      equipment.length === 0
+    (profile: GymProfile): string => {
+      if (Array.isArray(profile.equipment_items)) {
+        return profile.equipment_items.length === 0
+          ? t('gymProfilesManager.noEquipment', 'No equipment selected')
+          : t('gymProfilesManager.itemsSummary', {
+              count: profile.equipment_items.length,
+              defaultValue: '{{count}} equipment items',
+            });
+      }
+      return profile.equipment.length === 0
         ? t('gymProfilesManager.noEquipment', 'No equipment selected')
-        : equipment.map(titleCaseCanonical).join(', '),
+        : profile.equipment.map(titleCaseCanonical).join(', ');
+    },
     [t]
   );
 
@@ -379,7 +505,7 @@ const GymProfilesManager: React.FC = () => {
                           {profile.name}
                         </span>
                         <span className="block text-xs text-muted-foreground truncate">
-                          {equipmentSummary(profile.equipment)}
+                          {equipmentSummary(profile)}
                         </span>
                       </span>
                     </button>
@@ -458,108 +584,252 @@ const GymProfilesManager: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>
-                  {t('gymProfilesManager.equipmentLabel', 'Equipment')}
-                </Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {EQUIPMENT.map((value) => {
-                    const checkboxId = `gym-profile-equipment-${value.replace(/\s+/g, '-')}`;
-                    return (
-                      <div key={value} className="flex items-center gap-2">
-                        <Checkbox
-                          id={checkboxId}
-                          checked={editor.equipment.includes(value)}
-                          onCheckedChange={() => toggleEquipment(value)}
-                        />
-                        <Label
-                          htmlFor={checkboxId}
-                          className="text-sm font-normal cursor-pointer"
+              {editor.detailed && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>
+                      {t(
+                        'gymProfilesManager.templatesLabel',
+                        'Start from a template'
+                      )}
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {GYM_TEMPLATE_SLUGS.map((template) => (
+                        <Button
+                          key={template}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyTemplate(template)}
                         >
-                          {titleCaseCanonical(value)}
-                        </Label>
+                          {localizeGymTemplate(t, template)}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="gym-profile-item-search">
+                      {t('gymProfilesManager.equipmentLabel', 'Equipment')}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {t(
+                        'gymProfilesManager.detailedHelper',
+                        'Pick exactly what this gym has. Suggested workouts only use machines and stations you select; bodyweight movements are always available.'
+                      )}
+                    </p>
+                    <Input
+                      id="gym-profile-item-search"
+                      value={editor.itemFilter}
+                      placeholder={t(
+                        'gymProfilesManager.itemSearchPlaceholder',
+                        'Search equipment…'
+                      )}
+                      onChange={(event) =>
+                        setEditor((current) =>
+                          current
+                            ? { ...current, itemFilter: event.target.value }
+                            : current
+                        )
+                      }
+                    />
+                  </div>
+
+                  {EQUIPMENT_ITEM_CATEGORIES.map((category) => {
+                    const filter = editor.itemFilter.trim().toLowerCase();
+                    const categoryItems = EQUIPMENT_ITEMS.filter(
+                      (item) => item.category === category
+                    ).filter(
+                      (item) =>
+                        filter === '' ||
+                        localizeEquipmentItem(t, item.slug)
+                          .toLowerCase()
+                          .includes(filter)
+                    );
+                    if (categoryItems.length === 0) return null;
+                    return (
+                      <div key={category} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label>
+                            {localizeEquipmentItemCategory(t, category)}
+                          </Label>
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setCategoryItems(category, true)}
+                            >
+                              {t('gymProfilesManager.selectAll', 'All')}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setCategoryItems(category, false)}
+                            >
+                              {t('gymProfilesManager.selectNone', 'None')}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {categoryItems.map((item) => {
+                            const checkboxId = `gym-profile-item-${item.slug}`;
+                            return (
+                              <div
+                                key={item.slug}
+                                className="flex items-center gap-2"
+                              >
+                                <Checkbox
+                                  id={checkboxId}
+                                  checked={editor.items.includes(item.slug)}
+                                  onCheckedChange={() => toggleItem(item.slug)}
+                                />
+                                <Label
+                                  htmlFor={checkboxId}
+                                  className="text-sm font-normal cursor-pointer"
+                                >
+                                  {localizeEquipmentItem(t, item.slug)}
+                                </Label>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
+              )}
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>
-                    {t('gymProfilesManager.apparatusLabel', 'Apparatus')}
-                  </Label>
-                  {editor.apparatusSpecified ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setEditor((current) =>
-                          current
-                            ? {
-                                ...current,
-                                apparatusSpecified: false,
-                                apparatus: [],
-                              }
-                            : current
-                        )
-                      }
-                    >
-                      {t(
-                        'gymProfilesManager.apparatusClearButton',
-                        'Let Sparky assume'
+              {!editor.detailed && (
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <Label>
+                      {t('gymProfilesManager.equipmentLabel', 'Equipment')}
+                    </Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {EQUIPMENT.map((value) => {
+                        const checkboxId = `gym-profile-equipment-${value.replace(/\s+/g, '-')}`;
+                        return (
+                          <div key={value} className="flex items-center gap-2">
+                            <Checkbox
+                              id={checkboxId}
+                              checked={editor.equipment.includes(value)}
+                              onCheckedChange={() => toggleEquipment(value)}
+                            />
+                            <Label
+                              htmlFor={checkboxId}
+                              className="text-sm font-normal cursor-pointer"
+                            >
+                              {titleCaseCanonical(value)}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>
+                        {t('gymProfilesManager.apparatusLabel', 'Apparatus')}
+                      </Label>
+                      {editor.apparatusSpecified ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setEditor((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    apparatusSpecified: false,
+                                    apparatus: [],
+                                  }
+                                : current
+                            )
+                          }
+                        >
+                          {t(
+                            'gymProfilesManager.apparatusClearButton',
+                            'Let Sparky assume'
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setEditor((current) =>
+                              current
+                                ? { ...current, apparatusSpecified: true }
+                                : current
+                            )
+                          }
+                        >
+                          {t(
+                            'gymProfilesManager.apparatusSpecifyButton',
+                            'Specify apparatus'
+                          )}
+                        </Button>
                       )}
-                    </Button>
-                  ) : (
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {t(
+                        'gymProfilesManager.apparatusHelper',
+                        "What's physically at this gym — pull-up bars, racks, benches. Left unspecified, Sparky assumes from your equipment."
+                      )}
+                    </p>
+                    {editor.apparatusSpecified && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {EXERCISE_APPARATUS.map((value) => {
+                          const checkboxId = `gym-profile-apparatus-${value.replace(/\s+/g, '-')}`;
+                          return (
+                            <div
+                              key={value}
+                              className="flex items-center gap-2"
+                            >
+                              <Checkbox
+                                id={checkboxId}
+                                checked={editor.apparatus.includes(value)}
+                                onCheckedChange={() => toggleApparatus(value)}
+                              />
+                              <Label
+                                htmlFor={checkboxId}
+                                className="text-sm font-normal cursor-pointer"
+                              >
+                                {titleCaseCanonical(value)}
+                              </Label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border p-3 space-y-1">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        setEditor((current) =>
-                          current
-                            ? { ...current, apparatusSpecified: true }
-                            : current
-                        )
-                      }
+                      onClick={upgradeToDetailed}
                     >
                       {t(
-                        'gymProfilesManager.apparatusSpecifyButton',
-                        'Specify apparatus'
+                        'gymProfilesManager.upgradeButton',
+                        'Upgrade to detailed equipment'
                       )}
                     </Button>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {t(
-                    'gymProfilesManager.apparatusHelper',
-                    "What's physically at this gym — pull-up bars, racks, benches. Left unspecified, Sparky assumes from your equipment."
-                  )}
-                </p>
-                {editor.apparatusSpecified && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {EXERCISE_APPARATUS.map((value) => {
-                      const checkboxId = `gym-profile-apparatus-${value.replace(/\s+/g, '-')}`;
-                      return (
-                        <div key={value} className="flex items-center gap-2">
-                          <Checkbox
-                            id={checkboxId}
-                            checked={editor.apparatus.includes(value)}
-                            onCheckedChange={() => toggleApparatus(value)}
-                          />
-                          <Label
-                            htmlFor={checkboxId}
-                            className="text-sm font-normal cursor-pointer"
-                          >
-                            {titleCaseCanonical(value)}
-                          </Label>
-                        </div>
-                      );
-                    })}
+                    <p className="text-sm text-muted-foreground">
+                      {t(
+                        'gymProfilesManager.upgradeHelper',
+                        'Pick individual machines and stations instead of broad categories. Your current selection becomes a starting point to prune.'
+                      )}
+                    </p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="gym-profile-dumbbell-max">
