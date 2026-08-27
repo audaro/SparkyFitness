@@ -1025,6 +1025,47 @@ describe('generateRecommendation', () => {
         result.payload.exercises.map((exercise) => exercise.exercise_id)
       ).toEqual([DUMBBELL_ROW.id]);
     });
+
+    it('admits a pull-up when the profile states a pull-up bar', async () => {
+      // Same room as above, but the user has told us there is a bar in it.
+      // Stating apparatus is precisely what un-guesses the inference.
+      gymRepo.getActiveGymProfile.mockResolvedValue({
+        id: 'gym-1',
+        equipment: ['dumbbell', 'bands'],
+        apparatus: ['pull-up bar'],
+      });
+      repo.getCandidateExercises.mockResolvedValue([DUMBBELL_ROW, CHIN_UP]);
+
+      const result =
+        await workoutRecommendationService.generateRecommendation(USER_ID);
+
+      expect(
+        result.payload.exercises.map((exercise) => exercise.exercise_id)
+      ).toContain(CHIN_UP.id);
+    });
+
+    it('keeps a pull-up out of a gym that stated it has no bar, even a familiar one', async () => {
+      // Planet Fitness: machines and cables everywhere (which the inference
+      // reads as "bar"), apparatus stated as none. The statement wins over
+      // both the inference and the familiarity escape — the fifty logged
+      // pull-ups happened somewhere with a bar; this profile says here isn't.
+      gymRepo.getActiveGymProfile.mockResolvedValue({
+        id: 'gym-1',
+        equipment: ['machine', 'cable', 'dumbbell'],
+        apparatus: [],
+      });
+      repo.getCandidateExercises.mockResolvedValue([
+        { ...DUMBBELL_ROW, timesPerformed: 10 },
+        { ...CHIN_UP, timesPerformed: 50 },
+      ]);
+
+      const result =
+        await workoutRecommendationService.generateRecommendation(USER_ID);
+
+      expect(
+        result.payload.exercises.map((exercise) => exercise.exercise_id)
+      ).toEqual([DUMBBELL_ROW.id]);
+    });
   });
 
   it('refuses to persist an empty workout', async () => {

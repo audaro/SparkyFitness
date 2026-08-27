@@ -10,6 +10,7 @@ import {
   isApparatusAvailable,
   isOptInEquipment,
   requiredApparatus,
+  type ExerciseApparatus,
 } from "../constants/exerciseApparatus.ts";
 import {
   resolveExerciseModality,
@@ -298,6 +299,15 @@ export interface GenerationOptions {
   targetDurationMinutes: number;
   /** `null` = no active gym profile = nothing is filtered out. */
   availableEquipment: string[] | null;
+  /**
+   * The gym profile's stated apparatus. `null` = never stated — the engine
+   * infers apparatus from the equipment list as before. Non-null is
+   * authoritative: an empty array means "none of these", and the familiarity
+   * escape in `isPerformable` does not apply. Required, not defaulted, so a
+   * call site that forgets to thread it is a compile error rather than a
+   * silent regression to inference.
+   */
+  availableApparatus: ExerciseApparatus[] | null;
   /** `coach_profiles.limitations`, lowercased. */
   limitations: string[];
   goal: WorkoutGoal;
@@ -540,11 +550,20 @@ export function isEquipmentAvailable(
  *
  * The second half exists because `body only` is a lie for 21 rows: `Chin-Up`
  * needs something to hang from and the vocabulary has no word for it
- * (`exerciseApparatus.ts` carries the list and the reasoning). Availability is
- * inferred from the profile — a bar and a bench come with a barbell, a cable
- * stack or a machine — so it is a guess where the equipment test is a fact, and
- * having logged the exercise before overrides the guess. Somebody who has done
- * ten sessions of pull-ups owns a bar, whatever their profile implies.
+ * (`exerciseApparatus.ts` carries the list and the reasoning).
+ *
+ * When the profile *states* its apparatus (`availableApparatus` non-null),
+ * that statement is a fact on par with the equipment list, and it is
+ * authoritative both ways: a stated pull-up bar admits Chin-Up to a
+ * dumbbell-only garage, and a stated "none" (`[]`) rules it out even for a
+ * user who has logged it fifty times — they logged it somewhere else, and
+ * this profile says this room has no bar.
+ *
+ * When apparatus was never stated (`null`), availability is inferred from the
+ * profile — a bar and a bench come with a barbell, a cable stack or a machine
+ * — so it is a guess where the equipment test is a fact, and having logged
+ * the exercise before overrides the guess. Somebody who has done ten sessions
+ * of pull-ups owns a bar, whatever their profile implies.
  *
  * The familiarity escape deliberately does NOT extend to the equipment test:
  * that one is the user's own statement of what is in the room, and a barbell
@@ -554,14 +573,23 @@ export function isEquipmentAvailable(
 export function isPerformable(
   candidate: CandidateExercise,
   availableEquipment: readonly string[] | null,
+  availableApparatus: readonly string[] | null,
 ): boolean {
   if (!isEquipmentAvailable(candidate.equipment, availableEquipment)) {
     return false;
   }
   const apparatus = requiredApparatus(candidate.source, candidate.sourceId);
   if (apparatus.length === 0) return true;
+  if (availableApparatus !== null) {
+    // Stated is a statement, not a guess — familiarity does not override it.
+    return isApparatusAvailable(
+      apparatus,
+      availableEquipment,
+      availableApparatus,
+    );
+  }
   if (candidate.timesPerformed > 0) return true;
-  return isApparatusAvailable(apparatus, availableEquipment);
+  return isApparatusAvailable(apparatus, availableEquipment, null);
 }
 
 /**
@@ -735,8 +763,11 @@ export function planWorkout(
 
   const eligible = candidates.filter(
     (candidate) =>
-      isPerformable(candidate, options.availableEquipment) &&
-      !isExcludedByLimitations(candidate, options.limitations),
+      isPerformable(
+        candidate,
+        options.availableEquipment,
+        options.availableApparatus,
+      ) && !isExcludedByLimitations(candidate, options.limitations),
   );
 
   const usedIds = new Set<string>();

@@ -20,6 +20,7 @@ import {
   GENERATION_TUNABLES,
   RECOVERY_TUNABLES,
   type CandidateExercise,
+  type ExerciseApparatus,
   type ExerciseHistoryInput,
   type GenerationOptions,
   type MuscleFreshness,
@@ -214,7 +215,8 @@ function asExternalCandidate(item: {
 async function importMissingMuscles(
   userId: string,
   missingMuscles: readonly string[],
-  availableEquipment: string[] | null
+  availableEquipment: string[] | null,
+  availableApparatus: ExerciseApparatus[] | null
 ): Promise<number> {
   const { default: freeExerciseDBService } =
     await import('../integrations/freeexercisedb/FreeExerciseDBService.js');
@@ -254,8 +256,13 @@ async function importMissingMuscles(
           ) &&
           // Do not spend a round trip and an image download on a row the
           // planner is then going to filter out: `other` gear the user has not
-          // opted into, or a pull-up bar their profile does not imply.
-          isPerformable(asExternalCandidate(item), availableEquipment)
+          // opted into, or a pull-up bar their profile does not imply or
+          // outright denies.
+          isPerformable(
+            asExternalCandidate(item),
+            availableEquipment,
+            availableApparatus
+          )
       );
       // A stretch is why this import was triggered in the first place — the
       // muscle's local coverage was mobility-only. Importing another one would
@@ -313,7 +320,11 @@ function unservedMuscles(
 ): string[] {
   const eligible = candidates.filter(
     (candidate) =>
-      isPerformable(candidate, options.availableEquipment) &&
+      isPerformable(
+        candidate,
+        options.availableEquipment,
+        options.availableApparatus
+      ) &&
       !isExcludedByLimitations(candidate, options.limitations) &&
       !isMobilityExercise(candidate)
   );
@@ -459,6 +470,10 @@ async function generateRecommendation(
   const options: GenerationOptions = {
     targetDurationMinutes,
     availableEquipment: gymProfile ? gymProfile.equipment : null,
+    // `?? null` guards a row read before the apparatus migration ran, and any
+    // future reader that leaves the column off — `undefined` would read as
+    // "stated" downstream, which is the opposite of what silence means.
+    availableApparatus: gymProfile ? (gymProfile.apparatus ?? null) : null,
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
     ),
@@ -482,7 +497,8 @@ async function generateRecommendation(
     const imported = await importMissingMuscles(
       userId,
       missing,
-      options.availableEquipment
+      options.availableEquipment,
+      options.availableApparatus
     );
     if (imported > 0) {
       candidates = await workoutRecommendationRepository.getCandidateExercises(
@@ -715,6 +731,7 @@ async function replaceRecommendationExercise(
   const options: GenerationOptions = {
     targetDurationMinutes: row.target_duration_minutes,
     availableEquipment: gymProfile ? gymProfile.equipment : null,
+    availableApparatus: gymProfile ? (gymProfile.apparatus ?? null) : null,
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
     ),
@@ -854,6 +871,9 @@ async function getAlternatives(
   const availableEquipment = activeGymProfile
     ? activeGymProfile.equipment
     : null;
+  const availableApparatus = activeGymProfile
+    ? (activeGymProfile.apparatus ?? null)
+    : null;
 
   const candidates =
     await workoutRecommendationRepository.getCandidateExercises(
@@ -866,7 +886,7 @@ async function getAlternatives(
     .filter(
       (candidate) =>
         candidate.id !== source.id &&
-        isPerformable(candidate, availableEquipment)
+        isPerformable(candidate, availableEquipment, availableApparatus)
     )
     .map((candidate) => ({
       candidate,
@@ -905,6 +925,7 @@ async function getAlternatives(
   const externals = await searchExternalAlternatives(
     muscle,
     availableEquipment,
+    availableApparatus,
     limit - local.length,
     new Set(local.map((item) => item.exercise_name.toLowerCase()))
   );
@@ -936,6 +957,7 @@ interface ExternalExerciseResult {
 async function searchExternalAlternatives(
   muscle: string,
   availableEquipment: string[] | null,
+  availableApparatus: ExerciseApparatus[] | null,
   limit: number,
   seenNames: ReadonlySet<string>
 ): Promise<AlternativeExercise[]> {
@@ -960,7 +982,11 @@ async function searchExternalAlternatives(
           // equipment filter is a case-sensitive substring match and knows
           // nothing about apparatus, so without this a home profile asking for
           // a lat replacement gets offered Chin-Up.
-          isPerformable(asExternalCandidate(item), availableEquipment)
+          isPerformable(
+            asExternalCandidate(item),
+            availableEquipment,
+            availableApparatus
+          )
       )
       .slice(0, limit)
       .map((item) => ({

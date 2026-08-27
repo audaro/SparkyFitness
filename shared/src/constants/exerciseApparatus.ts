@@ -161,18 +161,34 @@ export function requiredApparatus(
 }
 
 /**
- * Whether the training place implied by `availableEquipment` has this
- * apparatus.
+ * Whether the user's training place has this apparatus.
  *
- * `null` — no gym profile — passes, matching every other availability rule in
- * the engine: not having said where you train is not the same as having said
- * "nothing".
+ * Two regimes, and which one applies is the profile's `apparatus` column:
+ *
+ * - `statedApparatus` non-null — the user said exactly what their gym has
+ *   (an empty array is an authoritative "none of these"). That is a FACT, so
+ *   the answer is a plain subset test against it and the equipment inference
+ *   below never runs. This is what lets a Planet Fitness profile — machines,
+ *   dumbbells, cables, a bench — truthfully report "no pull-up bar" even
+ *   though its equipment list implies one.
+ * - `statedApparatus` null — the user never said, so fall back to inferring
+ *   from `availableEquipment`: anywhere with a barbell, a cable stack or a
+ *   machine has a bar and a bench. `null` equipment — no gym profile —
+ *   passes, matching every other availability rule in the engine: not having
+ *   said where you train is not the same as having said "nothing".
  */
 export function isApparatusAvailable(
   required: readonly ExerciseApparatus[],
   availableEquipment: readonly string[] | null,
+  statedApparatus: readonly string[] | null,
 ): boolean {
   if (required.length === 0) return true;
+  if (statedApparatus !== null) {
+    const stated = new Set(
+      statedApparatus.map((value) => value.trim().toLowerCase()),
+    );
+    return required.every((item) => stated.has(item));
+  }
   if (availableEquipment === null) return true;
   const available = new Set(availableEquipment.map(normalizeEquipmentName));
   return APPARATUS_IMPLYING_EQUIPMENT.some((item) => available.has(item));

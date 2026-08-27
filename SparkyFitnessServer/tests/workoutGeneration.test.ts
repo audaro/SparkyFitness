@@ -69,6 +69,7 @@ function options(
   return {
     targetDurationMinutes: 60,
     availableEquipment: null,
+    availableApparatus: null,
     limitations: [],
     goal: 'general',
     ...overrides,
@@ -388,9 +389,11 @@ describe('isEquipmentAvailable', () => {
 describe('isPerformable', () => {
   it('rules out an exercise the profile cannot equip', () => {
     expect(
-      isPerformable(candidate({ id: 'a', equipment: ['barbell'] }), [
-        'dumbbell',
-      ])
+      isPerformable(
+        candidate({ id: 'a', equipment: ['barbell'] }),
+        ['dumbbell'],
+        null
+      )
     ).toBe(false);
   });
 
@@ -401,21 +404,27 @@ describe('isPerformable', () => {
     expect(isEquipmentAvailable(CHIN_UP.equipment, ['dumbbell', 'bands'])).toBe(
       true
     );
-    expect(isPerformable(CHIN_UP, ['dumbbell', 'bands'])).toBe(false);
+    expect(isPerformable(CHIN_UP, ['dumbbell', 'bands'], null)).toBe(false);
   });
 
   it('allows it where the profile implies a bar', () => {
-    expect(isPerformable(CHIN_UP, ['dumbbell', 'cable', 'machine'])).toBe(true);
-    expect(isPerformable(CHIN_UP, ['barbell'])).toBe(true);
+    expect(isPerformable(CHIN_UP, ['dumbbell', 'cable', 'machine'], null)).toBe(
+      true
+    );
+    expect(isPerformable(CHIN_UP, ['barbell'], null)).toBe(true);
     // And with no profile at all, like every other availability rule here.
-    expect(isPerformable(CHIN_UP, null)).toBe(true);
+    expect(isPerformable(CHIN_UP, null, null)).toBe(true);
   });
 
   it('lets logged history overrule the inference', () => {
     // Apparatus availability is a guess about the room; having done the
     // exercise ten times is evidence about it.
     expect(
-      isPerformable({ ...CHIN_UP, timesPerformed: 10 }, ['dumbbell', 'bands'])
+      isPerformable(
+        { ...CHIN_UP, timesPerformed: 10 },
+        ['dumbbell', 'bands'],
+        null
+      )
     ).toBe(true);
   });
 
@@ -425,7 +434,51 @@ describe('isPerformable', () => {
     expect(
       isPerformable(
         candidate({ id: 'a', equipment: ['barbell'], timesPerformed: 50 }),
-        ['dumbbell']
+        ['dumbbell'],
+        null
+      )
+    ).toBe(false);
+  });
+
+  it('admits an exercise its stated apparatus covers', () => {
+    // A dumbbell garage with a stated pull-up bar gets Chin-Up, which the
+    // inference would have denied it — that's what stating apparatus is FOR.
+    expect(isPerformable(CHIN_UP, ['dumbbell', 'bands'], ['pull-up bar'])).toBe(
+      true
+    );
+  });
+
+  it('rules out an exercise a stated "none" denies, whatever the equipment implies', () => {
+    // Planet Fitness in a sentence: machines and cables everywhere, and no
+    // pull-up bar anywhere. The inference would say "bar"; the statement wins.
+    expect(isPerformable(CHIN_UP, ['machine', 'cable', 'dumbbell'], [])).toBe(
+      false
+    );
+    expect(
+      isPerformable(CHIN_UP, ['machine', 'cable', 'dumbbell'], ['bench'])
+    ).toBe(false);
+  });
+
+  it('does not let familiarity overrule stated apparatus', () => {
+    // The familiarity escape covers a wrong GUESS about the room. A stated
+    // apparatus list is not a guess: fifty logged pull-ups happened somewhere
+    // else, and this profile says this room has no bar.
+    expect(
+      isPerformable(
+        { ...CHIN_UP, timesPerformed: 50 },
+        ['machine', 'cable'],
+        []
+      )
+    ).toBe(false);
+  });
+
+  it('keeps stated apparatus away from the equipment test', () => {
+    // Stating a bench does not conjure a barbell.
+    expect(
+      isPerformable(
+        candidate({ id: 'a', equipment: ['barbell'] }),
+        ['dumbbell'],
+        ['bench', 'squat rack']
       )
     ).toBe(false);
   });
@@ -435,23 +488,27 @@ describe('isPerformable', () => {
     // `constructor` with a function, whose truthy `.length` reads as "needs one
     // apparatus" and quietly hides the row from every home profile.
     expect(
-      isPerformable({ ...CHIN_UP, sourceId: 'constructor' }, [
-        'dumbbell',
-        'bands',
-      ])
+      isPerformable(
+        { ...CHIN_UP, sourceId: 'constructor' },
+        ['dumbbell', 'bands'],
+        null
+      )
     ).toBe(true);
     expect(
-      isPerformable({ ...CHIN_UP, sourceId: 'toString' }, ['dumbbell'])
+      isPerformable({ ...CHIN_UP, sourceId: 'toString' }, ['dumbbell'], null)
     ).toBe(true);
   });
 
   it('leaves rows from other sources alone', () => {
     // The overrides describe free-exercise-db's data. A user's own "Chin-Up"
-    // is their own record of what they can do.
+    // is their own record of what they can do — even under a stated "none",
+    // because no apparatus requirement is on record for it.
     expect(
-      isPerformable({ ...CHIN_UP, source: 'manual', sourceId: null }, [
-        'dumbbell',
-      ])
+      isPerformable(
+        { ...CHIN_UP, source: 'manual', sourceId: null },
+        ['dumbbell'],
+        []
+      )
     ).toBe(true);
   });
 });
