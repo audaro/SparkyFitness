@@ -277,6 +277,7 @@ const homeProfile: GymEquipmentProfileRow = {
   user_id: 'user-1',
   name: 'Home',
   equipment: ['dumbbell', 'bands'],
+  apparatus: null,
   is_active: false,
   created_at: new Date('2026-08-01T00:00:00Z'),
   updated_at: new Date('2026-08-01T00:00:00Z'),

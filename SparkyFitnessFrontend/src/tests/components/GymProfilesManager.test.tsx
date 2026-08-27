@@ -74,6 +74,7 @@ function makeProfile(overrides: Partial<GymProfile> = {}): GymProfile {
     user_id: 'user-1',
     name: 'Home',
     equipment: ['dumbbell', 'bands'],
+    apparatus: null,
     is_active: true,
     created_at: '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',

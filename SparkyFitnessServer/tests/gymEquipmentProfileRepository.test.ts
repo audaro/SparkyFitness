@@ -89,8 +89,43 @@ describe('gymEquipmentProfileRepository', () => {
         'user-1',
         'Home',
         JSON.stringify(['dumbbell', 'bands']),
+        null,
         false,
       ]);
+    });
+
+    it('stores omitted apparatus as SQL NULL, not the jsonb string "null"', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Home',
+        equipment: [],
+      });
+
+      const insert = mockClient.query.mock.calls.find((call: string[]) =>
+        call[0].includes('INSERT INTO gym_equipment_profiles')
+      );
+      // JSON.stringify(undefined ?? null) would yield the string "null",
+      // which `::jsonb` stores as jsonb null — a different value from SQL
+      // NULL, and one that breaks the tri-state "never stated" contract.
+      expect(insert[1][3]).toBeNull();
+      expect(insert[1][3]).not.toBe('null');
+    });
+
+    it('serializes stated apparatus as jsonb', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.createGymProfile('user-1', {
+        name: 'Home',
+        equipment: ['dumbbell'],
+        apparatus: ['bench', 'pull-up bar'],
+      });
+
+      const insert = mockClient.query.mock.calls.find((call: string[]) =>
+        call[0].includes('INSERT INTO gym_equipment_profiles')
+      );
+      expect(insert[0]).toContain('$4::jsonb');
+      expect(insert[1][3]).toBe(JSON.stringify(['bench', 'pull-up bar']));
     });
 
     it('does not touch other rows when the new profile is inactive', async () => {
@@ -178,6 +213,33 @@ describe('gymEquipmentProfileRepository', () => {
       const [text, params] = mockClient.query.mock.calls[0];
       expect(text).toContain('equipment = $4::jsonb');
       expect(params[3]).toBe(JSON.stringify(['barbell']));
+    });
+
+    it('serializes an empty apparatus array as jsonb [] — stated none', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.updateGymProfile('user-1', ROW.id, {
+        apparatus: [],
+      });
+
+      const [text, params] = mockClient.query.mock.calls[0];
+      expect(text).toContain('apparatus = $3::jsonb');
+      expect(params[2]).toBe('[]');
+    });
+
+    it('writes SQL NULL when apparatus is cleared, not the jsonb string "null"', async () => {
+      mockClient.query.mockResolvedValue({ rows: [ROW] });
+
+      await gymEquipmentProfileRepository.updateGymProfile('user-1', ROW.id, {
+        apparatus: null,
+      });
+
+      const [text, params] = mockClient.query.mock.calls[0];
+      expect(text).toContain('apparatus = $3::jsonb');
+      // The string "null" would survive `::jsonb` as jsonb null — reads would
+      // see a non-SQL-NULL value and the engine would stop inferring.
+      expect(params[2]).toBeNull();
+      expect(params[2]).not.toBe('null');
     });
 
     it('returns null when the row does not belong to the user', async () => {

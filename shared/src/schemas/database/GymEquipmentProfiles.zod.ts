@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EQUIPMENT } from "../../constants/exerciseTaxonomy.ts";
+import { EXERCISE_APPARATUS } from "../../constants/exerciseApparatus.ts";
 
 // Branded so a public.gym_equipment_profiles id cannot be passed where
 // another table's id belongs.
@@ -19,10 +20,19 @@ const userIdSchema = z.string().uuid();
  */
 export const gymEquipmentSchema = z.enum(EQUIPMENT);
 
+/**
+ * Apparatus values come from EXERCISE_APPARATUS, deliberately NOT the
+ * equipment enum: they exist only for the engine's performability test and
+ * must never reach the `?|` catalog filter. NULL means "never stated" (the
+ * engine infers from barbell/cable/machine); '[]' means "stated: none".
+ */
+export const gymApparatusSchema = z.enum(EXERCISE_APPARATUS);
+
 const gymEquipmentProfilesFieldsSchema = z.object({
   user_id: userIdSchema,
   name: z.string().min(1).max(100),
   equipment: z.array(gymEquipmentSchema),
+  apparatus: z.array(gymApparatusSchema).nullable(),
   is_active: z.boolean(),
   created_at: z.date(),
   updated_at: z.date(),

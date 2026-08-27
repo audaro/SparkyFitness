@@ -1,11 +1,14 @@
 import { getClient } from '../db/poolManager.js';
-import type { GymEquipmentValue } from '@workspace/shared';
+import type { ExerciseApparatus, GymEquipmentValue } from '@workspace/shared';
 
 export interface GymEquipmentProfileRow {
   id: string;
   user_id: string;
   name: string;
   equipment: GymEquipmentValue[];
+  // Tri-state: null = never stated (engine infers apparatus from
+  // barbell/cable/machine); [] = stated none; array = stated exactly these.
+  apparatus: ExerciseApparatus[] | null;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -14,6 +17,7 @@ export interface GymEquipmentProfileRow {
 export interface GymEquipmentProfileCreate {
   name: string;
   equipment: GymEquipmentValue[];
+  apparatus?: ExerciseApparatus[] | null;
   is_active?: boolean;
 }
 
@@ -25,15 +29,27 @@ export interface GymEquipmentProfileCreate {
 export interface GymEquipmentProfilePatch {
   name?: string;
   equipment?: GymEquipmentValue[];
+  /** Explicit null clears back to "never stated". */
+  apparatus?: ExerciseApparatus[] | null;
 }
 
 const PROFILE_COLS =
-  'id, user_id, name, equipment, is_active, created_at, updated_at';
+  'id, user_id, name, equipment, apparatus, is_active, created_at, updated_at';
 
 // node-postgres renders a JS array parameter as a Postgres array literal,
 // which a jsonb column rejects — serialize explicitly and cast.
-const PATCHABLE_COLS = ['name', 'equipment'] as const;
-const JSONB_COLS = new Set<string>(['equipment']);
+const PATCHABLE_COLS = ['name', 'equipment', 'apparatus'] as const;
+const JSONB_COLS = new Set<string>(['equipment', 'apparatus']);
+
+/**
+ * Serialize a value bound for a nullable jsonb column. The naive
+ * `JSON.stringify(value)` turns JS null into the string "null", which
+ * `::jsonb` stores as *jsonb null* — truthy-ish in reads and distinct from
+ * SQL NULL, which is what the apparatus tri-state contract requires.
+ */
+function toJsonbParam(value: unknown): string | null {
+  return value === null || value === undefined ? null : JSON.stringify(value);
+}
 
 async function listGymProfiles(
   userId: string
@@ -138,10 +154,16 @@ async function createGymProfile(
       );
     }
     const result = await client.query(
-      `INSERT INTO gym_equipment_profiles (user_id, name, equipment, is_active)
-       VALUES ($1, $2, $3::jsonb, $4)
+      `INSERT INTO gym_equipment_profiles (user_id, name, equipment, apparatus, is_active)
+       VALUES ($1, $2, $3::jsonb, $4::jsonb, $5)
        RETURNING ${PROFILE_COLS}`,
-      [userId, profile.name, JSON.stringify(profile.equipment), isActive]
+      [
+        userId,
+        profile.name,
+        JSON.stringify(profile.equipment),
+        toJsonbParam(profile.apparatus),
+        isActive,
+      ]
     );
     await client.query('COMMIT');
     return result.rows[0];
@@ -170,7 +192,7 @@ async function updateGymProfile(
   });
   const values = keys.map((key) => {
     const value = (patch as Record<string, unknown>)[key];
-    return JSONB_COLS.has(key) ? JSON.stringify(value) : value;
+    return JSONB_COLS.has(key) ? toJsonbParam(value) : value;
   });
   const client = await getClient(userId);
   try {

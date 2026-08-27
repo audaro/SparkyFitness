@@ -49,6 +49,7 @@ const ROW = {
   user_id: '22222222-2222-4222-8222-222222222222',
   name: 'Home',
   equipment: ['dumbbell', 'bands'],
+  apparatus: null,
   is_active: true,
   created_at: new Date('2026-08-23T10:00:00.000Z'),
   updated_at: new Date('2026-08-23T11:00:00.000Z'),
@@ -76,6 +77,7 @@ describe('Gym Equipment Profile Routes', () => {
             user_id: ROW.user_id,
             name: 'Home',
             equipment: ['dumbbell', 'bands'],
+            apparatus: null,
             is_active: true,
             created_at: '2026-08-23T10:00:00.000Z',
             updated_at: '2026-08-23T11:00:00.000Z',
@@ -123,6 +125,41 @@ describe('Gym Equipment Profile Routes', () => {
         equipment: [],
         is_active: true,
       });
+    });
+
+    it('creates a profile with stated apparatus', async () => {
+      repo.createGymProfile.mockResolvedValue({
+        ...ROW,
+        apparatus: ['bench'],
+      });
+
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({
+          name: 'Home',
+          equipment: ['dumbbell', 'bands'],
+          apparatus: ['bench'],
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.apparatus).toEqual(['bench']);
+      expect(repo.createGymProfile).toHaveBeenCalledWith('test-user-id', {
+        name: 'Home',
+        equipment: ['dumbbell', 'bands'],
+        apparatus: ['bench'],
+      });
+    });
+
+    it('rejects an apparatus value outside the vocabulary', async () => {
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        // An equipment string is not an apparatus; the vocabularies are
+        // deliberately separate.
+        .send({ name: 'Home', equipment: [], apparatus: ['barbell'] });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.details.apparatus).toBeDefined();
+      expect(repo.createGymProfile).not.toHaveBeenCalled();
     });
 
     it('rejects an equipment value outside the canonical vocabulary', async () => {
@@ -197,6 +234,38 @@ describe('Gym Equipment Profile Routes', () => {
         'test-user-id',
         PROFILE_ID,
         { name: 'Garage' }
+      );
+    });
+
+    it('accepts an empty apparatus array as an authoritative "none"', async () => {
+      repo.updateGymProfile.mockResolvedValue({ ...ROW, apparatus: [] });
+
+      const res = await request(app)
+        .put(`/api/gym-equipment-profiles/${PROFILE_ID}`)
+        .send({ apparatus: [] });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.apparatus).toEqual([]);
+      expect(repo.updateGymProfile).toHaveBeenCalledWith(
+        'test-user-id',
+        PROFILE_ID,
+        { apparatus: [] }
+      );
+    });
+
+    it('accepts explicit null to clear apparatus back to "never stated"', async () => {
+      repo.updateGymProfile.mockResolvedValue(ROW);
+
+      const res = await request(app)
+        .put(`/api/gym-equipment-profiles/${PROFILE_ID}`)
+        .send({ apparatus: null });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.apparatus).toBeNull();
+      expect(repo.updateGymProfile).toHaveBeenCalledWith(
+        'test-user-id',
+        PROFILE_ID,
+        { apparatus: null }
       );
     });
 

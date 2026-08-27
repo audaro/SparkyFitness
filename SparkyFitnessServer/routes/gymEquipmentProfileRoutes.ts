@@ -33,6 +33,7 @@ function toResponse(row: GymEquipmentProfileRow): GymEquipmentProfileResponse {
     user_id: row.user_id,
     name: row.name,
     equipment: row.equipment,
+    apparatus: row.apparatus,
     is_active: row.is_active,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
@@ -79,6 +80,9 @@ const listHandler: RequestHandler = async (req, res, next) => {
  *     description: |
  *       Equipment values must be canonical free-exercise-db strings (lowercase, e.g. `dumbbell`,
  *       `body only`); anything else is rejected, because the catalog matches them case-sensitively.
+ *       `apparatus` is optional and tri-state: omitted means "never stated" (the workout engine
+ *       keeps inferring apparatus from barbell/cable/machine), `[]` means "stated: none", and an
+ *       array of `pull-up bar` / `dip station` / `squat rack` / `bench` means "stated: exactly these".
  *       Passing `is_active: true` deactivates the previous active profile in the same transaction.
  *     security:
  *       - cookieAuth: []
@@ -126,7 +130,9 @@ const createHandler: RequestHandler = async (req, res, next) => {
  *     tags: [Exercise & Workouts]
  *     description: |
  *       Only the supplied fields are written. `is_active` is not accepted here — activation is a
- *       cross-row operation owned by `POST /{id}/activate`.
+ *       cross-row operation owned by `POST /{id}/activate`. `apparatus` accepts an array (stated
+ *       exactly), `[]` (stated none), or explicit `null` to clear back to "never stated" so the
+ *       workout engine resumes inferring it from the equipment list.
  *     security:
  *       - cookieAuth: []
  *     responses:
