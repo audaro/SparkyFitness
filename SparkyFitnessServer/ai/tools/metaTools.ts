@@ -22,7 +22,7 @@ export const CATEGORY_SUMMARIES: Record<ChatToolCategorySlug, string> = {
   reports:
     'daily/weekly summaries, progress reports, trends, TDEE (tools: sparky_get_report, sparky_get_daily_report)',
   coaching:
-    'coaching plans, nudges, patterns, and check-in wizard (tools: sparky_generate_coaching_plan, sparky_get_health_summary, sparky_analyze_trends, sparky_get_30_day_trends, sparky_detect_patterns, sparky_check_engagement, sparky_get_logging_streak, sparky_get_contextual_nudge, sparky_daily_checkin_wizard)',
+    'coaching plans, the coach training profile (goals, experience level, limitations), gym equipment profiles (create/edit/switch), nudges, patterns, and check-in wizard (tools: sparky_manage_coach_profile, sparky_generate_coaching_plan, sparky_get_health_summary, sparky_analyze_trends, sparky_get_30_day_trends, sparky_detect_patterns, sparky_check_engagement, sparky_get_logging_streak, sparky_get_contextual_nudge, sparky_daily_checkin_wizard)',
   vision:
     'analyze food photos and scan nutrition labels (tools: sparky_analyze_food_image, sparky_scan_label)',
   profile:

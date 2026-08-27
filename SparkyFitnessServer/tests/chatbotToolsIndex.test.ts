@@ -1,6 +1,9 @@
 import { vi, describe, expect, it } from 'vitest';
 import { buildChatbotTools, buildChatToolSurface } from '../ai/tools/index.js';
-import { ENABLE_TOOLS_TOOL_NAME } from '../ai/tools/metaTools.js';
+import {
+  CATEGORY_SUMMARIES,
+  ENABLE_TOOLS_TOOL_NAME,
+} from '../ai/tools/metaTools.js';
 import {
   ASK_USER_TOOL_NAME,
   CONFIRM_FOOD_TOOL_NAME,
@@ -367,6 +370,33 @@ describe('buildChatToolSurface', () => {
     // indexed exactly once.
     expect(indexed.sort()).toEqual(EXPECTED_TOOLS.slice().sort());
     expect(new Set(indexed).size).toBe(indexed.length);
+  });
+
+  // The escalation tool's per-category summaries are the model's only map of
+  // where a dormant capability lives. Every tool a summary names must really
+  // be in that category, and every category's manage_* workhorses must be
+  // named — sparky_manage_coach_profile was once missing from the coaching
+  // summary, so "create an equipment profile" had no discoverable home.
+  it('keeps CATEGORY_SUMMARIES consistent with the per-category tool index', () => {
+    const { toolNamesByCategory } = buildChatToolSurface('surface-user', 'UTC');
+    for (const [slug, summary] of Object.entries(CATEGORY_SUMMARIES)) {
+      const named = summary.match(/sparky_[a-z0-9_]+/g) ?? [];
+      expect(named.length, `${slug} summary names no tools`).toBeGreaterThan(0);
+      for (const name of named) {
+        expect(
+          toolNamesByCategory[slug as keyof typeof toolNamesByCategory],
+          `${slug} summary names ${name}, which is not in that category`
+        ).toContain(name);
+      }
+      const inCategory =
+        toolNamesByCategory[slug as keyof typeof toolNamesByCategory];
+      for (const name of inCategory.filter((n) => n.includes('_manage_'))) {
+        expect(
+          named,
+          `${slug} summary omits its workhorse tool ${name}`
+        ).toContain(name);
+      }
+    }
   });
 
   it('memoizes per user/tz and returns a fresh surface for a different key', () => {

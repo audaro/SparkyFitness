@@ -40,6 +40,24 @@ describe('classifyByKeywords', () => {
     );
   });
 
+  // Gym equipment profiles live on sparky_manage_coach_profile (coaching
+  // category). "equipment profile" used to match only `profile`, which loads
+  // settings/habits tools — the model then had no way to create the profile
+  // and hallucinated success.
+  it('routes gym/equipment-profile language to coaching', () => {
+    expect(
+      classifyByKeywords(
+        'Can you add a new equipment profile? That contains every machine you would find at planet fitness'
+      )
+    ).toContain('coaching');
+    expect(classifyByKeywords("I'm at the hotel gym today")).toContain(
+      'coaching'
+    );
+    expect(
+      classifyByKeywords('create a profile for the machines at my gyms')
+    ).toContain('coaching');
+  });
+
   it('matches the new vision keyword rule for label/photo language', () => {
     expect(classifyByKeywords('can you scan this label')).toContain('vision');
   });

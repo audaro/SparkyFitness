@@ -1472,9 +1472,13 @@ const KEYWORD_RULES: { category: ChatToolCategorySlug; keywords: RegExp }[] = [
       /\b(report|reports|summar(?:y|ies|ize|ise|ized|ised|izing)|progress|tdee|chart|charts|analytics|recap|overview|trends?|graphs?|stats?|statistics|analy(?:ze|sis|tics)|averages?|compare|comparison|how (?:am|did|was|have) i)\b/i,
   },
   {
+    // gym/equipment/machine terms route here because gym equipment profiles
+    // live on sparky_manage_coach_profile (coaching category): "add an
+    // equipment profile" or "I'm at the hotel gym" needs coaching loaded,
+    // and the bare word "profile" routes to the profile category instead.
     category: 'coaching',
     keywords:
-      /\b(advice|advise|tips?|motivat\w*|recommend\w*|suggest\w*|coach(?:ing)?|plan)\b/i,
+      /\b(advice|advise|tips?|motivat\w*|recommend\w*|suggest\w*|coach(?:ing)?|plan|gyms?|equipment|machines?)\b/i,
   },
   {
     category: 'vision',
