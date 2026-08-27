@@ -546,6 +546,190 @@ describe('gym profiles', () => {
     );
   });
 
+  it('creates an item-stated profile, deriving the coarse columns', async () => {
+    vi.mocked(gymEquipmentProfileRepository.createGymProfile).mockResolvedValue(
+      {
+        ...homeProfile,
+        name: 'Hotel',
+        equipment: ['cable', 'dumbbell', 'machine'],
+        apparatus: [],
+        equipment_items: ['smith-machine', 'lat-pulldown', 'dumbbells'],
+      }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Hotel',
+        // Title case and a duplicate: slugs lowercase-trim and dedupe like
+        // the coarse equipment values do.
+        gym_equipment_items: [
+          'Smith-Machine',
+          'smith-machine',
+          'lat-pulldown',
+          'dumbbells',
+        ],
+      } as never,
+      opts
+    );
+
+    // The coarse columns are derived from the items (no bench item → stated
+    // apparatus []), same contract as the REST route.
+    expect(gymEquipmentProfileRepository.createGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      {
+        name: 'Hotel',
+        equipment: ['cable', 'dumbbell', 'machine'],
+        apparatus: [],
+        equipment_items: ['smith-machine', 'lat-pulldown', 'dumbbells'],
+        is_active: false,
+      }
+    );
+    // Confirmations stay one line: an item-stated profile reads as a count,
+    // with the derived apparatus statement alongside.
+    expect(result).toBe(
+      '✅ Created gym profile "Hotel" (3 equipment items; apparatus: none). It is not active yet — set_active_gym_profile makes generated workouts use it.'
+    );
+  });
+
+  it('expands a template name into items server-side', async () => {
+    vi.mocked(
+      gymEquipmentProfileRepository.createGymProfile
+    ).mockImplementation(async (_userId, create) => ({
+      ...homeProfile,
+      name: create.name,
+      equipment: [...create.equipment],
+      apparatus: create.apparatus ? [...create.apparatus] : null,
+      equipment_items: create.equipment_items
+        ? [...create.equipment_items]
+        : null,
+      load_limits: create.load_limits ?? null,
+      is_active: create.is_active === true,
+    }));
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'PF Downtown',
+        // What the user actually says — normalized to the slug server-side.
+        gym_template: 'Planet Fitness',
+        gym_dumbbell_max_kg: 22.5,
+        make_active: true,
+      } as never,
+      opts
+    );
+
+    const create = vi.mocked(gymEquipmentProfileRepository.createGymProfile)
+      .mock.calls[0][1];
+    // The template's honesty pins: Smith machines and fixed barbells, never a
+    // free Olympic bar.
+    expect(create.equipment_items).toContain('smith-machine');
+    expect(create.equipment_items).toContain('fixed-barbells');
+    expect(create.equipment_items).not.toContain('barbell');
+    expect(create.apparatus).toEqual(['bench']);
+    expect(create.load_limits).toEqual({ dumbbell: { max_kg: 22.5 } });
+    expect(result).toBe(
+      '✅ Created gym profile "PF Downtown" (35 equipment items; apparatus: bench; dumbbells up to 22.5 kg) and made it active. Generated workouts will only use this equipment — regenerate to apply it.'
+    );
+  });
+
+  it('rejects an item-stated create that also carries coarse fields', async () => {
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Hotel',
+        gym_equipment_items: ['dumbbells'],
+        gym_equipment: ['dumbbell'],
+      } as never,
+      opts
+    );
+
+    expect(String(result)).toContain(
+      'gym_equipment and gym_apparatus are derived from the stated items'
+    );
+    expect(
+      gymEquipmentProfileRepository.createGymProfile
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects a template combined with an explicit item list', async () => {
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Hotel',
+        gym_template: 'hotel gym',
+        gym_equipment_items: ['dumbbells'],
+      } as never,
+      opts
+    );
+
+    expect(String(result)).toContain(
+      'Send gym_template or gym_equipment_items, not both'
+    );
+    expect(
+      gymEquipmentProfileRepository.createGymProfile
+    ).not.toHaveBeenCalled();
+  });
+
+  it('replaces the stored items on update and re-derives the coarse columns', async () => {
+    vi.mocked(gymEquipmentProfileRepository.updateGymProfile).mockResolvedValue(
+      {
+        ...homeProfile,
+        equipment: ['cable', 'dumbbell', 'machine'],
+        apparatus: [],
+        equipment_items: ['smith-machine', 'lat-pulldown', 'dumbbells'],
+      }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'update_gym_profile',
+        gym_profile_id: HOME_ID,
+        gym_equipment_items: ['smith-machine', 'lat-pulldown', 'dumbbells'],
+      } as never,
+      opts
+    );
+
+    expect(gymEquipmentProfileRepository.updateGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      HOME_ID,
+      {
+        equipment_items: ['smith-machine', 'lat-pulldown', 'dumbbells'],
+        equipment: ['cable', 'dumbbell', 'machine'],
+        apparatus: [],
+      }
+    );
+    expect(result).toBe(
+      '✅ Gym profile "Home" updated (3 equipment items; apparatus: none).'
+    );
+  });
+
+  it('lists an item-stated profile as a count, not the item list', async () => {
+    vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
+      {
+        ...gymProfile,
+        equipment: ['machine', 'cable', 'dumbbell'],
+        apparatus: ['bench'],
+        equipment_items: [
+          'smith-machine',
+          'lat-pulldown',
+          'dumbbells',
+          'flat-bench',
+        ],
+      },
+    ]);
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      { action: 'get_gym_profiles' },
+      opts
+    );
+
+    expect(result).toBe(
+      '# Gym Profiles\n\n' +
+        `- **Commercial Gym** (active) — 4 equipment items; apparatus: bench — ID: ${GYM_ID}`
+    );
+  });
+
   it('lists stated apparatus and dumbbell ceilings, and says nothing for unstated ones', async () => {
     vi.mocked(gymEquipmentProfileRepository.listGymProfiles).mockResolvedValue([
       // homeProfile keeps apparatus/load_limits null: its row must not change.
@@ -662,12 +846,13 @@ describe('gym profiles', () => {
       opts
     );
 
-    // No dumbbell ceiling in the patch, so the row is never re-read.
+    // No dumbbell ceiling in the patch, so the row is never re-read. The
+    // coarse rewrite drops any stored items (null here since Home has none).
     expect(gymEquipmentProfileRepository.getGymProfile).not.toHaveBeenCalled();
     expect(gymEquipmentProfileRepository.updateGymProfile).toHaveBeenCalledWith(
       'user-1',
       HOME_ID,
-      { apparatus: [] }
+      { apparatus: [], equipment_items: null }
     );
     expect(result).toBe(
       '✅ Gym profile "Home" updated (dumbbell, bands; apparatus: none).'
@@ -802,10 +987,12 @@ describe('gym profiles', () => {
       opts
     );
 
+    // Rewriting coarse equipment drops the profile back to coarse mode —
+    // stored items may not silently disagree with the edited columns.
     expect(gymEquipmentProfileRepository.updateGymProfile).toHaveBeenCalledWith(
       'user-1',
       GYM_ID,
-      { equipment: ['barbell', 'cable', 'machine'] }
+      { equipment: ['barbell', 'cable', 'machine'], equipment_items: null }
     );
     expect(result).toBe(
       '✅ Gym profile "Commercial Gym" updated (barbell, cable, machine). It is the active profile — regenerate workouts to apply the change.'
@@ -844,7 +1031,7 @@ describe('gym profiles', () => {
     );
 
     expect(result).toBe(
-      'Error [VALIDATION]: Nothing to update — provide new_name, gym_equipment, gym_apparatus, and/or gym_dumbbell_max_kg.'
+      'Error [VALIDATION]: Nothing to update — provide new_name, gym_equipment, gym_apparatus, gym_equipment_items, and/or gym_dumbbell_max_kg.'
     );
     expect(
       gymEquipmentProfileRepository.listGymProfiles

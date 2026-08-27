@@ -12,7 +12,13 @@ import type {
 } from '../../models/gymEquipmentProfileRepository.js';
 import { invalidateChatContextInputs } from '../../services/chatContextCache.js';
 import { isDuplicateNameError } from '../../utils/errors.js';
-import { EQUIPMENT } from '@workspace/shared';
+import {
+  EQUIPMENT,
+  GYM_TEMPLATES,
+  deriveApparatusFromItems,
+  deriveEquipmentFromItems,
+  type EquipmentItemSlug,
+} from '@workspace/shared';
 import { ERRORS, formatZodError } from './errors.js';
 import { normalizeActionArgs } from './dates.js';
 import { formatConfirmation } from './formatting.js';
@@ -75,10 +81,17 @@ export function renderCoachProfile(profile: CoachProfileRow): string {
 }
 
 function describeGymProfile(profile: GymEquipmentProfileRow): string {
+  // An item-stated profile is summarized as a count — confirmations must stay
+  // one line, and forty item slugs are not one line. get_gym_profiles is the
+  // read; the app's editor is where the full list lives.
   const parts = [
-    profile.equipment.length
-      ? profile.equipment.join(', ')
-      : 'no equipment listed',
+    Array.isArray(profile.equipment_items)
+      ? `${profile.equipment_items.length} equipment item${
+          profile.equipment_items.length === 1 ? '' : 's'
+        }`
+      : profile.equipment.length
+        ? profile.equipment.join(', ')
+        : 'no equipment listed',
   ];
   // Stated apparatus is authoritative (null means "unstated: inferred from
   // equipment"), so the model has to see it to reason about pull-ups/racks.
@@ -165,10 +178,10 @@ Actions:
 - get_coach_profile() — read it before proposing programming; a missing profile means the user has not been interviewed yet
 - update_coach_profile(goals?, training_days_per_week?, session_minutes?, experience_level?, equipment?, limitations?, food_preferences?, aliases?) — saves only the provided fields; list/object fields REPLACE the stored value, so send the full updated list when adding one item. experience_level is 'beginner' | 'intermediate' | 'expert' and biases which exercises generated workouts select
 - get_gym_profiles() — the user's named equipment sets ("Home", "Commercial gym") and which one is active; the active one is what constrains generated workouts
-- create_gym_profile(gym_profile_name, gym_equipment, gym_apparatus?, gym_dumbbell_max_kg?, make_active?) — save a named equipment set when the user describes a gym ("Planet Fitness has..."). gym_equipment only accepts the canonical catalog values (${EQUIPMENT.join(
+- create_gym_profile(gym_profile_name, gym_template?|gym_equipment_items?|gym_equipment, gym_apparatus?, gym_dumbbell_max_kg?, make_active?) — save a named equipment set when the user describes a gym ("Planet Fitness has..."). Prefer the granular sources: gym_template names a known gym shape and expands server-side; gym_equipment_items states the exact machines and stations as slugs from the published enum. Either derives equipment and apparatus automatically, so never send gym_equipment or gym_apparatus alongside them. Fall back to coarse gym_equipment only when the details are unknown — it accepts the canonical catalog values (${EQUIPMENT.join(
         ', '
-      )}) — map real equipment to the closest value (racks, smith machines, leg presses and cardio machines → machine) instead of inventing new ones. gym_apparatus states what bodyweight movements can hang from or brace against (pull-up bar, dip station, squat rack, bench) — an explicit list (empty included) is authoritative and is the fix for "my gym has no squat rack"; omitted, it is inferred from the equipment. gym_dumbbell_max_kg is the heaviest dumbbell in kg per hand — prescriptions cap at it
-- update_gym_profile(gym_profile_id?|gym_profile_name?, new_name?, gym_equipment?, gym_apparatus?, gym_dumbbell_max_kg?) — rename a profile or change its equipment/apparatus/dumbbell ceiling; gym_equipment and gym_apparatus REPLACE the stored lists, so send the full updated list when adding one item
+      )}); map real equipment to the closest value instead of inventing new ones. gym_apparatus (coarse mode only) states what bodyweight movements can hang from or brace against (pull-up bar, dip station, squat rack, bench) — an explicit list (empty included) is authoritative; omitted, it is inferred from the equipment. gym_dumbbell_max_kg is the heaviest dumbbell in kg per hand — prescriptions cap at it
+- update_gym_profile(gym_profile_id?|gym_profile_name?, new_name?, gym_equipment_items?, gym_equipment?, gym_apparatus?, gym_dumbbell_max_kg?) — rename a profile or change its equipment/apparatus/dumbbell ceiling; gym_equipment_items, gym_equipment and gym_apparatus each REPLACE the stored list, so send the full updated list when adding one item. Rewriting gym_equipment or gym_apparatus on an item-stated profile drops its stored items
 - set_active_gym_profile(gym_profile_name?|gym_profile_id?) — switch where the user is training today ("I'm at home"), then regenerate; only one profile is active at a time`,
       inputSchema: manageCoachProfileInput,
       execute: async (rawArgs) => {
@@ -232,24 +245,56 @@ Actions:
               return renderGymProfiles(profiles);
             }
             case 'create_gym_profile': {
+              // Items may arrive directly or via a template name; either way
+              // the coarse columns are derived from them — the same
+              // derivation contract the REST route enforces, replicated here
+              // because this tool writes through the repository.
+              const items: EquipmentItemSlug[] | null =
+                args.gym_template !== undefined
+                  ? [...GYM_TEMPLATES[args.gym_template]]
+                  : args.gym_equipment_items !== undefined
+                    ? [...new Set(args.gym_equipment_items)]
+                    : null;
+              if (items === null && args.gym_equipment === undefined) {
+                // Unreachable: the schema requires one of the three sources.
+                return ERRORS.MISSING_PARAMS([
+                  'gym_equipment, gym_equipment_items, or gym_template',
+                ]);
+              }
               const created =
-                await gymEquipmentProfileRepository.createGymProfile(userId, {
-                  name: args.gym_profile_name,
-                  // Duplicates are harmless to the jsonb filter but would
-                  // render twice everywhere the list is shown.
-                  equipment: [...new Set(args.gym_equipment)],
-                  // Omitted stays undefined → stored SQL NULL ("unstated");
-                  // an explicit list ([] included) is stored as stated.
-                  apparatus:
-                    args.gym_apparatus !== undefined
-                      ? [...new Set(args.gym_apparatus)]
-                      : undefined,
-                  load_limits:
-                    args.gym_dumbbell_max_kg !== undefined
-                      ? { dumbbell: { max_kg: args.gym_dumbbell_max_kg } }
-                      : undefined,
-                  is_active: args.make_active === true,
-                });
+                await gymEquipmentProfileRepository.createGymProfile(
+                  userId,
+                  items !== null
+                    ? {
+                        name: args.gym_profile_name,
+                        equipment: deriveEquipmentFromItems(items),
+                        apparatus: deriveApparatusFromItems(items),
+                        equipment_items: items,
+                        load_limits:
+                          args.gym_dumbbell_max_kg !== undefined
+                            ? { dumbbell: { max_kg: args.gym_dumbbell_max_kg } }
+                            : undefined,
+                        is_active: args.make_active === true,
+                      }
+                    : {
+                        name: args.gym_profile_name,
+                        // Duplicates are harmless to the jsonb filter but would
+                        // render twice everywhere the list is shown.
+                        equipment: [...new Set(args.gym_equipment ?? [])],
+                        // Omitted stays undefined → stored SQL NULL
+                        // ("unstated"); an explicit list ([] included) is
+                        // stored as stated.
+                        apparatus:
+                          args.gym_apparatus !== undefined
+                            ? [...new Set(args.gym_apparatus)]
+                            : undefined,
+                        load_limits:
+                          args.gym_dumbbell_max_kg !== undefined
+                            ? { dumbbell: { max_kg: args.gym_dumbbell_max_kg } }
+                            : undefined,
+                        is_active: args.make_active === true,
+                      }
+                );
               return formatConfirmation(
                 created.is_active
                   ? `Created gym profile "${created.name}" (${describeGymProfile(
@@ -265,16 +310,33 @@ Actions:
                 args.new_name === undefined &&
                 args.gym_equipment === undefined &&
                 args.gym_apparatus === undefined &&
+                args.gym_equipment_items === undefined &&
                 args.gym_dumbbell_max_kg === undefined
               ) {
                 return ERRORS.VALIDATION(
-                  'Nothing to update — provide new_name, gym_equipment, gym_apparatus, and/or gym_dumbbell_max_kg.'
+                  'Nothing to update — provide new_name, gym_equipment, gym_apparatus, gym_equipment_items, and/or gym_dumbbell_max_kg.'
                 );
               }
               const resolved = await resolveGymProfileId(userId, args);
               if ('error' in resolved) return resolved.error;
               const patch: GymEquipmentProfilePatch = {};
               if (args.new_name !== undefined) patch.name = args.new_name;
+              if (args.gym_equipment_items !== undefined) {
+                // Same derivation contract as create: the coarse columns are
+                // recomputed from the stated items.
+                const items = [...new Set(args.gym_equipment_items)];
+                patch.equipment_items = items;
+                patch.equipment = deriveEquipmentFromItems(items);
+                patch.apparatus = deriveApparatusFromItems(items);
+              } else if (
+                args.gym_equipment !== undefined ||
+                args.gym_apparatus !== undefined
+              ) {
+                // A coarse rewrite of an item-stated profile drops it back to
+                // coarse mode — stored items silently disagreeing with edited
+                // coarse columns would be two sources of truth.
+                patch.equipment_items = null;
+              }
               if (args.gym_equipment !== undefined) {
                 patch.equipment = [...new Set(args.gym_equipment)];
               }

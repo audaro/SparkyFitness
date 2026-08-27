@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { EQUIPMENT, EXERCISE_APPARATUS } from '@workspace/shared';
+import {
+  EQUIPMENT,
+  EQUIPMENT_ITEM_SLUGS,
+  EXERCISE_APPARATUS,
+  GYM_TEMPLATE_SLUGS,
+} from '@workspace/shared';
 import { uuidSchema } from './common.js';
 
 // An alias maps a personal phrase ("my usual walk") to a concrete record the
@@ -141,6 +146,38 @@ const gymApparatusListSchema = z
     )}. An empty array states the gym has none of them; omit to leave it unstated (inferred from equipment) — REPLACES the stored list on update`
   );
 
+// Granular items are the engine-side overlay: kebab-case slugs, never the
+// coarse enum. When they are stated the server derives `equipment` and
+// `apparatus` from them (the same contract the REST routes enforce), so a
+// payload carrying items together with either coarse field is rejected.
+const gymEquipmentItemValueSchema = z.preprocess(
+  (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+  z.enum(EQUIPMENT_ITEM_SLUGS)
+);
+
+const gymEquipmentItemsListSchema = z
+  .array(gymEquipmentItemValueSchema)
+  .max(EQUIPMENT_ITEM_SLUGS.length)
+  .describe(
+    'Granular equipment items at this gym, as kebab-case slugs from the published enum (e.g. smith-machine, lat-pulldown, dumbbells). Stating items derives equipment and apparatus from them, so do not send gym_equipment or gym_apparatus alongside — REPLACES the stored items on update'
+  );
+
+// "Planet Fitness" → planet-fitness: the model echoes what the user said, so
+// spaces and slashes normalize into the slug before the enum check.
+const gymTemplateSchema = z.preprocess(
+  (value) =>
+    typeof value === 'string'
+      ? value
+          .trim()
+          .toLowerCase()
+          .replace(/[\s/]+/g, '-')
+      : value,
+  z.enum(GYM_TEMPLATE_SLUGS)
+);
+
+const DUAL_SOURCE_MESSAGE =
+  'gym_equipment and gym_apparatus are derived from the stated items; send gym_equipment_items (or gym_template) OR the coarse fields, not both';
+
 const gymDumbbellMaxSchema = z.coerce
   .number()
   .positive()
@@ -174,8 +211,16 @@ const createGymProfileSchema = z
     gym_profile_name: gymProfileNameSchema.describe(
       'Name for the new gym profile (e.g. "Home", "Planet Fitness")'
     ),
-    gym_equipment: gymEquipmentListSchema,
+    gym_equipment: gymEquipmentListSchema.optional(),
     gym_apparatus: gymApparatusListSchema.optional(),
+    gym_equipment_items: gymEquipmentItemsListSchema.optional(),
+    gym_template: gymTemplateSchema
+      .optional()
+      .describe(
+        `Prefill the items from a known gym shape: ${GYM_TEMPLATE_SLUGS.join(
+          ', '
+        )}. Expanded server-side; use for "Planet Fitness has..." instead of listing items by hand`
+      ),
     gym_dumbbell_max_kg: gymDumbbellMaxSchema.optional(),
     make_active: z
       .boolean()
@@ -184,7 +229,42 @@ const createGymProfileSchema = z
         'Make the new profile active immediately (deactivates the current one); defaults to false'
       ),
   })
-  .strict();
+  .strict()
+  .superRefine((body, ctx) => {
+    if (
+      body.gym_equipment_items !== undefined &&
+      body.gym_template !== undefined
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['gym_template'],
+        message:
+          'Send gym_template or gym_equipment_items, not both — a template is a prefill of the items',
+      });
+      return;
+    }
+    if (
+      body.gym_equipment_items !== undefined ||
+      body.gym_template !== undefined
+    ) {
+      if (
+        body.gym_equipment !== undefined ||
+        body.gym_apparatus !== undefined
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['gym_equipment_items'],
+          message: DUAL_SOURCE_MESSAGE,
+        });
+      }
+    } else if (body.gym_equipment === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['gym_equipment'],
+        message: 'Provide gym_equipment, gym_equipment_items, or gym_template',
+      });
+    }
+  });
 
 const updateGymProfileSchema = z
   .object({
@@ -195,9 +275,22 @@ const updateGymProfileSchema = z
       .describe('New name for the profile (update_gym_profile only)'),
     gym_equipment: gymEquipmentListSchema.optional(),
     gym_apparatus: gymApparatusListSchema.optional(),
+    gym_equipment_items: gymEquipmentItemsListSchema.optional(),
     gym_dumbbell_max_kg: gymDumbbellMaxSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((patch, ctx) => {
+    if (
+      patch.gym_equipment_items !== undefined &&
+      (patch.gym_equipment !== undefined || patch.gym_apparatus !== undefined)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['gym_equipment_items'],
+        message: DUAL_SOURCE_MESSAGE,
+      });
+    }
+  });
 
 const updateCoachProfileSchema = z
   .object({
@@ -236,6 +329,14 @@ export const manageCoachProfileInput = z.object({
   ...gymProfileSelectorFields,
   gym_equipment: gymEquipmentListSchema.optional(),
   gym_apparatus: gymApparatusListSchema.optional(),
+  gym_equipment_items: gymEquipmentItemsListSchema.optional(),
+  gym_template: gymTemplateSchema
+    .optional()
+    .describe(
+      `create_gym_profile only: prefill the items from a known gym shape (${GYM_TEMPLATE_SLUGS.join(
+        ', '
+      )})`
+    ),
   gym_dumbbell_max_kg: gymDumbbellMaxSchema.optional(),
   new_name: gymProfileNameSchema
     .optional()
