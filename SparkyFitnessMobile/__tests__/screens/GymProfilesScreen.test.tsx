@@ -56,6 +56,7 @@ function makeProfile(overrides: Partial<Record<string, unknown>> = {}) {
     name: 'Home',
     equipment: ['dumbbell', 'bands'],
     apparatus: null,
+    equipment_items: null,
     load_limits: null,
     is_active: false,
     created_at: '2026-08-23T00:00:00.000Z',
@@ -124,21 +125,22 @@ describe('GymProfilesScreen', () => {
     expect(mockActivateGymProfile).not.toHaveBeenCalled();
   });
 
-  it('creates a profile with canonical lowercase equipment values', async () => {
+  it('creates a profile with stated equipment items', async () => {
     mockCreateGymProfile.mockResolvedValue(makeProfile({ id: 'profile-new', name: 'Garage' }));
     const { findByTestId, getByTestId, getByLabelText } = renderScreen();
 
-    // No profiles yet, so the empty state owns the create action.
+    // No profiles yet, so the empty state owns the create action. New
+    // profiles open in detailed (item-stated) mode.
     fireEvent.press(await findByTestId('gym-profile-empty-create'));
     fireEvent.changeText(getByTestId('gym-profile-name-input'), '  Garage  ');
-    fireEvent.press(getByTestId('gym-profile-equipment-dumbbell'));
-    fireEvent.press(getByTestId('gym-profile-equipment-bands'));
+    fireEvent.press(getByTestId('gym-profile-item-dumbbells'));
+    fireEvent.press(getByTestId('gym-profile-item-loop-bands'));
     fireEvent.press(getByLabelText('Save'));
 
     await waitFor(() =>
       expect(mockCreateGymProfile).toHaveBeenCalledWith({
         name: 'Garage',
-        equipment: ['dumbbell', 'bands'],
+        equipment_items: ['dumbbells', 'loop-bands'],
         // The first profile defaults to active — an inactive first profile
         // would constrain nothing.
         is_active: true,
@@ -146,19 +148,97 @@ describe('GymProfilesScreen', () => {
     );
   });
 
-  it('deselects an equipment chip that is tapped twice', async () => {
+  it('deselects an item chip that is tapped twice', async () => {
     const { findByTestId, getByTestId, getByLabelText } = renderScreen();
 
     fireEvent.press(await findByTestId('gym-profile-empty-create'));
     fireEvent.changeText(getByTestId('gym-profile-name-input'), 'Garage');
-    fireEvent.press(getByTestId('gym-profile-equipment-dumbbell'));
-    fireEvent.press(getByTestId('gym-profile-equipment-dumbbell'));
+    fireEvent.press(getByTestId('gym-profile-item-dumbbells'));
+    fireEvent.press(getByTestId('gym-profile-item-dumbbells'));
     fireEvent.press(getByLabelText('Save'));
 
     await waitFor(() =>
       expect(mockCreateGymProfile).toHaveBeenCalledWith(
-        expect.objectContaining({ equipment: [] }),
+        expect.objectContaining({ equipment_items: [] }),
       ),
+    );
+  });
+
+  it('prefills the selection from a template, replacing rather than merging', async () => {
+    mockCreateGymProfile.mockResolvedValue(makeProfile({ id: 'profile-pf', name: 'PF' }));
+    const { findByTestId, getByTestId, getByLabelText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-empty-create'));
+    fireEvent.changeText(getByTestId('gym-profile-name-input'), 'PF');
+    // A pick made before the template must not survive it: a template answers
+    // "what kind of gym is this", not "what else does it have".
+    fireEvent.press(getByTestId('gym-profile-item-barbell'));
+    fireEvent.press(getByTestId('gym-profile-template-planet-fitness'));
+
+    expect(
+      getByTestId('gym-profile-item-smith-machine').props.accessibilityState.checked,
+    ).toBe(true);
+    expect(getByTestId('gym-profile-item-barbell').props.accessibilityState.checked).toBe(false);
+
+    // The prefill stays editable.
+    fireEvent.press(getByTestId('gym-profile-item-smith-machine'));
+    fireEvent.press(getByLabelText('Save'));
+
+    await waitFor(() => expect(mockCreateGymProfile).toHaveBeenCalled());
+    const payload = mockCreateGymProfile.mock.calls[0][0];
+    expect(payload.equipment_items).toContain('fixed-barbells');
+    expect(payload.equipment_items).not.toContain('barbell');
+    expect(payload.equipment_items).not.toContain('smith-machine');
+  });
+
+  it('upgrades a legacy profile to items without sending coarse fields', async () => {
+    mockFetchGymProfiles.mockResolvedValue([makeProfile()]);
+    mockUpdateGymProfile.mockResolvedValue(makeProfile());
+    const { findByTestId, getByTestId, getByLabelText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
+    fireEvent.press(getByTestId('gym-profile-upgrade'));
+    fireEvent.press(getByLabelText('Save'));
+
+    await waitFor(() => expect(mockUpdateGymProfile).toHaveBeenCalled());
+    const [id, payload] = mockUpdateGymProfile.mock.calls[0];
+    expect(id).toBe('profile-home');
+    // The expansion of coarse "dumbbell" states the dumbbells item; the
+    // server re-derives the coarse columns, so neither may ride along.
+    expect(payload.equipment_items).toContain('dumbbells');
+    expect('equipment' in payload).toBe(false);
+    expect('apparatus' in payload).toBe(false);
+  });
+
+  it('summarizes an item-stated profile as a count and edits it in detailed mode', async () => {
+    mockFetchGymProfiles.mockResolvedValue([
+      makeProfile({
+        equipment: ['machine', 'cable'],
+        equipment_items: ['smith-machine', 'cable-tower', 'treadmill'],
+      }),
+    ]);
+    mockUpdateGymProfile.mockResolvedValue(makeProfile());
+    const { findByText, findByTestId, getByTestId, getByLabelText, queryByTestId } =
+      renderScreen();
+
+    expect(await findByText('3 equipment items')).toBeTruthy();
+
+    fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
+    expect(
+      getByTestId('gym-profile-item-smith-machine').props.accessibilityState.checked,
+    ).toBe(true);
+    // Detailed mode has no coarse chips and no apparatus section.
+    expect(queryByTestId('gym-profile-equipment-dumbbell')).toBeNull();
+    expect(queryByTestId('gym-profile-apparatus-specify')).toBeNull();
+    fireEvent.press(getByTestId('gym-profile-item-cable-tower'));
+    fireEvent.press(getByLabelText('Save'));
+
+    await waitFor(() =>
+      expect(mockUpdateGymProfile).toHaveBeenCalledWith('profile-home', {
+        name: 'Home',
+        equipment_items: ['smith-machine', 'treadmill'],
+        load_limits: null,
+      }),
     );
   });
 
@@ -184,22 +264,20 @@ describe('GymProfilesScreen', () => {
     expect(mockActivateGymProfile).not.toHaveBeenCalled();
   });
 
-  it('creates a profile with stated apparatus and a dumbbell ceiling', async () => {
+  it('creates a profile with stated items and a dumbbell ceiling', async () => {
     mockCreateGymProfile.mockResolvedValue(makeProfile({ id: 'profile-pf', name: 'Planet Fitness' }));
     const { findByTestId, getByTestId, getByLabelText } = renderScreen();
 
     fireEvent.press(await findByTestId('gym-profile-empty-create'));
     fireEvent.changeText(getByTestId('gym-profile-name-input'), 'Planet Fitness');
-    fireEvent.press(getByTestId('gym-profile-apparatus-specify'));
-    fireEvent.press(getByTestId('gym-profile-apparatus-bench'));
+    fireEvent.press(getByTestId('gym-profile-item-flat-bench'));
     fireEvent.changeText(getByTestId('gym-profile-dumbbell-max-input'), '22.5');
     fireEvent.press(getByLabelText('Save'));
 
     await waitFor(() =>
       expect(mockCreateGymProfile).toHaveBeenCalledWith({
         name: 'Planet Fitness',
-        equipment: [],
-        apparatus: ['bench'],
+        equipment_items: ['flat-bench'],
         load_limits: { dumbbell: { max_kg: 22.5 } },
         is_active: true,
       }),

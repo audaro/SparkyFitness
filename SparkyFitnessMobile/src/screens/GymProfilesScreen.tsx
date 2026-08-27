@@ -6,11 +6,20 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
   EQUIPMENT,
+  EQUIPMENT_ITEMS,
+  EQUIPMENT_ITEM_CATEGORIES,
   EXERCISE_APPARATUS,
+  GYM_TEMPLATES,
+  GYM_TEMPLATE_SLUGS,
+  expandCoarseEquipment,
   isKnownEquipment,
+  isKnownEquipmentItem,
   type Equipment,
+  type EquipmentItemCategory,
+  type EquipmentItemSlug,
   type ExerciseApparatus,
   type GymLoadLimits,
+  type GymTemplateSlug,
 } from '@workspace/shared';
 
 import FormInput from '../components/FormInput';
@@ -21,6 +30,11 @@ import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import { useGymProfiles, useGymProfileMutations } from '../hooks/useGymProfiles';
+import {
+  localizeEquipmentItem,
+  localizeEquipmentItemCategory,
+  localizeGymTemplate,
+} from '../localization/equipmentItems';
 import { usePreferences } from '../hooks/usePreferences';
 import { weightFromKg, weightToKg } from '../utils/unitConversions';
 import { parseDecimalInput } from '../utils/numericInput';
@@ -38,10 +52,22 @@ function equipmentLabel(value: string): string {
   return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 }
 
-function equipmentSummary(t: TFunction, equipment: string[]): string {
-  if (equipment.length === 0)
+function equipmentSummary(t: TFunction, profile: GymProfile): string {
+  // An item-stated profile summarizes as a count: listing 40 machines in a
+  // two-line row is noise, and the derived coarse list would be a half-truth.
+  if (Array.isArray(profile.equipment_items)) {
+    return profile.equipment_items.length === 0
+      ? t('gymProfiles.noEquipment', { defaultValue: 'No equipment selected' })
+      : t('gymProfiles.itemsSummary', {
+          count: profile.equipment_items.length,
+          defaultValue: '{{count}} equipment items',
+          defaultValue_one: '{{count}} equipment item',
+          defaultValue_other: '{{count}} equipment items',
+        });
+  }
+  if (profile.equipment.length === 0)
     return t('gymProfiles.noEquipment', { defaultValue: 'No equipment selected' });
-  return equipment.map(equipmentLabel).join(', ');
+  return profile.equipment.map(equipmentLabel).join(', ');
 }
 
 /**
@@ -61,6 +87,16 @@ function toCanonicalApparatus(apparatus: string[]): ExerciseApparatus[] {
   );
 }
 
+/** And again for granular items, whose vocabulary can also grow past a row. */
+function toCanonicalItems(items: string[]): EquipmentItemSlug[] {
+  return items.filter(isKnownEquipmentItem);
+}
+
+/** Stable testID suffix for a category ("benches & racks" → "benches-racks"). */
+function categoryTestSlug(category: EquipmentItemCategory): string {
+  return category.replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
+}
+
 // Matches the shared request schema's ceiling for load_limits.max_kg.
 const MAX_LOAD_LIMIT_KG = 500;
 
@@ -70,10 +106,49 @@ function getWeightUnit(value: string | undefined | null): 'kg' | 'lbs' {
   return value === 'kg' ? 'kg' : 'lbs';
 }
 
+interface SelectableChipProps {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  testID: string;
+}
+
+/** One toggle chip; equipment, apparatus, and item pickers all render these. */
+const SelectableChip: React.FC<SelectableChipProps> = ({ label, selected, onPress, testID }) => (
+  <Pressable
+    onPress={onPress}
+    accessibilityRole="checkbox"
+    accessibilityState={{ checked: selected }}
+    accessibilityLabel={label}
+    testID={testID}
+    className={`flex-row items-center rounded-full px-3 py-2 ${
+      selected ? 'bg-accent-primary' : 'bg-surface'
+    }`}
+  >
+    {selected ? (
+      <View className="mr-1">
+        <Icon name="checkmark" size={14} color="#FFFFFF" />
+      </View>
+    ) : null}
+    <Text className={selected ? 'text-sm font-semibold text-white' : 'text-sm text-text-primary'}>
+      {label}
+    </Text>
+  </Pressable>
+);
+
 interface EditorState {
   /** null while creating; the profile being edited otherwise. */
   profile: GymProfile | null;
   name: string;
+  /**
+   * Detailed mode edits granular items and the save states `equipment_items`
+   * (the server derives the coarse columns). Coarse mode is the legacy
+   * editor, kept for item-less profiles so nothing upgrades silently; its
+   * "Upgrade to detailed equipment" action is the only way across.
+   */
+  detailed: boolean;
+  items: EquipmentItemSlug[];
+  itemFilter: string;
   equipment: Equipment[];
   /**
    * The apparatus field is tri-state: with `apparatusSpecified` off the save
@@ -122,6 +197,11 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
         : {
             profile: null,
             name: '',
+            // New profiles start in detailed mode: the granular picker is the
+            // full-fidelity editor, and every template lives there.
+            detailed: true,
+            items: [],
+            itemFilter: '',
             equipment: [],
             apparatusSpecified: false,
             apparatus: [],
@@ -139,6 +219,11 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
       setEditor({
         profile,
         name: profile.name,
+        // Array.isArray for the same reason as apparatus below: undefined
+        // (a pre-migration row) must read as "never stated".
+        detailed: Array.isArray(profile.equipment_items),
+        items: toCanonicalItems(profile.equipment_items ?? []),
+        itemFilter: '',
         equipment: toCanonicalList(profile.equipment),
         // Array.isArray, not `!== null`: an undefined field (a pre-migration
         // row through a permissive client, or a test fixture) must read as
@@ -177,6 +262,58 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
         apparatus: current.apparatus.includes(value)
           ? current.apparatus.filter((item) => item !== value)
           : [...current.apparatus, value],
+      };
+    });
+  }, []);
+
+  const toggleItem = useCallback((value: EquipmentItemSlug) => {
+    setEditor((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.includes(value)
+          ? current.items.filter((item) => item !== value)
+          : [...current.items, value],
+      };
+    });
+  }, []);
+
+  const applyTemplate = useCallback((template: GymTemplateSlug) => {
+    // A prefill, not a merge: tapping a template answers "what kind of gym is
+    // this", and layering it over a half-made selection would answer neither.
+    setEditor((current) =>
+      current ? { ...current, items: [...GYM_TEMPLATES[template]] } : current,
+    );
+  }, []);
+
+  const setCategoryItems = useCallback((category: EquipmentItemCategory, selected: boolean) => {
+    const categorySlugs = EQUIPMENT_ITEMS.filter((item) => item.category === category).map(
+      (item) => item.slug,
+    );
+    setEditor((current) => {
+      if (!current) return current;
+      const withoutCategory = current.items.filter((item) => !categorySlugs.includes(item));
+      return {
+        ...current,
+        items: selected ? [...withoutCategory, ...categorySlugs] : withoutCategory,
+      };
+    });
+  }, []);
+
+  const upgradeToDetailed = useCallback(() => {
+    // Never silently: this runs from its own button on a legacy profile, and
+    // the expansion is labeled as a starting point to prune. Apparatus-backed
+    // items come along only when apparatus was stated, so "never stated"
+    // cannot become "stated present" on the way across.
+    setEditor((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        detailed: true,
+        items: expandCoarseEquipment(
+          current.equipment,
+          current.apparatusSpecified ? current.apparatus : null,
+        ),
       };
     });
   }, []);
@@ -224,7 +361,12 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
       if (editor.profile) {
         await updateProfileAsync({
           id: editor.profile.id,
-          payload: { name, equipment: editor.equipment, apparatus, load_limits: loadLimits },
+          // Detailed mode states items and nothing coarse — the server
+          // derives `equipment` and `apparatus`, and a payload carrying both
+          // is a 400 by design.
+          payload: editor.detailed
+            ? { name, equipment_items: editor.items, load_limits: loadLimits }
+            : { name, equipment: editor.equipment, apparatus, load_limits: loadLimits },
         });
         // Activation is its own server-side transaction (it clears the
         // previous active row), so a profile switched on while editing needs
@@ -232,6 +374,13 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
         if (editor.makeActive && !editor.profile.is_active) {
           await activateProfileAsync(editor.profile.id);
         }
+      } else if (editor.detailed) {
+        await createProfileAsync({
+          name,
+          equipment_items: editor.items,
+          ...(loadLimits !== null ? { load_limits: loadLimits } : {}),
+          is_active: editor.makeActive,
+        });
       } else {
         await createProfileAsync({
           name,
@@ -362,127 +511,206 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
               testID="gym-profile-name-input"
             />
 
-            <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
-              {t('gymProfiles.equipmentLabel', { defaultValue: 'Equipment' })}
-            </Text>
-            <Text className="text-sm text-text-secondary mb-3">
-              {t('gymProfiles.equipmentHelp', {
-                defaultValue:
-                  'While this profile is active, suggestions only use the equipment you pick here. Bodyweight movements are always available.',
-              })}
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {EQUIPMENT.map((value) => {
-                const selected = editor.equipment.includes(value);
-                return (
-                  <Pressable
-                    key={value}
-                    onPress={() => toggleEquipment(value)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selected }}
-                    accessibilityLabel={equipmentLabel(value)}
-                    testID={`gym-profile-equipment-${value}`}
-                    className={`flex-row items-center rounded-full px-3 py-2 ${
-                      selected ? 'bg-accent-primary' : 'bg-surface'
-                    }`}
-                  >
-                    {selected ? (
-                      <View className="mr-1">
-                        <Icon name="checkmark" size={14} color="#FFFFFF" />
-                      </View>
-                    ) : null}
-                    <Text
-                      className={
-                        selected
-                          ? 'text-sm font-semibold text-white'
-                          : 'text-sm text-text-primary'
-                      }
-                    >
-                      {equipmentLabel(value)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
-              {t('gymProfiles.apparatusLabel', { defaultValue: 'Apparatus' })}
-            </Text>
-            <Text className="text-sm text-text-secondary mb-3">
-              {t('gymProfiles.apparatusHelp', {
-                defaultValue:
-                  "What's physically at this gym — pull-up bars, racks, benches. Left unspecified, Sparky assumes from your equipment.",
-              })}
-            </Text>
-            {editor.apparatusSpecified ? (
+            {editor.detailed ? (
               <>
+                <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-2">
+                  {t('gymProfiles.templatesLabel', { defaultValue: 'Start from a template' })}
+                </Text>
                 <View className="flex-row flex-wrap gap-2">
-                  {EXERCISE_APPARATUS.map((value) => {
-                    const selected = editor.apparatus.includes(value);
-                    return (
-                      <Pressable
-                        key={value}
-                        onPress={() => toggleApparatus(value)}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: selected }}
-                        accessibilityLabel={equipmentLabel(value)}
-                        testID={`gym-profile-apparatus-${value}`}
-                        className={`flex-row items-center rounded-full px-3 py-2 ${
-                          selected ? 'bg-accent-primary' : 'bg-surface'
-                        }`}
-                      >
-                        {selected ? (
-                          <View className="mr-1">
-                            <Icon name="checkmark" size={14} color="#FFFFFF" />
-                          </View>
-                        ) : null}
-                        <Text
-                          className={
-                            selected
-                              ? 'text-sm font-semibold text-white'
-                              : 'text-sm text-text-primary'
-                          }
-                        >
-                          {equipmentLabel(value)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                  {GYM_TEMPLATE_SLUGS.map((template) => (
+                    <Pressable
+                      key={template}
+                      onPress={() => applyTemplate(template)}
+                      accessibilityRole="button"
+                      accessibilityLabel={localizeGymTemplate(t, template)}
+                      testID={`gym-profile-template-${template}`}
+                      className="rounded-full px-3 py-2 bg-surface"
+                    >
+                      <Text className="text-sm text-text-primary">
+                        {localizeGymTemplate(t, template)}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
-                <Button
-                  variant="ghost"
-                  onPress={() =>
-                    setEditor((current) =>
-                      current
-                        ? { ...current, apparatusSpecified: false, apparatus: [] }
-                        : current,
-                    )
-                  }
-                  className="mt-2 self-start"
-                  accessibilityLabel={t('gymProfiles.apparatusClear', {
-                    defaultValue: 'Let Sparky assume',
+
+                <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
+                  {t('gymProfiles.equipmentLabel', { defaultValue: 'Equipment' })}
+                </Text>
+                <Text className="text-sm text-text-secondary mb-3">
+                  {t('gymProfiles.detailedHelp', {
+                    defaultValue:
+                      'Pick exactly what this gym has. Suggested workouts only use machines and stations you select; bodyweight movements are always available.',
                   })}
-                  testID="gym-profile-apparatus-clear"
-                >
-                  {t('gymProfiles.apparatusClear', { defaultValue: 'Let Sparky assume' })}
-                </Button>
+                </Text>
+                <FormInput
+                  value={editor.itemFilter}
+                  onChangeText={(itemFilter) =>
+                    setEditor((current) => (current ? { ...current, itemFilter } : current))
+                  }
+                  placeholder={t('gymProfiles.itemSearchPlaceholder', {
+                    defaultValue: 'Search equipment…',
+                  })}
+                  autoCapitalize="none"
+                  accessibilityLabel={t('gymProfiles.itemSearchA11y', {
+                    defaultValue: 'Search equipment',
+                  })}
+                  testID="gym-profile-item-search"
+                />
+                {EQUIPMENT_ITEM_CATEGORIES.map((category) => {
+                  const filter = editor.itemFilter.trim().toLowerCase();
+                  const categoryItems = EQUIPMENT_ITEMS.filter(
+                    (item) => item.category === category,
+                  ).filter(
+                    (item) =>
+                      filter === '' ||
+                      localizeEquipmentItem(t, item.slug).toLowerCase().includes(filter),
+                  );
+                  if (categoryItems.length === 0) return null;
+                  return (
+                    <View key={category} className="mt-5">
+                      <View className="flex-row items-center justify-between mb-2">
+                        <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider">
+                          {localizeEquipmentItemCategory(t, category)}
+                        </Text>
+                        <View className="flex-row gap-1">
+                          <Button
+                            variant="ghost"
+                            onPress={() => setCategoryItems(category, true)}
+                            accessibilityLabel={t('gymProfiles.selectAll', {
+                              defaultValue: 'All',
+                            })}
+                            testID={`gym-profile-item-all-${categoryTestSlug(category)}`}
+                          >
+                            {t('gymProfiles.selectAll', { defaultValue: 'All' })}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onPress={() => setCategoryItems(category, false)}
+                            accessibilityLabel={t('gymProfiles.selectNone', {
+                              defaultValue: 'None',
+                            })}
+                            testID={`gym-profile-item-none-${categoryTestSlug(category)}`}
+                          >
+                            {t('gymProfiles.selectNone', { defaultValue: 'None' })}
+                          </Button>
+                        </View>
+                      </View>
+                      <View className="flex-row flex-wrap gap-2">
+                        {categoryItems.map((item) => (
+                          <SelectableChip
+                            key={item.slug}
+                            label={localizeEquipmentItem(t, item.slug)}
+                            selected={editor.items.includes(item.slug)}
+                            onPress={() => toggleItem(item.slug)}
+                            testID={`gym-profile-item-${item.slug}`}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })}
               </>
             ) : (
-              <Button
-                variant="secondary"
-                onPress={() =>
-                  setEditor((current) =>
-                    current ? { ...current, apparatusSpecified: true } : current,
-                  )
-                }
-                className="self-start"
-                accessibilityLabel={t('gymProfiles.apparatusSpecify', {
-                  defaultValue: 'Specify apparatus',
-                })}
-                testID="gym-profile-apparatus-specify"
-              >
-                {t('gymProfiles.apparatusSpecify', { defaultValue: 'Specify apparatus' })}
-              </Button>
+              <>
+                <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
+                  {t('gymProfiles.equipmentLabel', { defaultValue: 'Equipment' })}
+                </Text>
+                <Text className="text-sm text-text-secondary mb-3">
+                  {t('gymProfiles.equipmentHelp', {
+                    defaultValue:
+                      'While this profile is active, suggestions only use the equipment you pick here. Bodyweight movements are always available.',
+                  })}
+                </Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {EQUIPMENT.map((value) => (
+                    <SelectableChip
+                      key={value}
+                      label={equipmentLabel(value)}
+                      selected={editor.equipment.includes(value)}
+                      onPress={() => toggleEquipment(value)}
+                      testID={`gym-profile-equipment-${value}`}
+                    />
+                  ))}
+                </View>
+
+                <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
+                  {t('gymProfiles.apparatusLabel', { defaultValue: 'Apparatus' })}
+                </Text>
+                <Text className="text-sm text-text-secondary mb-3">
+                  {t('gymProfiles.apparatusHelp', {
+                    defaultValue:
+                      "What's physically at this gym — pull-up bars, racks, benches. Left unspecified, Sparky assumes from your equipment.",
+                  })}
+                </Text>
+                {editor.apparatusSpecified ? (
+                  <>
+                    <View className="flex-row flex-wrap gap-2">
+                      {EXERCISE_APPARATUS.map((value) => (
+                        <SelectableChip
+                          key={value}
+                          label={equipmentLabel(value)}
+                          selected={editor.apparatus.includes(value)}
+                          onPress={() => toggleApparatus(value)}
+                          testID={`gym-profile-apparatus-${value}`}
+                        />
+                      ))}
+                    </View>
+                    <Button
+                      variant="ghost"
+                      onPress={() =>
+                        setEditor((current) =>
+                          current
+                            ? { ...current, apparatusSpecified: false, apparatus: [] }
+                            : current,
+                        )
+                      }
+                      className="mt-2 self-start"
+                      accessibilityLabel={t('gymProfiles.apparatusClear', {
+                        defaultValue: 'Let Sparky assume',
+                      })}
+                      testID="gym-profile-apparatus-clear"
+                    >
+                      {t('gymProfiles.apparatusClear', { defaultValue: 'Let Sparky assume' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    onPress={() =>
+                      setEditor((current) =>
+                        current ? { ...current, apparatusSpecified: true } : current,
+                      )
+                    }
+                    className="self-start"
+                    accessibilityLabel={t('gymProfiles.apparatusSpecify', {
+                      defaultValue: 'Specify apparatus',
+                    })}
+                    testID="gym-profile-apparatus-specify"
+                  >
+                    {t('gymProfiles.apparatusSpecify', { defaultValue: 'Specify apparatus' })}
+                  </Button>
+                )}
+
+                <View className="bg-surface rounded-xl p-4 mt-6">
+                  <Button
+                    variant="secondary"
+                    onPress={upgradeToDetailed}
+                    className="self-start"
+                    accessibilityLabel={t('gymProfiles.upgrade', {
+                      defaultValue: 'Upgrade to detailed equipment',
+                    })}
+                    testID="gym-profile-upgrade"
+                  >
+                    {t('gymProfiles.upgrade', { defaultValue: 'Upgrade to detailed equipment' })}
+                  </Button>
+                  <Text className="text-sm text-text-secondary mt-2">
+                    {t('gymProfiles.upgradeHelp', {
+                      defaultValue:
+                        'Pick individual machines and stations instead of broad categories. Your current selection becomes a starting point to prune.',
+                    })}
+                  </Text>
+                </View>
+              </>
             )}
 
             <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
@@ -628,7 +856,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
                           {profile.name}
                         </Text>
                         <Text className="text-sm text-text-secondary mt-0.5" numberOfLines={2}>
-                          {equipmentSummary(t, profile.equipment)}
+                          {equipmentSummary(t, profile)}
                         </Text>
                       </View>
                     </Pressable>
