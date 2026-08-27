@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SvgXml } from 'react-native-svg';
 import { useCSSVariable } from 'uniwind';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -11,6 +12,7 @@ import {
   EXERCISE_APPARATUS,
   GYM_TEMPLATES,
   GYM_TEMPLATE_SLUGS,
+  equipmentIconFor,
   expandCoarseEquipment,
   isKnownEquipment,
   isKnownEquipmentItem,
@@ -111,30 +113,46 @@ interface SelectableChipProps {
   selected: boolean;
   onPress: () => void;
   testID: string;
+  /** Inline SVG markup (the shared equipment icon set), rendered before the label. */
+  iconXml?: string;
 }
 
 /** One toggle chip; equipment, apparatus, and item pickers all render these. */
-const SelectableChip: React.FC<SelectableChipProps> = ({ label, selected, onPress, testID }) => (
-  <Pressable
-    onPress={onPress}
-    accessibilityRole="checkbox"
-    accessibilityState={{ checked: selected }}
-    accessibilityLabel={label}
-    testID={testID}
-    className={`flex-row items-center rounded-full px-3 py-2 ${
-      selected ? 'bg-accent-primary' : 'bg-surface'
-    }`}
-  >
-    {selected ? (
-      <View className="mr-1">
-        <Icon name="checkmark" size={14} color="#FFFFFF" />
-      </View>
-    ) : null}
-    <Text className={selected ? 'text-sm font-semibold text-white' : 'text-sm text-text-primary'}>
-      {label}
-    </Text>
-  </Pressable>
-);
+const SelectableChip: React.FC<SelectableChipProps> = ({
+  label,
+  selected,
+  onPress,
+  testID,
+  iconXml,
+}) => {
+  const textPrimary = useCSSVariable('--color-text-primary') as string;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={label}
+      testID={testID}
+      className={`flex-row items-center rounded-full px-3 py-2 ${
+        selected ? 'bg-accent-primary' : 'bg-surface'
+      }`}
+    >
+      {selected ? (
+        <View className="mr-1">
+          <Icon name="checkmark" size={14} color="#FFFFFF" />
+        </View>
+      ) : null}
+      {iconXml ? (
+        <View className="mr-1.5">
+          <SvgXml xml={iconXml} width={16} height={16} color={selected ? '#FFFFFF' : textPrimary} />
+        </View>
+      ) : null}
+      <Text className={selected ? 'text-sm font-semibold text-white' : 'text-sm text-text-primary'}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+};
 
 interface EditorState {
   /** null while creating; the profile being edited otherwise. */
@@ -603,6 +621,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
                             selected={editor.items.includes(item.slug)}
                             onPress={() => toggleItem(item.slug)}
                             testID={`gym-profile-item-${item.slug}`}
+                            iconXml={equipmentIconFor(item.slug)}
                           />
                         ))}
                       </View>

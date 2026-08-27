@@ -39,6 +39,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog';
+import EquipmentIcon from '@/components/EquipmentIcon';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   useActivateGymProfileMutation,
@@ -687,8 +688,12 @@ const GymProfilesManager: React.FC = () => {
                                 />
                                 <Label
                                   htmlFor={checkboxId}
-                                  className="text-sm font-normal cursor-pointer"
+                                  className="flex items-center gap-1.5 text-sm font-normal cursor-pointer"
                                 >
+                                  <EquipmentIcon
+                                    slug={item.slug}
+                                    className="shrink-0 text-base text-muted-foreground [&>svg]:block"
+                                  />
                                   {localizeEquipmentItem(t, item.slug)}
                                 </Label>
                               </div>
