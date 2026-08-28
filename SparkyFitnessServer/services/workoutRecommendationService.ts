@@ -485,6 +485,11 @@ async function generateRecommendation(
     availableEquipmentItems: gymProfile
       ? (gymProfile.equipment_items ?? null)
       : null,
+    // Same guard again: a row read before the equipment_preference migration
+    // must read as "never stated", which is what an absent preference means.
+    equipmentPreference: gymProfile
+      ? (gymProfile.equipment_preference ?? null)
+      : null,
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
     ),
@@ -747,6 +752,12 @@ async function replaceRecommendationExercise(
     loadLimits: gymProfile ? (gymProfile.load_limits ?? null) : null,
     availableEquipmentItems: gymProfile
       ? (gymProfile.equipment_items ?? null)
+      : null,
+    // Replace honours the preference for the same reason it honours the
+    // equipment gate: the exercise swapping in is programmed for the same
+    // room the rest of the workout was built for.
+    equipmentPreference: gymProfile
+      ? (gymProfile.equipment_preference ?? null)
       : null,
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()

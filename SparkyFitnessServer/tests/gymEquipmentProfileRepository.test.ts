@@ -92,6 +92,9 @@ describe('gymEquipmentProfileRepository', () => {
         null,
         null,
         null,
+        // equipment_preference: a TEXT column, so an unstated preference binds
+        // as SQL NULL directly rather than through toJsonbParam.
+        null,
         false,
       ]);
     });

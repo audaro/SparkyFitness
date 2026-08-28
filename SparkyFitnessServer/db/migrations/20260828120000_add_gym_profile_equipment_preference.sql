@@ -1,0 +1,24 @@
+-- Which kind of equipment the user would rather train on at this gym, from
+-- the shared EQUIPMENT_PREFERENCES vocabulary
+-- (shared/src/constants/exerciseTaxonomy.ts): 'machines' | 'free_weights'.
+--
+--   NULL   = never stated; selection behaves exactly as it did before this
+--            column existed.
+--   value  = stated; the recommendation engine grades candidates by how far
+--            their equipment sits from the preference.
+--
+-- A preference, deliberately not a filter, and stored on the gym profile
+-- rather than the coach profile because it is a fact about a room: the same
+-- lifter wants machines at a commercial gym and dumbbells in a garage. It
+-- reorders candidates that already passed the equipment gate and never
+-- removes one, so a muscle covered only by the non-preferred kind still gets
+-- programmed.
+--
+-- TEXT rather than JSONB (unlike apparatus / equipment_items / load_limits)
+-- because a single scalar has no "stated empty" state to model — NULL is the
+-- only absence there is, so the toJsonbParam tri-state dance does not apply.
+-- Unconstrained at the column: the value vocabulary is validated by the Zod
+-- schema at the API boundary, matching how `coach_profiles.experience_level`
+-- stores the catalog's level enum.
+ALTER TABLE public.gym_equipment_profiles
+    ADD COLUMN IF NOT EXISTS equipment_preference TEXT NULL;

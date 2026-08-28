@@ -1,6 +1,7 @@
 import { getClient } from '../db/poolManager.js';
 import type {
   EquipmentItemSlug,
+  EquipmentPreference,
   ExerciseApparatus,
   GymEquipmentValue,
   LoadLimits,
@@ -21,6 +22,9 @@ export interface GymEquipmentProfileRow {
   equipment_items: EquipmentItemSlug[] | null;
   // Per-equipment ceilings/steps, kg; null = none stated (no cap).
   load_limits: LoadLimits | null;
+  // Which kind of equipment to favour here; null = never stated, and
+  // selection then behaves exactly as it did before the column existed.
+  equipment_preference: EquipmentPreference | null;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -32,6 +36,7 @@ export interface GymEquipmentProfileCreate {
   apparatus?: ExerciseApparatus[] | null;
   equipment_items?: EquipmentItemSlug[] | null;
   load_limits?: LoadLimits | null;
+  equipment_preference?: EquipmentPreference | null;
   is_active?: boolean;
 }
 
@@ -49,10 +54,12 @@ export interface GymEquipmentProfilePatch {
   equipment_items?: EquipmentItemSlug[] | null;
   /** Explicit null clears every limit; a map replaces the whole column. */
   load_limits?: LoadLimits | null;
+  /** Explicit null clears back to "never stated". */
+  equipment_preference?: EquipmentPreference | null;
 }
 
 const PROFILE_COLS =
-  'id, user_id, name, equipment, apparatus, equipment_items, load_limits, is_active, created_at, updated_at';
+  'id, user_id, name, equipment, apparatus, equipment_items, load_limits, equipment_preference, is_active, created_at, updated_at';
 
 // node-postgres renders a JS array parameter as a Postgres array literal,
 // which a jsonb column rejects — serialize explicitly and cast.
@@ -62,6 +69,9 @@ const PATCHABLE_COLS = [
   'apparatus',
   'equipment_items',
   'load_limits',
+  // Not in JSONB_COLS: a TEXT column, so the value binds directly and an
+  // explicit null really is SQL NULL without the toJsonbParam dance.
+  'equipment_preference',
 ] as const;
 const JSONB_COLS = new Set<string>([
   'equipment',
@@ -183,8 +193,8 @@ async function createGymProfile(
       );
     }
     const result = await client.query(
-      `INSERT INTO gym_equipment_profiles (user_id, name, equipment, apparatus, equipment_items, load_limits, is_active)
-       VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7)
+      `INSERT INTO gym_equipment_profiles (user_id, name, equipment, apparatus, equipment_items, load_limits, equipment_preference, is_active)
+       VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8)
        RETURNING ${PROFILE_COLS}`,
       [
         userId,
@@ -193,6 +203,7 @@ async function createGymProfile(
         toJsonbParam(profile.apparatus),
         toJsonbParam(profile.equipment_items),
         toJsonbParam(profile.load_limits),
+        profile.equipment_preference ?? null,
         isActive,
       ]
     );

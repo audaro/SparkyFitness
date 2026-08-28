@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { EQUIPMENT } from "../../constants/exerciseTaxonomy.ts";
+import {
+  EQUIPMENT,
+  EQUIPMENT_PREFERENCES,
+} from "../../constants/exerciseTaxonomy.ts";
 import { EXERCISE_APPARATUS } from "../../constants/exerciseApparatus.ts";
 import { EQUIPMENT_ITEM_SLUGS } from "../../constants/equipmentItems.ts";
 
@@ -70,6 +73,16 @@ export const loadLimitsSchema = z.partialRecord(
     .strict(),
 );
 
+/**
+ * Which kind of equipment to favour at this gym. Absent/NULL means "never
+ * stated" and selection behaves exactly as it did before the field existed.
+ *
+ * Orthogonal to the derivation contract above: a preference says which of the
+ * gym's equipment the user *likes*, never which equipment the gym *has*, so
+ * unlike `equipment_items` it may ride alongside any other field.
+ */
+export const gymEquipmentPreferenceValueSchema = z.enum(EQUIPMENT_PREFERENCES);
+
 const profileNameSchema = z.string().trim().min(1).max(100);
 
 // --- Response contracts ---
@@ -85,6 +98,7 @@ export const gymEquipmentProfileResponseSchema = z
     apparatus: z.array(z.string()).nullable(),
     equipment_items: z.array(z.string()).nullable(),
     load_limits: loadLimitsSchema.nullable(),
+    equipment_preference: gymEquipmentPreferenceValueSchema.nullable(),
     is_active: z.boolean(),
     created_at: z.string(),
     updated_at: z.string(),
@@ -119,6 +133,8 @@ export const createGymEquipmentProfileRequestSchema = z
     equipment_items: equipmentItemsListSchema.optional(),
     /** Omitted = no limits (stored NULL; prescription is unconstrained). */
     load_limits: loadLimitsSchema.optional(),
+    /** Omitted = "never stated"; selection is unbiased by equipment. */
+    equipment_preference: gymEquipmentPreferenceValueSchema.optional(),
     /**
      * Creating a profile already active is a real flow (the first profile a
      * user makes). The server routes it through the same transaction the
@@ -170,6 +186,10 @@ export const updateGymEquipmentProfileRequestSchema = z
     equipment_items: equipmentItemsListSchema.nullable().optional(),
     /** Explicit null clears every limit; the map replaces, never merges. */
     load_limits: loadLimitsSchema.nullable().optional(),
+    /** Explicit null clears back to "never stated". */
+    equipment_preference: gymEquipmentPreferenceValueSchema
+      .nullable()
+      .optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, {
@@ -193,6 +213,9 @@ export type GymEquipmentValue = z.infer<typeof gymEquipmentValueSchema>;
 export type GymEquipmentItemValue = z.infer<typeof gymEquipmentItemValueSchema>;
 export type GymApparatusValue = z.infer<typeof gymApparatusValueSchema>;
 export type GymLoadLimits = z.infer<typeof loadLimitsSchema>;
+export type GymEquipmentPreferenceValue = z.infer<
+  typeof gymEquipmentPreferenceValueSchema
+>;
 export type GymEquipmentProfileResponse = z.infer<
   typeof gymEquipmentProfileResponseSchema
 >;

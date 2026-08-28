@@ -75,6 +75,7 @@ function options(
     availableApparatus: null,
     loadLimits: null,
     availableEquipmentItems: null,
+    equipmentPreference: null,
     limitations: [],
     goal: 'general',
     ...overrides,
@@ -896,8 +897,11 @@ describe('planWorkout', () => {
   });
 
   it('prefers a candidate matching the stated experience level', () => {
+    // Both are canonical chest presses, so the pattern bonus cancels and the
+    // level match is the only term left to separate them.
     const matched = candidate({
       id: 'c9',
+      name: 'Machine Press',
       primaryMuscles: ['chest'],
       mechanic: 'compound',
       level: 'beginner',
@@ -916,8 +920,10 @@ describe('planWorkout', () => {
   it('biases a stated beginner away from an unperformed expert movement', () => {
     // The expert row gets the LOWER id, so if the two scored equally the
     // tiebreak would pick it — the unleveled row winning is the penalty.
+    // Equal-length names keep the id the deciding term of that tiebreak.
     const expert = candidate({
       id: 'c0-expert',
+      name: 'Movement One',
       primaryMuscles: ['chest'],
       mechanic: 'compound',
       level: 'expert',
@@ -942,6 +948,7 @@ describe('planWorkout', () => {
     // has the higher id, so a tie would go the other way.
     const familiarExpert = candidate({
       id: 'c9-expert',
+      name: 'Movement One',
       primaryMuscles: ['chest'],
       mechanic: 'compound',
       level: 'expert',
@@ -949,6 +956,7 @@ describe('planWorkout', () => {
     });
     const matchedUnfamiliar = candidate({
       id: 'c0-beginner',
+      name: 'Movement Two',
       primaryMuscles: ['chest'],
       mechanic: 'compound',
       level: 'beginner',
@@ -971,12 +979,14 @@ describe('planWorkout', () => {
       [
         candidate({
           id: 'a-intermediate',
+          name: 'Movement One',
           primaryMuscles: ['chest'],
           mechanic: 'compound',
           level: 'intermediate',
         }),
         candidate({
           id: 'b-plain',
+          name: 'Movement Two',
           primaryMuscles: ['chest'],
           mechanic: 'compound',
         }),
@@ -992,12 +1002,14 @@ describe('planWorkout', () => {
       [
         candidate({
           id: 'a-beginner',
+          name: 'Movement One',
           primaryMuscles: ['chest'],
           mechanic: 'compound',
           level: 'beginner',
         }),
         candidate({
           id: 'b-plain',
+          name: 'Movement Two',
           primaryMuscles: ['chest'],
           mechanic: 'compound',
         }),
@@ -1163,6 +1175,219 @@ describe('planWorkout', () => {
 
     expect(plan.exercises).toEqual([]);
     expect(plan.targetMuscles).toEqual(['chest', 'lats']);
+  });
+});
+
+// --- equipment preference ---------------------------------------------------
+
+describe('equipment preference', () => {
+  // The regression this whole feature exists for, reduced to its bones: a
+  // free-exercise-db catalog rates machines `beginner` almost without
+  // exception, so on an `intermediate` profile the level-match bonus alone
+  // selected *away* from every machine in the gym.
+  const MACHINE_PRESS = candidate({
+    id: 'm1',
+    name: 'Machine Chest Press',
+    primaryMuscles: ['chest'],
+    equipment: ['machine'],
+    mechanic: 'compound',
+    level: 'beginner',
+  });
+  const DUMBBELL_ODDITY = candidate({
+    id: 'd1',
+    name: 'Around The Worlds',
+    primaryMuscles: ['chest'],
+    equipment: ['dumbbell'],
+    mechanic: 'compound',
+    level: 'intermediate',
+  });
+  const CABLE_FLY = candidate({
+    id: 'c1',
+    name: 'Incline Cable Flye',
+    primaryMuscles: ['chest'],
+    equipment: ['cable'],
+    mechanic: 'isolation',
+    level: 'intermediate',
+  });
+  const PEC_DECK = candidate({
+    id: 'p1',
+    name: 'Butterfly',
+    primaryMuscles: ['chest'],
+    equipment: ['machine'],
+    mechanic: 'isolation',
+    level: 'beginner',
+  });
+
+  it('leaves selection untouched when no preference is stated', () => {
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [MACHINE_PRESS, DUMBBELL_ODDITY],
+      options({ experienceLevel: 'intermediate', equipmentPreference: null })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('d1');
+  });
+
+  it('outranks the level-match bonus, so a machine gym gets machines', () => {
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [MACHINE_PRESS, DUMBBELL_ODDITY],
+      options({
+        experienceLevel: 'intermediate',
+        equipmentPreference: 'machines',
+      })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('m1');
+  });
+
+  it('ranks a cable above a dumbbell but below a machine', () => {
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [MACHINE_PRESS, CABLE_FLY, PEC_DECK],
+      options({
+        experienceLevel: 'intermediate',
+        equipmentPreference: 'machines',
+      })
+    );
+
+    // The pec deck takes the isolation slot even though the cable fly is the
+    // level-matched row: near tier beats far, machine beats near.
+    expect(
+      plan.exercises.find((e) => e.slot === 'isolation')?.candidate.id
+    ).toBe('p1');
+  });
+
+  it('still programs the non-preferred kind when it is all a muscle has', () => {
+    // A preference, not a filter. Every candidate takes the same penalty, so
+    // the ordering underneath re-emerges and the slot is filled.
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [DUMBBELL_ODDITY],
+      options({ equipmentPreference: 'machines' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('d1');
+  });
+
+  it('mirrors itself for a free-weight gym', () => {
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [MACHINE_PRESS, DUMBBELL_ODDITY],
+      options({ equipmentPreference: 'free_weights' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('d1');
+  });
+
+  it('keeps the stretch invariant under a stated preference', () => {
+    // mobilityPenalty has to clear the preference penalties too: a familiar,
+    // level-matched, canonically-named stretch must still lose to a movement
+    // on the wrong equipment.
+    const bestStretch = {
+      ...candidate({
+        id: 'a-stretch',
+        name: 'Chest Press Stretch',
+        primaryMuscles: ['chest'],
+        equipment: ['machine'],
+        mechanic: 'compound',
+        level: 'beginner',
+        timesPerformed: 20,
+      }),
+      category: 'stretching',
+    };
+    const worstReal = candidate({
+      id: 'z-real',
+      name: 'Barbell Something',
+      primaryMuscles: ['chest'],
+      equipment: ['barbell'],
+      mechanic: 'compound',
+      level: 'expert',
+    });
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [bestStretch, worstReal],
+      options({
+        experienceLevel: 'beginner',
+        equipmentPreference: 'machines',
+      })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('z-real');
+  });
+});
+
+// --- movement centrality ----------------------------------------------------
+
+describe('canonical patterns and the plainer-name tiebreak', () => {
+  function chestMachine(id: string, name: string): CandidateExercise {
+    return candidate({
+      id,
+      name,
+      primaryMuscles: ['chest'],
+      equipment: ['machine'],
+      mechanic: 'compound',
+    });
+  }
+
+  it('opens a muscle with its canonical pattern, not an accessory', () => {
+    // Both are machine compounds for chest and nothing else separates them;
+    // the press is what a push day opens with.
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [
+        chestMachine('a-dip', 'Assisted Wide-Grip Chest Dip (Kneeling)'),
+        chestMachine('z-press', 'Machine Chest Press'),
+      ],
+      options({ equipmentPreference: 'machines' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('z-press');
+  });
+
+  it('prefers the plain movement to its own qualified variants', () => {
+    // Both match the canonical pattern; the tiebreak spends itself on the
+    // plainer name rather than on whichever uuid sorted first.
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [
+        chestMachine('a-decline', 'Machine Decline Chest Press'),
+        chestMachine('z-plain', 'Machine Chest Press'),
+      ],
+      options({ equipmentPreference: 'machines' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('z-plain');
+  });
+
+  it('penalizes a grip or stance re-cut of a movement', () => {
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [
+        chestMachine('a-reverse', 'Reverse-Grip Machine Press'),
+        chestMachine('z-plain', 'Machine Press Standing Wide'),
+      ],
+      options({ equipmentPreference: 'machines' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('z-plain');
+  });
+
+  it('lets a logged movement beat a canonical one it has never done', () => {
+    // Both tie-break terms are sized to lose to real evidence.
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [
+        chestMachine('a-press', 'Machine Chest Press'),
+        {
+          ...chestMachine('z-dip', 'Assisted Chest Dip (Kneeling)'),
+          timesPerformed: 12,
+        },
+      ],
+      options({ equipmentPreference: 'machines' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('z-dip');
   });
 });
 

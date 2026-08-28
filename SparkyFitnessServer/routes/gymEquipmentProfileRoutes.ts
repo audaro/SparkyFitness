@@ -48,6 +48,8 @@ function toResponse(row: GymEquipmentProfileRow): GymEquipmentProfileResponse {
     // `?? null` guards a row read before the equipment_items migration ran.
     equipment_items: row.equipment_items ?? null,
     load_limits: row.load_limits,
+    // `?? null` guards a row read before the equipment_preference migration.
+    equipment_preference: row.equipment_preference ?? null,
     is_active: row.is_active,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
@@ -104,6 +106,10 @@ const listHandler: RequestHandler = async (req, res, next) => {
  *       `lat-pulldown`); when present the server derives `equipment` and `apparatus` from the items,
  *       and a payload carrying items together with either coarse field is rejected 400. One of
  *       `equipment` or `equipment_items` is required.
+ *       `equipment_preference` is optional (`machines` or `free_weights`) and says which kind of
+ *       equipment to favour when generating a workout here; omitted means "never stated" and
+ *       selection is unbiased. It is a preference, not a filter — a muscle covered only by the
+ *       other kind is still programmed.
  *       Passing `is_active: true` deactivates the previous active profile in the same transaction.
  *     security:
  *       - cookieAuth: []
@@ -141,6 +147,10 @@ const createHandler: RequestHandler = async (req, res, next) => {
         apparatus: deriveApparatusFromItems(items),
         equipment_items: items,
         load_limits: body.load_limits,
+        // Carried through explicitly: this branch rebuilds the create payload
+        // field by field rather than spreading, so anything not named here is
+        // silently dropped for item-stated profiles only.
+        equipment_preference: body.equipment_preference,
         is_active: body.is_active,
       };
     } else if (body.equipment !== undefined) {
@@ -182,6 +192,8 @@ const createHandler: RequestHandler = async (req, res, next) => {
  *       from it and may not ride along) or explicit `null` to drop the profile back to coarse mode.
  *       Rewriting `equipment` or `apparatus` on an item-stated profile also drops it back to coarse
  *       mode, so the stored items can never silently disagree with the coarse columns.
+ *       `equipment_preference` accepts `machines`, `free_weights`, or explicit `null` to clear back
+ *       to "never stated"; it is independent of the derivation contract and may ride with any field.
  *     security:
  *       - cookieAuth: []
  *     responses:

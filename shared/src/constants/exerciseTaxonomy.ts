@@ -73,6 +73,106 @@ export type ExerciseLevel = (typeof EXERCISE_LEVELS)[number];
 export const EXERCISE_MECHANICS = ["compound", "isolation"] as const;
 export type ExerciseMechanic = (typeof EXERCISE_MECHANICS)[number];
 
+/**
+ * What a gym profile says the user would rather train on there
+ * (`gym_equipment_profiles.equipment_preference`). NULL on the column means
+ * never stated, which is not a third value — it is the absence of a
+ * statement, and selection then behaves exactly as it did before the column
+ * existed.
+ *
+ * This is a *preference*, deliberately not a filter: it reorders candidates
+ * that all already passed the equipment gate. A muscle whose only good option
+ * is the non-preferred kind still gets that option rather than nothing, which
+ * is why `EQUIPMENT_PREFERENCE_TIERS` grades rather than excludes.
+ *
+ * NOT part of the pinned free-exercise-db vocabulary — these values never
+ * reach the `?|` catalog filter, same rule as apparatus and item slugs.
+ */
+export const EQUIPMENT_PREFERENCES = ["machines", "free_weights"] as const;
+export type EquipmentPreference = (typeof EQUIPMENT_PREFERENCES)[number];
+
+/**
+ * How far each coarse equipment value sits from a stated preference: 0 is the
+ * preference itself, 1 is the near miss, 2 is the other end.
+ *
+ * Cables are the load-bearing middle tier and the reason this is a three-step
+ * grade rather than a boolean. A cable tower *is* a machine to someone who
+ * picked "machines" — a triceps pushdown belongs on that day — but a pec deck
+ * belongs there more, and a boolean would let a cable fly keep taking the
+ * chest slot away from the chest press machine. Grading puts the plate-loaded
+ * station first, the cable second, and the dumbbell third, which is the order
+ * a machine-gym user actually wants.
+ *
+ * Equipment absent from a tier map takes the far tier: `body only`, `bands`,
+ * `medicine ball` and friends are neither machines nor free weights, and the
+ * honest answer for a stated preference is "not what you asked for".
+ */
+export const EQUIPMENT_PREFERENCE_TIERS: Readonly<
+  Record<EquipmentPreference, Readonly<Partial<Record<Equipment, number>>>>
+> = {
+  machines: {
+    machine: 0,
+    cable: 1,
+  },
+  free_weights: {
+    barbell: 0,
+    dumbbell: 0,
+    kettlebells: 0,
+    "e-z curl bar": 0,
+    "medicine ball": 0,
+    "body only": 1,
+    cable: 1,
+  },
+};
+
+/** The tier an unlisted equipment value falls into. */
+export const EQUIPMENT_PREFERENCE_FAR_TIER = 2;
+
+/**
+ * The movement patterns that are each muscle's bread and butter, as lowercase
+ * fragments of an exercise name.
+ *
+ * This exists because "compound" and "isolation" are too coarse to order a
+ * slot on their own. Every chest compound in a machine gym scores identically
+ * — a chest press machine, a Smith bench press and an assisted kneeling dip
+ * are all `compound`, all `machine`, all unfamiliar — so the winner came down
+ * to which uuid sorted first, and a push day opened with the assisted dip
+ * about as often as with the press. That is not a worse workout by a hair; it
+ * is the accessory taking the slot the main lift should have.
+ *
+ * The content is ordinary training knowledge — press for chest, row and
+ * pulldown for the back, curl for biceps — deliberately kept to the patterns a
+ * coach would name first for each muscle, not a ranking of individual
+ * exercises. It is applied *within* a slot that compound/isolation already
+ * chose, so "press" ranking chest does not mean a press wins the isolation
+ * slot; it means the pressing machine beats the dip station for the opener,
+ * and the fly beats the incline shoulder raise for the accessory.
+ *
+ * Matched as substrings of a lowercased name, blunt on purpose and safe to be
+ * blunt because the bonus only settles ties. `fly` covers `flye` and, by happy
+ * accident, `butterfly` — the pec deck's catalog name.
+ */
+export const CANONICAL_MOVEMENT_PATTERNS: Readonly<
+  Partial<Record<Muscle, readonly string[]>>
+> = {
+  chest: ["press", "fly"],
+  shoulders: ["press", "raise", "fly"],
+  triceps: ["extension", "pushdown", "dip", "press"],
+  biceps: ["curl"],
+  lats: ["pulldown", "row", "pull-up", "pullup", "chin"],
+  "middle back": ["row", "pulldown"],
+  "lower back": ["extension", "deadlift", "good morning"],
+  traps: ["shrug"],
+  quadriceps: ["squat", "leg press", "extension", "lunge"],
+  hamstrings: ["curl", "deadlift", "good morning"],
+  glutes: ["squat", "leg press", "thrust", "deadlift", "hip extension", "lunge"],
+  calves: ["calf", "toe raise"],
+  abdominals: ["crunch", "raise", "plank", "twist", "sit-up"],
+  abductors: ["abduction"],
+  adductors: ["adduction"],
+  forearms: ["curl", "grip"],
+};
+
 /** Canonical category vocabulary. */
 export const EXERCISE_CATEGORIES = [
   "cardio",

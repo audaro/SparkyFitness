@@ -82,6 +82,7 @@ describe('Gym Equipment Profile Routes', () => {
             apparatus: null,
             equipment_items: null,
             load_limits: null,
+            equipment_preference: null,
             is_active: true,
             created_at: '2026-08-23T10:00:00.000Z',
             updated_at: '2026-08-23T11:00:00.000Z',
@@ -175,6 +176,68 @@ describe('Gym Equipment Profile Routes', () => {
         equipment: ['dumbbell'],
         load_limits: { dumbbell: { max_kg: 22.5 } },
       });
+    });
+
+    it('creates a profile with an equipment preference', async () => {
+      repo.createGymProfile.mockResolvedValue({
+        ...ROW,
+        equipment_preference: 'machines',
+      });
+
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({
+          name: 'PF',
+          equipment: ['machine'],
+          equipment_preference: 'machines',
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.equipment_preference).toBe('machines');
+      expect(repo.createGymProfile).toHaveBeenCalledWith('test-user-id', {
+        name: 'PF',
+        equipment: ['machine'],
+        equipment_preference: 'machines',
+      });
+    });
+
+    it('carries the preference through the item-derivation branch', async () => {
+      // That branch rebuilds the create payload field by field instead of
+      // spreading it, so a field it forgets is dropped for item-stated
+      // profiles only — exactly the shape of bug that survives a spread test.
+      repo.createGymProfile.mockResolvedValue({
+        ...ROW,
+        equipment_preference: 'machines',
+      });
+
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        .send({
+          name: 'PF',
+          equipment_items: ['chest-press-machine', 'pec-deck'],
+          equipment_preference: 'machines',
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(repo.createGymProfile).toHaveBeenCalledWith(
+        'test-user-id',
+        expect.objectContaining({ equipment_preference: 'machines' })
+      );
+    });
+
+    it('rejects a preference outside the vocabulary', async () => {
+      const res = await request(app)
+        .post('/api/gym-equipment-profiles')
+        // Compared by exact string equality in scoring, so a synonym would
+        // read as "never stated" rather than failing.
+        .send({
+          name: 'PF',
+          equipment: ['machine'],
+          equipment_preference: 'Machines',
+        });
+
+      expect(res.statusCode).toBe(400);
+      expect(repo.createGymProfile).not.toHaveBeenCalled();
     });
 
     it('rejects a load-limit key outside the equipment vocabulary', async () => {
@@ -427,6 +490,25 @@ describe('Gym Equipment Profile Routes', () => {
         'test-user-id',
         PROFILE_ID,
         { load_limits: null }
+      );
+    });
+
+    it('clears the equipment preference back to unstated', async () => {
+      repo.updateGymProfile.mockResolvedValue({
+        ...ROW,
+        equipment_preference: null,
+      });
+
+      const res = await request(app)
+        .put(`/api/gym-equipment-profiles/${PROFILE_ID}`)
+        .send({ equipment_preference: null });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.equipment_preference).toBeNull();
+      expect(repo.updateGymProfile).toHaveBeenCalledWith(
+        'test-user-id',
+        PROFILE_ID,
+        { equipment_preference: null }
       );
     });
 

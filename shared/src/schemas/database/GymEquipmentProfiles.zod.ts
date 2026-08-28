@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { EQUIPMENT } from "../../constants/exerciseTaxonomy.ts";
+import {
+  EQUIPMENT,
+  EQUIPMENT_PREFERENCES,
+} from "../../constants/exerciseTaxonomy.ts";
 import { EXERCISE_APPARATUS } from "../../constants/exerciseApparatus.ts";
 import { EQUIPMENT_ITEM_SLUGS } from "../../constants/equipmentItems.ts";
 
@@ -50,10 +53,22 @@ export const gymLoadLimitSchema = z
   })
   .strict();
 
+/**
+ * Which kind of equipment the user would rather train on at this gym. NULL on
+ * the column means never stated — not a third value, just the absence of a
+ * statement — and the engine then selects exactly as it did before the column
+ * existed. Validated against the pinned vocabulary rather than accepted as
+ * free text, for the same reason `coach_profiles.experience_level` is: the
+ * value is compared by exact string equality, so a synonym would silently
+ * behave as "unstated" instead of failing.
+ */
+export const gymEquipmentPreferenceSchema = z.enum(EQUIPMENT_PREFERENCES);
+
 const gymEquipmentProfilesFieldsSchema = z.object({
   user_id: userIdSchema,
   name: z.string().min(1).max(100),
   equipment: z.array(gymEquipmentSchema),
+  equipment_preference: gymEquipmentPreferenceSchema.nullable(),
   apparatus: z.array(gymApparatusSchema).nullable(),
   equipment_items: z
     .array(equipmentItemSlugSchema)

@@ -1,9 +1,14 @@
 import {
   ALWAYS_AVAILABLE_EQUIPMENT,
+  CANONICAL_MOVEMENT_PATTERNS,
+  EQUIPMENT_PREFERENCE_FAR_TIER,
+  EQUIPMENT_PREFERENCE_TIERS,
   isLowerBodyMuscle,
   normalizeEquipmentName,
   normalizeMuscleName,
   toCanonicalMuscle,
+  type Equipment,
+  type EquipmentPreference,
   type Muscle,
 } from "../constants/exerciseTaxonomy.ts";
 import {
@@ -102,17 +107,71 @@ export const GENERATION_TUNABLES = {
   /** Penalty for an exercise the current workout already used (Swap). */
   swapPenalty: -3,
   /**
+   * Penalties for missing the gym profile's stated equipment preference, by
+   * how far the candidate's equipment sits from it
+   * (`EQUIPMENT_PREFERENCE_TIERS`): the near tier is the cable when machines
+   * were asked for, the far tier is everything else. Nothing is applied when
+   * no preference is stated.
+   *
+   * The far penalty has to beat every positive term combined
+   * (`familiarityBonus + levelMatchBonus` = +3) or the preference would be
+   * advisory: the whole reason this exists is that a free-exercise-db catalog
+   * rates almost every machine `beginner`, so on an intermediate profile the
+   * level bonus alone was silently selecting *away* from machines — 0 of 58
+   * eligible machine rows could win a push slot. A preference the user stated
+   * out loud must outrank a difficulty label upstream assigned by editorial
+   * habit.
+   *
+   * Still penalties rather than a filter, and that is the point of the whole
+   * design: a muscle whose only sane movement is the non-preferred kind gets
+   * that movement rather than an empty slot, because every candidate in its
+   * pool takes the same penalty and the ordering underneath re-emerges intact.
+   */
+  equipmentPreferenceNearPenalty: -2,
+  equipmentPreferenceFarPenalty: -4,
+  /**
+   * Penalty for a movement whose name marks it as a variation of a base
+   * movement it is competing against ({@link VARIANT_NAME_MARKERS}).
+   *
+   * Sized to break ties and nothing else: once a preference is stated, a slot
+   * is often contested by a dozen rows that score identically, and the winner
+   * was decided by uuid ordering — a lottery that happily opened a push day
+   * with a reverse-grip decline press. One point is enough to put the plain
+   * bench press ahead of its own reverse-grip variant while still losing to
+   * any real signal, so a variation the user has actually logged
+   * (`familiarityBonus`) still wins.
+   */
+  variantPenalty: -1,
+  /**
+   * Bonus for a movement matching one of its target muscle's canonical
+   * patterns ({@link CANONICAL_MOVEMENT_PATTERNS}).
+   *
+   * The other half of the tie-break tier, and the reason a machine day opens
+   * with the chest press rather than the assisted dip: compound/isolation
+   * picks the slot, this picks the movement inside it. One point, like the
+   * variant penalty, so it decides only between candidates nothing else
+   * separates — an exercise the user has actually logged still wins.
+   */
+  canonicalPatternBonus: 1,
+  /**
    * Penalty for a mobility movement competing for a training slot.
    *
-   * Sized to lose to any real movement: the best-scoring stretch (familiar
-   * and level-matched, `familiarityBonus + levelMatchBonus` = +3) has to land
-   * below the worst-scoring real movement (unfamiliar and two levels too
-   * advanced, `levelTooAdvancedPenalty` = -2), or a stretch the user has done
-   * before would outrank a press they have not. Not a hard exclusion, so a
-   * muscle whose catalog offers nothing else still gets something — programmed
-   * as a hold, which is what {@link isMobilityExercise} is really for.
+   * Sized to lose to any real movement: the best-scoring stretch (familiar and
+   * level-matched, `familiarityBonus + levelMatchBonus` = +3) has to land below
+   * the worst-scoring real movement, or a stretch the user has done before
+   * would outrank a press they have not. Not a hard exclusion, so a muscle
+   * whose catalog offers nothing else still gets something — programmed as a
+   * hold, which is what {@link isMobilityExercise} is really for.
+   *
+   * The floor it has to clear moved when equipment preference arrived: the
+   * worst real movement is now unfamiliar, two levels too advanced, a variant,
+   * AND the far side of a stated preference (-2 + -1 + -4 = -7), while the
+   * best stretch can additionally match a canonical pattern (+1 on top of the
+   * +3 above). -6 would have let a familiar stretch beat a real movement on a
+   * machine day. This is the arithmetic; `tests/workoutGeneration.test.ts`
+   * asserts the behaviour, which is what actually has to hold.
    */
-  mobilityPenalty: -6,
+  mobilityPenalty: -14,
 
   /** Working sets per exercise; strength trades reps for one more set. */
   workingSetsDefault: 3,
@@ -332,6 +391,15 @@ export interface GenerationOptions {
    * fail-loud reason as `availableApparatus`.
    */
   availableEquipmentItems: readonly EquipmentItemSlug[] | null;
+  /**
+   * The gym profile's stated equipment preference
+   * (`gym_equipment_profiles.equipment_preference`). `null` = never stated =
+   * selection exactly as it behaved before the column existed. A statement
+   * reorders the candidates that already passed the equipment gate; it never
+   * removes one. Required, not defaulted, for the same fail-loud reason as
+   * `availableApparatus`.
+   */
+  equipmentPreference: EquipmentPreference | null;
   /** `coach_profiles.limitations`, lowercased. */
   limitations: string[];
   goal: WorkoutGoal;
@@ -701,6 +769,95 @@ export function isCompound(candidate: CandidateExercise): boolean {
   return candidate.mechanic?.trim().toLowerCase() === "compound";
 }
 
+/**
+ * Name fragments that mark a row as a variation of a base movement rather than
+ * a movement in its own right.
+ *
+ * Deliberately conservative. `incline` and `decline` are NOT here: an incline
+ * press is a programming choice a coach makes on purpose, not a lesser version
+ * of the flat one. What is here is grip and stance re-cuts ("reverse-grip",
+ * "one arm"), positions nobody programs first ("behind neck"), and the
+ * catalog's own explicit re-films ("(variation"), which exist because upstream
+ * filmed the same station twice.
+ *
+ * Substring matching on a lowercased name, blunt in the same way
+ * {@link isExcludedByLimitations} is blunt, and safe to be blunt because the
+ * penalty is one point — it settles ties and never overrides evidence.
+ */
+export const VARIANT_NAME_MARKERS: readonly string[] = [
+  "reverse-grip",
+  "reverse grip",
+  "behind neck",
+  "behind head",
+  "one arm",
+  "one-arm",
+  "single arm",
+  "single-arm",
+  "one leg",
+  "one-leg",
+  "single leg",
+  "single-leg",
+  "unilateral",
+  "alternating",
+  "alternate",
+  "(variation",
+];
+
+/** Whether a candidate's name marks it as a variation of a base movement. */
+export function isNameMarkedVariant(
+  candidate: Pick<CandidateExercise, "name">,
+): boolean {
+  const name = candidate.name.toLowerCase();
+  return VARIANT_NAME_MARKERS.some((marker) => name.includes(marker));
+}
+
+/**
+ * Whether a candidate's name matches one of the canonical movement patterns
+ * for the muscle the slot is being filled for.
+ *
+ * Keyed on the *target* muscle rather than the candidate's own primary list:
+ * the question is "is this a main movement for what I am training right now",
+ * and a row whose primary muscle is chest can be picked to train shoulders.
+ */
+export function matchesCanonicalPattern(
+  candidate: Pick<CandidateExercise, "name">,
+  targetMuscle: string | null,
+): boolean {
+  if (targetMuscle === null) return false;
+  const patterns =
+    CANONICAL_MOVEMENT_PATTERNS[normalizeMuscleName(targetMuscle) as Muscle];
+  if (patterns === undefined) return false;
+  const name = candidate.name.toLowerCase();
+  return patterns.some((pattern) => name.includes(pattern));
+}
+
+/**
+ * How far a candidate's equipment sits from a stated preference, or `null`
+ * when nothing was stated.
+ *
+ * A row carrying several equipment values takes its **best** tier: an exercise
+ * listed as both machine and cable is a machine to someone who asked for
+ * machines, and penalizing it for also being reachable another way would be
+ * backwards. An empty equipment list has nothing to grade and takes no penalty
+ * at all rather than the far tier — silence in the catalog is not evidence the
+ * user's preference was missed.
+ */
+export function equipmentPreferenceTier(
+  candidate: Pick<CandidateExercise, "equipment">,
+  preference: EquipmentPreference | null,
+): number | null {
+  if (preference === null) return null;
+  const tiers = EQUIPMENT_PREFERENCE_TIERS[preference];
+  let best: number | null = null;
+  for (const value of candidate.equipment) {
+    const tier =
+      tiers[normalizeEquipmentName(value) as Equipment] ??
+      EQUIPMENT_PREFERENCE_FAR_TIER;
+    if (best === null || tier < best) best = tier;
+  }
+  return best;
+}
+
 function trainsPrimarily(
   candidate: CandidateExercise,
   muscle: string,
@@ -722,6 +879,13 @@ function scoreCandidate(
   candidate: CandidateExercise,
   options: GenerationOptions,
   excludeIds: ReadonlySet<string>,
+  /**
+   * The muscle this slot is being filled for. `null` where the caller is
+   * ranking without one — the canonical-pattern bonus is simply not applied,
+   * rather than guessed from the candidate's own primary list, because a
+   * movement's centrality is a fact about the muscle it is chosen for.
+   */
+  targetMuscle: string | null,
 ): number {
   let score = 0;
   if (candidate.timesPerformed > 0) {
@@ -750,10 +914,55 @@ function scoreCandidate(
   if (excludeIds.has(candidate.id)) {
     score += GENERATION_TUNABLES.swapPenalty;
   }
+  // The gym's stated preference, graded rather than absolute: the near tier
+  // (a cable on a machine day) is still worth programming when no machine
+  // covers the muscle, so it gives up less than the far tier does.
+  const tier = equipmentPreferenceTier(candidate, options.equipmentPreference);
+  if (tier === 1) {
+    score += GENERATION_TUNABLES.equipmentPreferenceNearPenalty;
+  } else if (tier !== null && tier >= EQUIPMENT_PREFERENCE_FAR_TIER) {
+    score += GENERATION_TUNABLES.equipmentPreferenceFarPenalty;
+  }
+  if (isNameMarkedVariant(candidate)) {
+    score += GENERATION_TUNABLES.variantPenalty;
+  }
+  if (matchesCanonicalPattern(candidate, targetMuscle)) {
+    score += GENERATION_TUNABLES.canonicalPatternBonus;
+  }
   if (isMobilityExercise(candidate)) {
     score += GENERATION_TUNABLES.mobilityPenalty;
   }
   return score;
+}
+
+/**
+ * Breaks a score tie in favour of the plainer movement.
+ *
+ * Name length is a proxy for how qualified a movement is, and a surprisingly
+ * good one: within a family, every extra word is another qualifier on the same
+ * base lift. "Machine Chest Press" is shorter than "Machine Decline Chest
+ * Press", which is shorter than "Smith Machine Incline Reverse-Grip Press",
+ * and that is exactly the order a coach would program them in when nothing
+ * else distinguishes the three.
+ *
+ * It replaces a uuid comparison. That was deterministic — the property that
+ * actually matters, since "Up Next" must be the same workout across app opens
+ * — but it was determinism without meaning: which of a dozen equally-scored
+ * chest presses opened the workout came down to a random v4 uuid. This keeps
+ * the determinism (id still settles a genuine tie) and spends the tiebreak on
+ * something a lifter would recognise.
+ *
+ * Compared on the trimmed lowercase name so casing and stray whitespace in a
+ * hand-entered row cannot decide a workout.
+ */
+function isPlainerName(
+  candidate: CandidateExercise,
+  incumbent: CandidateExercise,
+): boolean {
+  const a = candidate.name.trim().toLowerCase();
+  const b = incumbent.name.trim().toLowerCase();
+  if (a.length !== b.length) return a.length < b.length;
+  return candidate.id < incumbent.id;
 }
 
 /**
@@ -770,17 +979,18 @@ function pickBest(
   options: GenerationOptions,
   usedIds: ReadonlySet<string>,
   excludeIds: ReadonlySet<string>,
+  targetMuscle: string | null = null,
 ): CandidateExercise | null {
   let best: CandidateExercise | null = null;
   let bestScore = -Infinity;
   for (const candidate of candidates) {
     if (usedIds.has(candidate.id)) continue;
-    const score = scoreCandidate(candidate, options, excludeIds);
-    // Strictly greater, plus an id tiebreak: never `>=`, which would make the
+    const score = scoreCandidate(candidate, options, excludeIds, targetMuscle);
+    // Strictly greater, plus the tiebreak: never `>=`, which would make the
     // winner depend on input order.
     if (
       score > bestScore ||
-      (score === bestScore && best !== null && candidate.id < best.id)
+      (score === bestScore && best !== null && isPlainerName(candidate, best))
     ) {
       best = candidate;
       bestScore = score;
@@ -837,7 +1047,13 @@ export function planWorkout(
     // machine-only gym may have no compound row at all, and an empty slot is
     // worse than an isolation one.
     const compoundPool = compounds.length > 0 ? compounds : isolations;
-    const compound = pickBest(compoundPool, options, usedIds, excludeIds);
+    const compound = pickBest(
+      compoundPool,
+      options,
+      usedIds,
+      excludeIds,
+      muscle,
+    );
     if (compound) {
       usedIds.add(compound.id);
       exercises.push({
@@ -850,7 +1066,13 @@ export function planWorkout(
     const isolationPool = isolations.filter(
       (candidate) => !usedIds.has(candidate.id),
     );
-    const isolation = pickBest(isolationPool, options, usedIds, excludeIds);
+    const isolation = pickBest(
+      isolationPool,
+      options,
+      usedIds,
+      excludeIds,
+      muscle,
+    );
     if (isolation) {
       usedIds.add(isolation.id);
       exercises.push({
@@ -865,6 +1087,7 @@ export function planWorkout(
       options,
       usedIds,
       excludeIds,
+      muscle,
     );
     if (bench) {
       alternates.push({
