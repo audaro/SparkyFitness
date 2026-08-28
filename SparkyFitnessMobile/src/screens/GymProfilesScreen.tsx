@@ -9,6 +9,7 @@ import {
   EQUIPMENT,
   EQUIPMENT_ITEMS,
   EQUIPMENT_ITEM_CATEGORIES,
+  EQUIPMENT_PREFERENCES,
   EXERCISE_APPARATUS,
   GYM_TEMPLATES,
   GYM_TEMPLATE_SLUGS,
@@ -19,6 +20,7 @@ import {
   type Equipment,
   type EquipmentItemCategory,
   type EquipmentItemSlug,
+  type EquipmentPreference,
   type ExerciseApparatus,
   type GymLoadLimits,
   type GymTemplateSlug,
@@ -27,6 +29,7 @@ import {
 import FormInput from '../components/FormInput';
 import Icon from '../components/Icon';
 import Button from '../components/ui/Button';
+import SegmentedControl from '../components/SegmentedControl';
 import Switch from '../components/ui/Switch';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
@@ -92,6 +95,28 @@ function toCanonicalApparatus(apparatus: string[]): ExerciseApparatus[] {
 /** And again for granular items, whose vocabulary can also grow past a row. */
 function toCanonicalItems(items: string[]): EquipmentItemSlug[] {
   return items.filter(isKnownEquipmentItem);
+}
+
+/**
+ * The segmented control cannot carry null, so "no preference" travels through
+ * the picker as this sentinel — the same shape as the experience-level
+ * picker's `'unset'`. It must never reach the wire.
+ */
+const PREFERENCE_UNSET = 'none';
+type PreferenceSegmentKey = EquipmentPreference | typeof PREFERENCE_UNSET;
+
+/**
+ * Same stale-row defense as {@link toCanonicalList} once more, for the scalar
+ * preference. A value this build does not know reads back as "never stated"
+ * rather than being echoed into the next save, where the request schema would
+ * reject it.
+ */
+function toCanonicalPreference(
+  preference: string | null | undefined,
+): EquipmentPreference | null {
+  return (EQUIPMENT_PREFERENCES as readonly string[]).includes(preference ?? '')
+    ? (preference as EquipmentPreference)
+    : null;
 }
 
 /** Stable testID suffix for a category ("benches & racks" → "benches-racks"). */
@@ -176,6 +201,15 @@ interface EditorState {
   apparatusSpecified: boolean;
   apparatus: ExerciseApparatus[];
   /**
+   * Which kind of equipment the user would rather train on here. null is "no
+   * preference" — not a third kind, just the absence of a statement, which is
+   * what every profile written before the column existed says. It is a
+   * preference and not a filter: the engine grades candidates by it rather
+   * than excluding anything, so a machine gym that only has a cable for one
+   * muscle still gets the cable.
+   */
+  equipmentPreference: EquipmentPreference | null;
+  /**
    * Heaviest dumbbell, as typed in the user's display unit. Converted to kg
    * only at save time; empty means "no limit" (the dumbbell entry is removed).
    */
@@ -223,6 +257,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
             equipment: [],
             apparatusSpecified: false,
             apparatus: [],
+            equipmentPreference: null,
             dumbbellMaxInput: '',
             // A first profile that is not active would change nothing, so
             // default it on; later ones are created inactive until switched to.
@@ -248,6 +283,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
         // "never stated", the same as SQL NULL.
         apparatusSpecified: Array.isArray(profile.apparatus),
         apparatus: toCanonicalApparatus(profile.apparatus ?? []),
+        equipmentPreference: toCanonicalPreference(profile.equipment_preference),
         dumbbellMaxInput:
           dumbbellMaxKg === undefined
             ? ''
@@ -375,6 +411,10 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
     }
     const loadLimits = Object.keys(nextLimits).length > 0 ? nextLimits : null;
     const apparatus = editor.apparatusSpecified ? editor.apparatus : null;
+    // Orthogonal to the derivation contract: the preference describes what the
+    // user wants picked from whatever the gym has, so it rides with either
+    // shape of payload rather than being derived from one.
+    const equipmentPreference = editor.equipmentPreference;
     try {
       if (editor.profile) {
         await updateProfileAsync({
@@ -383,8 +423,19 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
           // derives `equipment` and `apparatus`, and a payload carrying both
           // is a 400 by design.
           payload: editor.detailed
-            ? { name, equipment_items: editor.items, load_limits: loadLimits }
-            : { name, equipment: editor.equipment, apparatus, load_limits: loadLimits },
+            ? {
+                name,
+                equipment_items: editor.items,
+                equipment_preference: equipmentPreference,
+                load_limits: loadLimits,
+              }
+            : {
+                name,
+                equipment: editor.equipment,
+                apparatus,
+                equipment_preference: equipmentPreference,
+                load_limits: loadLimits,
+              },
         });
         // Activation is its own server-side transaction (it clears the
         // previous active row), so a profile switched on while editing needs
@@ -396,6 +447,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
         await createProfileAsync({
           name,
           equipment_items: editor.items,
+          ...(equipmentPreference !== null
+            ? { equipment_preference: equipmentPreference }
+            : {}),
           ...(loadLimits !== null ? { load_limits: loadLimits } : {}),
           is_active: editor.makeActive,
         });
@@ -406,6 +460,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
           // The create schema takes optionals, not nulls: omitted already
           // means "never stated" / "no limits" on a fresh row.
           ...(apparatus !== null ? { apparatus } : {}),
+          ...(equipmentPreference !== null
+            ? { equipment_preference: equipmentPreference }
+            : {}),
           ...(loadLimits !== null ? { load_limits: loadLimits } : {}),
           is_active: editor.makeActive,
         });
@@ -731,6 +788,52 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
                 </View>
               </>
             )}
+
+            <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
+              {t('gymProfiles.equipmentPreferenceLabel', {
+                defaultValue: 'Preferred equipment',
+              })}
+            </Text>
+            <Text className="text-sm text-text-secondary mb-3">
+              {t('gymProfiles.equipmentPreferenceHelp', {
+                defaultValue:
+                  'A nudge, not a filter. Suggested workouts lean toward what you pick and still use the rest when it is the better fit for a muscle.',
+              })}
+            </Text>
+            <SegmentedControl<PreferenceSegmentKey>
+              segments={[
+                {
+                  key: PREFERENCE_UNSET,
+                  label: t('gymProfiles.equipmentPreferenceNone', {
+                    defaultValue: 'No preference',
+                  }),
+                },
+                {
+                  key: 'machines',
+                  label: t('gymProfiles.equipmentPreferenceMachines', {
+                    defaultValue: 'Machines',
+                  }),
+                },
+                {
+                  key: 'free_weights',
+                  label: t('gymProfiles.equipmentPreferenceFreeWeights', {
+                    defaultValue: 'Free weights',
+                  }),
+                },
+              ]}
+              activeKey={editor.equipmentPreference ?? PREFERENCE_UNSET}
+              onSelect={(key) =>
+                setEditor((current) =>
+                  current
+                    ? {
+                        ...current,
+                        equipmentPreference:
+                          key === PREFERENCE_UNSET ? null : key,
+                      }
+                    : current,
+                )
+              }
+            />
 
             <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
               {t('gymProfiles.dumbbellMaxLabel', {

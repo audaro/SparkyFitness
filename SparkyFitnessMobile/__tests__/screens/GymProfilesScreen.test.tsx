@@ -58,6 +58,7 @@ function makeProfile(overrides: Partial<Record<string, unknown>> = {}) {
     apparatus: null,
     equipment_items: null,
     load_limits: null,
+    equipment_preference: null,
     is_active: false,
     created_at: '2026-08-23T00:00:00.000Z',
     updated_at: '2026-08-23T00:00:00.000Z',
@@ -237,6 +238,7 @@ describe('GymProfilesScreen', () => {
       expect(mockUpdateGymProfile).toHaveBeenCalledWith('profile-home', {
         name: 'Home',
         equipment_items: ['smith-machine', 'treadmill'],
+        equipment_preference: null,
         load_limits: null,
       }),
     );
@@ -258,6 +260,7 @@ describe('GymProfilesScreen', () => {
         name: 'Home Gym',
         equipment: ['dumbbell', 'bands'],
         apparatus: null,
+        equipment_preference: null,
         load_limits: null,
       }),
     );
@@ -349,8 +352,54 @@ describe('GymProfilesScreen', () => {
         name: 'Home',
         equipment: ['dumbbell', 'bands'],
         apparatus: ['bench'],
+        equipment_preference: null,
         load_limits: { barbell: { max_kg: 60 } },
       }),
+    );
+  });
+
+  it('states an equipment preference and reopens on the stated one', async () => {
+    mockFetchGymProfiles.mockResolvedValue([makeProfile()]);
+    mockUpdateGymProfile.mockResolvedValue(
+      makeProfile({ equipment_preference: 'machines' }),
+    );
+    const { findByTestId, getByText, getByLabelText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
+    // Unstated opens on "No preference" — the absence of a statement, not a
+    // third kind of gym.
+    expect(getByText('No preference').props.className).toContain(
+      'text-text-primary',
+    );
+    fireEvent.press(getByText('Machines'));
+    fireEvent.press(getByLabelText('Save'));
+
+    await waitFor(() =>
+      expect(mockUpdateGymProfile).toHaveBeenCalledWith(
+        'profile-home',
+        expect.objectContaining({ equipment_preference: 'machines' }),
+      ),
+    );
+  });
+
+  it('clears a stated preference back to unstated', async () => {
+    mockFetchGymProfiles.mockResolvedValue([
+      makeProfile({ equipment_preference: 'machines' }),
+    ]);
+    mockUpdateGymProfile.mockResolvedValue(makeProfile());
+    const { findByTestId, getByText, getByLabelText } = renderScreen();
+
+    fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
+    fireEvent.press(getByText('No preference'));
+    fireEvent.press(getByLabelText('Save'));
+
+    // The sentinel never reaches the wire: "no preference" travels as null,
+    // which is what clears the column back to unstated.
+    await waitFor(() =>
+      expect(mockUpdateGymProfile).toHaveBeenCalledWith(
+        'profile-home',
+        expect.objectContaining({ equipment_preference: null }),
+      ),
     );
   });
 
