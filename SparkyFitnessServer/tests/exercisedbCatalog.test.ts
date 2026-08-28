@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   EXERCISEDB_EQUIPMENT_TO_COARSE,
   EXERCISEDB_ITEM_REQUIREMENTS_BY_SOURCE_ID,
+  EXERCISEDB_MECHANIC_BY_SOURCE_ID,
   EXERCISEDB_SECONDARY_TO_MUSCLE,
   EXERCISEDB_SOURCE,
   EXERCISEDB_TARGET_TO_MUSCLE,
   EQUIPMENT,
   EQUIPMENT_ITEMS,
+  EXERCISE_MECHANICS,
   MUSCLES,
   isKnownEquipmentItem,
   requiredItemsFor,
@@ -178,6 +180,62 @@ describe('EXERCISEDB_ITEM_REQUIREMENTS_BY_SOURCE_ID', () => {
         true
       );
     }
+  });
+});
+
+describe('EXERCISEDB_MECHANIC_BY_SOURCE_ID', () => {
+  // The pack the importer actually walks: the machine family, minus the rows
+  // whose target the muscle map skips (they never reach the importer).
+  const packMembers = Object.entries(EXERCISEDB_CATALOG)
+    .filter(([, row]) =>
+      ['leverage machine', 'smith machine', 'sled machine'].includes(
+        row.equipment
+      )
+    )
+    .filter(([, row]) => {
+      // null is the cardio target the muscle map deliberately skips; undefined
+      // cannot happen for a catalog row (asserted above) but is excluded
+      // explicitly rather than through a loose `!= null`.
+      const muscle = EXERCISEDB_TARGET_TO_MUSCLE[row.target];
+      return muscle !== null && muscle !== undefined;
+    })
+    .map(([id]) => id);
+
+  it('decides every pack member, with no stale keys', () => {
+    // Totality is the whole point. The mirror has no mechanic field, so a row
+    // this map misses is stored with mechanic NULL — which `isCompound` reads
+    // as an isolation, quietly barring a machine press from ever opening a
+    // workout. That failure is invisible at import time, so it is caught here.
+    expect(packMembers.length).toBe(141);
+    for (const id of packMembers) {
+      expect(
+        EXERCISEDB_MECHANIC_BY_SOURCE_ID[id],
+        `pack member ${id} has no curated mechanic`
+      ).toBeDefined();
+    }
+    for (const id of Object.keys(EXERCISEDB_MECHANIC_BY_SOURCE_ID)) {
+      expect(
+        packMembers,
+        `curated mechanic ${id} names no pack member`
+      ).toContain(id);
+    }
+  });
+
+  it('uses the canonical mechanic vocabulary only', () => {
+    for (const value of Object.values(EXERCISEDB_MECHANIC_BY_SOURCE_ID)) {
+      expect(EXERCISE_MECHANICS).toContain(value);
+    }
+  });
+
+  it('calls the pressing stations compound and the flyes isolation', () => {
+    // Spot-check of the rows this map exists for: the machine chest press was
+    // the movement a NULL mechanic locked out of the chest slot.
+    expect(EXERCISEDB_MECHANIC_BY_SOURCE_ID['0577']).toBe('compound');
+    expect(EXERCISEDB_MECHANIC_BY_SOURCE_ID['0603']).toBe('compound');
+    expect(EXERCISEDB_MECHANIC_BY_SOURCE_ID['0748']).toBe('compound');
+    expect(EXERCISEDB_MECHANIC_BY_SOURCE_ID['0596']).toBe('isolation');
+    expect(EXERCISEDB_MECHANIC_BY_SOURCE_ID['0584']).toBe('isolation');
+    expect(EXERCISEDB_MECHANIC_BY_SOURCE_ID['0607']).toBe('isolation');
   });
 });
 

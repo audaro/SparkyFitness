@@ -448,3 +448,320 @@ export const EXERCISEDB_ITEM_REQUIREMENTS_LOOKUP: ReadonlyMap<
   string,
   readonly EquipmentItemSlug[]
 > = new Map(Object.entries(EXERCISEDB_ITEM_REQUIREMENTS_BY_SOURCE_ID));
+
+/**
+ * Per-row `mechanic` for this catalog. The mirror has no mechanic field, and
+ * the importer used to store NULL — which is not a neutral value to the
+ * recommendation engine: `isCompound` reads it, so every one of these rows was
+ * classified as an isolation and could never occupy a workout's compound slot.
+ * A machine chest press was structurally barred from being the chest opener.
+ *
+ * Curated by hand over the whole pack rather than derived from the name,
+ * because a name rule cannot tell a *press* from a *raise* reliably enough to
+ * be worth the silent misclassification: "smith incline shoulder raises" is
+ * an isolation and "lever seated dip" is a compound, and both defeat the
+ * obvious keyword. Same contract as the item requirements above — this map is
+ * asserted total over the pack members in the pinned catalog fixture, so a
+ * pack that grows fails the test instead of quietly importing NULLs again.
+ *
+ * The joint-count rule, applied consistently: presses, rows, pulldowns, dips,
+ * chin/pull-ups, squats, hinges, lunges and leg presses are compound; flyes,
+ * raises, curls, extensions, shrugs, crunches, twists, adduction/abduction and
+ * every calf raise are isolation.
+ */
+export const EXERCISEDB_MECHANIC_BY_SOURCE_ID: Readonly<
+  Record<string, "compound" | "isolation">
+> = {
+  // assisted chest dip (kneeling)
+  '0009': 'compound',
+  // assisted parallel close grip pull-up
+  '0015': 'compound',
+  // assisted pull-up
+  '0017': 'compound',
+  // assisted triceps dip (kneeling)
+  '0019': 'compound',
+  // lever alternating narrow grip seated row
+  '0571': 'compound',
+  // lever assisted chin-up
+  '0572': 'compound',
+  // lever back extension — hip and spinal extension under load, not a
+  // single-joint erector squeeze; free-exercise-db calls its hyperextension
+  // compound for the same reason.
+  '0573': 'compound',
+  // lever bicep curl
+  '0575': 'isolation',
+  // lever chest press
+  '0576': 'compound',
+  // lever chest press
+  '0577': 'compound',
+  // lever deadlift
+  '0578': 'compound',
+  // lever front pulldown
+  '0579': 'compound',
+  // lever gripless shrug
+  '0580': 'isolation',
+  // lever high row
+  '0581': 'compound',
+  // lever kneeling leg curl
+  '0582': 'isolation',
+  // lever kneeling twist
+  '0583': 'isolation',
+  // lever lateral raise
+  '0584': 'isolation',
+  // lever leg extension
+  '0585': 'isolation',
+  // lever lying leg curl
+  '0586': 'isolation',
+  // lever military press
+  '0587': 'compound',
+  // lever narrow grip seated row
+  '0588': 'compound',
+  // lever one arm shoulder press
+  '0590': 'compound',
+  // lever overhand triceps dip
+  '0591': 'compound',
+  // lever preacher curl
+  '0592': 'isolation',
+  // lever reverse hyperextension
+  '0593': 'compound',
+  // lever seated calf raise
+  '0594': 'isolation',
+  // lever seated crunch (chest pad)
+  '0595': 'isolation',
+  // lever seated fly
+  '0596': 'isolation',
+  // lever seated hip abduction
+  '0597': 'isolation',
+  // lever seated hip adduction
+  '0598': 'isolation',
+  // lever seated leg curl
+  '0599': 'isolation',
+  // lever seated leg raise crunch
+  '0600': 'isolation',
+  // lever seated reverse fly (parallel grip)
+  '0601': 'isolation',
+  // lever seated reverse fly
+  '0602': 'isolation',
+  // lever shoulder press
+  '0603': 'compound',
+  // lever shrug
+  '0604': 'isolation',
+  // lever standing calf raise
+  '0605': 'isolation',
+  // lever t bar row
+  '0606': 'compound',
+  // lever triceps extension
+  '0607': 'isolation',
+  // reverse grip machine lat pulldown
+  '0673': 'compound',
+  // sled 45° calf press
+  '0738': 'isolation',
+  // sled 45° leg press
+  '0739': 'compound',
+  // sled 45° leg wide press
+  '0740': 'compound',
+  // sled closer hack squat
+  '0741': 'compound',
+  // sled forward angled calf raise
+  '0742': 'isolation',
+  // sled hack squat
+  '0743': 'compound',
+  // sled lying squat
+  '0744': 'compound',
+  // smith back shrug
+  '0746': 'isolation',
+  // smith behind neck press
+  '0747': 'compound',
+  // smith bench press
+  '0748': 'compound',
+  // smith bent knee good morning
+  '0749': 'compound',
+  // smith chair squat
+  '0750': 'compound',
+  // smith close-grip bench press
+  '0751': 'compound',
+  // smith deadlift
+  '0752': 'compound',
+  // smith decline bench press
+  '0753': 'compound',
+  // smith decline reverse-grip press
+  '0754': 'compound',
+  // smith hack squat
+  '0755': 'compound',
+  // smith hip raise
+  '0756': 'isolation',
+  // smith incline bench press
+  '0757': 'compound',
+  // smith incline reverse-grip press
+  '0758': 'compound',
+  // smith incline shoulder raises — scapular elevation on an incline bench,
+  // despite the pressing hardware and the chest target.
+  '0759': 'isolation',
+  // smith leg press
+  '0760': 'compound',
+  // smith narrow row
+  '0761': 'compound',
+  // smith rear delt row
+  '0762': 'compound',
+  // smith reverse calf raises
+  '0763': 'isolation',
+  // smith reverse-grip press
+  '0764': 'compound',
+  // smith seated shoulder press
+  '0765': 'compound',
+  // smith shoulder press
+  '0766': 'compound',
+  // smith shrug
+  '0767': 'isolation',
+  // smith single leg split squat
+  '0768': 'compound',
+  // smith sprint lunge
+  '0769': 'compound',
+  // smith squat
+  '0770': 'compound',
+  // smith standing back wrist curl
+  '0771': 'isolation',
+  // smith standing behind head military press
+  '0772': 'compound',
+  // smith standing leg calf raise
+  '0773': 'isolation',
+  // smith standing military press
+  '0774': 'compound',
+  // smith upright row
+  '0775': 'compound',
+  // lever shoulder press v. 2
+  '0869': 'compound',
+  // lever donkey calf raise
+  '1253': 'isolation',
+  // lever incline chest press
+  '1299': 'compound',
+  // lever decline chest press
+  '1300': 'compound',
+  // machine inner chest press
+  '1301': 'compound',
+  // smith wide grip bench press
+  '1308': 'compound',
+  // smith wide grip decline bench press
+  '1309': 'compound',
+  // lever unilateral row
+  '1313': 'compound',
+  // lever one arm lateral wide pulldown
+  '1347': 'compound',
+  // lever reverse grip vertical row
+  '1348': 'compound',
+  // lever reverse t-bar row
+  '1349': 'compound',
+  // lever seated row
+  '1350': 'compound',
+  // lever t-bar reverse grip row
+  '1351': 'compound',
+  // lever one arm lateral high row
+  '1356': 'compound',
+  // smith bent over row
+  '1359': 'compound',
+  // smith one arm row
+  '1360': 'compound',
+  // smith reverse grip bent over row
+  '1361': 'compound',
+  // hack calf raise
+  '1383': 'isolation',
+  // hack one leg calf raise
+  '1384': 'isolation',
+  // lever seated squat calf raise on leg press machine
+  '1385': 'isolation',
+  // sled calf press on leg press
+  '1391': 'isolation',
+  // sled one leg calf press on leg press
+  '1392': 'isolation',
+  // smith one leg floor calf raise
+  '1393': 'isolation',
+  // smith reverse calf raises
+  '1394': 'isolation',
+  // smith seated one leg calf raise
+  '1395': 'isolation',
+  // smith toe raise
+  '1396': 'isolation',
+  // sled 45 degrees one leg press
+  '1425': 'compound',
+  // smith seated wrist curl
+  '1426': 'isolation',
+  // assisted standing chin-up
+  '1431': 'compound',
+  // assisted standing pull-up
+  '1432': 'compound',
+  // smith front squat (clean grip)
+  '1433': 'compound',
+  // smith low bar squat
+  '1434': 'compound',
+  // lever gripless shrug v. 2
+  '1439': 'isolation',
+  // lever seated dip
+  '1451': 'compound',
+  // lever seated crunch
+  '1452': 'isolation',
+  // sled 45° leg press (side pov)
+  '1463': 'compound',
+  // sled 45° leg press (back pov)
+  '1464': 'compound',
+  // lever incline chest press v. 2
+  '1479': 'compound',
+  // lever preacher curl v. 2
+  '1614': 'isolation',
+  // lever hammer grip preacher curl
+  '1615': 'isolation',
+  // lever reverse grip preacher curl
+  '1616': 'isolation',
+  // smith machine decline close grip bench press
+  '1625': 'compound',
+  // smith machine reverse decline close grip bench press
+  '1626': 'compound',
+  // smith machine bicep curl
+  '1683': 'isolation',
+  // smith machine incline tricep extension
+  '1752': 'isolation',
+  // lever pullover — shoulder extension over a fixed elbow angle; the machine
+  // version is a lat isolation, unlike the bent-arm barbell pullover.
+  '2285': 'isolation',
+  // lever hip extension v. 2
+  '2286': 'compound',
+  // lever alternate leg press
+  '2287': 'compound',
+  // lever gripper hands
+  '2288': 'isolation',
+  // lever calf press
+  '2289': 'isolation',
+  // lever rotary calf
+  '2315': 'isolation',
+  // lever shoulder press v. 3
+  '2318': 'compound',
+  // sled lying calf press
+  '2334': 'isolation',
+  // lever seated calf press
+  '2335': 'isolation',
+  // assisted wide-grip chest dip (kneeling)
+  '2364': 'compound',
+  // lever horizontal one leg press
+  '2611': 'compound',
+  // lever reverse grip lateral pulldown
+  '2736': 'compound',
+  // smith sumo squat
+  '3142': 'compound',
+  // lever lying two-one leg curl
+  '3195': 'isolation',
+  // lever bent-over row with v-bar
+  '3200': 'compound',
+  // smith full squat
+  '3281': 'compound',
+  // lever standing chest press
+  '3758': 'compound',
+  // lever seated good morning
+  '3759': 'compound',
+  // lever seated crunch v. 2
+  '3760': 'isolation',
+};
+
+/** Map form of the mechanics — object key lookup is prototype-unsafe. */
+export const EXERCISEDB_MECHANIC_LOOKUP: ReadonlyMap<
+  string,
+  "compound" | "isolation"
+> = new Map(Object.entries(EXERCISEDB_MECHANIC_BY_SOURCE_ID));

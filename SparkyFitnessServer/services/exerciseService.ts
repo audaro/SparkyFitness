@@ -30,6 +30,7 @@ import {
 import {
   EXERCISEDB_SOURCE,
   EXERCISEDB_EQUIPMENT_TO_COARSE,
+  EXERCISEDB_MECHANIC_LOOKUP,
   EXERCISEDB_TARGET_TO_MUSCLE,
   EXERCISEDB_SECONDARY_TO_MUSCLE,
   deriveExerciseModality,
@@ -1647,17 +1648,29 @@ async function createExerciseFromExerciseDbRecord(
       secondaryMuscles.push(mapped);
     }
   }
+  const sourceId = String(record.id);
+  // Absent rather than nullable: a row this map does not decide is a pack
+  // member the curation missed, and storing NULL would silently bar it from
+  // ever taking a compound slot in a generated workout. Loud, per-row, and
+  // consistent with how an unmapped tag or target is handled above.
+  const mechanic = EXERCISEDB_MECHANIC_LOOKUP.get(sourceId);
+  if (mechanic === undefined) {
+    throw new Error(`Unmapped exercisedb mechanic for row "${sourceId}".`);
+  }
   const instructions = normalizeToStringArray(record.instruction_steps?.en);
   const localImagePaths = await downloadExerciseDbImages(record);
   const displayName = cleanExerciseDbExerciseName(record.name);
   const exerciseData = {
     id: uuidv4(),
     source: EXERCISEDB_SOURCE,
-    source_id: String(record.id),
+    source_id: sourceId,
     name: displayName,
     force: null,
+    // The mirror has no difficulty field and inventing one would be worse than
+    // silence: `level` earns a selection bonus on an exact match, so a guessed
+    // label is a thumb on the scale. Absent takes no bonus and no penalty.
     level: null,
-    mechanic: null,
+    mechanic,
     equipment: coarseEquipment === null ? [] : [coarseEquipment],
     primary_muscles: [primaryMuscle],
     secondary_muscles: secondaryMuscles,
