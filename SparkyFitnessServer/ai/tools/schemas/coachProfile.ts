@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   EQUIPMENT,
   EQUIPMENT_ITEM_SLUGS,
+  EQUIPMENT_PREFERENCES,
   EXERCISE_APPARATUS,
   GYM_TEMPLATE_SLUGS,
 } from '@workspace/shared';
@@ -175,6 +176,26 @@ const gymTemplateSchema = z.preprocess(
   z.enum(GYM_TEMPLATE_SLUGS)
 );
 
+// Which kind of equipment the user would rather train on here. Orthogonal to
+// the items-vs-coarse derivation contract above: it says what to pick from
+// whatever the gym has, not what the gym has, so it may ride with either
+// shape. "free weights" and "Free-Weights" normalize into the slug before the
+// enum check, for the same reason the template name does.
+const gymEquipmentPreferenceSchema = z.preprocess(
+  (value) =>
+    typeof value === 'string'
+      ? value
+          .trim()
+          .toLowerCase()
+          .replace(/[\s-]+/g, '_')
+      : value,
+  z.enum(EQUIPMENT_PREFERENCES)
+);
+
+const GYM_EQUIPMENT_PREFERENCE_DESCRIPTION = `Which equipment the user would rather train on here: ${EQUIPMENT_PREFERENCES.join(
+  ' or '
+)}. A preference, not a filter — generated workouts lean toward it and still reach for the rest when nothing else covers a muscle. Omit to leave it unstated; send null on update to clear it back to unstated`;
+
 const DUAL_SOURCE_MESSAGE =
   'gym_equipment and gym_apparatus are derived from the stated items; send gym_equipment_items (or gym_template) OR the coarse fields, not both';
 
@@ -222,6 +243,9 @@ const createGymProfileSchema = z
         )}. Expanded server-side; use for "Planet Fitness has..." instead of listing items by hand`
       ),
     gym_dumbbell_max_kg: gymDumbbellMaxSchema.optional(),
+    gym_equipment_preference: gymEquipmentPreferenceSchema
+      .optional()
+      .describe(GYM_EQUIPMENT_PREFERENCE_DESCRIPTION),
     make_active: z
       .boolean()
       .optional()
@@ -277,6 +301,12 @@ const updateGymProfileSchema = z
     gym_apparatus: gymApparatusListSchema.optional(),
     gym_equipment_items: gymEquipmentItemsListSchema.optional(),
     gym_dumbbell_max_kg: gymDumbbellMaxSchema.optional(),
+    // Nullable here and not on create: null is an edit ("stop preferring
+    // machines"), while on a fresh row omitting the field already says it.
+    gym_equipment_preference: gymEquipmentPreferenceSchema
+      .nullable()
+      .optional()
+      .describe(GYM_EQUIPMENT_PREFERENCE_DESCRIPTION),
   })
   .strict()
   .superRefine((patch, ctx) => {
@@ -338,6 +368,10 @@ export const manageCoachProfileInput = z.object({
       )})`
     ),
   gym_dumbbell_max_kg: gymDumbbellMaxSchema.optional(),
+  gym_equipment_preference: gymEquipmentPreferenceSchema
+    .nullable()
+    .optional()
+    .describe(GYM_EQUIPMENT_PREFERENCE_DESCRIPTION),
   new_name: gymProfileNameSchema
     .optional()
     .describe('New name for the profile (update_gym_profile only)'),

@@ -104,6 +104,11 @@ function describeGymProfile(profile: GymEquipmentProfileRow): string {
   if (dumbbellMaxKg !== undefined) {
     parts.push(`dumbbells up to ${dumbbellMaxKg} kg`);
   }
+  // Only when stated: null is the absence of a preference, and "prefers
+  // nothing in particular" is not worth a clause on every profile line.
+  if (profile.equipment_preference !== null) {
+    parts.push(`prefers ${profile.equipment_preference.replace('_', ' ')}`);
+  }
   return parts.join('; ');
 }
 
@@ -178,10 +183,10 @@ Actions:
 - get_coach_profile() — read it before proposing programming; a missing profile means the user has not been interviewed yet
 - update_coach_profile(goals?, training_days_per_week?, session_minutes?, experience_level?, equipment?, limitations?, food_preferences?, aliases?) — saves only the provided fields; list/object fields REPLACE the stored value, so send the full updated list when adding one item. experience_level is 'beginner' | 'intermediate' | 'expert' and biases which exercises generated workouts select
 - get_gym_profiles() — the user's named equipment sets ("Home", "Commercial gym") and which one is active; the active one is what constrains generated workouts
-- create_gym_profile(gym_profile_name, gym_template?|gym_equipment_items?|gym_equipment, gym_apparatus?, gym_dumbbell_max_kg?, make_active?) — save a named equipment set when the user describes a gym ("Planet Fitness has..."). Prefer the granular sources: gym_template names a known gym shape and expands server-side; gym_equipment_items states the exact machines and stations as slugs from the published enum. Either derives equipment and apparatus automatically, so never send gym_equipment or gym_apparatus alongside them. Fall back to coarse gym_equipment only when the details are unknown — it accepts the canonical catalog values (${EQUIPMENT.join(
+- create_gym_profile(gym_profile_name, gym_template?|gym_equipment_items?|gym_equipment, gym_apparatus?, gym_dumbbell_max_kg?, gym_equipment_preference?, make_active?) — save a named equipment set when the user describes a gym ("Planet Fitness has..."). Prefer the granular sources: gym_template names a known gym shape and expands server-side; gym_equipment_items states the exact machines and stations as slugs from the published enum. Either derives equipment and apparatus automatically, so never send gym_equipment or gym_apparatus alongside them. Fall back to coarse gym_equipment only when the details are unknown — it accepts the canonical catalog values (${EQUIPMENT.join(
         ', '
-      )}); map real equipment to the closest value instead of inventing new ones. gym_apparatus (coarse mode only) states what bodyweight movements can hang from or brace against (pull-up bar, dip station, squat rack, bench) — an explicit list (empty included) is authoritative; omitted, it is inferred from the equipment. gym_dumbbell_max_kg is the heaviest dumbbell in kg per hand — prescriptions cap at it
-- update_gym_profile(gym_profile_id?|gym_profile_name?, new_name?, gym_equipment_items?, gym_equipment?, gym_apparatus?, gym_dumbbell_max_kg?) — rename a profile or change its equipment/apparatus/dumbbell ceiling; gym_equipment_items, gym_equipment and gym_apparatus each REPLACE the stored list, so send the full updated list when adding one item. Rewriting gym_equipment or gym_apparatus on an item-stated profile drops its stored items
+      )}); map real equipment to the closest value instead of inventing new ones. gym_apparatus (coarse mode only) states what bodyweight movements can hang from or brace against (pull-up bar, dip station, squat rack, bench) — an explicit list (empty included) is authoritative; omitted, it is inferred from the equipment. gym_dumbbell_max_kg is the heaviest dumbbell in kg per hand — prescriptions cap at it. gym_equipment_preference ('machines' | 'free_weights') is what the user would rather train on, and unlike everything else here it is a preference rather than a constraint: generated workouts lean toward it and still reach for the rest when nothing else covers a muscle, so it may be sent with any of the equipment sources
+- update_gym_profile(gym_profile_id?|gym_profile_name?, new_name?, gym_equipment_items?, gym_equipment?, gym_apparatus?, gym_dumbbell_max_kg?, gym_equipment_preference?) — rename a profile or change its equipment/apparatus/dumbbell ceiling/preferred equipment; gym_equipment_items, gym_equipment and gym_apparatus each REPLACE the stored list, so send the full updated list when adding one item. Rewriting gym_equipment or gym_apparatus on an item-stated profile drops its stored items. gym_equipment_preference: null clears the preference back to unstated
 - set_active_gym_profile(gym_profile_name?|gym_profile_id?) — switch where the user is training today ("I'm at home"), then regenerate; only one profile is active at a time`,
       inputSchema: manageCoachProfileInput,
       execute: async (rawArgs) => {
@@ -270,6 +275,10 @@ Actions:
                         equipment: deriveEquipmentFromItems(items),
                         apparatus: deriveApparatusFromItems(items),
                         equipment_items: items,
+                        // Orthogonal to the derivation contract — a preference
+                        // says what to pick from the gym, not what is in it,
+                        // so it rides with either shape of create.
+                        equipment_preference: args.gym_equipment_preference,
                         load_limits:
                           args.gym_dumbbell_max_kg !== undefined
                             ? { dumbbell: { max_kg: args.gym_dumbbell_max_kg } }
@@ -288,6 +297,7 @@ Actions:
                           args.gym_apparatus !== undefined
                             ? [...new Set(args.gym_apparatus)]
                             : undefined,
+                        equipment_preference: args.gym_equipment_preference,
                         load_limits:
                           args.gym_dumbbell_max_kg !== undefined
                             ? { dumbbell: { max_kg: args.gym_dumbbell_max_kg } }
@@ -311,10 +321,11 @@ Actions:
                 args.gym_equipment === undefined &&
                 args.gym_apparatus === undefined &&
                 args.gym_equipment_items === undefined &&
-                args.gym_dumbbell_max_kg === undefined
+                args.gym_dumbbell_max_kg === undefined &&
+                args.gym_equipment_preference === undefined
               ) {
                 return ERRORS.VALIDATION(
-                  'Nothing to update — provide new_name, gym_equipment, gym_apparatus, gym_equipment_items, and/or gym_dumbbell_max_kg.'
+                  'Nothing to update — provide new_name, gym_equipment, gym_apparatus, gym_equipment_items, gym_dumbbell_max_kg, and/or gym_equipment_preference.'
                 );
               }
               const resolved = await resolveGymProfileId(userId, args);
@@ -342,6 +353,11 @@ Actions:
               }
               if (args.gym_apparatus !== undefined) {
                 patch.apparatus = [...new Set(args.gym_apparatus)];
+              }
+              if (args.gym_equipment_preference !== undefined) {
+                // An explicit null is an edit back to unstated, which is why
+                // the patch takes the value as-is rather than through `??`.
+                patch.equipment_preference = args.gym_equipment_preference;
               }
               if (args.gym_dumbbell_max_kg !== undefined) {
                 // load_limits replaces the whole column, and this tool edits

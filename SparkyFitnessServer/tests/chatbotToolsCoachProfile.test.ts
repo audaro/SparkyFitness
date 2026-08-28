@@ -281,6 +281,7 @@ const homeProfile: GymEquipmentProfileRow = {
   apparatus: null,
   equipment_items: null,
   load_limits: null,
+  equipment_preference: null,
   is_active: false,
   created_at: new Date('2026-08-01T00:00:00Z'),
   updated_at: new Date('2026-08-01T00:00:00Z'),
@@ -1031,7 +1032,7 @@ describe('gym profiles', () => {
     );
 
     expect(result).toBe(
-      'Error [VALIDATION]: Nothing to update — provide new_name, gym_equipment, gym_apparatus, gym_equipment_items, and/or gym_dumbbell_max_kg.'
+      'Error [VALIDATION]: Nothing to update — provide new_name, gym_equipment, gym_apparatus, gym_equipment_items, gym_dumbbell_max_kg, and/or gym_equipment_preference.'
     );
     expect(
       gymEquipmentProfileRepository.listGymProfiles
@@ -1039,6 +1040,59 @@ describe('gym profiles', () => {
     expect(
       gymEquipmentProfileRepository.updateGymProfile
     ).not.toHaveBeenCalled();
+  });
+
+  it('states an equipment preference alongside items, normalizing the slug', async () => {
+    vi.mocked(gymEquipmentProfileRepository.createGymProfile).mockResolvedValue(
+      {
+        ...homeProfile,
+        name: 'Hotel',
+        equipment_items: ['dumbbells'],
+        equipment_preference: 'free_weights',
+      }
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'create_gym_profile',
+        gym_profile_name: 'Hotel',
+        gym_equipment_items: ['dumbbells'],
+        // The preference is orthogonal to the derivation contract, so it may
+        // ride with items; "Free Weights" is the phrasing the user gives.
+        gym_equipment_preference: 'Free Weights',
+      } as never,
+      opts
+    );
+
+    expect(gymEquipmentProfileRepository.createGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ equipment_preference: 'free_weights' })
+    );
+    expect(result).toContain('prefers free weights');
+  });
+
+  it('clears the equipment preference on an explicit null', async () => {
+    vi.mocked(gymEquipmentProfileRepository.updateGymProfile).mockResolvedValue(
+      homeProfile
+    );
+
+    const result = await tools.sparky_manage_coach_profile.execute!(
+      {
+        action: 'update_gym_profile',
+        gym_profile_id: HOME_ID,
+        gym_equipment_preference: null,
+      } as never,
+      opts
+    );
+
+    // null is an edit back to unstated, not an omission — the patch has to
+    // carry it, and the confirmation then says nothing about a preference.
+    expect(gymEquipmentProfileRepository.updateGymProfile).toHaveBeenCalledWith(
+      'user-1',
+      HOME_ID,
+      { equipment_preference: null }
+    );
+    expect(result).not.toContain('prefers');
   });
 
   it('keeps VALID_ACTIONS, the published enum and the strict union in sync', () => {
