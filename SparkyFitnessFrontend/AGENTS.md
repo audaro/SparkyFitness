@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-08-26_
+_Last updated: 2026-08-28_
 
 SparkyFitness Frontend is the React web app for the SparkyFitness monorepo. Use this file as the primary guide for work inside `SparkyFitnessFrontend/`.
 
@@ -118,7 +118,13 @@ card per reading under `pages/Exercises/`. Five rules, each of which has already
   `!== null`. The "Heaviest dumbbell" input is kept as display-unit text and converted to kg only at
   save (so an untouched prefill round-trips without unit drift), and because `load_limits` REPLACES
   the stored map on `PUT`, the save spreads the profile's existing limits and edits only the
-  `dumbbell` entry — clearing the input deletes that key, not the whole map.
+  `dumbbell` entry — clearing the input deletes that key, not the whole map. The
+  **"Preferred equipment" control is orthogonal to both editor modes** — it says what to pick from
+  whatever the gym has, not what the gym has — so it renders outside the detailed/coarse branch and
+  is carried in all four save payloads, the item-stated one included. "No preference" is a real
+  choice in the control (it sends `null` on update, the only way back to unstated) rather than an
+  empty state, and the field is a preference, not a filter: the server grades candidates by it and
+  still programs an off-preference exercise when nothing else covers a muscle.
 - **Owner-only vs delegatable is per-surface, not per-page.** Recovery rides the `diary` permission
   and stays available to a delegate who has it (so its cache key is scoped by acting user);
   everything else on that page is owner-only and hides itself through

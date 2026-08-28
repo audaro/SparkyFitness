@@ -12,6 +12,7 @@ import {
   EQUIPMENT,
   EQUIPMENT_ITEMS,
   EQUIPMENT_ITEM_CATEGORIES,
+  EQUIPMENT_PREFERENCES,
   EXERCISE_APPARATUS,
   GYM_TEMPLATES,
   GYM_TEMPLATE_SLUGS,
@@ -20,6 +21,7 @@ import {
   isKnownEquipmentItem,
   type Equipment,
   type EquipmentItemSlug,
+  type EquipmentPreference,
   type ExerciseApparatus,
   type GymLoadLimits,
 } from '@workspace/shared';
@@ -85,6 +87,19 @@ function toCanonicalItems(items: string[]): EquipmentItemSlug[] {
   return items.filter(isKnownEquipmentItem);
 }
 
+/**
+ * Same stale-row defense once more, for the scalar preference. A value this
+ * build does not know reads back as "never stated" rather than being echoed
+ * into the next save, where the request schema would reject it.
+ */
+function toCanonicalPreference(
+  preference: string | null | undefined
+): EquipmentPreference | null {
+  return (EQUIPMENT_PREFERENCES as readonly string[]).includes(preference ?? '')
+    ? (preference as EquipmentPreference)
+    : null;
+}
+
 // Matches the shared request schema's ceiling for load_limits.max_kg.
 const MAX_LOAD_LIMIT_KG = 500;
 
@@ -109,6 +124,15 @@ interface EditorState {
    */
   apparatusSpecified: boolean;
   apparatus: ExerciseApparatus[];
+  /**
+   * Which kind of equipment the user would rather train on here. null is "no
+   * preference" — not a third kind, just the absence of a statement, which is
+   * what every profile written before the column existed says. It is a
+   * preference and not a filter: the engine grades candidates by it rather
+   * than excluding anything, so a machine gym that only has a cable for one
+   * muscle still gets the cable.
+   */
+  equipmentPreference: EquipmentPreference | null;
   /**
    * Heaviest dumbbell, as typed in the user's display unit. Converted to kg
    * only at save time; empty means "no limit" (the dumbbell entry is removed).
@@ -151,6 +175,7 @@ const GymProfilesManager: React.FC = () => {
       equipment: [],
       apparatusSpecified: false,
       apparatus: [],
+      equipmentPreference: null,
       dumbbellMaxInput: '',
       // A first profile that is not active would change nothing, so default it
       // on; later ones are created inactive until switched to.
@@ -175,6 +200,9 @@ const GymProfilesManager: React.FC = () => {
         // "never stated", the same as SQL NULL.
         apparatusSpecified: Array.isArray(profile.apparatus),
         apparatus: toCanonicalApparatus(profile.apparatus ?? []),
+        equipmentPreference: toCanonicalPreference(
+          profile.equipment_preference
+        ),
         dumbbellMaxInput:
           dumbbellMaxKg === undefined
             ? ''
@@ -299,6 +327,29 @@ const GymProfilesManager: React.FC = () => {
     [convertWeight, weightUnit]
   );
 
+  // "No preference" is a choice in the control, not an empty state: it is the
+  // only way back to unstated once something has been picked.
+  const preferenceChoices = useMemo(
+    (): { value: EquipmentPreference | null; label: string }[] => [
+      {
+        value: null,
+        label: t('gymProfilesManager.equipmentPreferenceNone', 'No preference'),
+      },
+      {
+        value: 'machines',
+        label: t('gymProfilesManager.equipmentPreferenceMachines', 'Machines'),
+      },
+      {
+        value: 'free_weights',
+        label: t(
+          'gymProfilesManager.equipmentPreferenceFreeWeights',
+          'Free weights'
+        ),
+      },
+    ],
+    [t]
+  );
+
   const dumbbellMax = parseDumbbellMax(editor?.dumbbellMaxInput ?? '');
 
   const trimmedName = editor?.name.trim() ?? '';
@@ -327,6 +378,10 @@ const GymProfilesManager: React.FC = () => {
     }
     const loadLimits = Object.keys(nextLimits).length > 0 ? nextLimits : null;
     const apparatus = editor.apparatusSpecified ? editor.apparatus : null;
+    // Orthogonal to the derivation contract: the preference describes what the
+    // user wants picked from whatever the gym has, so it rides with either
+    // shape of payload rather than being derived from one.
+    const equipmentPreference = editor.equipmentPreference;
     try {
       if (editor.profile) {
         await updateProfile({
@@ -338,12 +393,14 @@ const GymProfilesManager: React.FC = () => {
             ? {
                 name,
                 equipment_items: editor.items,
+                equipment_preference: equipmentPreference,
                 load_limits: loadLimits,
               }
             : {
                 name,
                 equipment: editor.equipment,
                 apparatus,
+                equipment_preference: equipmentPreference,
                 load_limits: loadLimits,
               },
         });
@@ -357,6 +414,9 @@ const GymProfilesManager: React.FC = () => {
         await createProfile({
           name,
           equipment_items: editor.items,
+          ...(equipmentPreference !== null
+            ? { equipment_preference: equipmentPreference }
+            : {}),
           ...(loadLimits !== null ? { load_limits: loadLimits } : {}),
           is_active: editor.makeActive,
         });
@@ -367,6 +427,9 @@ const GymProfilesManager: React.FC = () => {
           // The create schema takes optionals, not nulls: omitted already
           // means "never stated" / "no limits" on a fresh row.
           ...(apparatus !== null ? { apparatus } : {}),
+          ...(equipmentPreference !== null
+            ? { equipment_preference: equipmentPreference }
+            : {}),
           ...(loadLimits !== null ? { load_limits: loadLimits } : {}),
           is_active: editor.makeActive,
         });
@@ -835,6 +898,45 @@ const GymProfilesManager: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              <div className="space-y-2">
+                <Label>
+                  {t(
+                    'gymProfilesManager.equipmentPreferenceLabel',
+                    'Preferred equipment'
+                  )}
+                </Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {preferenceChoices.map((choice) => (
+                    <Button
+                      key={choice.value ?? 'none'}
+                      type="button"
+                      variant={
+                        editor.equipmentPreference === choice.value
+                          ? 'default'
+                          : 'outline'
+                      }
+                      size="sm"
+                      aria-pressed={editor.equipmentPreference === choice.value}
+                      onClick={() =>
+                        setEditor((current) =>
+                          current
+                            ? { ...current, equipmentPreference: choice.value }
+                            : current
+                        )
+                      }
+                    >
+                      {choice.label}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    'gymProfilesManager.equipmentPreferenceHelper',
+                    'A nudge, not a filter. Suggested workouts lean toward what you pick and still use the rest when it is the better fit for a muscle.'
+                  )}
+                </p>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="gym-profile-dumbbell-max">
