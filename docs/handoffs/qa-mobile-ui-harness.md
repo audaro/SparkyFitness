@@ -1,6 +1,6 @@
 # Handoff — mobile UI QA harness (`qa/mobile-ui-harness`)
 
-*Written 2026-08-29, updated the same day. Branch has 15 commits and has never been pushed.*
+*Written 2026-08-29, updated the same day. Branch has 17 commits and has never been pushed.*
 
 ## What shipped
 
@@ -21,13 +21,16 @@ Eight scenarios, all green:
 | `fasting-and-cycle` | screens an opted-out account never sees | 10 |
 | `saved-meal` | meal built, logged, and edited | 17 |
 | `food-photo` | AI photo estimate through to the diary row | 18 |
-| `suggested-workout` | a generated workout's programming, and running it | 29 |
+| `suggested-workout` | a generated workout's programming, and running it | 31 |
 
 `suggested-workout` is the one that is not about reaching a screen — `crawl`
 already opens Pick Muscles and `content-crawl` already runs a live workout. It is
 about the *programming*: nothing in a generated workout is decided on the client,
 so the muscles, exercises, sets, reps and rests are all assertions no screenshot
-can make. It also needs the second kind of setup script — not state the app
+can make. It also shortens the workout it generates to 45 minutes before running
+it, which makes two more of them real — the budget forces a trim, and the trim
+has to take an isolation rather than a compound — and turns
+`payload.muscles-are-the-split` into the regression test for the defect below. It also needs the second kind of setup script — not state the app
 cannot create, but state the **server will otherwise fetch on its own**: the
 generator imports from free-exercise-db over the network when a target muscle has
 no local candidate, and a fresh QA database has no exercises at all.
@@ -37,12 +40,21 @@ now walked by one of these, except `Onboarding` — which `flows/lib/boot.yaml`
 walks before every scenario anyway. The "STILL NOT REACHED" lists that were the
 branch's running to-do are all closed out in the flow headers.
 
-Six defects were found and fixed on the way, all of them real rather than test
+Seven defects were found and fixed on the way, all of them real rather than test
 scaffolding: the cycle day's basal temperature never saved from mobile; a new
 account could not reach cycle settings at all; empty states logged themselves as
-errors; and three accessibility collapses (`AddSheet` / `ActionSheet`, the active
+errors; three accessibility collapses (`AddSheet` / `ActionSheet`, the active
 workout's set row, `ActivityAddScreen`'s form wrapper) that hid whole subtrees
-from VoiceOver as much as from the driver.
+from VoiceOver as much as from the driver; and — found by building the duration
+step above — **every regenerate from Up Next silently re-targeted the workout**.
+`POST /generate` reads an absent `target_muscles` as "pick the freshest muscles",
+not as "keep the ones you had", and `UpNextScreen` sent nothing but the field the
+user touched: changing the length of a Push day, switching gym, or pressing
+Refresh (whose own comment claims "same targets, different exercises") all handed
+back a workout built around different muscles, with a perfectly normal-looking
+screen. The three handlers now restate the workout they are adjusting via a
+`currentContext()` helper — muscles from the payload filtered to the canonical
+enum and omitted when empty, duration and gym from the row.
 
 ## Gate status
 
@@ -63,12 +75,14 @@ If the work continues, it is **assertions, not screens**. The obvious gaps:
 1. `crawl` and `smoke` have no oracle of their own and rest entirely on
    `app-logs.mjs`. Any screen they walk that writes something is a candidate for
    a real check.
-2. The recommendation family is covered for the Pick Muscles path only.
+2. The recommendation family is covered for Pick Muscles and the length chip.
    `suggested-workout` does not touch Swap (`swap: true` penalizes the previous
    workout's exercise ids, so the seeded catalog's second exercise per muscle is
    already there for it), Replace, On Demand, saved workouts, or generating
    against a gym profile — each of which changes the plan in a way that is
    invisible on screen and cheap to assert now that the catalog seeding exists.
+   The gym chip is the most valuable of them: it is the third caller of
+   `currentContext()` and the only one no scenario exercises.
 3. Android. Everything here is iOS-only: `qa-run.sh` shells `xcrun simctl`
    throughout, and the traps in `qa/README.md` are XCUITest's.
 

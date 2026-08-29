@@ -157,15 +157,19 @@ drops it before the request is a bug no diary row can see.
 an *algorithm*. Nothing about a generated workout is decided on the client: the
 muscles, the exercises, the sets, the reps, the rest and the estimated length
 all come back from `POST /api/workout-recommendations/generate`, and the app
-draws what it is handed. So it picks the Push split, starts the workout that
-comes back, completes one set and ends it.
+draws what it is handed. So it picks the Push split, shortens the workout that
+comes back to 45 minutes, starts it, completes one set and ends it.
 
 Three things it checks that no screen can show. **That the request survived**:
 the client resolves Push to chest, shoulders and triceps and sends the muscles —
 the server has no split vocabulary — so the muscles in the stored payload are
-the only evidence the tap reached the wire. **That the plan is programming, not
-a list**: every asked-for muscle is served, compounds are ordered ahead of
-isolations, and every set carries reps and a rest length. **That the prescription
+the only evidence the tap reached the wire, *and* they have to still be those
+three after the length chip rebuilt the workout, which is a claim about the
+client rather than the engine (see the trap below). **That the plan is
+programming, not a list**: every asked-for muscle is served, compounds are
+ordered ahead of isolations, the 45-minute budget forced a trim, the trim took
+an isolation rather than a compound, and every set carries reps and a rest
+length. **That the prescription
 becomes a diary row the way it is supposed to**: sets are created empty and the
 generator's numbers live on the client as gray placeholders until a set is
 completed, so the flow types *nothing* — and the 10 reps that land on the one
@@ -446,10 +450,31 @@ honours occlusion and the viewport even with modal honouring off, so an element
 below the fold is "not visible" — and a wait for it fails on a screen that is
 perfectly correct. `content-crawl.yaml` waits for ActiveWorkout by its
 "End Workout" button, which works because the session it starts has one
-exercise; `suggested-workout.yaml` starts a six-exercise session and the same
+exercise; `suggested-workout.yaml` starts a five-exercise session and the same
 wait timed out with the screen fully drawn behind it. The fix is to land on
 something structural that cannot scroll away — there, the header's per-exercise
 progress segments (`header-segment`).
+
+**A collapsed control's own text is not on the screen as far as the driver is
+concerned.** The same `accessible={true}` collapse that hides a subtree from
+VoiceOver also hides it from a selector — and a chip that carries a *label* for
+what it does swallows the *value* it displays. `suggested-workout.yaml` waited
+for the duration chip to read "45 min" and timed out on a screen where it plainly
+did: the chip is a `TouchableOpacity` labelled "Change workout length", so that
+label is the only text there is. When a control announces what it does, wait on
+some other element for what it now says — here, the summary line above it, which
+is a plain `Text` and carries the exercise count and the duration together.
+
+**A sheet has to settle before a row in it can be tapped.** Maestro resolves an
+element's bounds and *then* taps that coordinate, and an action sheet is still
+sliding up when its rows first appear — so a row resolved mid-animation is
+tapped where it used to be, which belongs to a row further down by the time the
+finger lands. `suggested-workout.yaml` lost a run to it: the tap on the sheet's
+first row, `action-sheet-item-pick-muscles`, landed on "Create From Scratch"
+three rows below, and the flow only failed a step later, waiting for a screen it
+had never navigated to. A `waitForAnimationToEnd` between opening a sheet and
+tapping into it is the fix, and it is cheap — the failure it prevents costs a
+whole run and points at the wrong step.
 
 **Prefer the control that needs no aim.** Logging a set on ActiveWorkout means
 finding one cell among three identical rows, which needs an anchor *and* an

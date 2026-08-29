@@ -1,7 +1,7 @@
 appId: ${APP_ID}
 ---
-# Generate a workout for a named split, and check the programming that came
-# back rather than the screen that renders it.
+# Generate a workout for a named split, shorten it, run it — and check the
+# programming that came back rather than the screen that renders it.
 #
 # Nothing about a generated workout is decided on the client. The muscles, the
 # exercises, the number of sets, the reps, the rest between them and the
@@ -15,7 +15,9 @@ appId: ${APP_ID}
 #   PickMuscles  crawl opens the picker and backs out of it; this one taps a
 #                split, which is the only way to make a workout exist
 #   UpNext       crawl only ever sees its empty state, because an account with
-#                no workout has no workout to show
+#                no workout has no workout to show — and the length chip is
+#                only rendered once one exists, so this is the only scenario
+#                that can press it
 #
 # WHAT IS SEEDED, and why it has to be: qa/setup/suggested-workout.sh puts an
 # exercise catalog in the database before this runs. A fresh account has none —
@@ -60,6 +62,14 @@ appId: ${APP_ID}
     visible: "New workout options"
     timeout: 30000
 - tapOn: "New workout options"
+# The sheet slides up, and Maestro resolves an element's bounds and then taps
+# the coordinate — so a row resolved mid-animation is tapped where it *was*,
+# which by then belongs to a row further down the list. This flow failed once
+# with the driver on WorkoutPresetForm: the Pick Muscles row was resolved while
+# the sheet was still rising and the tap landed on "Create From Scratch", three
+# rows down, and the run only fell over a step later on a screen that was
+# working perfectly.
+- waitForAnimationToEnd
 - tapOn:
     id: "action-sheet-item-pick-muscles"
 
@@ -84,6 +94,50 @@ appId: ${APP_ID}
 # is what makes the run's failure legible when the payload arrives empty: the
 # oracle would say so either way, but a flow that walked off the end of a
 # half-drawn screen reports the wrong thing first.
+- assertVisible:
+    id: "up-next-exercise-row"
+
+# === shorten it =============================================================
+# Changing the length is a REGENERATE, not a trim: the whole workout is rebuilt
+# server-side around the new budget. Two things are being asserted by doing it
+# here, and only one of them is about duration.
+#
+# The duration half is the fitter. 45 minutes is the pressure point for this
+# catalog — a 60-minute Push day comes back as six exercises (a compound and an
+# isolation for each of chest, shoulders and triceps) and 45 forces exactly one
+# isolation out, which is enough for "it trimmed" and "it never trimmed a
+# compound" to both be real claims rather than vacuous ones.
+#
+# The other half is the muscles. `POST /generate` reads an absent field as "use
+# the default", so a client that sent nothing but the new duration would get a
+# workout built around whatever muscles are freshest — a Push day silently
+# becoming a leg day, with a perfectly correct-looking screen. The oracle's
+# `payload.muscles-are-the-split` check runs against the payload AFTER this
+# step, so it is the regression test for that: the split has to survive the
+# chip.
+#
+# The chip's label is what it does ("Change workout length"); the sheet's title
+# is what it is ("Workout length"). Maestro matches full strings, so the two are
+# distinct, and waiting for the title to go is how the option tap is known to
+# have been taken before anything looks for the result.
+- tapOn: "Change workout length"
+- extendedWaitUntil:
+    visible: "Workout length"
+    timeout: 20000
+- tapOn: "45 min"
+- extendedWaitUntil:
+    notVisible: "Workout length"
+    timeout: 20000
+# The chip itself cannot be the landing signal even though it is the thing that
+# changes: it is a `TouchableOpacity` carrying its own accessibilityLabel, so
+# iOS collapses the subtree and the driver sees one button labelled "Change
+# workout length" — the "45 min" inside it is not an element at all. The summary
+# line above it is a plain `Text` and is one, and the whole regenerate shows up
+# in it: six exercises and 53 minutes before, five and 45 after. Text selectors
+# are full-string regex, hence the `.*`.
+- extendedWaitUntil:
+    visible: "5 Exercises.*45 min"
+    timeout: 90000
 - assertVisible:
     id: "up-next-exercise-row"
 

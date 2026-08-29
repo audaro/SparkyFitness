@@ -2,8 +2,9 @@
 /**
  * The verdict for qa/flows/suggested-workout.yaml.
  *
- * The flow taps one row — Push — starts what comes back, completes one set and
- * ends the workout. Everything worth checking about that is invisible. The
+ * The flow taps one row — Push — shortens the workout it gets to 45 minutes,
+ * starts what comes back, completes one set and ends the workout. Everything
+ * worth checking about that is invisible. The
  * screen shows exercise names, a muscle header and a duration; it does not show
  * which muscle each exercise was slotted against, how many sets were
  * prescribed, how long the rest is, where the exercise came from, or which of
@@ -19,11 +20,17 @@
  *                           row resolves to on the client, which is the only
  *                           evidence that the tap reached the wire intact (the
  *                           server has no split vocabulary to reconstruct them
- *                           from);
+ *                           from) — and they are still those three after the
+ *                           length chip regenerated the workout, which is a
+ *                           separate claim about the client, because an
+ *                           omitted `target_muscles` asks for the freshest
+ *                           muscles rather than for the same ones;
  *   the PLAN is coherent  — every prescribed exercise trains a muscle that was
  *                           asked for, every asked-for muscle got one, compounds
- *                           come first, and the denormalized catalog detail in
- *                           the payload matches the row it names;
+ *                           come first, the 45-minute budget forced a trim, the
+ *                           trim took an isolation rather than a compound, and
+ *                           the denormalized catalog detail in the payload
+ *                           matches the row it names;
  *   the run stayed LOCAL  — nothing was imported, said in two independent ways,
  *                           because it is the one failure that would make every
  *                           other number here non-reproducible;
@@ -37,7 +44,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createReport } from './lib/report.mjs';
 import { query, qaAccount, lit } from './lib/db.mjs';
-import { CATALOG, CATALOG_PREFIX, COMPOUND_SUFFIX } from '../fixtures/exercise-catalog.mjs';
+import {
+  CATALOG,
+  CATALOG_PREFIX,
+  COMPOUND_SUFFIX,
+  VARIANTS_PER_MUSCLE,
+} from '../fixtures/exercise-catalog.mjs';
 
 const report = createReport('suggested-workout');
 const runDir = process.env.QA_RUN_DIR;
@@ -49,9 +61,12 @@ const { userId } = qaAccount();
 // claim being made is that the split the *user* picked is the split that got
 // built — not that two copies of one array are equal.
 const EXPECTED_MUSCLES = ['chest', 'shoulders', 'triceps'];
-// The server's own default session length, used because the QA account has no
-// coach profile to state one.
-const EXPECTED_TARGET_MINUTES = 60;
+// What the flow's length chip asked for. NOT the server's 60-minute default —
+// the flow picks 45 on purpose, because that is the length at which this
+// catalog's six-exercise Push day does not fit and the fitter has to do
+// something. A default-length workout would leave every duration check below
+// passing without the fitter ever having run.
+const EXPECTED_TARGET_MINUTES = 45;
 // The name UpNextScreen's Start button gives the session it creates.
 const SESSION_NAME = 'Up Next workout';
 
@@ -106,7 +121,7 @@ report.check(
 report.check(
   'recommendation.target-duration',
   row.target_duration_minutes === EXPECTED_TARGET_MINUTES,
-  `built for ${row.target_duration_minutes} minutes (the flow asked for no length, so the server's ${EXPECTED_TARGET_MINUTES}-minute default applies)`,
+  `built for ${row.target_duration_minutes} minutes; the length chip asked for ${EXPECTED_TARGET_MINUTES}`,
   { targetDurationMinutes: row.target_duration_minutes }
 );
 // The QA account has never made a gym profile, and "no profile" has to reach
@@ -120,6 +135,14 @@ report.check(
 );
 
 // --- the request survived the trip -------------------------------------------
+// This runs against the payload as it stands AFTER the length change, which is
+// the whole reason the flow changes the length before starting. Every
+// regenerate from Up Next is a fresh `POST /generate`, and an omitted
+// `target_muscles` there does not mean "keep what you had" — it means "pick the
+// freshest muscles". So a client that sent the new duration on its own would
+// hand back a lower-body workout under a Push heading, with nothing on screen
+// to say so. The split surviving the chip is the evidence that the screen
+// restates the workout it is adjusting.
 const muscleGroups = Array.isArray(payload.muscle_groups) ? payload.muscle_groups : [];
 report.check(
   'payload.muscles-are-the-split',
@@ -280,6 +303,41 @@ report.check(
     ? 'every compound is ordered ahead of every isolation'
     : `a compound sits at position ${lateCompound}, after the first isolation at ${firstIsolation}`,
   exercises.map((exercise) => ({ name: exercise.exercise_name, compound: isCompound(exercise) }))
+);
+
+// --- the fitter actually ran --------------------------------------------------
+// The catalog holds exactly VARIANTS_PER_MUSCLE candidates per muscle, so a
+// Push day with nothing in its way is three muscles' worth of everything — and
+// that workout runs long. The flow asks for 45 minutes, so a plan that still
+// carries every candidate means the target reached the row and the planner
+// then built past it. Stated against the fixture rather than as a literal 6: a
+// third variant per muscle must not silently turn this into a check that
+// passes on an untrimmed workout.
+const untrimmedSize = muscleGroups.length * VARIANTS_PER_MUSCLE;
+report.check(
+  'plan.trimmed-to-fit',
+  exercises.length < untrimmedSize,
+  `${exercises.length} exercise(s) against the ${untrimmedSize} this catalog could have offered for ${muscleGroups.length} muscles`,
+  { prescribed: exercises.length, untrimmedSize, targetMinutes: row.target_duration_minutes }
+);
+
+// And it trimmed the right thing. Fitting to a budget removes accessory work;
+// it must never remove a compound, and it must never leave a target muscle
+// with nothing at all — a 45-minute Push day that dropped the chest compound
+// is shorter and wrong, and renders exactly as well as a correct one.
+const missingCompounds = EXPECTED_MUSCLES.filter(
+  (muscle) =>
+    !exercises.some(
+      (exercise) => exercise.exercise_name === `${CATALOG_PREFIX}${muscle} ${COMPOUND_SUFFIX}`
+    )
+);
+report.check(
+  'plan.no-compound-was-trimmed',
+  missingCompounds.length === 0,
+  missingCompounds.length === 0
+    ? 'every target muscle kept its compound through the trim'
+    : `the trim dropped the compound for [${missingCompounds.join(', ')}]`,
+  { missingCompounds, prescribed: exercises.map((exercise) => exercise.exercise_name) }
 );
 
 // --- the sets ----------------------------------------------------------------

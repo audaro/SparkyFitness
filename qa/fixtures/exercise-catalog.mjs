@@ -81,3 +81,12 @@ export const CATALOG_PREFIX = 'QA Catalog ';
  * carries no slot.
  */
 export const COMPOUND_SUFFIX = '1';
+
+/**
+ * How many candidates each muscle has, so the oracle can say what a full
+ * workout for a set of muscles WOULD have been and call anything smaller a
+ * trim. Derived from the list rather than written as `2`: adding a third
+ * variant here must not quietly turn "it trimmed to fit" into a check that
+ * passes on a workout that was never trimmed.
+ */
+export const VARIANTS_PER_MUSCLE = PER_MUSCLE.length;

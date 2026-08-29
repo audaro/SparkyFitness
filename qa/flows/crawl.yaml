@@ -175,15 +175,24 @@ appId: ${APP_ID}
 # Three of this menu's four entries are the only route an empty account has to
 # the screens behind them ("Saved Workouts" is the exception — the Exercise tab
 # reaches that one). The menu closes on selection, so it is reopened each time.
+#
+# Each sheet row is tapped only after the sheet has settled. Maestro resolves an
+# element's bounds and then taps the coordinate, so a row resolved while the
+# sheet is still rising gets tapped where it used to be — which is a different
+# row by the time it lands. It is not hypothetical: it cost `suggested-workout`
+# a whole run, landing the driver on the preset form instead.
 - tapOn: "New workout options"
+- waitForAnimationToEnd
 - tapOn:
     id: "action-sheet-item-pick-muscles"
 - tapOn: "Back"
 - tapOn: "New workout options"
+- waitForAnimationToEnd
 - tapOn:
     id: "action-sheet-item-on-demand"
 - tapOn: "Back"
 - tapOn: "New workout options"
+- waitForAnimationToEnd
 - tapOn:
     id: "action-sheet-item-create-from-scratch"
 # The preset form is where an empty account can still open the exercise picker:
