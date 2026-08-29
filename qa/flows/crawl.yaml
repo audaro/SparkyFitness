@@ -47,18 +47,28 @@ appId: ${APP_ID}
 #    reads "ruler, Measurements", never "Measurements". Those are matched with a
 #    leading `.*` rather than by their bare label.
 #
-# NOT REACHED, and why — every one of these needs content that an empty QA
-# database does not have, so unlocking them means a flow that creates it first:
-#   FoodDetail, EditBarcode, FoodEntryAdd, FoodEntryView, EditLoggedMeal,
-#   MealDetail, MealTypeDetail  (need a food / a meal / a logged entry; the
-#     diary swaps its meal tiles for an empty-day illustration until the day has
-#     something on it)
-#   DailyNutritionDetails, NutrientTrends  (the Nutrients card renders only once
-#     food has been logged)
-#   ExerciseDetail, ActivityDetail, WorkoutDetail, WorkoutPresetDetail,
-#   ActiveWorkout, WorkoutComplete  (need an exercise to exist: even "Empty
-#     workout" in PresetSearch routes through picking a first exercise)
+# NOT REACHED FROM HERE, and why — every one of these needs content that an
+# empty QA database does not have. Most of them are now reached by
+# content-crawl.yaml, which creates that content through the UI first and then
+# walks what it unlocks; this flow keeps the empty-database walk it was written
+# for, so the two together cover both start states.
+#
+# Reached by content-crawl.yaml instead:
+#   FoodDetail, EditBarcode, FoodEntryView, MealTypeDetail  (a food and a
+#     logged entry; the diary swaps its meal tiles for an empty-day
+#     illustration until the day has something on it)
+#   DailyNutritionDetails, NutrientTrends  (the Nutrients card renders only
+#     once food has been logged)
+#   ExerciseDetail, ActivityAdd, ActivityDetail, ActiveWorkout,
+#   WorkoutComplete, WorkoutDetail, WorkoutPresetDetail  (need an exercise to
+#     exist: even "Empty workout" in PresetSearch routes through picking a
+#     first exercise)
 #   MedicationDetail, MedicationScheduleForm  (need a medication)
+#
+# Still unreached by either flow:
+#   FoodEntryAdd, MealDetail, EditLoggedMeal  (need a saved meal; the meal
+#     builder stacks FoodEntryAdd over FoodSearch over MealAdd, and two of
+#     those three offer a button labelled exactly "Add Food")
 #   FastingDetail  (the fasting card opens its protocol sheet until a fast is
 #     running)
 #   FoodPhotoFlow's Improve / EstimateReview / LogEntry  (need a photograph)

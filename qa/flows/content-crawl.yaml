@@ -1,0 +1,396 @@
+appId: ${APP_ID}
+---
+# Create the content an empty database does not have, then walk the screens
+# that only exist once it does.
+#
+# crawl.yaml reaches 45 screens and lists the ones it cannot: every entry on
+# that list is waiting for a row rather than for a tap. This flow writes those
+# rows through the UI — a custom food, a diary entry, an exercise, a live
+# workout, a preset, a logged activity, a medication — and then visits the 15
+# screens they unlock, so `qa/oracles/app-logs.mjs` gets its crash coverage
+# over them the same way it does over the crawl.
+#
+# Unlike the crawl it also has an oracle: content typed into a form is content
+# that can be wrong in the database while the screen looks fine, so
+# qa/oracles/content-crawl.mjs asserts every value back out. That makes this
+# flow two things at once — a seeder whose writes are checked, and a walk whose
+# only verdict is "nothing logged an ERROR".
+#
+# WHAT IT REACHES, and from where:
+#   MealTypeDetail, FoodEntryView          the logged entry, from the diary
+#   FoodDetail, EditBarcode                the food, from the Foods library
+#   ExerciseDetail                         the exercise, on save
+#   ActiveWorkout, WorkoutComplete,
+#   WorkoutDetail, WorkoutPresetDetail     a live workout run start to finish
+#   ActivityAdd, ActivityDetail            the same exercise, logged as an activity
+#   MedicationDetail,
+#   MedicationScheduleForm                 the medication, on save
+#   DailyNutritionDetails, NutrientTrends  the Nutrients card, which needs food
+#
+# STILL NOT REACHED, and what each is now waiting for — all content, none of it
+# created here:
+#   MealDetail, EditLoggedMeal  need a saved meal. The meal builder stacks
+#     FoodEntryAdd over FoodSearch over MealAdd, and two of those three offer a
+#     button labelled exactly "Add Food"; telling them apart needs a selector
+#     this flow does not yet have (see the SELECTORS note below).
+#   FastingDetail               needs a fast to be running.
+#   FoodPhotoFlow's Improve / EstimateReview / LogEntry   need a photograph.
+#   CycleHub, CycleOnboarding, CycleLogModal, PregnancySetup   need cycle
+#     tracking switched on in Settings; the card that leads to them is off the
+#     dashboard until it is.
+#
+# SELECTORS. The four rules in crawl.yaml's header all apply here, and a fifth
+# one shapes the order of the sections below:
+#
+# 5. A screen that arrives by REPLACING a modal keeps the tab root behind it in
+#    the tree, and the tab root's date navigator has a "Back" of its own — so
+#    such a screen is left by going forward, not back. Every save in this flow
+#    lands on a detail screen that way (ExerciseForm→ExerciseDetail,
+#    MedicationForm→MedicationDetail, WorkoutPresetForm→WorkoutPresetDetail),
+#    which is why the exercise is walked as one unbroken chain from Save to
+#    "Done", and why the last section ends on a screen rather than returning.
+- runFlow: lib/boot.yaml
+
+# === the food, and the entry ================================================
+# Ends on the Food tab with the entry on screen.
+- runFlow: lib/create-and-log-food.yaml
+
+# === the diary's drill-ins ==================================================
+# The meal tile's header is the only route to MealTypeDetail. Its label is the
+# meal's own ("Breakfast nutrition breakdown"), and which meal the entry landed
+# in depends on the time of day, so it is matched by the invariant half.
+- scrollUntilVisible:
+    element: ".*nutrition breakdown"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn: ".*nutrition breakdown"
+
+# The entry row is tapped HERE rather than on the diary: the diary also lists
+# the food under "Recently logged", so its name matches twice there, while this
+# screen holds only the one meal's entries.
+- extendedWaitUntil:
+    visible: "QA Harness Oat Bar.*"
+    timeout: 20000
+- tapOn: "QA Harness Oat Bar.*"
+- tapOn: "Back"
+- tapOn: "Back"
+
+# === the food's own screens =================================================
+- scrollUntilVisible:
+    element:
+      id: "food-home-foods-library"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "food-home-foods-library"
+# The library row is one grouped element — name, calories and serving read as a
+# single label — so the bare name never matches it.
+- tapOn: "QA Harness Oat Bar, .*"
+# A custom food is the only kind whose barcode this account may edit, which is
+# why the row exists at all here.
+- scrollUntilVisible:
+    element: "Barcode"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Barcode"
+- tapOn: "Back"
+- tapOn: "Back"
+- tapOn: "Back"
+
+# === the notification permission, granted on purpose ========================
+# Starting a live workout calls ensureNotificationPermission() for the rest
+# timer, and the OS prompt it raises arrives whenever iOS gets round to it —
+# sometimes over ExerciseDetail, sometimes over ActiveWorkout, sometimes not at
+# all (the request is fired one line before `navigation.replace`, and a prompt
+# that lands mid-transition is simply dropped). Dismissing it there is what
+# broke this flow twice: the tap that clears a system alert also reaches the
+# app underneath, and what sits under the alert's "Allow" on ActiveWorkout is
+# "Add an Exercise" — so the picker opened, every selector below matched the
+# search results in front of the set row instead of the set row itself, and the
+# run finished with the exercise logged twice and no weight or reps on either.
+#
+# So it is granted here instead, from the one control that asks for it as a
+# direct user action, on a screen that is holding still. `when: visible` is
+# safe on a settled screen (it is a race only against a dialog that is still
+# appearing), and the banner is absent exactly when the permission is already
+# granted — which a simulator remembers across an uninstall, so this must be
+# skippable rather than required.
+- tapOn: "Settings"
+- tapOn: "App Settings"
+- scrollUntilVisible:
+    element: "Notifications"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Notifications"
+- runFlow:
+    when:
+      visible: "Enable Notifications"
+    commands:
+      - tapOn: "Enable Notifications"
+      - extendedWaitUntil:
+          visible: "Allow"
+          timeout: 20000
+      # Nothing on this screen is destructive if the tap does reach through it.
+      - tapOn:
+          text: "Allow"
+          retryTapIfNoChange: false
+- tapOn: "Back"
+- tapOn: "Back"
+
+# === the exercise, and a live workout =======================================
+- tapOn: "Exercise"
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-create-exercise"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-create-exercise"
+
+- extendedWaitUntil:
+    visible: "New Exercise"
+    timeout: 30000
+# The name field autofocuses, but the first keystroke after a tap lands in the
+# previously focused field, so it is tapped and settled like every other one.
+# Its placeholder is what an empty input exposes.
+- tapOn: "e.g. Bulgarian Split Squat"
+- waitForAnimationToEnd
+- inputText: "QA Harness Lift"
+# No hideKeyboard anywhere in this flow: the driver's dismiss action fails
+# against this app's input accessory bar ("Couldn't hide the keyboard"), and
+# nothing needs it — Save sits in the header, and every field below is centred
+# before it is tapped, which is what the keyboard would have been hidden for.
+- tapOn: "Save"
+
+# Save replaces the form with ExerciseDetail, so this is the exercise that was
+# just created rather than one found by searching.
+- extendedWaitUntil:
+    visible: "Start Workout"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Start Workout"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Start Workout"
+
+# A workout started from one exercise gets exactly one set, so "Weight" and
+# "Reps" are unambiguous here in a way they would not be in a longer session.
+# The wait doubles as the guard that nothing is covering the screen: Maestro's
+# visibility check honours occlusion even with modal honouring off, so an
+# unexpected dialog fails here loudly instead of silently redirecting the taps
+# below onto whatever is in front of them.
+- extendedWaitUntil:
+    visible: "End Workout"
+    timeout: 30000
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element: "Weight"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+# Both cells are anchored below "SET", the first column header. Maestro's text
+# match is case-insensitive and full-string, so the bare word "Reps" matches the
+# REPS *column header* as well as the cell — and the header comes first, so the
+# unanchored selector tapped a label, the keystrokes went nowhere, and the set
+# saved with a weight and no reps. The header row is the one thing that is NOT
+# below "SET".
+- tapOn:
+    text: "Weight"
+    below: "SET"
+- waitForAnimationToEnd
+- inputText: "60"
+- tapOn:
+    text: "Reps"
+    below: "SET"
+- waitForAnimationToEnd
+- inputText: "8"
+# Logging the set is what makes the session worth celebrating: with no completed
+# set, finishing skips WorkoutComplete entirely and returns to the diary.
+- tapOn: "Log set 1"
+
+- scrollUntilVisible:
+    element: "End Workout"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "End Workout"
+# The confirmation is a native alert whose default button carries the SAME text
+# as the button that opened it, and the screen behind stays in the tree — so
+# the alert's own button is identified by sitting to the right of the cancel
+# one, which exists nowhere else.
+- extendedWaitUntil:
+    visible: "Keep going"
+    timeout: 20000
+- tapOn:
+    text: "End Workout"
+    rightOf: "Keep going"
+
+# --- the celebration, and the two screens hanging off it --------------------
+- extendedWaitUntil:
+    visible: "Workout Complete"
+    timeout: 60000
+# Saving the finished session as a preset fills the form from the session, so
+# nothing has to be typed or picked. It is also the only route to
+# WorkoutPresetDetail that does not leave a tab root in the tree behind it.
+- tapOn: "Save as Preset"
+- extendedWaitUntil:
+    visible: "New Preset"
+    timeout: 30000
+- tapOn: "Save"
+- extendedWaitUntil:
+    visible: "Start Workout"
+    timeout: 30000
+- tapOn: "Back"
+
+- tapOn: "View Workout"
+- extendedWaitUntil:
+    visible: "Back"
+    timeout: 30000
+- tapOn: "Back"
+
+- tapOn: "Done"
+
+# === the same exercise, logged as an activity ===============================
+# ExerciseDetail is reached through the library this time so that it is PUSHED:
+# the copy that Save produced sat in a modal's slot, and its "Back" would have
+# collided with the Exercise tab's date navigator behind it.
+- tapOn: "Exercise"
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-exercises-library"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-exercises-library"
+# The library row is one grouped element, and its leading glyph contributes the
+# raw SF Symbol name to the label — the row reads as
+# "figure.strengthtraining.traditional, QA Harness Lift, General". (That prefix
+# is a real defect: Icon forwards `accessibilityLabel` when it is given one and
+# leaves the symbol exposed when it is not, so every decorative icon in the app
+# announces its symbol name. Fixing it is a change to app source well outside
+# this flow; the wildcard here is deliberately tolerant of it going away.)
+- tapOn: ".*QA Harness Lift.*"
+
+- scrollUntilVisible:
+    element: "Log Exercise"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Log Exercise"
+
+# The form offers a name of its own, and this flow deliberately does not use
+# it: the name is dropped on the way to the server, so an activity always
+# lands under its exercise's name. createExerciseEntryRequestSchema is
+# `.strict()` and has no `exercise_name` field, and the create path in
+# models/exerciseEntry.ts falls back to `snapshot.name` — typing a name here
+# would only make the oracle assert something the product does not do. (The
+# rename is worth fixing; it is not this flow's job to hide it.)
+- extendedWaitUntil:
+    visible: "Edit activity name"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Duration in minutes"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Duration in minutes"
+- waitForAnimationToEnd
+- inputText: "30"
+# Save is at the bottom of the form and the numeric keypad covers it, so a tap
+# on it presses a digit instead and nothing is written. This form does expose
+# a dismiss: its input accessory's "Done", which is drawn above the keyboard.
+- tapOn: "Done"
+- waitForAnimationToEnd
+- tapOn: "Save"
+
+- extendedWaitUntil:
+    visible: "Log Exercise"
+    timeout: 30000
+- tapOn: "Back"
+- tapOn: "Back"
+
+# === the logged activity's own screen =======================================
+# The row is one grouped element that ends in its duration — which is what
+# tells it apart from the workout session directly above it, since both carry
+# the same exercise and the same "Sparky" source.
+- scrollUntilVisible:
+    element: ".*QA Harness Lift.*30 min"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: ".*QA Harness Lift.*30 min"
+- tapOn: "Back"
+
+# === the medication =========================================================
+- tapOn: "Home"
+- scrollUntilVisible:
+    element:
+      id: "dashboard-medications-row"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "dashboard-medications-row"
+- tapOn: "Add medication"
+
+- extendedWaitUntil:
+    visible: "Ipsumol"
+    timeout: 30000
+- tapOn: "Ipsumol"
+- waitForAnimationToEnd
+- inputText: "QA Harness Tonic"
+- tapOn: "Save"
+
+# Save replaces the form with MedicationDetail. Its schedule editor is a modal
+# of its own, so it closes rather than going back.
+- extendedWaitUntil:
+    visible: "Add schedule"
+    timeout: 30000
+- tapOn: "Add schedule"
+- tapOn: "Close"
+- tapOn: "Back"
+- tapOn: "Back"
+
+# === the nutrition breakdown ================================================
+# Last, and deliberately not returned from: DailyNutritionDetails is presented
+# over Home with a back chevron rather than a close, so its "Back" and the
+# dashboard's previous-day arrow are the same label at different coordinates.
+# Ending here needs no exit at all.
+# UP, not DOWN: the medications row sits below the nutrition card, so the
+# dashboard has already been walked past it. The card's header is one grouped
+# element — the label carries its "Details" affordance and the chevron with it.
+- scrollUntilVisible:
+    element: "Nutrients, Details, Forward"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn: "Nutrients, Details, Forward"
+
+# Wait on the screen's title rather than on the row: Sodium is below the fold,
+# and `visible` means fully on screen — waiting for it here would fail before
+# the scroll that is there to bring it up.
+- extendedWaitUntil:
+    visible: "Nutrition Details"
+    timeout: 30000
+# Sodium is on the breakdown for both the server's default nutrient selection
+# and the client's fallback, and unlike the macros it is not also on the card
+# at the top of the same screen. Its row is one grouped element carrying the
+# amount, the goal and the chevron, so the bare name matches nothing.
+- scrollUntilVisible:
+    element: "Sodium, .*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Sodium, .*"
+# NutrientTrends is the last screen this flow visits, so the assertion is on
+# something only it renders — "Back" would have matched the dashboard behind.
+- extendedWaitUntil:
+    visible: "Summary Statistics"
+    timeout: 30000

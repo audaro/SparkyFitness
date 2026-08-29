@@ -97,8 +97,22 @@ its own because it has nothing to assert. It walks every screen a signed-in
 account can reach from an empty database — 45 of them — and lets
 `app-logs.mjs` alone decide, which buys crash coverage over the whole app for
 the price of a flow. Its header lists the screens it cannot reach and what each
-is waiting for; all of them need content created first, which is what the next
-scenario is for.
+is waiting for; all of them need content created first.
+
+`flows/content-crawl.yaml` is what creates it. It is a crawl *and* a scenario:
+it makes a food, a diary entry, a custom exercise, a live workout with a logged
+set, a saved preset, an activity and a medication through the UI, walking the
+15 detail screens that content unlocks on the way, and it has a real oracle
+(`oracles/content-crawl.mjs`) because everything it taps is a row being written
+— a detail screen reached with the wrong numbers behind it is not the coverage
+it looks like. The two flows are deliberately not merged: the empty-database
+walk is its own start state, and it is the one that catches an empty-state
+screen crashing.
+
+Steps two scenarios both need live in `flows/lib/` and are pulled in with
+`runFlow` (`lib/boot.yaml`, `lib/create-and-log-food.yaml`). Every trap in one
+of those cost a green run that was doing something else entirely, so a copy
+would drift the moment one of them is fixed.
 
 `app-logs.mjs` is the cheapest broad coverage in the harness: `LogService.ts`
 already writes structured entries into AsyncStorage and most screens are wrapped
@@ -158,6 +172,16 @@ found on the way (see the bottom-sheet trap below).
 **The first keystroke after a tap lands in the previously focused field**, so
 each field tap is followed by `waitForAnimationToEnd`.
 
+**Centring is not enough for the last field on a form.** Save sits at the bottom
+of the food and activity forms and the numeric keypad covers the bottom third of
+the screen, so a tap on Save presses whichever digit is at those coordinates: the
+calories read `2122` and the form never saved at all, with the flow green until
+a later selector missed. `hideKeyboard` does not work on this app ("Couldn't hide
+the keyboard" — its input accessory is not a standard dismiss action). What does
+is a tap on something inert: the food form's ScrollView is
+`keyboardShouldPersistTaps="handled"`, so tapping a field's own *label* dismisses
+the keypad, and the activity form has a "Done" accessory of its own.
+
 **The driver has no notion of the fold either.** The keyboard is only the most
 obvious thing that covers a control. An element below the fold, behind the tab
 bar, or under the floating "Talk to Sparky" button reads as on-screen and 100%
@@ -179,6 +203,33 @@ have been announcing all along, so this is a fix rather than a test hook. The
 other ~18 sheets in `src/components` still have it; expect the same symptom the
 first time a scenario needs one, and prefer the same one-line fix over pinning
 coordinates (the reason the onboarding fields use relative selectors, above).
+
+**And so is any `Pressable` that wraps more than it presses.** RN's `Pressable`
+and `TouchableOpacity` default to `accessible={true}`, which collapses the whole
+subtree into one comma-joined label the same way: the active workout's set row
+announced "Weight, Reps, Log set 1" as a single node, and `ActivityAddScreen`
+wrapped its entire form in a keyboard-dismissing `Pressable`, so the snapshot
+offered "Edit activity name, Date, Today, …, Activity notes" and not one of those
+fields could be focused — by a flow or by a screen reader. Same one-line fix,
+same reasoning: a wrapper whose only job is a tap-outside shortcut is not an
+accessibility element.
+
+**Text selectors are full-string and case-insensitive.** `"Reps"` matches the
+`REPS` column header above the field, and the header comes first in the tree, so
+the reps went nowhere and the set saved with a null. `rightOf:` does not save
+you — it does not require vertical overlap, so it matched the header too. An
+anchor that does (`below: "SET"`) or an explicit `index:` is the fix.
+
+**A system permission alert steals a tap for the screen behind it.** Starting a
+live workout calls `ensureNotificationPermission()` one line before it navigates,
+so iOS raises its prompt whenever it gets round to it — and the tap that clears
+it also reaches the app underneath, where ActiveWorkout's "Add an Exercise" sits
+exactly under the alert's Allow. That logged the exercise twice, opened the
+exercise picker over the workout, and left the set values in a screen that was no
+longer in front. Notification permission cannot be pre-granted the way camera or
+photos can (`simctl privacy` has no such service, and neither does Maestro's iOS
+permission list), so `content-crawl.yaml` grants it *deliberately* first, on
+Settings → Notifications, before anything can be surprised by it.
 
 **`back` is not the pop gesture.** Maestro's iOS `back` swipes too briefly to
 engage a native stack's interactive pop, and simply does nothing on a screen
