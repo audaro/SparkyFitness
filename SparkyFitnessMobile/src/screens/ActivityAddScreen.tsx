@@ -220,7 +220,17 @@ const ActivityAddScreen: React.FC<Props> = ({ navigation, route }) => {
         bottomOffset={80}
         keyboardShouldPersistTaps="handled"
       >
-          <Pressable onPress={dismissEditing}>
+          <Pressable
+            onPress={dismissEditing}
+            // A Pressable is one accessibility element by default, and this one
+            // wraps the whole form: every field collapsed into a single node
+            // labelled "Edit activity name, Date, Today, …, Activity notes", so
+            // none of them could be focused and the form could not be filled in
+            // at all with a screen reader. What this wrapper adds is only a
+            // tap-outside shortcut for dismissing the keyboard, which each field
+            // also does on blur and on submit.
+            accessible={false}
+          >
             {/* Activity name */}
             <View className="mb-4">
               {isNameEditing ? (
