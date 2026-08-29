@@ -4,6 +4,7 @@ import {
   Platform,
   Pressable,
   StatusBar,
+  StyleSheet,
   View,
   Text,
   useWindowDimensions,
@@ -106,7 +107,19 @@ const AnchoredMenu: React.FC<Props> = ({
       animationType="none"
       onRequestClose={onClose}
     >
-      <Pressable className="flex-1" onPress={onClose} accessibilityLabel={t('common.dismissMenu', { defaultValue: 'Dismiss menu' })}>
+      <View className="flex-1">
+        {/* The dismissal backdrop is a SIBLING of the menu, not its parent.
+            `Pressable` is an accessibility element by default, and an
+            accessibility element collapses its whole subtree — so wrapping the
+            menu in this one hid every item behind a single "Dismiss menu"
+            button, for VoiceOver as much as for the QA driver. Keeping it
+            alongside preserves the labelled way out without swallowing what it
+            is covering. */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityLabel={t('common.dismissMenu', { defaultValue: 'Dismiss menu' })}
+        />
         {/* Entrance-only animation: dismissal must stay instant (see the
             animationType note above), so only the content animates in. */}
         <Animated.View
@@ -168,7 +181,7 @@ const AnchoredMenu: React.FC<Props> = ({
           )}
           </Animated.View>
         </Animated.View>
-      </Pressable>
+      </View>
     </Modal>
   );
 };
