@@ -1,7 +1,8 @@
 appId: ${APP_ID}
 ---
-# Generate a workout for a named split, shorten it, run it — and check the
-# programming that came back rather than the screen that renders it.
+# Generate a workout for a named split, change the gym, shorten it, run it —
+# and check the programming that came back rather than the screen that renders
+# it.
 #
 # Nothing about a generated workout is decided on the client. The muscles, the
 # exercises, the number of sets, the reps, the rest between them and the
@@ -15,16 +16,18 @@ appId: ${APP_ID}
 #   PickMuscles  crawl opens the picker and backs out of it; this one taps a
 #                split, which is the only way to make a workout exist
 #   UpNext       crawl only ever sees its empty state, because an account with
-#                no workout has no workout to show — and the length chip is
-#                only rendered once one exists, so this is the only scenario
-#                that can press it
+#                no workout has no workout to show — and the length and gym
+#                chips are only rendered once one exists, so this is the only
+#                scenario that can press either
 #
 # WHAT IS SEEDED, and why it has to be: qa/setup/suggested-workout.sh puts an
-# exercise catalog in the database before this runs. A fresh account has none —
-# the server bundles no catalog — and the generator does not degrade when a
-# target muscle has nothing to prescribe: it imports one from free-exercise-db
-# over the network. The seeded catalog is what keeps the run offline and
-# repeatable, and the oracle asserts the fallback never fired.
+# exercise catalog and one gym profile in the database before this runs. A fresh
+# account has neither. The catalog is the load-bearing one — the server bundles
+# none, and the generator does not degrade when a target muscle has nothing to
+# prescribe: it imports one from free-exercise-db over the network, so the
+# seeded catalog is what keeps the run offline and repeatable, and the oracle
+# asserts the fallback never fired. The gym profile is what makes the gym chip
+# a control at all rather than a menu of one dead option.
 #
 # THE SPLIT IS THE ASSERTION. Push is picked rather than "Recovered muscles"
 # because the client resolves the split to canonical muscles itself and sends
@@ -96,6 +99,50 @@ appId: ${APP_ID}
 # half-drawn screen reports the wrong thing first.
 - assertVisible:
     id: "up-next-exercise-row"
+
+# === change the gym =========================================================
+# The third of Up Next's three regenerate paths, and the one no flow could
+# reach until qa/setup seeded a profile: the picker lists the account's gym
+# profiles, and with none there the chip offered only "Any equipment" and
+# tapping it changed nothing.
+#
+# It runs BEFORE the length change on purpose. The workout does not visibly
+# change across this step — every seeded exercise is `body only`, which is
+# always available whatever gym is active, so the same six exercises come back —
+# which means this step has no landing signal of its own. Ordering it first
+# makes the length change the signal for both: "5 Exercises • 45 min" cannot
+# appear unless this regenerate finished, the chip re-enabled and the next tap
+# was taken.
+#
+# What the oracle gets out of it is two claims that were previously untestable
+# and one that was vacuous:
+#   * the split has to survive THIS chip too — if the gym switch dropped the
+#     muscles, the workout would be rebuilt around whatever is freshest and the
+#     length change would then carry those wrong muscles to the end, where
+#     `payload.muscles-are-the-split` reads them
+#   * the gym has to survive the LENGTH chip — `recommendation.gym-is-the-one-
+#     picked` asserts the profile id on the final row, which is two regenerates
+#     after the tap that set it. That check existed before as "gym_profile_id is
+#     null", which every possible client behaviour satisfied
+#
+# The profile is seeded inactive, so the workout on screen was built with no gym
+# and the chip reads "Any equipment" until this tap.
+- tapOn: "Change gym equipment"
+- extendedWaitUntil:
+    visible: "Gym equipment"
+    timeout: 20000
+- tapOn: "QA Gym"
+- extendedWaitUntil:
+    notVisible: "Gym equipment"
+    timeout: 20000
+# Selecting activates the profile and then regenerates, and both chips are
+# disabled while that is in flight. This absorbs most of that: the regenerate
+# spinner sits between the two chips and usually keeps the screen from settling
+# until the workout is back. It is a courtesy, not the guarantee — the spinner
+# is a small region and this is a frame comparison. The guarantee is the wait
+# after the next tap: "5 Exercises • 45 min" cannot appear unless this
+# regenerate finished and the length chip was live when it was pressed.
+- waitForAnimationToEnd
 
 # === shorten it =============================================================
 # Changing the length is a REGENERATE, not a trim: the whole workout is rebuilt

@@ -157,15 +157,20 @@ drops it before the request is a bug no diary row can see.
 an *algorithm*. Nothing about a generated workout is decided on the client: the
 muscles, the exercises, the sets, the reps, the rest and the estimated length
 all come back from `POST /api/workout-recommendations/generate`, and the app
-draws what it is handed. So it picks the Push split, shortens the workout that
-comes back to 45 minutes, starts it, completes one set and ends it.
+draws what it is handed. So it picks the Push split, switches the workout that
+comes back to the seeded gym, shortens it to 45 minutes, starts it, completes
+one set and ends it. Those two adjustments are the three regenerate paths Up
+Next has, minus Refresh — and each one is a full server-side rebuild, not an
+edit.
 
 Three things it checks that no screen can show. **That the request survived**:
 the client resolves Push to chest, shoulders and triceps and sends the muscles —
 the server has no split vocabulary — so the muscles in the stored payload are
 the only evidence the tap reached the wire, *and* they have to still be those
-three after the length chip rebuilt the workout, which is a claim about the
-client rather than the engine (see the trap below). **That the plan is
+three after the gym chip and then the length chip each rebuilt the workout,
+which is a claim about the client rather than the engine (see the trap below).
+The gym makes the same claim pointing the other way: it is set by the first of
+those two chips and has to still be on the row after the second. **That the plan is
 programming, not a list**: every asked-for muscle is served, compounds are
 ordered ahead of isolations, the 45-minute budget forced a trim, the trim took
 an isolation rather than a compound, and every set carries reps and a rest
@@ -266,6 +271,24 @@ next run produces a different workout. So the oracle also asserts the table stil
 holds exactly 34 rows, and that this run's slice of `server.log` contains no
 `free-exercise-db` line (`setup/suggested-workout.sh` records the log's byte
 offset first, because `server.log` outlives a single run).
+
+**The gym profile** (`fixtures/gym-profile.mjs`, `qa-gym-profile.mjs`) is seeded
+for the opposite reason to everything above: not because a run would go wrong
+without it, but because a control would not exist. The gym chip on Up Next lists
+the account's profiles, and an account with none offers a menu whose only entry
+is "Any equipment" — tapping through it changes nothing, so no flow could reach
+`handleSelectGym` at all.
+
+Two things about it are deliberate and easy to undo by accident. It is created
+**inactive**, because the generator falls back to the active profile when a
+request names none: a profile that arrived active would be picked up by the very
+first generate and the switch the scenario exists to test would be a no-op
+wearing a pass. And its equipment list is **irrelevant on purpose** — the whole
+catalog is `body only`, which is `ALWAYS_AVAILABLE_EQUIPMENT`, so the same
+workout comes back before and after the switch. That is the point: with the plan
+held still, the only thing the assertion can be reading is whether the request
+carried the workout's own muscles and length forward. A profile that changed the
+prescription would confound the two.
 
 ## Traps, and why the code looks the way it does
 
@@ -475,6 +498,20 @@ three rows below, and the flow only failed a step later, waiting for a screen it
 had never navigated to. A `waitForAnimationToEnd` between opening a sheet and
 tapping into it is the fix, and it is cheap — the failure it prevents costs a
 whole run and points at the wrong step.
+
+**A step that changes nothing on screen has no landing signal — so order it
+before one that does.** Switching the gym rebuilds the workout server-side, but
+the catalog is entirely `body only`, so the same exercises come back and not one
+pixel moves. There is nothing to wait for, and the chips are disabled while the
+regenerate is in flight, so a flow that tapped straight on would be tapping a
+dead control. `suggested-workout.yaml` puts the gym switch *before* the length
+change for this reason: "5 Exercises • 45 min" cannot appear unless the gym
+regenerate finished, the chip re-enabled and the next tap was taken, so one wait
+covers both. The `waitForAnimationToEnd` after the gym tap is a courtesy that
+usually absorbs the spinner, not the guarantee — a spinner is a small region and
+the heuristic is a frame comparison. When a step is genuinely invisible, borrow
+the next step's signal; do not let an animation wait be the only thing standing
+between a tap and the state it depends on.
 
 **Prefer the control that needs no aim.** Logging a set on ActiveWorkout means
 finding one cell among three identical rows, which needs an anchor *and* an

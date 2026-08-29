@@ -1,6 +1,6 @@
 # Handoff — mobile UI QA harness (`qa/mobile-ui-harness`)
 
-*Written 2026-08-29, updated the same day. Branch has 17 commits and has never been pushed.*
+*Written 2026-08-29, updated the same day. Branch has 19 commits, pushed to `origin/qa/mobile-ui-harness`.*
 
 ## What shipped
 
@@ -56,6 +56,16 @@ screen. The three handlers now restate the workout they are adjusting via a
 `currentContext()` helper — muscles from the payload filtered to the canonical
 enum and omitted when empty, duration and gym from the row.
 
+`suggested-workout` then grew a gym-switch step to cover the last of the three
+handlers, taking it to 33 checks. The setup seeds one gym profile, deliberately
+**inactive** — the generator falls back to the active profile when a request
+names none, so a profile that arrived active would be consumed by the first
+generate and the switch would be a no-op wearing a pass. The switch runs BEFORE
+the length change, which is what makes both handlers independently provable: the
+Push split has to survive the gym chip to still be there at the end, and the gym
+id has to survive the length chip to still be on the row. Reversing the order
+would prove only one of them.
+
 ## Gate status
 
 - `pnpm run validate` (mobile): green, i18n audit 0 findings.
@@ -75,14 +85,13 @@ If the work continues, it is **assertions, not screens**. The obvious gaps:
 1. `crawl` and `smoke` have no oracle of their own and rest entirely on
    `app-logs.mjs`. Any screen they walk that writes something is a candidate for
    a real check.
-2. The recommendation family is covered for Pick Muscles and the length chip.
-   `suggested-workout` does not touch Swap (`swap: true` penalizes the previous
-   workout's exercise ids, so the seeded catalog's second exercise per muscle is
-   already there for it), Replace, On Demand, saved workouts, or generating
-   against a gym profile — each of which changes the plan in a way that is
-   invisible on screen and cheap to assert now that the catalog seeding exists.
-   The gym chip is the most valuable of them: it is the third caller of
-   `currentContext()` and the only one no scenario exercises.
+2. The recommendation family is covered for Pick Muscles, the length chip and
+   the gym chip. `suggested-workout` does not touch Swap (`swap: true` penalizes
+   the previous workout's exercise ids, so the seeded catalog's second exercise
+   per muscle is already there for it), Replace, On Demand, or saved workouts —
+   each of which changes the plan in a way that is invisible on screen and cheap
+   to assert now that the catalog and gym seeding exist. Refresh is the last
+   `currentContext()` caller with no coverage.
 3. Android. Everything here is iOS-only: `qa-run.sh` shells `xcrun simctl`
    throughout, and the traps in `qa/README.md` are XCUITest's.
 
@@ -105,7 +114,14 @@ If the work continues, it is **assertions, not screens**. The obvious gaps:
 - **`ALLOW_PRIVATE_NETWORK_AI=true` is exported by `qa-env.sh`.** It is scoped to
   the QA server process, which can only reach the QA stack — but it is a
   production safety valve being switched off, so it is worth knowing it is there.
-- **None of these 12 commits has had an independent review.** The second-opinion
+- **One carry-pair is still unasserted.** The gym chip is proven to carry the
+  muscles forward, but not the duration: at the moment it is tapped the workout
+  is still on the server's default length, so a dropped `duration_minutes` and a
+  carried one produce the same 60. It is the same single `...currentContext()`
+  spread that the muscle check already proves is there, and the alternative
+  ordering would leave a strictly larger gap — but it is a gap, not a covered
+  case, and a scenario that changed the length twice would close it.
+- **None of these 19 commits has had an independent review.** The second-opinion
   reviewer has been down since 2026-08-24 (`.git/second-opinion/last-error.txt`
   is newer than `last-review.md`; the ChatGPT account is on the Free plan, which
   does not include Codex).

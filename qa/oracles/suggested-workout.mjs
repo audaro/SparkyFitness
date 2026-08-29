@@ -2,9 +2,9 @@
 /**
  * The verdict for qa/flows/suggested-workout.yaml.
  *
- * The flow taps one row — Push — shortens the workout it gets to 45 minutes,
- * starts what comes back, completes one set and ends the workout. Everything
- * worth checking about that is invisible. The
+ * The flow taps one row — Push — switches the workout it gets to the seeded
+ * gym, shortens it to 45 minutes, starts what comes back, completes one set and
+ * ends the workout. Everything worth checking about that is invisible. The
  * screen shows exercise names, a muscle header and a duration; it does not show
  * which muscle each exercise was slotted against, how many sets were
  * prescribed, how long the rest is, where the exercise came from, or which of
@@ -20,11 +20,15 @@
  *                           row resolves to on the client, which is the only
  *                           evidence that the tap reached the wire intact (the
  *                           server has no split vocabulary to reconstruct them
- *                           from) — and they are still those three after the
- *                           length chip regenerated the workout, which is a
- *                           separate claim about the client, because an
- *                           omitted `target_muscles` asks for the freshest
- *                           muscles rather than for the same ones;
+ *                           from) — and they are still those three after TWO
+ *                           further regenerates, the gym chip and then the
+ *                           length chip. That is a separate claim about the
+ *                           client, because an omitted `target_muscles` asks
+ *                           for the freshest muscles rather than for the same
+ *                           ones. The gym makes the same claim in the other
+ *                           direction: it is set by the first of those two
+ *                           chips and has to still be on the row after the
+ *                           second;
  *   the PLAN is coherent  — every prescribed exercise trains a muscle that was
  *                           asked for, every asked-for muscle got one, compounds
  *                           come first, the 45-minute budget forced a trim, the
@@ -124,14 +128,45 @@ report.check(
   `built for ${row.target_duration_minutes} minutes; the length chip asked for ${EXPECTED_TARGET_MINUTES}`,
   { targetDurationMinutes: row.target_duration_minutes }
 );
-// The QA account has never made a gym profile, and "no profile" has to reach
-// the row as null rather than as some default one the generator invented —
-// which would silently constrain every workout by equipment nobody chose.
+// The gym the flow picked, still on the row two regenerates later.
+//
+// This check used to read "gym_profile_id is null", which the QA account
+// satisfied by never having had a gym profile — it could not fail, whatever the
+// client sent. Now a profile is seeded, the flow switches to it BEFORE changing
+// the length, and the id has to survive that second regenerate to be here: a
+// length chip that sent nothing but the new duration would drop the gym back to
+// null and leave the workout built for equipment the user had just said they
+// did not have.
+const gymProfiles = query(`
+  SELECT id, name, is_active
+  FROM gym_equipment_profiles
+  WHERE user_id = ${lit(userId)}
+`);
 report.check(
-  'recommendation.no-gym-profile',
-  row.gym_profile_id === null,
-  `gym_profile_id is ${JSON.stringify(row.gym_profile_id)} (the QA account has no gym profile)`,
-  { gymProfileId: row.gym_profile_id }
+  'recommendation.one-gym-profile',
+  gymProfiles.length === 1,
+  `${gymProfiles.length} gym profile(s) for the QA user (the setup seeds exactly 1)`,
+  { profiles: gymProfiles.map((profile) => profile.name) }
+);
+const seededGym = gymProfiles[0] ?? null;
+report.check(
+  'recommendation.gym-is-the-one-picked',
+  seededGym !== null && row.gym_profile_id === seededGym.id,
+  seededGym === null
+    ? 'there is no seeded gym profile to have been picked'
+    : `built for gym profile ${JSON.stringify(row.gym_profile_id)}; the chip picked "${seededGym.name}" (${seededGym.id})`,
+  { gymProfileId: row.gym_profile_id, seededGymId: seededGym?.id ?? null }
+);
+// Switching the chip activates the profile as well as regenerating against it.
+// Seeded inactive, so this is evidence the tap did both halves — and the half
+// that outlives the workout is the one no other check would notice.
+report.check(
+  'recommendation.gym-was-activated',
+  seededGym !== null && seededGym.is_active === true,
+  seededGym === null
+    ? 'there is no seeded gym profile to have been activated'
+    : `the seeded profile is ${seededGym.is_active ? 'active' : 'still inactive'} (the chip activates the one it selects)`,
+  { isActive: seededGym?.is_active ?? null }
 );
 
 // --- the request survived the trip -------------------------------------------
