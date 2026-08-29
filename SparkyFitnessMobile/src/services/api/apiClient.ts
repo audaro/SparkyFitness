@@ -15,6 +15,14 @@ interface ApiFetchOptions {
   body?: unknown;
   headers?: Record<string, string>;
   timeoutMs?: number;
+  /**
+   * Statuses this caller treats as a normal answer rather than a failure. They
+   * still throw — the caller keeps its `catch` — but they are not written to
+   * the app log as ERROR. Without this, a documented empty state that the
+   * server reports as 404 fills the user's log with "Failed to …" every time
+   * the screen is opened, and buries the errors that do matter.
+   */
+  expectedStatuses?: number[];
 }
 
 export async function apiFetch<T>(options: ApiFetchOptions): Promise<T> {
@@ -26,6 +34,7 @@ export async function apiFetch<T>(options: ApiFetchOptions): Promise<T> {
     body,
     headers: customHeaders,
     timeoutMs = DEFAULT_API_TIMEOUT_MS,
+    expectedStatuses,
   } = options;
 
   const config = await getActiveServerConfig();
@@ -73,7 +82,9 @@ export async function apiFetch<T>(options: ApiFetchOptions): Promise<T> {
         notifySessionExpired(config.id);
       }
       const errorText = await response.text();
-      addLog(`[${serviceName}] Failed to ${operation}: ${response.status}`, 'ERROR', [errorText]);
+      if (!expectedStatuses?.includes(response.status)) {
+        addLog(`[${serviceName}] Failed to ${operation}: ${response.status}`, 'ERROR', [errorText]);
+      }
       throw new ApiError(`Server error: ${response.status} - ${errorText}`, response.status, errorText);
     }
 
@@ -84,7 +95,11 @@ export async function apiFetch<T>(options: ApiFetchOptions): Promise<T> {
     return await response.json();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    addLog(`[${serviceName}] Failed to ${operation}: ${message}`, 'ERROR');
+    // An ApiError has already been logged (or deliberately not) above; logging
+    // it again here would double every failed request in the app log.
+    if (!(error instanceof ApiError)) {
+      addLog(`[${serviceName}] Failed to ${operation}: ${message}`, 'ERROR');
+    }
     throw error;
   }
 }

@@ -94,6 +94,16 @@ export function isDatabaseInaccessibleError(error: unknown): boolean {
   return msg.includes('protected health data') || msg.includes('errordatabaseinaccessible');
 }
 
+// HealthKit answers a read with this whenever the user has not been through the
+// permission sheet for the type — the state every account is in before its
+// first sync, and the state it stays in for anyone who declines. Like a locked
+// device, it says "not now", not "something broke".
+export function isAuthorizationNotDeterminedError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.toLowerCase().includes('authorization status is not determined')
+    || error.message.toLowerCase().includes('authorization not determined');
+}
+
 // Classify and log a failed HealthKit read, bumping the locked-device counter when the
 // database was inaccessible. Returns the message for the caller's { records, error }
 // envelope so a failed read is distinguishable from a successful empty one.
@@ -102,6 +112,8 @@ const recordReadError = (error: unknown, label: string): string => {
   if (isDatabaseInaccessibleError(error)) {
     databaseInaccessibleCount++;
     addLog(`[HealthKitService] ${label} failed: database inaccessible (device likely locked)`, 'WARNING');
+  } else if (isAuthorizationNotDeterminedError(error)) {
+    addLog(`[HealthKitService] ${label} failed: not authorized yet`, 'WARNING');
   } else {
     addLog(`[HealthKitService] ${label} failed: ${message}`, 'ERROR');
   }
