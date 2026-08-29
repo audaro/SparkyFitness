@@ -3742,7 +3742,12 @@
     "meal": "Meal",
     "selectMeal": "Select Meal",
     "date": "Date",
-    "servings": "Servings"
+    "servings": "Servings",
+    "accessibility": {
+      "decreaseServings": "Decrease servings",
+      "servingsValue": "Servings",
+      "increaseServings": "Increase servings"
+    }
   },
   "workoutAdd": {
     "addExercise": "Add an Exercise",
