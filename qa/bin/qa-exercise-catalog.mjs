@@ -16,28 +16,17 @@
  * evidence about the API under test.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { qaSignIn } from './qa-session.mjs';
 import { CATALOG, CATALOG_PREFIX } from '../fixtures/exercise-catalog.mjs';
 import { MUSCLES } from '../../shared/src/constants/exerciseTaxonomy.ts';
 
-const {
-  QA_SERVER_URL,
-  QA_ACCOUNT_FILE,
-  QA_DB_CONTAINER,
-  QA_DB_USER,
-  QA_DB_NAME,
-  QA_DB_PASSWORD,
-} = process.env;
-
-for (const [key, value] of Object.entries({
-  QA_SERVER_URL,
-  QA_ACCOUNT_FILE,
-  QA_DB_CONTAINER,
-})) {
-  if (!value) {
-    console.error(`!! ${key} is unset — run this through qa-run.sh, or source qa/bin/qa-env.sh first.`);
-    process.exit(1);
-  }
+// QA_SERVER_URL and QA_ACCOUNT_FILE are checked by qaSignIn; these are the ones
+// this script reads for itself.
+const { QA_SERVER_URL, QA_DB_CONTAINER, QA_DB_USER, QA_DB_NAME, QA_DB_PASSWORD } =
+  process.env;
+if (!QA_DB_CONTAINER) {
+  console.error('!! QA_DB_CONTAINER is unset — run this through qa-run.sh, or source qa/bin/qa-env.sh first.');
+  process.exit(1);
 }
 
 function sql(query) {
@@ -49,22 +38,7 @@ function sql(query) {
   ).trim();
 }
 
-const { email, password } = JSON.parse(readFileSync(QA_ACCOUNT_FILE, 'utf8'));
-
-const signIn = await fetch(`${QA_SERVER_URL}/api/auth/sign-in/email`, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json', origin: QA_SERVER_URL },
-  body: JSON.stringify({ email, password }),
-});
-if (!signIn.ok) {
-  console.error(`!! sign-in failed (${signIn.status}): ${await signIn.text()}`);
-  process.exit(1);
-}
-const { token } = await signIn.json();
-if (!token) {
-  console.error('!! sign-in returned no session token.');
-  process.exit(1);
-}
+const { token } = await qaSignIn();
 
 // POST /api/exercises is multipart-only — it takes an image alongside the row,
 // so the JSON goes in an `exerciseData` part rather than as the body. That is
