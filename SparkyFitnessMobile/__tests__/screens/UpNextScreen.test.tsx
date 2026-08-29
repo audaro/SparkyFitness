@@ -415,14 +415,29 @@ describe('UpNextScreen', () => {
     const screen = renderScreen();
     fireEvent.press(screen.getByTestId('picker-option-45'));
 
-    await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({ duration_minutes: 45 }));
+    // The muscles and the gym ride along: an absent field on `/generate` means
+    // "use the default", so a bare `{duration_minutes: 45}` would ask for a
+    // shorter workout AND re-target it onto whatever happens to be freshest.
+    await waitFor(() =>
+      expect(generateAsync).toHaveBeenCalledWith({
+        target_muscles: ['chest', 'triceps'],
+        duration_minutes: 45,
+        gym_profile_id: GYM_A,
+      }),
+    );
   });
 
   it('activates a gym profile before regenerating for it', async () => {
     const screen = renderScreen();
     fireEvent.press(screen.getByTestId(`picker-option-${GYM_A}`));
 
-    await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({ gym_profile_id: GYM_A }));
+    await waitFor(() =>
+      expect(generateAsync).toHaveBeenCalledWith({
+        target_muscles: ['chest', 'triceps'],
+        duration_minutes: 60,
+        gym_profile_id: GYM_A,
+      }),
+    );
     expect(activateProfileAsync).toHaveBeenCalledWith(GYM_A);
     expect(activateProfileAsync.mock.invocationCallOrder[0]).toBeLessThan(
       generateAsync.mock.invocationCallOrder[0],
@@ -443,7 +458,13 @@ describe('UpNextScreen', () => {
     const screen = renderScreen();
     fireEvent.press(screen.getByTestId('picker-option-any'));
 
-    await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({ gym_profile_id: null }));
+    await waitFor(() =>
+      expect(generateAsync).toHaveBeenCalledWith({
+        target_muscles: ['chest', 'triceps'],
+        duration_minutes: 60,
+        gym_profile_id: null,
+      }),
+    );
     expect(activateProfileAsync).not.toHaveBeenCalled();
   });
 
@@ -454,7 +475,54 @@ describe('UpNextScreen', () => {
     expect(screen.getByText('No workout yet')).toBeTruthy();
 
     fireEvent.press(screen.getByText("Generate today's workout"));
+    // Nothing to carry forward: there is no workout on screen, and this is the
+    // one generate that legitimately wants every server-side default.
     await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({}));
+  });
+
+  describe('carrying the current workout forward', () => {
+    // `muscle_groups` is `z.array(z.string())` on the wire — it carries whatever
+    // a custom exercise's snapshot said — while `target_muscles` is the pinned
+    // enum, and a member outside it is a 400 rather than a smaller workout.
+    it('sends only canonical muscles, normalized and deduplicated', async () => {
+      setRecommendation(
+        makeRecommendation({
+          payload: makePayload({ muscle_groups: ['Chest', 'chest', 'rotator cuff'] }),
+        }),
+      );
+
+      const screen = renderScreen();
+      fireEvent.press(screen.getByTestId('picker-option-45'));
+
+      await waitFor(() =>
+        expect(generateAsync).toHaveBeenCalledWith({
+          target_muscles: ['chest'],
+          duration_minutes: 45,
+          gym_profile_id: GYM_A,
+        }),
+      );
+    });
+
+    it('omits the muscles rather than sending an empty list', async () => {
+      // `target_muscles` is `.min(1)`, so `[]` is a 400 — and omitting the
+      // field is not a degraded request anyway, it is the one that asks the
+      // engine for the freshest muscles.
+      setRecommendation(
+        makeRecommendation({
+          payload: makePayload({ muscle_groups: ['rotator cuff'] }),
+        }),
+      );
+
+      const screen = renderScreen();
+      fireEvent.press(screen.getByTestId('picker-option-45'));
+
+      await waitFor(() =>
+        expect(generateAsync).toHaveBeenCalledWith({
+          duration_minutes: 45,
+          gym_profile_id: GYM_A,
+        }),
+      );
+    });
   });
 
   describe('swap sheet', () => {
@@ -594,7 +662,14 @@ describe('UpNextScreen', () => {
       renderScreen();
       act(() => menuAction('Refresh').onPress());
 
-      await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({ swap: true }));
+      await waitFor(() =>
+        expect(generateAsync).toHaveBeenCalledWith({
+          target_muscles: ['chest', 'triceps'],
+          duration_minutes: 60,
+          gym_profile_id: GYM_A,
+          swap: true,
+        }),
+      );
     });
 
     it('saves the workout by review, not by writing it', () => {
