@@ -1,6 +1,6 @@
 # Handoff — mobile UI QA harness (`qa/mobile-ui-harness`)
 
-*Written 2026-08-29. Branch has 12 commits and has never been pushed.*
+*Written 2026-08-29, updated the same day. Branch has 15 commits and has never been pushed.*
 
 ## What shipped
 
@@ -10,7 +10,7 @@ reading the database and the app's own log — never by reading the screen. The
 design rationale, the full trap list, and the recipe for adding a scenario are in
 `qa/README.md`; this file records only where the branch stands.
 
-Seven scenarios, all green:
+Eight scenarios, all green:
 
 | scenario | what it proves | oracle checks |
 | --- | --- | --- |
@@ -21,6 +21,16 @@ Seven scenarios, all green:
 | `fasting-and-cycle` | screens an opted-out account never sees | 10 |
 | `saved-meal` | meal built, logged, and edited | 17 |
 | `food-photo` | AI photo estimate through to the diary row | 18 |
+| `suggested-workout` | a generated workout's programming, and running it | 29 |
+
+`suggested-workout` is the one that is not about reaching a screen — `crawl`
+already opens Pick Muscles and `content-crawl` already runs a live workout. It is
+about the *programming*: nothing in a generated workout is decided on the client,
+so the muscles, exercises, sets, reps and rests are all assertions no screenshot
+can make. It also needs the second kind of setup script — not state the app
+cannot create, but state the **server will otherwise fetch on its own**: the
+generator imports from free-exercise-db over the network when a target muscle has
+no local candidate, and a fresh QA database has no exercises at all.
 
 **Screen coverage is complete.** Every screen a signed-in account can reach is
 now walked by one of these, except `Onboarding` — which `flows/lib/boot.yaml`
@@ -41,7 +51,7 @@ from VoiceOver as much as from the driver.
   `MealTypeSettingsScreen › concurrency: an earlier FAILED visibility update
   never rolls back a later SUCCESS`, is **flaky and unrelated** — it passes when
   that file runs alone. Pre-existing; not introduced here.
-- All seven QA scenarios run green from a cold `bash qa/bin/qa-up.sh`.
+- All eight QA scenarios run green from a cold `bash qa/bin/qa-up.sh`.
 
 ## Exact next step
 
@@ -53,9 +63,12 @@ If the work continues, it is **assertions, not screens**. The obvious gaps:
 1. `crawl` and `smoke` have no oracle of their own and rest entirely on
    `app-logs.mjs`. Any screen they walk that writes something is a candidate for
    a real check.
-2. No scenario yet covers the workout *recommendation* family end to end
-   (Up Next → Pick Muscles / On Demand → start → complete), which is the largest
-   feature with the least oracle coverage.
+2. The recommendation family is covered for the Pick Muscles path only.
+   `suggested-workout` does not touch Swap (`swap: true` penalizes the previous
+   workout's exercise ids, so the seeded catalog's second exercise per muscle is
+   already there for it), Replace, On Demand, saved workouts, or generating
+   against a gym profile — each of which changes the plan in a way that is
+   invisible on screen and cheap to assert now that the catalog seeding exists.
 3. Android. Everything here is iOS-only: `qa-run.sh` shells `xcrun simctl`
    throughout, and the traps in `qa/README.md` are XCUITest's.
 
