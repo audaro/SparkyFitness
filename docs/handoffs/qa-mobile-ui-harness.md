@@ -115,13 +115,23 @@ If the work continues, it is **assertions, not screens**. The obvious gaps:
 - **`ALLOW_PRIVATE_NETWORK_AI=true` is exported by `qa-env.sh`.** It is scoped to
   the QA server process, which can only reach the QA stack — but it is a
   production safety valve being switched off, so it is worth knowing it is there.
-- **One carry-pair is still unasserted.** The gym chip is proven to carry the
-  muscles forward, but not the duration: at the moment it is tapped the workout
-  is still on the server's default length, so a dropped `duration_minutes` and a
-  carried one produce the same 60. It is the same single `...currentContext()`
-  spread that the muscle check already proves is there, and the alternative
-  ordering would leave a strictly larger gap — but it is a gap, not a covered
-  case, and a scenario that changed the length twice would close it.
+- **One carry-pair is unasserted, deliberately.** The gym chip is proven to
+  carry the muscles forward, but not the duration: at the moment it is tapped the
+  workout is still on the server's default length, so a dropped
+  `duration_minutes` and a carried one both produce 60.
+
+  This is closeable and was left open on purpose. With three handlers and only
+  two settable fields, whichever handler runs first necessarily runs at
+  defaults, so closing it means running the gym chip a *second* time after the
+  length change (`BottomSheetPicker.handleSelect` has no equality guard, so
+  re-selecting the same profile does fire another regenerate). The cost is that
+  the gym chip and Refresh are both invisible steps — nothing on screen moves
+  when they land, and every control is disabled mid-regenerate — so each borrows
+  the next step's wait as its landing signal. One borrowed signal is fine; a
+  chain of two invisible steps in a row is how a suite starts flaking. A
+  hairline gap in a carry that jest already asserts on the same object literal
+  is not worth that. If it is ever closed, expose the regenerate spinner as a
+  real landing signal first.
 - **None of these 21 commits has had an independent review.** The second-opinion
   reviewer has been down since 2026-08-24 (`.git/second-opinion/last-error.txt`
   is newer than `last-review.md`; the ChatGPT account is on the Free plan, which
