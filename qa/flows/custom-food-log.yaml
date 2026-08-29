@@ -1,0 +1,96 @@
+appId: ${APP_ID}
+---
+# Create a custom food, then log it to today's diary.
+#
+# This is the harness's reference scenario: it crosses the mobile client, the
+# API, and three tables, and every value it types is asserted back out of the
+# database by qa/oracles/custom-food-log.mjs. Nothing here checks the screen —
+# a green flow only means the taps landed.
+#
+# SELECTORS: qa-env.sh stops the driver from honouring modals, so a sheet does
+# NOT hide the screen behind it. Every selector therefore has to be unambiguous
+# against the WHOLE tree, background included — which is why the two "Add Food"
+# buttons are told apart by an anchor rather than by an index.
+#
+# The food form's fields are addressed by testID because nothing else tells
+# them apart: an empty input exposes only its placeholder, every numeric field
+# placeholders "0", and iOS keeps reporting that placeholder after the field is
+# filled — so a text selector silently types every value into whichever numeric
+# field comes first. `below:` is no better, since it matches the next label
+# rather than the field under it.
+- runFlow: lib/boot.yaml
+
+- tapOn: "Food"
+- tapOn:
+    text: "Food"
+    below: "Create"
+
+# --- define the food --------------------------------------------------------
+- extendedWaitUntil:
+    visible: "New Food"
+    timeout: 30000
+# Every field is centred before it is tapped. The driver has no notion of the
+# keyboard: a field underneath it still reads as on-screen and 100% visible, so
+# the tap goes to whatever key occupies those coordinates. Untreated, tapping
+# Calories pressed the keypad's "5" and the calories went into the serving size
+# — which then saved as 505212 with the flow green the whole way.
+- tapOn:
+    id: "food-form-name"
+- waitForAnimationToEnd
+- inputText: "QA Harness Oat Bar"
+
+- scrollUntilVisible:
+    element:
+      id: "food-form-servingSize"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "food-form-servingSize"
+- waitForAnimationToEnd
+- inputText: "50"
+
+- scrollUntilVisible:
+    element:
+      id: "food-form-calories"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "food-form-calories"
+- waitForAnimationToEnd
+- inputText: "212"
+- scrollUntilVisible:
+    element: "Save"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Save"
+
+# --- log it -----------------------------------------------------------------
+- extendedWaitUntil:
+    visible: "Add Food"
+    timeout: 30000
+- tapOn: "Add Food"
+- tapOn: "Search foods..."
+- inputText: "QA Harness Oat Bar"
+# The saved food comes back under YOUR FOODS with its calories and serving
+# appended, so the trailing comma is what tells the result row apart from the
+# search box, which now holds the query verbatim.
+- extendedWaitUntil:
+    visible: "QA Harness Oat Bar, .*"
+    timeout: 30000
+- tapOn: "QA Harness Oat Bar, .*"
+
+- extendedWaitUntil:
+    visible: "Meal"
+    timeout: 20000
+# The diary behind this sheet has an "Add Food" button of its own, above its
+# "Meal" tile; the sheet's button is below both.
+- tapOn:
+    text: "Add Food"
+    below: "Meal"
+
+- extendedWaitUntil:
+    visible: "QA Harness Oat Bar.*"
+    timeout: 30000

@@ -1,0 +1,6 @@
+appId: ${APP_ID}
+---
+# The cheapest scenario there is: can a clean install reach a signed-in Home
+# screen against the QA server? Everything else in the harness depends on this,
+# so when a run fails it is the first thing to re-run on its own.
+- runFlow: lib/boot.yaml
