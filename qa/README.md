@@ -117,6 +117,17 @@ PregnancySetup exist at all, and its oracle reads back the fast's goal, the
 period days onboarding seeds, the note the log modal saved and the pregnancy's
 due date.
 
+`flows/saved-meal.yaml` is the fourth, and it is gated on a chain rather than
+on a single row: MealDetail needs a saved meal, FoodEntryAdd's logging face
+needs that meal to be logged, and EditLoggedMeal needs the diary row the
+logging created. So it stands on `lib/create-and-log-food.yaml` for an
+ingredient, builds a meal out of it, logs the meal to a meal type it picks
+rather than the one the clock offers, and bumps the servings on the entry. Its
+oracle is the harness's widest single write: a meal saved across `meals` and
+`meal_foods`, a log across `food_entry_meals` and a `food_entries` row per
+ingredient, and a servings edit that has to rescale that component row while
+leaving the loose entry beside it alone.
+
 Steps more than one scenario needs live in `flows/lib/` and are pulled in with
 `runFlow` (`lib/boot.yaml`, `lib/create-and-log-food.yaml`). Every trap in one
 of those cost a green run that was doing something else entirely, so a copy
@@ -166,7 +177,10 @@ as on-screen and 100% visible, so a tap goes to whatever key occupies those
 coordinates. Untreated, tapping Calories pressed the keypad's "5" and the value
 went into the serving size, which saved as `505212` with the flow green the
 whole way. Every field is therefore centred with `scrollUntilVisible` +
-`centerElement: true` before it is tapped.
+`centerElement: true` before it is tapped. The same tap through the keyboard
+lands on *buttons* too, and there it is quieter still: the meal builder's "Add
+Food" sits under the letter keys, so the tap typed a `t` onto the end of the
+meal name and the flow went on to assert a search screen it had never opened.
 
 **Text selectors cannot address a form field.** An empty input exposes only its
 placeholder, every numeric field placeholders `0`, and iOS keeps reporting that
@@ -227,6 +241,23 @@ accessibility element.
 the reps went nowhere and the set saved with a null. `rightOf:` does not save
 you — it does not require vertical overlap, so it matched the header too. An
 anchor that does (`below: "SET"`) or an explicit `index:` is the fix.
+
+They are also *regexes* matched against the whole string, which bites on labels
+that contain regex punctuation. A required field's `"Meal Name *"` never
+matches itself — the pattern reads the asterisk as "zero or more spaces" — and
+`"Description (optional)"` matches only the string without its parentheses.
+`"Meal Name.*"` is the fix; the trap is that both selectors fail as "element
+not found", which reads like the screen was wrong rather than the pattern.
+
+**A pushed screen does not remove the one it was pushed over.** Modal honouring
+is off, so the whole stack is one tree: the meal builder's "Add Food" and the
+ingredient sheet's "Add Food" footer are both matchable while the sheet is on
+top, and nothing separates them — they are the only two texts at their
+respective depths, and no anchor lies between them. `index: 1` is the tap. The
+sharper half of this trap is the *wait*: `extendedWaitUntil: visible: "Add
+Food"` before that tap asserts nothing at all, because the builder underneath
+has already satisfied it. Wait on something only the new screen has (its header
+buttons) instead.
 
 **A settings row is two nodes, and a picker announces the wrong one.** A row
 whose control is a `Switch` matches its own title twice — once as the title

@@ -17,9 +17,10 @@ appId: ${APP_ID}
 #   PregnancySetup   the hub's Overview, after the mode is switched to
 #                    Pregnancy Tracking — the only mode that offers it
 #
-# STILL NOT REACHED after this, and by either other flow:
-#   FoodEntryAdd, MealDetail, EditLoggedMeal   need a saved meal
+# STILL NOT REACHED after this, and by any other flow:
 #   FoodPhotoFlow's Improve / EstimateReview / LogEntry   need a photograph
+# (FoodEntryAdd, MealDetail and EditLoggedMeal were on this list too; they are
+# reached by saved-meal.yaml.)
 #
 # It has an oracle for the same reason content-crawl.yaml does: a fast with the
 # wrong goal, an onboarding that seeded no period days, or a pregnancy dated

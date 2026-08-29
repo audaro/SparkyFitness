@@ -29,14 +29,12 @@ appId: ${APP_ID}
 #
 # STILL NOT REACHED, and what each is now waiting for — all content, none of it
 # created here:
-#   MealDetail, EditLoggedMeal  need a saved meal. The meal builder stacks
-#     FoodEntryAdd over FoodSearch over MealAdd, and two of those three offer a
-#     button labelled exactly "Add Food"; telling them apart needs a selector
-#     this flow does not yet have (see the SELECTORS note below).
 #   FoodPhotoFlow's Improve / EstimateReview / LogEntry   need a photograph.
-# FastingDetail and the four cycle screens were on this list too; they are
-# reached by fasting-and-cycle.yaml, which opts the account into those features
-# rather than giving it content.
+# Two groups were on this list too. FastingDetail and the four cycle screens
+# are reached by fasting-and-cycle.yaml, which opts the account into those
+# features rather than giving it content; MealDetail, EditLoggedMeal and
+# FoodEntryAdd are reached by saved-meal.yaml, which builds a meal out of the
+# food this flow's lib already creates.
 #
 # SELECTORS. The four rules in crawl.yaml's header all apply here, and a fifth
 # one shapes the order of the sections below:

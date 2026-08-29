@@ -72,10 +72,13 @@ appId: ${APP_ID}
 #   CycleOnboarding, CycleHub, CycleLogModal, PregnancySetup  (cycle tracking is
 #     off by default, so the card that leads to them is not on the dashboard)
 #
+# Reached by saved-meal.yaml instead, which needs a chain rather than one row:
+#   MealDetail, EditLoggedMeal, and FoodEntryAdd's two different faces  (a meal
+#     has to be built out of a food, logged, and then edited; the builder
+#     stacks FoodEntryAdd over FoodSearch over MealAdd, and two of those three
+#     offer a button labelled exactly "Add Food")
+#
 # Still unreached by any flow:
-#   FoodEntryAdd, MealDetail, EditLoggedMeal  (need a saved meal; the meal
-#     builder stacks FoodEntryAdd over FoodSearch over MealAdd, and two of
-#     those three offer a button labelled exactly "Add Food")
 #   FoodPhotoFlow's Improve / EstimateReview / LogEntry  (need a photograph)
 #   Onboarding  (lib/boot.yaml has already walked it by the time this starts)
 - runFlow: lib/boot.yaml
