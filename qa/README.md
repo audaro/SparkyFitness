@@ -96,9 +96,9 @@ A scenario named `X` is up to three files:
 | `oracles/app-logs.mjs` | Runs for **every** scenario; fails on anything the app logged as ERROR. |
 
 `setup/X.sh` runs between the reset and the flow, on the freshly created
-database and the freshly installed app, and only when it exists — one scenario
-has one so far. It comes after the reset for the same reason the reset comes
-first at all: whatever it seeds has to be the only thing there.
+database and the freshly installed app, and only when it exists — two scenarios
+have one. It comes after the reset for the same reason the reset comes first at
+all: whatever it seeds has to be the only thing there.
 
 `flows/crawl.yaml` is the exception that proves the shape: it has no oracle of
 its own because it has nothing to assert. It walks every screen a signed-in
@@ -153,10 +153,35 @@ weight and description inside the prompt. That second half is what makes this
 more than a screenshot test: a screen that renders the description and then
 drops it before the request is a bug no diary row can see.
 
+`flows/suggested-workout.yaml` is the sixth, and the only one whose subject is
+an *algorithm*. Nothing about a generated workout is decided on the client: the
+muscles, the exercises, the sets, the reps, the rest and the estimated length
+all come back from `POST /api/workout-recommendations/generate`, and the app
+draws what it is handed. So it picks the Push split, starts the workout that
+comes back, completes one set and ends it.
+
+Three things it checks that no screen can show. **That the request survived**:
+the client resolves Push to chest, shoulders and triceps and sends the muscles —
+the server has no split vocabulary — so the muscles in the stored payload are
+the only evidence the tap reached the wire. **That the plan is programming, not
+a list**: every asked-for muscle is served, compounds are ordered ahead of
+isolations, and every set carries reps and a rest length. **That the prescription
+becomes a diary row the way it is supposed to**: sets are created empty and the
+generator's numbers live on the client as gray placeholders until a set is
+completed, so the flow types *nothing* — and the 10 reps that land on the one
+completed set can only have come from the generator, while the seventeen
+untouched rows stay null.
+
+It also asserts, twice over, that the run never went to the network:
+`importMissingMuscles` silently imports from free-exercise-db when a target
+muscle has no local candidate, and it is not configurable. See the section
+below.
+
 Steps more than one scenario needs live in `flows/lib/` and are pulled in with
-`runFlow` (`lib/boot.yaml`, `lib/create-and-log-food.yaml`). Every trap in one
-of those cost a green run that was doing something else entirely, so a copy
-would drift the moment one of them is fixed.
+`runFlow` (`lib/boot.yaml`, `lib/create-and-log-food.yaml`,
+`lib/grant-notifications.yaml`). Every trap in one of those cost a green run
+that was doing something else entirely, so a copy would drift the moment one of
+them is fixed.
 
 `app-logs.mjs` is the cheapest broad coverage in the harness: `LogService.ts`
 already writes structured entries into AsyncStorage and most screens are wrapped
@@ -170,8 +195,7 @@ noise by week two and stops being read.
 
 ## Seeding what the app cannot make
 
-`setup/food-photo.sh` is the only setup script so far, and both halves of it are
-worth reading before writing another one.
+There are two setup scripts, and everything worth generalizing is in them.
 
 **The photograph.** The simulator has no camera, so the only way a photo reaches
 the app is the library, and the library only holds what `xcrun simctl addmedia`
@@ -212,6 +236,32 @@ It listens on 127.0.0.1 only, and it records requests it did not expect as well
 as the ones it did — expo-dev-launcher port-scans localhost looking for a dev
 server and hits it with a bare `GET /` every run. Those are reported as
 observations, never as failures.
+
+**The exercise catalog** (`setup/suggested-workout.sh`) is the other kind of
+seeding: not something the app cannot reach, but something the *server* will go
+and fetch if it is missing. A fresh QA database has zero exercises, and the
+workout generator does not build a smaller workout when a target muscle has no
+candidate — `importMissingMuscles` fetches one from free-exercise-db, downloads
+its images and imports it, with the URL hardcoded and no env override. A run
+without a catalog would therefore be online, dependent on a third party, and
+different every time upstream changed.
+
+So `fixtures/exercise-catalog.mjs` defines two exercises for each of the
+seventeen canonical muscles — a compound and an isolation, `body only` so no gym
+profile can rule them out — and `qa-exercise-catalog.mjs` creates all 34 through
+the real API and then verifies from the database that every muscle is covered as
+a *primary* mover, which is the only kind of cover the planner counts. The names
+are invented (`QA Catalog chest 1`) rather than copied from a dataset: this repo
+is public, and a workout built out of them could not have come from anywhere
+else, which is what makes the oracle's "nothing was imported" check sharp.
+
+That check is made twice, because one of them alone is not enough. Every
+prescribed exercise must be one of the seeded rows — but an import that happened
+and was then *not* prescribed would slip past that, and it would still mean the
+next run produces a different workout. So the oracle also asserts the table still
+holds exactly 34 rows, and that this run's slice of `server.log` contains no
+`free-exercise-db` line (`setup/suggested-workout.sh` records the log's byte
+offset first, because `server.log` outlives a single run).
 
 ## Traps, and why the code looks the way it does
 
@@ -354,8 +404,9 @@ exactly under the alert's Allow. That logged the exercise twice, opened the
 exercise picker over the workout, and left the set values in a screen that was no
 longer in front. Notification permission cannot be pre-granted the way camera or
 photos can (`simctl privacy` has no such service, and neither does Maestro's iOS
-permission list), so `content-crawl.yaml` grants it *deliberately* first, on
-Settings → Notifications, before anything can be surprised by it.
+permission list), so it is granted *deliberately* first, on Settings →
+Notifications, before anything can be surprised by it. That is
+`lib/grant-notifications.yaml`, shared by both flows that start a workout.
 
 **The system photo picker is invisible to the driver.**
 `PHPickerViewController` renders out of process, and the app's accessibility
@@ -389,6 +440,24 @@ tapping: `crawl.yaml` needed it once, for a settings screen that rendered a
 headerless spinner to any account that had never configured it, and that turned
 out to be the screen's bug rather than the flow's — the swipe went away with the
 fix, which is the outcome to aim for.
+
+**A landing signal has to be on screen, not merely on the screen.** Maestro
+honours occlusion and the viewport even with modal honouring off, so an element
+below the fold is "not visible" — and a wait for it fails on a screen that is
+perfectly correct. `content-crawl.yaml` waits for ActiveWorkout by its
+"End Workout" button, which works because the session it starts has one
+exercise; `suggested-workout.yaml` starts a six-exercise session and the same
+wait timed out with the screen fully drawn behind it. The fix is to land on
+something structural that cannot scroll away — there, the header's per-exercise
+progress segments (`header-segment`).
+
+**Prefer the control that needs no aim.** Logging a set on ActiveWorkout means
+finding one cell among three identical rows, which needs an anchor *and* an
+index and is wrong the moment a card renders a fourth set. The rest bar's
+"Complete Set" button acts on whichever set is active, so it takes no selector
+argument at all — and the flow that uses it makes no assumption about layout.
+When two controls do the same thing, take the one whose selector cannot become
+ambiguous.
 
 ## Adding a scenario
 

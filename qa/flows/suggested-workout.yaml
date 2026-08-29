@@ -1,0 +1,143 @@
+appId: ${APP_ID}
+---
+# Generate a workout for a named split, and check the programming that came
+# back rather than the screen that renders it.
+#
+# Nothing about a generated workout is decided on the client. The muscles, the
+# exercises, the number of sets, the reps, the rest between them and the
+# estimated length all arrive from POST /api/workout-recommendations/generate,
+# and the app draws whatever it is handed. So a generator that prescribed one
+# set instead of three, rested nobody, or built a Push day out of a hamstring
+# curl would render perfectly — which is exactly the class of bug a screen-text
+# assertion cannot see and qa/oracles/suggested-workout.mjs can.
+#
+# WHAT IT REACHES that crawl.yaml only opens and closes:
+#   PickMuscles  crawl opens the picker and backs out of it; this one taps a
+#                split, which is the only way to make a workout exist
+#   UpNext       crawl only ever sees its empty state, because an account with
+#                no workout has no workout to show
+#
+# WHAT IS SEEDED, and why it has to be: qa/setup/suggested-workout.sh puts an
+# exercise catalog in the database before this runs. A fresh account has none —
+# the server bundles no catalog — and the generator does not degrade when a
+# target muscle has nothing to prescribe: it imports one from free-exercise-db
+# over the network. The seeded catalog is what keeps the run offline and
+# repeatable, and the oracle asserts the fallback never fired.
+#
+# THE SPLIT IS THE ASSERTION. Push is picked rather than "Recovered muscles"
+# because the client resolves the split to canonical muscles itself and sends
+# those (`MUSCLE_SPLIT_MEMBERS.push` = chest, shoulders, triceps) — the server
+# has no split vocabulary. So the muscles that come back in the payload are
+# evidence that the tap on that row reached the wire intact. "Recovered
+# muscles" sends no constraint at all and would assert nothing about the tap.
+#
+# SELECTORS. crawl.yaml's four rules apply. Nothing here needs a new one: every
+# control on the path either carries a testID or is a header button with an
+# accessibility label.
+- runFlow: lib/boot.yaml
+# Before anything can start a live workout: the rest timer asks for
+# notifications, and the prompt must not be allowed to land on ActiveWorkout.
+- runFlow: lib/grant-notifications.yaml
+
+# === into the picker ========================================================
+# Same path crawl.yaml takes: the Exercise tab's Up Next card, then the "New"
+# header button's sheet. The card is above the fold on a fresh account, but it
+# is scrolled to anyway — it grows a summary line the moment a workout exists,
+# and this flow is the thing that makes one.
+- tapOn: "Exercise"
+- scrollUntilVisible:
+    element:
+      id: "up-next-card"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "up-next-card"
+
+# With no workout yet the header's right slot is the sheet rather than the ⋯
+# menu, and it is labelled for what it does here: there is nothing to swap.
+- extendedWaitUntil:
+    visible: "New workout options"
+    timeout: 30000
+- tapOn: "New workout options"
+- tapOn:
+    id: "action-sheet-item-pick-muscles"
+
+# === generate ===============================================================
+- extendedWaitUntil:
+    visible:
+      id: "pick-muscles-splits"
+    timeout: 30000
+- tapOn:
+    id: "pick-muscles-split-push"
+
+# Generation reads the whole catalog, prescribes every set from the exercise's
+# own history and programs a warm-up ramp for each one, so it is slower than a
+# read. The screen it lands on is Up Next with the workout on it — the Start
+# button only exists once there is something to start.
+- extendedWaitUntil:
+    visible:
+      id: "up-next-start"
+    timeout: 90000
+
+# Every prescribed exercise is a row on that screen. Waiting for the first one
+# is what makes the run's failure legible when the payload arrives empty: the
+# oracle would say so either way, but a flow that walked off the end of a
+# half-drawn screen reports the wrong thing first.
+- assertVisible:
+    id: "up-next-exercise-row"
+
+# === run it =================================================================
+# Starting turns the suggestion into a session: the whole plan is created
+# server-side as an exercise_preset_entries row with an entry and a set row for
+# every prescribed set — and the sets are created EMPTY. The plan's numbers ride
+# along on the client as gray placeholders and are written only when a set is
+# completed or typed over, which is the behaviour the oracle is here for: on
+# screen a placeholder and a saved value look almost the same, and in the
+# database one of them is null.
+- tapOn:
+    id: "up-next-start"
+# The landing signal is the header's per-exercise progress bar, not the End
+# Workout button. That button is at the bottom of the log, and a six-exercise
+# session puts it well below the fold — Maestro honours occlusion, so waiting on
+# it here fails on a screen that is perfectly fine. The segments are always in
+# view, one per exercise, and there is one only once a session is live.
+- extendedWaitUntil:
+    visible:
+      id: "header-segment"
+    timeout: 60000
+- waitForAnimationToEnd
+
+# One set, and NOTHING is typed. The row already shows 10 reps in gray — the
+# prescription, rendered as a placeholder — and completing the set is what
+# turns it into a stored value. That is the whole point of running the workout
+# here rather than just generating it: on screen a placeholder and a saved
+# number are a shade of gray apart, and in the database one of them is null.
+# The oracle checks both halves — this set carries the prescribed 10, and the
+# seventeen untouched ones carry nothing.
+#
+# The rest bar's button is the one that takes no aim: it acts on whichever set
+# is active (set 1, on arrival), so it needs no anchor, no index, and no
+# assumption about which of the three identical rows a selector lands on.
+- tapOn: "Complete Set"
+
+- scrollUntilVisible:
+    element: "End Workout"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "End Workout"
+# The confirmation is a native alert whose default button carries the SAME text
+# as the button that opened it, and the screen behind stays in the tree — so the
+# alert's own button is identified by sitting to the right of the cancel one,
+# which exists nowhere else.
+- extendedWaitUntil:
+    visible: "Keep going"
+    timeout: 20000
+- tapOn:
+    text: "End Workout"
+    rightOf: "Keep going"
+
+- extendedWaitUntil:
+    visible: "Workout Complete"
+    timeout: 60000
