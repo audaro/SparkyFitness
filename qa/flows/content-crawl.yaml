@@ -27,14 +27,14 @@ appId: ${APP_ID}
 #   MedicationScheduleForm                 the medication, on save
 #   DailyNutritionDetails, NutrientTrends  the Nutrients card, which needs food
 #
-# STILL NOT REACHED, and what each is now waiting for — all content, none of it
-# created here:
-#   FoodPhotoFlow's Improve / EstimateReview / LogEntry   need a photograph.
-# Two groups were on this list too. FastingDetail and the four cycle screens
-# are reached by fasting-and-cycle.yaml, which opts the account into those
-# features rather than giving it content; MealDetail, EditLoggedMeal and
-# FoodEntryAdd are reached by saved-meal.yaml, which builds a meal out of the
-# food this flow's lib already creates.
+# NOTHING IS STILL UNREACHED. Three groups were on this list. FastingDetail and
+# the four cycle screens are reached by fasting-and-cycle.yaml, which opts the
+# account into those features rather than giving it content; MealDetail,
+# EditLoggedMeal and FoodEntryAdd are reached by saved-meal.yaml, which builds a
+# meal out of the food this flow's lib already creates; and FoodPhotoIntro plus
+# FoodPhotoFlow's Improve / EstimateReview / LogEntry are reached by
+# food-photo.yaml, which seeds a photograph and an AI provider from outside the
+# app because neither can be produced from inside it.
 #
 # SELECTORS. The four rules in crawl.yaml's header all apply here, and a fifth
 # one shapes the order of the sections below:

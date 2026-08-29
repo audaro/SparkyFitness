@@ -20,6 +20,8 @@ here may reach the developer's own stack, so the harness gets:
 - its own Postgres container on **:55433** (`sparkyfitness-qa-db`),
 - its own database (`sparkyfitness_qa`), dropped and recreated between runs,
 - its own server process on **:3011**,
+- its own fake AI provider on **:3012** (`qa-ai-stub.mjs`), so no scenario ever
+  spends a token or sends a photograph to a third party,
 - a throwaway account, `qa-agent@sparky.invalid` (`.invalid` can never resolve,
   so a stray outbound email fails loudly instead of reaching a person),
 - a fresh install of the app on every run, because `simctl install` over an
@@ -90,7 +92,13 @@ A scenario named `X` is up to three files:
 | --- | --- |
 | `flows/X.yaml` | Maestro flow. Taps and types. Asserts as little as possible. |
 | `oracles/X.mjs` | The verdict. Queries the database for what should have been written. |
+| `setup/X.sh` | Optional. Start state the app cannot reach from inside itself. |
 | `oracles/app-logs.mjs` | Runs for **every** scenario; fails on anything the app logged as ERROR. |
+
+`setup/X.sh` runs between the reset and the flow, on the freshly created
+database and the freshly installed app, and only when it exists — one scenario
+has one so far. It comes after the reset for the same reason the reset comes
+first at all: whatever it seeds has to be the only thing there.
 
 `flows/crawl.yaml` is the exception that proves the shape: it has no oracle of
 its own because it has nothing to assert. It walks every screen a signed-in
@@ -128,6 +136,23 @@ oracle is the harness's widest single write: a meal saved across `meals` and
 ingredient, and a servings edit that has to rescale that component row while
 leaving the loose entry beside it alone.
 
+`flows/food-photo.yaml` is the fifth, and it is the only one whose start state
+could not be produced through the UI at all. FoodPhotoFlow's Improve,
+EstimateReview and LogEntry need two things a mobile-only account on a
+simulator can never have: **a photograph**, on a device with no camera, and **an
+AI provider**, which is configured in the web frontend. `setup/food-photo.sh`
+seeds both — see the section below — and the flow then does the ordinary thing:
+picks the photo, types a weight and a description, generates, reviews and logs.
+
+Its oracle reads both ends. From the diary it takes the food, the variant and
+the entry, checking that the estimate's macros survived unchanged and that the
+serving size is the weight that was *typed* rather than the total the provider
+returned. From the stub's request log it takes what the app actually sent — one
+request, one image, the seeded photograph's exact dimensions, and the typed
+weight and description inside the prompt. That second half is what makes this
+more than a screenshot test: a screen that renders the description and then
+drops it before the request is a bug no diary row can see.
+
 Steps more than one scenario needs live in `flows/lib/` and are pulled in with
 `runFlow` (`lib/boot.yaml`, `lib/create-and-log-food.yaml`). Every trap in one
 of those cost a green run that was doing something else entirely, so a copy
@@ -142,6 +167,51 @@ Findings come in two grades, enforced by `oracles/lib/report.mjs`. `check()` is
 a hard, evidence-backed assertion and fails the run; `observe()` is a soft
 signal that is recorded and never gates. Without that split the report is 90%
 noise by week two and stops being read.
+
+## Seeding what the app cannot make
+
+`setup/food-photo.sh` is the only setup script so far, and both halves of it are
+worth reading before writing another one.
+
+**The photograph.** The simulator has no camera, so the only way a photo reaches
+the app is the library, and the library only holds what `xcrun simctl addmedia`
+put there. The file is a PNG generated in Node (`fixtures/food-photo.mjs`, a
+hand-rolled deflate + CRC32 encoder) rather than a committed asset: this repo is
+public, and a binary blob in it would be one more thing to explain. Its size,
+646x482, is the fixture's own constant and the oracle asserts the uploaded image
+matches it — which is how a run proves the app sent *this* photograph and not
+one of the six stock ones every iOS runtime ships.
+
+Picking it out of the grid is the interesting part, and the answer is dates, not
+coordinates. The picker sorts newest first, the stock photographs carry 2011
+EXIF dates, and `touch -t` stamps the seeded file 2019 — so it is always the
+top-left cell. Re-running stacks more identical copies in front of it, which
+changes nothing: same bytes, same date, same cell.
+
+**The provider.** `isFoodPhotoAvailable` gates the whole photo mode on the
+account having an AI service configured, and AI services are configured in the
+web frontend — a mobile-only account can never get past it. `qa-ai-service.mjs`
+signs in over the API and saves one, then re-reads it **from the database**
+rather than trusting the response, because a setup step that silently half-works
+produces a flow failure fifty steps later that looks like anything but.
+
+The service it saves is `service_type: 'custom'`, which is the one provider type
+whose `custom_url` the server posts to verbatim; everything else rewrites the
+URL. `qa-env.sh` also exports `ALLOW_PRIVATE_NETWORK_AI=true`, without which the
+server refuses a loopback provider both at save time and at dispatch time.
+
+**Why stub the model at all.** A real model returns different numbers for the
+same photograph on every run, so the oracle could only ever check that
+*something* plausible was written — which is the class of assertion this harness
+exists to avoid. The stub replaces the model and nothing else: the app, the
+estimate route, the provider dispatch, the schema validation and the review form
+are all the real thing, and the stub records every request it receives so the
+oracle can assert on what the app actually sent.
+
+It listens on 127.0.0.1 only, and it records requests it did not expect as well
+as the ones it did — expo-dev-launcher port-scans localhost looking for a dev
+server and hits it with a bare `GET /` every run. Those are reported as
+observations, never as failures.
 
 ## Traps, and why the code looks the way it does
 
@@ -287,6 +357,29 @@ photos can (`simctl privacy` has no such service, and neither does Maestro's iOS
 permission list), so `content-crawl.yaml` grants it *deliberately* first, on
 Settings → Notifications, before anything can be surprised by it.
 
+**The system photo picker is invisible to the driver.**
+`PHPickerViewController` renders out of process, and the app's accessibility
+tree shows it as one empty node the size of the screen — no cells, no labels,
+nothing a selector can match, and `maestro hierarchy` with the picker plainly on
+screen returns 8 KB of status bar. There is no app source to fix here (contrast
+the bottom-sheet trap above), so `food-photo.yaml` taps it by coordinate, and
+that is the only coordinate tap in the harness. What makes it stable is the
+seeding rather than luck — see the section above. There is nothing to wait on
+either: every selector reports the scanner underneath and is satisfied the
+instant the sheet starts animating, so the flow uses the only sleep Maestro can
+express, an `optional: true` wait on a string that can never match.
+
+**An icon-only button announces its SF Symbol name, and that is not unique.**
+An unlabelled `StepperInput` offers "add" and "remove" — which is what
+`saved-meal.yaml` taps, on a pushed screen where the tab bar is gone. The photo
+flow is a **modal**, so with modal honouring off the tab bar is still in the
+tree and its centre button is "Add" too. The tap went to the tab bar's
+coordinates, which on that screen is the full-width Save at the bottom: the
+entry saved at one serving and the flow popped back to Home, then failed
+looking for a button on a screen it had left. The fix is the one-line kind
+again — that stepper now says what it steps — because a button VoiceOver reads
+as "add", with no object, is a defect before it is a selector problem.
+
 **`back` is not the pop gesture.** Maestro's iOS `back` swipes too briefly to
 engage a native stack's interactive pop, and simply does nothing on a screen
 with no back button to fall back on. An explicit
@@ -305,9 +398,13 @@ fix, which is the outcome to aim for.
    `maestro studio` or `maestro hierarchy` when a selector will not match — the
    answer is usually that the element is behind the keyboard, or that the
    selector matches something on the screen *behind* the sheet.
-3. Write `oracles/X.mjs` against `lib/db.mjs` (`query`, `qaAccount`, `lit`) and
+3. If the scenario needs a start state the app cannot reach from inside itself,
+   add `setup/X.sh`. Keep it loud: verify what it did from the database rather
+   than from the response, because a setup step that half-works fails the flow
+   fifty steps later looking like anything but.
+4. Write `oracles/X.mjs` against `lib/db.mjs` (`query`, `qaAccount`, `lit`) and
    `lib/report.mjs`. Assert the values that were typed, the links between rows,
    and the calendar day — those are where the bugs actually are.
-4. Prove the oracle can fail. Corrupting a value by hand
+5. Prove the oracle can fail. Corrupting a value by hand
    (`qa_sql -c "UPDATE ..."`) and re-running just the oracle takes seconds, and
    an oracle that has never gone red is not yet evidence of anything.

@@ -44,6 +44,15 @@ QA_SERVER_URL="http://localhost:${QA_SERVER_PORT}"
 # 8081. Note that the dev client DISCOVERS a local dev server rather than being
 # told one, so with both running it is not pinned which serves a given run.
 QA_METRO_PORT=8082
+# The fake vision provider the food-photo scenario points the server at, so a
+# photo estimate is a constant instead of a paid, non-deterministic round trip
+# to a real model. See qa/bin/qa-ai-stub.mjs.
+QA_AI_STUB_PORT=3012
+QA_AI_STUB_URL="http://127.0.0.1:${QA_AI_STUB_PORT}/v1/chat/completions"
+# Everything the stub was asked for, one JSON object per request. The
+# food-photo oracle reads it for the evidence no row carries: that the
+# photograph itself was uploaded, at its real dimensions.
+QA_AI_STUB_REQUESTS="$QA_RUN_DIR/ai-stub-requests.jsonl"
 
 # The account every flow runs as. `.invalid` is the reserved TLD that can never
 # resolve, so a stray outbound email or a copy-paste into a real deployment
@@ -93,6 +102,12 @@ export BETTER_AUTH_URL="$QA_SERVER_URL"
 export SPARKY_FITNESS_ADMIN_EMAIL="$QA_ACCOUNT_EMAIL"
 export SPARKY_FITNESS_EXTRA_TRUSTED_ORIGINS="$QA_SERVER_URL"
 export SPARKY_FITNESS_LOG_LEVEL=INFO
+# Not a key the developer's .env defines — this one is QA's own. The server
+# refuses to send an AI request to a private address unless the operator opts
+# in, and the QA stub is on loopback by design, so without this every photo
+# estimate comes back PRIVATE_NETWORK_FORBIDDEN. Scoped to the QA server
+# process, which can only reach the QA stack in the first place.
+export ALLOW_PRIVATE_NETWORK_AI=true
 
 # --- docker ----------------------------------------------------------------
 # This machine's ~/.docker/config.json names `credsStore: desktop`, whose helper
@@ -150,6 +165,7 @@ qa_app_bundle_id() {
 export QA_DIR REPO_ROOT QA_RUN_DIR \
   QA_DB_CONTAINER QA_COMPOSE_PROJECT QA_DB_PORT QA_DB_NAME QA_DB_USER QA_DB_PASSWORD \
   QA_APP_DB_USER QA_APP_DB_PASSWORD QA_SERVER_PORT QA_SERVER_URL QA_METRO_PORT \
+  QA_AI_STUB_PORT QA_AI_STUB_URL QA_AI_STUB_REQUESTS \
   QA_ACCOUNT_EMAIL QA_ACCOUNT_PASSWORD QA_ACCOUNT_NAME QA_ACCOUNT_FILE \
   QA_SIM_NAME QA_APP_PATH
 

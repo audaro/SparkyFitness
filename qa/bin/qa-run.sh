@@ -49,6 +49,7 @@ fi
 # --- simulator --------------------------------------------------------------
 SIM_UDID="$(xcrun simctl list devices available -j \
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);for(const rt of Object.keys(j.devices)){for(const d of j.devices[rt]){if(d.name===process.argv[1]){console.log(d.udid);process.exit(0)}}}process.exit(1)})" "$QA_SIM_NAME")"
+export SIM_UDID
 echo "==> simulator: $QA_SIM_NAME ($SIM_UDID)"
 if ! xcrun simctl list devices booted | grep -q "$SIM_UDID"; then
   xcrun simctl boot "$SIM_UDID"
@@ -104,6 +105,21 @@ node "$QA_DIR/bin/qa-seed.mjs" >/dev/null
 QA_USER_ID="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).userId)" "$QA_ACCOUNT_FILE")"
 export QA_USER_ID
 echo "    user $QA_USER_ID"
+
+# --- scenario setup ---------------------------------------------------------
+# A scenario whose start state the app cannot reach from inside itself gets a
+# setup script: qa/setup/<scenario>.sh, run here, on the freshly reset database
+# and the freshly installed app. Only food-photo has one so far, and what it
+# needs is exactly what a UI flow cannot produce — a photograph on a device
+# with no camera, and an AI provider that is configured in the web frontend.
+#
+# It runs AFTER the reset and the install for the same reason the reset comes
+# first at all: whatever it seeds has to be the only thing there.
+SETUP="$QA_DIR/setup/$SCENARIO.sh"
+if [ -f "$SETUP" ]; then
+  echo "==> setup: setup/$SCENARIO.sh"
+  bash "$SETUP"
+fi
 
 # --- drive ------------------------------------------------------------------
 mkdir -p "$QA_RUN_DIR/findings" "$QA_RUN_DIR/artifacts"

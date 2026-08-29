@@ -78,8 +78,14 @@ appId: ${APP_ID}
 #     stacks FoodEntryAdd over FoodSearch over MealAdd, and two of those three
 #     offer a button labelled exactly "Add Food")
 #
+# Reached by food-photo.yaml instead, which needs two things seeded from
+# outside the app before it can start:
+#   FoodPhotoIntro, and FoodPhotoFlow's Improve / EstimateReview / LogEntry
+#     (a photograph, which a simulator with no camera can only get from
+#     `simctl addmedia`, and an AI provider, which is configured in the web
+#     frontend and so is out of a mobile-only account's reach entirely)
+#
 # Still unreached by any flow:
-#   FoodPhotoFlow's Improve / EstimateReview / LogEntry  (need a photograph)
 #   Onboarding  (lib/boot.yaml has already walked it by the time this starts)
 - runFlow: lib/boot.yaml
 

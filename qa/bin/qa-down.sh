@@ -12,6 +12,15 @@ if [ -f "$QA_RUN_DIR/server.pid" ]; then
   rm -f "$QA_RUN_DIR/server.pid"
 fi
 
+if [ -f "$QA_RUN_DIR/ai-stub.pid" ]; then
+  pid="$(cat "$QA_RUN_DIR/ai-stub.pid")"
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "==> stopping QA AI stub (pid $pid)"
+    kill "$pid" 2>/dev/null || true
+  fi
+  rm -f "$QA_RUN_DIR/ai-stub.pid"
+fi
+
 # Metro is only stopped if this harness was the one that started it — no pid
 # file means the developer's own dev server, which is not ours to kill.
 #

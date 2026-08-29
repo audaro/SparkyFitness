@@ -91,6 +91,38 @@ else
   }
 fi
 
+# --- fake vision provider ---------------------------------------------------
+# Always up, even for the scenarios that never call it: it is one idle node
+# process, and a stub that is only started for the scenario that needs it is a
+# stub that is down the first time someone runs that scenario by hand. Nothing
+# reaches it unless a run has explicitly pointed an AI service row at it, which
+# only qa/setup/food-photo.sh does.
+if [ -f "$QA_RUN_DIR/ai-stub.pid" ] && kill -0 "$(cat "$QA_RUN_DIR/ai-stub.pid")" 2>/dev/null; then
+  echo "==> stopping previous QA AI stub (pid $(cat "$QA_RUN_DIR/ai-stub.pid"))"
+  kill "$(cat "$QA_RUN_DIR/ai-stub.pid")" 2>/dev/null || true
+  sleep 1
+fi
+echo "==> starting QA AI stub on :$QA_AI_STUB_PORT (log: qa/run/ai-stub.log)"
+: >"$QA_RUN_DIR/ai-stub.log"
+node "$QA_DIR/bin/qa-ai-stub.mjs" >>"$QA_RUN_DIR/ai-stub.log" 2>&1 &
+echo $! >"$QA_RUN_DIR/ai-stub.pid"
+
+printf '    waiting for the AI stub'
+for _ in $(seq 1 20); do
+  if curl -fsS "http://127.0.0.1:$QA_AI_STUB_PORT/health" >/dev/null 2>&1; then
+    echo " ok"
+    break
+  fi
+  printf '.'
+  sleep 1
+done
+curl -fsS "http://127.0.0.1:$QA_AI_STUB_PORT/health" >/dev/null 2>&1 || {
+  echo
+  echo "!! QA AI stub never answered on :$QA_AI_STUB_PORT; last 20 lines:" >&2
+  tail -20 "$QA_RUN_DIR/ai-stub.log" >&2
+  exit 1
+}
+
 echo "==> starting QA server on :$QA_SERVER_PORT (log: qa/run/server.log)"
 cd "$REPO_ROOT/SparkyFitnessServer"
 : >"$QA_RUN_DIR/server.log"

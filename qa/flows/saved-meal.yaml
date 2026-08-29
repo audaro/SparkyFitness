@@ -21,10 +21,10 @@ appId: ${APP_ID}
 #   EditLoggedMeal the logged meal's row in the diary
 #
 # STILL NOT REACHED after this, and by any flow:
-#   FoodPhotoFlow's Improve / EstimateReview / LogEntry   need a photograph
-#   Onboarding                                            only on a fresh
-#                                                         install, which
-#                                                         lib/boot.yaml walks
+#   Onboarding   only on a fresh install, which lib/boot.yaml walks
+#
+# FoodPhotoFlow used to be on that list; food-photo.yaml reaches it by seeding
+# a photograph and an AI provider from outside the app.
 #
 # The oracle is qa/oracles/saved-meal.mjs. A meal that saved its ingredient at
 # the wrong quantity, a log that filed itself under the time of day rather than
