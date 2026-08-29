@@ -1,0 +1,84 @@
+# Handoff — mobile UI QA harness (`qa/mobile-ui-harness`)
+
+*Written 2026-08-29. Branch has 12 commits and has never been pushed.*
+
+## What shipped
+
+`qa/` is an autonomous UI check for `SparkyFitnessMobile`: it drives the real app
+in the iOS Simulator with Maestro, then decides whether the feature worked by
+reading the database and the app's own log — never by reading the screen. The
+design rationale, the full trap list, and the recipe for adding a scenario are in
+`qa/README.md`; this file records only where the branch stands.
+
+Seven scenarios, all green:
+
+| scenario | what it proves | oracle checks |
+| --- | --- | --- |
+| `smoke` | the harness itself boots and connects | — (app log only) |
+| `custom-food-log` | a food created and logged from scratch | 13 |
+| `crawl` | 45 screens mount on an empty account | — (app log only) |
+| `content-crawl` | the 15 detail screens content unlocks | 18 |
+| `fasting-and-cycle` | screens an opted-out account never sees | 10 |
+| `saved-meal` | meal built, logged, and edited | 17 |
+| `food-photo` | AI photo estimate through to the diary row | 18 |
+
+**Screen coverage is complete.** Every screen a signed-in account can reach is
+now walked by one of these, except `Onboarding` — which `flows/lib/boot.yaml`
+walks before every scenario anyway. The "STILL NOT REACHED" lists that were the
+branch's running to-do are all closed out in the flow headers.
+
+Six defects were found and fixed on the way, all of them real rather than test
+scaffolding: the cycle day's basal temperature never saved from mobile; a new
+account could not reach cycle settings at all; empty states logged themselves as
+errors; and three accessibility collapses (`AddSheet` / `ActionSheet`, the active
+workout's set row, `ActivityAddScreen`'s form wrapper) that hid whole subtrees
+from VoiceOver as much as from the driver.
+
+## Gate status
+
+- `pnpm run validate` (mobile): green, i18n audit 0 findings.
+- `pnpm exec jest --watchman=false --runInBand`: 6315/6316. The one failure,
+  `MealTypeSettingsScreen › concurrency: an earlier FAILED visibility update
+  never rolls back a later SUCCESS`, is **flaky and unrelated** — it passes when
+  that file runs alone. Pre-existing; not introduced here.
+- All seven QA scenarios run green from a cold `bash qa/bin/qa-up.sh`.
+
+## Exact next step
+
+Push the branch, or keep it local — nothing depends on it being pushed, and the
+fork's convention is sync-in-never-PR-out.
+
+If the work continues, it is **assertions, not screens**. The obvious gaps:
+
+1. `crawl` and `smoke` have no oracle of their own and rest entirely on
+   `app-logs.mjs`. Any screen they walk that writes something is a candidate for
+   a real check.
+2. No scenario yet covers the workout *recommendation* family end to end
+   (Up Next → Pick Muscles / On Demand → start → complete), which is the largest
+   feature with the least oracle coverage.
+3. Android. Everything here is iOS-only: `qa-run.sh` shells `xcrun simctl`
+   throughout, and the traps in `qa/README.md` are XCUITest's.
+
+## Open risks
+
+- **The photo picker tap is by coordinate**, and it is the only one in the
+  harness. `PHPickerViewController` renders out of process and is invisible to
+  the driver, so there is no selector to use. It is robust for the reason
+  `flows/food-photo.yaml` documents — the seeded photo is always the first grid
+  cell and the cell is a sixth of the screen — but it is the one step that would
+  break on a device whose picker is not a three-across grid.
+- **`simctl addmedia` accumulates.** Each `food-photo` run adds another copy of
+  the same photograph to the simulator's library. They are byte-identical and
+  share one date, so nothing can tell them apart and nothing needs to; but the
+  library grows forever. `xcrun simctl erase` clears it if it ever matters.
+- **The AI stub is started by `qa-up.sh` and stays up** on :3012 for every
+  scenario, including the six that never call it. It listens on loopback only
+  and nothing reaches it unless a run has pointed an AI service row at it, which
+  only `qa/setup/food-photo.sh` does.
+- **`ALLOW_PRIVATE_NETWORK_AI=true` is exported by `qa-env.sh`.** It is scoped to
+  the QA server process, which can only reach the QA stack — but it is a
+  production safety valve being switched off, so it is worth knowing it is there.
+- **None of these 12 commits has had an independent review.** The second-opinion
+  reviewer has been down since 2026-08-24 (`.git/second-opinion/last-error.txt`
+  is newer than `last-review.md`; the ChatGPT account is on the Free plan, which
+  does not include Codex).
