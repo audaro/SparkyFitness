@@ -109,7 +109,15 @@ it looks like. The two flows are deliberately not merged: the empty-database
 walk is its own start state, and it is the one that catches an empty-state
 screen crashing.
 
-Steps two scenarios both need live in `flows/lib/` and are pulled in with
+`flows/fasting-and-cycle.yaml` is the third of the family, and it covers the
+other reason a screen is out of reach: not missing content, but a feature the
+account has not opted into. It starts a fast and switches cycle tracking on,
+which is what makes FastingDetail, CycleOnboarding, CycleHub, CycleLogModal and
+PregnancySetup exist at all, and its oracle reads back the fast's goal, the
+period days onboarding seeds, the note the log modal saved and the pregnancy's
+due date.
+
+Steps more than one scenario needs live in `flows/lib/` and are pulled in with
 `runFlow` (`lib/boot.yaml`, `lib/create-and-log-food.yaml`). Every trap in one
 of those cost a green run that was doing something else entirely, so a copy
 would drift the moment one of them is fixed.
@@ -219,6 +227,23 @@ accessibility element.
 the reps went nowhere and the set saved with a null. `rightOf:` does not save
 you — it does not require vertical overlap, so it matched the header too. An
 anchor that does (`below: "SET"`) or an explicit `index:` is the fix.
+
+**A settings row is two nodes, and a picker announces the wrong one.** A row
+whose control is a `Switch` matches its own title twice — once as the title
+`Text`, once as the switch, which carries the same label so a screen reader can
+say what it toggles — and the title comes first, so the switch is `index: 1`
+and a tap on the title is silent. A `BottomSheetPicker` is the opposite trap:
+its trigger *displays* the current value but is *labelled* with the sheet's
+title, so the words on screen ("Standard Cycle") match nothing and the label
+("Select Mode") matches the trigger and the sheet it opens.
+
+**Assert on what a save destroys, not on what it leaves.** With modal honouring
+off, the screen behind a modal is "visible" through it, so waiting for the hub
+after saving the cycle log asserted nothing: a save that failed left the modal
+up and the wait passed anyway. `extendedWaitUntil: notVisible:` on the modal's
+own title is the assertion, because the modal dismisses itself only on a save
+that came back clean. That is how the harness found a bug that had made the
+cycle day's temperature unsaveable from mobile since it shipped.
 
 **A system permission alert steals a tap for the screen behind it.** Starting a
 live workout calls `ensureNotificationPermission()` one line before it navigates,

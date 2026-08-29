@@ -65,15 +65,18 @@ appId: ${APP_ID}
 #     first exercise)
 #   MedicationDetail, MedicationScheduleForm  (need a medication)
 #
-# Still unreached by either flow:
+# Reached by fasting-and-cycle.yaml instead, which opts the account in rather
+# than giving it content:
+#   FastingDetail  (the fasting card opens its protocol sheet until a fast is
+#     actually running)
+#   CycleOnboarding, CycleHub, CycleLogModal, PregnancySetup  (cycle tracking is
+#     off by default, so the card that leads to them is not on the dashboard)
+#
+# Still unreached by any flow:
 #   FoodEntryAdd, MealDetail, EditLoggedMeal  (need a saved meal; the meal
 #     builder stacks FoodEntryAdd over FoodSearch over MealAdd, and two of
 #     those three offer a button labelled exactly "Add Food")
-#   FastingDetail  (the fasting card opens its protocol sheet until a fast is
-#     running)
 #   FoodPhotoFlow's Improve / EstimateReview / LogEntry  (need a photograph)
-#   CycleHub, CycleOnboarding, CycleLogModal, PregnancySetup  (cycle tracking is
-#     off by default, so the card that leads to them is not on the dashboard)
 #   Onboarding  (lib/boot.yaml has already walked it by the time this starts)
 - runFlow: lib/boot.yaml
 

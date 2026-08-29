@@ -33,11 +33,10 @@ appId: ${APP_ID}
 #     FoodEntryAdd over FoodSearch over MealAdd, and two of those three offer a
 #     button labelled exactly "Add Food"; telling them apart needs a selector
 #     this flow does not yet have (see the SELECTORS note below).
-#   FastingDetail               needs a fast to be running.
 #   FoodPhotoFlow's Improve / EstimateReview / LogEntry   need a photograph.
-#   CycleHub, CycleOnboarding, CycleLogModal, PregnancySetup   need cycle
-#     tracking switched on in Settings; the card that leads to them is off the
-#     dashboard until it is.
+# FastingDetail and the four cycle screens were on this list too; they are
+# reached by fasting-and-cycle.yaml, which opts the account into those features
+# rather than giving it content.
 #
 # SELECTORS. The four rules in crawl.yaml's header all apply here, and a fifth
 # one shapes the order of the sections below:
