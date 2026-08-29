@@ -184,8 +184,11 @@ coordinates (the reason the onboarding fields use relative selectors, above).
 engage a native stack's interactive pop, and simply does nothing on a screen
 with no back button to fall back on. An explicit
 `swipe: {start: "2%, 50%", end: "95%, 50%", duration: 800}` is what a thumb
-does, and it works. `crawl.yaml` needs it in exactly one place, for a screen
-that has no way out at all — see below.
+does, and it works. Reach for it only when a screen genuinely cannot be left by
+tapping: `crawl.yaml` needed it once, for a settings screen that rendered a
+headerless spinner to any account that had never configured it, and that turned
+out to be the screen's bug rather than the flow's — the swipe went away with the
+fix, which is the outcome to aim for.
 
 ## Adding a scenario
 

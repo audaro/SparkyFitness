@@ -1,3 +1,5 @@
+import { CYCLE_DEFAULTS, type SharedCycleSettings } from '@workspace/shared';
+
 import type { WellnessPalette } from '../components/wellness/theme/wellnessTokens';
 import type { TFunction } from 'i18next';
 
@@ -54,6 +56,34 @@ export const CYCLE_SETTING_LIMITS = {
   periodLength: { min: 1, max: 15 },
   lutealLength: { min: 9, max: 18 },
 } as const;
+
+/**
+ * What the settings screen shows an account that has no `cycle_settings` row.
+ *
+ * The server answers `GET /api/v2/cycle/settings` with `null` until the first
+ * write, so this is the state every account starts in. `enabled: false` is the
+ * important field: the server's INSERT defaults the column to TRUE, but the
+ * rest of the app already reads a missing row as "not opted in"
+ * (`settings?.enabled ?? false`, and `CycleCard` renders nothing for it), so
+ * showing the toggle on before anything is stored would contradict every other
+ * screen. Turning it on is what writes the row, and the server's own defaults
+ * then apply to the fields below.
+ */
+export const UNCONFIGURED_CYCLE_SETTINGS: SharedCycleSettings = {
+  enabled: false,
+  mode: 'standard',
+  avg_cycle_length_override: null,
+  avg_period_length_override: null,
+  luteal_phase_length: CYCLE_DEFAULTS.lutealLength,
+  birth_control_method: 'none',
+  conditions: [],
+  show_fertile_window: true,
+  preferred_products: ['pad', 'tampon'],
+  dismissed_prompts: [],
+  terminology: 'default',
+  discreet_mode: false,
+  onboarded_at: null,
+};
 
 /** Pregnancy field ranges, mirroring the server's `pregnancySchemas` bounds. */
 export const PREGNANCY_SETTING_LIMITS = {

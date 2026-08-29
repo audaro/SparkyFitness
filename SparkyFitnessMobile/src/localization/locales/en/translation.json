@@ -1869,6 +1869,7 @@
   "cycleSettings": {
     "updateFailed": "Update failed",
     "saveFailed": "Could not save cycle settings. Please try again.",
+    "loadFailed": "Could not load your settings",
     "mode": {
       "standard": "Standard Cycle",
       "ttc": "Trying to Conceive",
