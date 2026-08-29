@@ -34,9 +34,16 @@ import { MUSCLES } from '../../shared/src/constants/exerciseTaxonomy.ts';
  * every choice forced: a planner that ignored its scoring entirely and took
  * whatever the query returned first would produce exactly the same workout as
  * one that ranked properly. A second candidate per muscle means the pick is a
- * pick. It is also what a future Swap assertion needs — `swap: true` excludes
- * the previous workout's exercise ids, and with one per muscle there is nowhere
- * for it to go.
+ * pick.
+ *
+ * It is NOT enough for a Swap assertion, which an earlier version of this
+ * comment claimed. `swap: true` does not exclude the previous workout's
+ * exercises — it adds `GENERATION_TUNABLES.swapPenalty` to their score
+ * (`scoreCandidate` in shared/src/utils/workoutGeneration.ts) — so a penalized
+ * candidate is still picked when nothing else covers the muscle. With two
+ * variants and a workout that already uses five of six, a refresh has almost
+ * nowhere to move and may return the same plan. Asserting that a swap changed
+ * anything needs a third variant per muscle to give it room.
  */
 const PER_MUSCLE = [
   { suffix: '1', mechanic: 'compound', level: 'beginner', force: 'push' },

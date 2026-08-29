@@ -3,8 +3,10 @@
  * The verdict for qa/flows/suggested-workout.yaml.
  *
  * The flow taps one row — Push — switches the workout it gets to the seeded
- * gym, shortens it to 45 minutes, starts what comes back, completes one set and
- * ends the workout. Everything worth checking about that is invisible. The
+ * gym, shortens it to 45 minutes, refreshes it, starts what comes back,
+ * completes one set and ends the workout. Those three adjustments are every
+ * regenerate path the screen has, so the muscles, length and gym asserted below
+ * are on a payload that survived three server-side rebuilds. Everything worth checking about that is invisible. The
  * screen shows exercise names, a muscle header and a duration; it does not show
  * which muscle each exercise was slotted against, how many sets were
  * prescribed, how long the rest is, where the exercise came from, or which of

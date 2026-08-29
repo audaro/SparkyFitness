@@ -158,10 +158,11 @@ an *algorithm*. Nothing about a generated workout is decided on the client: the
 muscles, the exercises, the sets, the reps, the rest and the estimated length
 all come back from `POST /api/workout-recommendations/generate`, and the app
 draws what it is handed. So it picks the Push split, switches the workout that
-comes back to the seeded gym, shortens it to 45 minutes, starts it, completes
-one set and ends it. Those two adjustments are the three regenerate paths Up
-Next has, minus Refresh — and each one is a full server-side rebuild, not an
-edit.
+comes back to the seeded gym, shortens it to 45 minutes, refreshes it, starts
+it, completes one set and ends it. Those three adjustments are every regenerate
+path Up Next has, and each one is a full server-side rebuild rather than an
+edit — so the muscles, the length and the gym in the final row are there only
+because all three handlers restated them.
 
 Three things it checks that no screen can show. **That the request survived**:
 the client resolves Push to chest, shoulders and triceps and sends the muscles —
@@ -382,6 +383,19 @@ offered "Edit activity name, Date, Today, …, Activity notes" and not one of th
 fields could be focused — by a flow or by a screen reader. Same one-line fix,
 same reasoning: a wrapper whose only job is a tap-outside shortcut is not an
 accessibility element.
+
+**A backdrop that wraps its own menu hides it.** The ⋯ menu on Up Next opened,
+rendered three items, and the driver reported `Element not found: Refresh`
+against a screenshot showing "Refresh" in the middle of the screen — not one of
+"Save workout", "Build superset/circuit" or "Dismiss menu" appeared anywhere in
+the hierarchy either. `AnchoredMenu` put its full-screen dismissal `Pressable`
+*around* the menu content, so the same `accessible={true}` collapse swallowed
+every item into the backdrop's own "Dismiss menu" label. Here `accessible={false}`
+is the wrong fix, because that `Pressable` is also the labelled way out for a
+screen-reader user; the fix is to make the backdrop a **sibling** of the content
+(`StyleSheet.absoluteFill` behind it) so it still covers the screen without
+containing it. Worth checking wherever a dismiss layer and its content share a
+parent.
 
 **Text selectors are full-string and case-insensitive.** `"Reps"` matches the
 `REPS` column header above the field, and the header comes first in the tree, so

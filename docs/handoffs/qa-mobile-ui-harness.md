@@ -1,6 +1,6 @@
 # Handoff — mobile UI QA harness (`qa/mobile-ui-harness`)
 
-*Written 2026-08-29, updated the same day. Branch has 19 commits, pushed to `origin/qa/mobile-ui-harness`.*
+*Written 2026-08-29, updated the same day. Branch has 21 commits, pushed to `origin/qa/mobile-ui-harness`.*
 
 ## What shipped
 
@@ -40,12 +40,13 @@ now walked by one of these, except `Onboarding` — which `flows/lib/boot.yaml`
 walks before every scenario anyway. The "STILL NOT REACHED" lists that were the
 branch's running to-do are all closed out in the flow headers.
 
-Seven defects were found and fixed on the way, all of them real rather than test
+Eight defects were found and fixed on the way, all of them real rather than test
 scaffolding: the cycle day's basal temperature never saved from mobile; a new
 account could not reach cycle settings at all; empty states logged themselves as
-errors; three accessibility collapses (`AddSheet` / `ActionSheet`, the active
-workout's set row, `ActivityAddScreen`'s form wrapper) that hid whole subtrees
-from VoiceOver as much as from the driver; and — found by building the duration
+errors; four accessibility collapses (`AddSheet` / `ActionSheet`, the active
+workout's set row, `ActivityAddScreen`'s form wrapper, and `AnchoredMenu`'s
+dismissal backdrop wrapping the menu it dismisses) that hid whole subtrees from
+VoiceOver as much as from the driver; and — found by building the duration
 step above — **every regenerate from Up Next silently re-targeted the workout**.
 `POST /generate` reads an absent `target_muscles` as "pick the freshest muscles",
 not as "keep the ones you had", and `UpNextScreen` sent nothing but the field the
@@ -86,12 +87,12 @@ If the work continues, it is **assertions, not screens**. The obvious gaps:
    `app-logs.mjs`. Any screen they walk that writes something is a candidate for
    a real check.
 2. The recommendation family is covered for Pick Muscles, the length chip and
-   the gym chip. `suggested-workout` does not touch Swap (`swap: true` penalizes
+   the gym chip and Refresh. `suggested-workout` does not touch Swap (`swap: true` penalizes
    the previous workout's exercise ids, so the seeded catalog's second exercise
    per muscle is already there for it), Replace, On Demand, or saved workouts —
    each of which changes the plan in a way that is invisible on screen and cheap
-   to assert now that the catalog and gym seeding exist. Refresh is the last
-   `currentContext()` caller with no coverage.
+   to assert now that the catalog and gym seeding exist. All three
+   `currentContext()` callers are now covered end to end.
 3. Android. Everything here is iOS-only: `qa-run.sh` shells `xcrun simctl`
    throughout, and the traps in `qa/README.md` are XCUITest's.
 
@@ -121,7 +122,7 @@ If the work continues, it is **assertions, not screens**. The obvious gaps:
   spread that the muscle check already proves is there, and the alternative
   ordering would leave a strictly larger gap — but it is a gap, not a covered
   case, and a scenario that changed the length twice would close it.
-- **None of these 19 commits has had an independent review.** The second-opinion
+- **None of these 21 commits has had an independent review.** The second-opinion
   reviewer has been down since 2026-08-24 (`.git/second-opinion/last-error.txt`
   is newer than `last-review.md`; the ChatGPT account is on the Free plan, which
   does not include Codex).

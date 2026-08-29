@@ -1,8 +1,8 @@
 appId: ${APP_ID}
 ---
-# Generate a workout for a named split, change the gym, shorten it, run it —
-# and check the programming that came back rather than the screen that renders
-# it.
+# Generate a workout for a named split, change the gym, shorten it, refresh it,
+# run it — and check the programming that came back rather than the screen that
+# renders it.
 #
 # Nothing about a generated workout is decided on the client. The muscles, the
 # exercises, the number of sets, the reps, the rest between them and the
@@ -187,6 +187,33 @@ appId: ${APP_ID}
     timeout: 90000
 - assertVisible:
     id: "up-next-exercise-row"
+
+# === refresh it =============================================================
+# The third and last of Up Next's regenerate paths, and the one whose own
+# comment in the source used to claim "same targets, different exercises" while
+# sending no targets at all.
+#
+# Nothing is asserted here about the exercises CHANGING, and that is deliberate.
+# `swap: true` does not exclude the previous workout's exercises — it adds
+# `swapPenalty` to their score — so a penalized candidate is still picked when
+# nothing else covers the muscle, and this catalog has two variants per muscle
+# with five of the six already in use. A refresh has almost nowhere to move.
+# Giving it room means a third variant per muscle, which is a separate change.
+#
+# What IS asserted is the carry, and it needs no new check: every claim about
+# the muscles, the length and the gym now runs on a payload that survived THREE
+# regenerates, this one included. Sent bare — as the handler did before the fix
+# — Refresh would rebuild the workout around the freshest muscles at the coach
+# profile's default length with no gym, and `payload.muscles-are-the-split`,
+# `recommendation.target-duration` and `recommendation.gym-is-the-one-picked`
+# would each fail on their own.
+#
+# The ⋯ menu is the header's right slot once a workout exists, labelled for what
+# it opens rather than for the glyph.
+- tapOn: "Workout options"
+- waitForAnimationToEnd
+- tapOn: "Refresh"
+- waitForAnimationToEnd
 
 # === run it =================================================================
 # Starting turns the suggestion into a session: the whole plan is created
