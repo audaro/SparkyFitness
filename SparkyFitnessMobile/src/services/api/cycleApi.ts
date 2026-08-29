@@ -211,8 +211,12 @@ export const upsertBbt = async (date: string, value: number | null): Promise<voi
     serviceName: 'Measurements API',
     operation: 'list custom categories',
   });
-  
+
   let bbtCategory = categories.find((c) => c.name === 'basal_body_temperature');
+  // Nothing to clear: with no category there is no entry to delete, and
+  // creating one for a temperature the user did not enter would fail the whole
+  // save (this runs on every cycle-day save, not only on a temperature edit).
+  if (!bbtCategory && value === null) return;
   if (!bbtCategory) {
     try {
       bbtCategory = await apiFetch<{ id: string; name: string }>({
@@ -220,7 +224,19 @@ export const upsertBbt = async (date: string, value: number | null): Promise<voi
         serviceName: 'Measurements API',
         operation: 'create custom category',
         method: 'POST',
-        body: { name: 'basal_body_temperature', display_name: 'Basal Body Temperature', unit: '°C' },
+        // `frequency` and `measurement_type` are required by the endpoint, and
+        // `measurement_type` IS the unit (the web category manager sends the
+        // unit string in that field). The payload used to carry a `unit` key
+        // instead, which the endpoint does not know, so every attempt 400'd
+        // with "expected string, received undefined" and the temperature could
+        // never be saved from mobile at all.
+        body: {
+          name: 'basal_body_temperature',
+          display_name: 'Basal Body Temperature',
+          measurement_type: '°C',
+          frequency: 'Daily',
+          data_type: 'numeric',
+        },
       });
     } catch (error) {
       // A concurrent call may have created the category first. Re-list and
