@@ -265,6 +265,11 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
               <Switch
                 value={effectiveSettings.enabled}
                 onValueChange={handleToggleEnabled}
+                // A Switch offered as a row's rightAccessory is its own
+                // accessibility element, and the row's title is a sibling Text
+                // it never sees — so without this VoiceOver announces "off,
+                // switch button" with no idea what it controls.
+                accessibilityLabel={t('cycleSettings.enable.title', { defaultValue: 'Enable Cycle & Pregnancy Tracking' })}
               />
             }
           />
@@ -335,6 +340,7 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
                     <Switch
                       value={effectiveSettings.conditions?.includes(cond.value) || false}
                       onValueChange={(val) => handleToggleCondition(cond.value, val)}
+                      accessibilityLabel={getConditionLabel(cond.value, cond.displayName)}
                     />
                   }
                 />
@@ -349,6 +355,7 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
                   <Switch
                     value={effectiveSettings.show_fertile_window}
                     onValueChange={handleToggleFertileWindow}
+                    accessibilityLabel={t('cycleSettings.fields.showFertileWindow', { defaultValue: 'Show Fertile Window' })}
                   />
                 }
               />
@@ -359,6 +366,7 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
                   <Switch
                     value={effectiveSettings.discreet_mode}
                     onValueChange={handleToggleDiscreetMode}
+                    accessibilityLabel={t('cycleSettings.fields.discreetMode', { defaultValue: 'Discreet Mode' })}
                   />
                 }
               />
