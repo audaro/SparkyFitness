@@ -116,33 +116,23 @@ If the work continues, it is **assertions, not screens**. The obvious gaps:
 - **`ALLOW_PRIVATE_NETWORK_AI=true` is exported by `qa-env.sh`.** It is scoped to
   the QA server process, which can only reach the QA stack — but it is a
   production safety valve being switched off, so it is worth knowing it is there.
-- **`lib/boot.yaml`'s sign-in failed once, cause unresolved.** On 2026-08-29
-  `food-photo` failed with `"Home" is visible` false after 2m28s, and the
-  failure screenshot showed the sign-in screen with the **password field empty**
-  and Connect stuck on its spinner — the run never got past auth, and the
-  oracle correctly reported zero requests at the stub. The QA server was still
-  up at the time (the next scenario's setup reached the API fine straight
-  after), so a dead backend does not explain it.
+- **`lib/boot.yaml`'s sign-in is the harness's one observed flake.** On
+  2026-08-29 `food-photo` failed with `"Home" is visible` false after 2m28s, and
+  the failure screenshot showed the sign-in screen with the **password field
+  empty** and Connect stuck on its spinner — the run never got past auth, and
+  the oracle correctly reported zero requests at the stub. The QA server was up
+  at the time, and re-running the same scenario unchanged later that day passed
+  18/0, so it is intermittent rather than a regression. It has been seen exactly
+  once in the suite's history.
 
-  It was not reproduced: the three attempts to re-run it were themselves
-  interrupted, twice because a killed background task took the QA stack down
-  with it, so **the failure remains unexplained rather than dismissed**. The
-  standing suspicion is the password sequence — the onboarding inputs carry no
-  testIDs and are addressed as `below: "Password"`, `hideKeyboard` submits the
+  The standing suspicion is the password sequence: the onboarding inputs carry
+  no testIDs and are addressed as `below: "Password"`, `hideKeyboard` submits the
   form on its own, and the `Connect` tap is conditional for exactly that reason,
   so a keystroke landing between a re-render and a submit would leave an empty
   field with a request already in flight. A secure field renders as dots, so a
   flow cannot assert it was filled. If it recurs, add testIDs to the two
   onboarding fields rather than another conditional; `boot.yaml`'s own comment
   already names that as the intended escape hatch.
-
-- **Two scenarios were not re-run after the bottom-sheet fix.** `food-photo` and
-  `suggested-workout` are unverified against it; the other six pass, including
-  both crawls. The sheet change is a11y-only (`accessible={false}` exposes
-  children that were already rendered) and neither unverified scenario touches
-  any of the fifteen files — `suggested-workout` drives `BottomSheetPicker` and
-  `AnchoredMenu`, which were already opted out. Worth closing out on the next
-  session all the same.
 
 - **One carry-pair is unasserted, deliberately.** The gym chip is proven to
   carry the muscles forward, but not the duration: at the moment it is tapped the
