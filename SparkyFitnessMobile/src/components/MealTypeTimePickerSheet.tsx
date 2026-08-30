@@ -77,6 +77,9 @@ const MealTypeTimePickerSheet = forwardRef<MealTypeTimePickerSheetRef>((_props, 
 
   return (
     <BottomSheetModal
+      // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
+      // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
+      accessible={false}
       ref={bottomSheetRef}
       enableDynamicSizing
       enableContentPanningGesture={Platform.OS !== 'android'}

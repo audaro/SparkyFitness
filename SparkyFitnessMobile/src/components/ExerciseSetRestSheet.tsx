@@ -170,6 +170,9 @@ const ExerciseSetRestSheet = forwardRef<ExerciseSetRestSheetRef, ExerciseSetRest
 
     return (
       <BottomSheetModal
+        // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
+        // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
+        accessible={false}
         ref={sheetRef}
         enableDynamicSizing
         // On Android the sheet's content pan gesture steals vertical drags from

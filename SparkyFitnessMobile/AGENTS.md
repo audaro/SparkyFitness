@@ -282,6 +282,7 @@ npx expo prebuild --clean
 - Animate Skia paths from Reanimated `useSharedValue` / `useDerivedValue`, not Skia's deprecated animation API.
 - `Icon.tsx` maps semantic names to SF Symbols on iOS and Ionicons on Android; verify identifiers before adding icons.
 - Use shared primitives where they fit: `FormInput`, `Button`, `SettingsRow`, `SettingsRowGroup`, `SegmentedControl`, `StepperInput`, `BottomSheetPicker`, `CalendarSheet`, `DateRangeSheet`, `AnchoredMenu`, and `FormScreenChrome`.
+- **Every `BottomSheetModal` must pass `accessible={false}`.** The library defaults it to `true` (`DEFAULT_ACCESSIBLE`) and applies it to the `BottomSheetContent` that wraps the children, so a sheet without the prop is a single accessibility element: VoiceOver announces one node with every row's text comma-joined, and none of the rows can be focused or activated. All 19 sheets in `src/components` carry it; a new one needs it too. The same collapse applies to any `Pressable`/`TouchableOpacity` that wraps more than it presses — see `AnchoredMenu`, where the dismissal backdrop is a sibling of the content rather than its parent for this reason.
 - `BottomSheetPicker`, `CalendarSheet`, and sheets shown over native modals use `FullWindowOverlay` on iOS to avoid nested-provider inset bugs.
 - Keep button text and compact cards within their stable dimensions across mobile sizes. Avoid layout shifts from dynamic labels, loading states, or icon swaps.
 
