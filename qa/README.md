@@ -367,12 +367,17 @@ content container as a single accessibility element (`accessible`, labelled
 "Bottom Sheet", role `adjustable`) by default, which collapses its whole
 subtree: the Add sheet was plainly showing six buttons while the snapshot
 offered one nameless node, and no selector could reach Measurements, Scan Food,
-Workout, Activity or Log Workout. `accessible={false}` on `AddSheet` and
-`ActionSheet` opts out and exposes the rows — which is what VoiceOver should
-have been announcing all along, so this is a fix rather than a test hook. The
-other ~18 sheets in `src/components` still have it; expect the same symptom the
-first time a scenario needs one, and prefer the same one-line fix over pinning
-coordinates (the reason the onboarding fields use relative selectors, above).
+Workout, Activity or Log Workout. `accessible={false}` opts out and exposes the rows —
+which is what VoiceOver should have been announcing all along, so this is a fix
+rather than a test hook.
+
+This was originally fixed only on the two sheets a scenario had needed, leaving
+the rest of the app broken in the same way. Every `BottomSheetModal` in
+`src/components` now carries the opt-out — the default is
+`DEFAULT_ACCESSIBLE = true` in the library, applied to the `BottomSheetContent`
+that wraps the children, so a sheet without it is one node no matter what is
+inside. A new sheet needs the prop; without it, its rows are unreachable by a
+flow and by a screen reader alike.
 
 **And so is any `Pressable` that wraps more than it presses.** RN's `Pressable`
 and `TouchableOpacity` default to `accessible={true}`, which collapses the whole
