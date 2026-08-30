@@ -91,6 +91,7 @@ function makeProfile(overrides: Partial<GymProfile> = {}): GymProfile {
     equipment: ['dumbbell', 'bands'],
     apparatus: null,
     equipment_items: null,
+    equipment_preference: null,
     load_limits: null,
     is_active: true,
     created_at: '2026-08-01T00:00:00.000Z',
@@ -199,6 +200,7 @@ describe('GymProfilesManager', () => {
           name: 'Commercial Gym',
           equipment: ['barbell'],
           apparatus: null,
+          equipment_preference: null,
           load_limits: null,
         },
       });
@@ -225,6 +227,7 @@ describe('GymProfilesManager', () => {
           name: 'Home',
           equipment: ['dumbbell'],
           apparatus: null,
+          equipment_preference: null,
           load_limits: null,
         },
       });
@@ -313,6 +316,7 @@ describe('GymProfilesManager', () => {
         payload: {
           name: 'Home',
           equipment_items: expect.arrayContaining(['dumbbells', 'flat-bench']),
+          equipment_preference: null,
           load_limits: null,
         },
       });
@@ -346,6 +350,7 @@ describe('GymProfilesManager', () => {
         payload: {
           name: 'Home',
           equipment_items: ['smith-machine', 'treadmill'],
+          equipment_preference: null,
           load_limits: null,
         },
       });
@@ -399,6 +404,7 @@ describe('GymProfilesManager', () => {
           name: 'Home',
           equipment: ['dumbbell', 'bands'],
           apparatus: null,
+          equipment_preference: null,
           load_limits: { dumbbell: { max_kg: 22.5 } },
         },
       });
@@ -434,6 +440,7 @@ describe('GymProfilesManager', () => {
           name: 'Home',
           equipment: ['dumbbell', 'bands'],
           apparatus: ['bench'],
+          equipment_preference: null,
           load_limits: { barbell: { max_kg: 60 } },
         },
       });
@@ -457,6 +464,159 @@ describe('GymProfilesManager', () => {
           name: 'Home',
           equipment: ['dumbbell', 'bands'],
           apparatus: null,
+          equipment_preference: null,
+          load_limits: null,
+        },
+      });
+    });
+  });
+
+  // --- Preferred equipment -------------------------------------------------
+  //
+  // The control sits outside the detailed/coarse branch: a preference says what
+  // to pick from whatever the gym has, so it is orthogonal to the derivation
+  // contract rather than another field that contract owns.
+
+  it('states a preference on a coarse profile without disturbing the equipment', async () => {
+    const profile = makeProfile({ is_active: false });
+    mockProfiles = [profile];
+
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Machines' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        id: profile.id,
+        payload: {
+          name: 'Home',
+          equipment: ['dumbbell', 'bands'],
+          apparatus: null,
+          equipment_preference: 'machines',
+          load_limits: null,
+        },
+      });
+    });
+  });
+
+  it('rides with the item-stated payload, which states nothing coarse', async () => {
+    const detailed = makeProfile({
+      apparatus: [],
+      equipment_items: ['smith-machine', 'treadmill'],
+      is_active: false,
+    });
+    mockProfiles = [detailed];
+
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Free weights' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        id: detailed.id,
+        payload: {
+          name: 'Home',
+          equipment_items: ['smith-machine', 'treadmill'],
+          equipment_preference: 'free_weights',
+          load_limits: null,
+        },
+      });
+    });
+    // A detailed payload carrying the coarse fields is a 400 by design, and
+    // the preference must not be what drags them back in.
+    const payload = mockUpdateProfile.mock.calls[0][0].payload;
+    expect(payload).not.toHaveProperty('equipment');
+    expect(payload).not.toHaveProperty('apparatus');
+  });
+
+  it('sends a stated preference on create, where unstated is omitted', async () => {
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Profile' }));
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Basement' },
+    });
+    fireEvent.click(screen.getByLabelText('Dumbbells'));
+    fireEvent.click(screen.getByRole('button', { name: 'Machines' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    // The create schema takes an optional, not a null: the sibling create
+    // tests assert the exact payload without the key, which is the other half
+    // of this contract.
+    await waitFor(() => {
+      expect(mockCreateProfile).toHaveBeenCalledWith({
+        name: 'Basement',
+        equipment_items: ['dumbbells'],
+        equipment_preference: 'machines',
+        is_active: true,
+      });
+    });
+  });
+
+  it('returns a stated preference to unstated as an explicit null', async () => {
+    const stated = makeProfile({
+      equipment_preference: 'machines',
+      is_active: false,
+    });
+    mockProfiles = [stated];
+
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Home' }));
+    // The stored value prefills, which is what makes "No preference" a real
+    // choice rather than the empty state it looks like.
+    expect(screen.getByRole('button', { name: 'Machines' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'No preference' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        id: stated.id,
+        payload: {
+          name: 'Home',
+          equipment: ['dumbbell', 'bands'],
+          apparatus: null,
+          equipment_preference: null,
+          load_limits: null,
+        },
+      });
+    });
+  });
+
+  it('reads a preference this build does not know as unstated, and never echoes it back', async () => {
+    // The same stale-row defense the equipment, apparatus and item lists
+    // already have: a value written by a newer build must not ride back out
+    // through a request schema that would reject it.
+    const drifted = makeProfile({
+      equipment_preference:
+        'kettlebells-only' as GymProfile['equipment_preference'],
+      is_active: false,
+    });
+    mockProfiles = [drifted];
+
+    render(<GymProfilesManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Home' }));
+    expect(
+      screen.getByRole('button', { name: 'No preference' })
+    ).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        id: drifted.id,
+        payload: {
+          name: 'Home',
+          equipment: ['dumbbell', 'bands'],
+          apparatus: null,
+          equipment_preference: null,
           load_limits: null,
         },
       });
