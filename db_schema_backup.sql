@@ -1286,6 +1286,27 @@ CREATE TABLE public.check_in_photos (
 
 
 --
+-- Name: coach_profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.coach_profiles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    goals text,
+    training_days_per_week integer,
+    session_minutes integer,
+    equipment jsonb DEFAULT '[]'::jsonb NOT NULL,
+    limitations jsonb DEFAULT '[]'::jsonb NOT NULL,
+    food_preferences jsonb DEFAULT '{}'::jsonb NOT NULL,
+    aliases jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    weekly_set_targets jsonb DEFAULT '{}'::jsonb NOT NULL,
+    experience_level text
+);
+
+
+--
 -- Name: custom_categories; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2208,6 +2229,25 @@ CREATE TABLE public.goal_presets (
     snacks_percentage numeric,
     custom_nutrients jsonb DEFAULT '{}'::jsonb,
     custom_meal_percentages jsonb DEFAULT '{}'::jsonb
+);
+
+
+--
+-- Name: gym_equipment_profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gym_equipment_profiles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    name text NOT NULL,
+    equipment jsonb DEFAULT '[]'::jsonb NOT NULL,
+    is_active boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    apparatus jsonb,
+    load_limits jsonb,
+    equipment_items jsonb,
+    equipment_preference text
 );
 
 
@@ -3542,6 +3582,7 @@ CREATE TABLE public.user_preferences (
     time_format text DEFAULT 'h:mm A'::text NOT NULL,
     calorie_safety_floor_mode text DEFAULT 'standard'::text NOT NULL,
     calorie_safety_floor_value integer DEFAULT 1200 NOT NULL,
+    medication_catalog_lookup_enabled boolean DEFAULT false NOT NULL,
     CONSTRAINT check_energy_unit CHECK (((energy_unit)::text = ANY ((ARRAY['kcal'::character varying, 'kJ'::character varying])::text[]))),
     CONSTRAINT logging_level_check CHECK ((logging_level = ANY (ARRAY['DEBUG'::text, 'INFO'::text, 'WARN'::text, 'ERROR'::text, 'SILENT'::text]))),
     CONSTRAINT user_preferences_calorie_safety_floor_mode_check CHECK ((calorie_safety_floor_mode = ANY (ARRAY['standard'::text, 'custom'::text, 'disabled'::text]))),
@@ -4057,6 +4098,24 @@ ALTER SEQUENCE public.workout_presets_id_seq OWNED BY public.workout_presets.id;
 
 
 --
+-- Name: workout_recommendations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.workout_recommendations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    gym_profile_id uuid,
+    target_duration_minutes integer NOT NULL,
+    payload jsonb NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    generated_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT workout_recommendations_status_check CHECK ((status = ANY (ARRAY['active'::text, 'started'::text, 'completed'::text, 'dismissed'::text])))
+);
+
+
+--
 -- Name: schema_migrations; Type: TABLE; Schema: system; Owner: -
 --
 
@@ -4267,6 +4326,22 @@ ALTER TABLE ONLY public.check_in_photos
 
 ALTER TABLE ONLY public.check_in_photos
     ADD CONSTRAINT check_in_photos_user_date_type_unique UNIQUE (user_id, entry_date, photo_type);
+
+
+--
+-- Name: coach_profiles coach_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.coach_profiles
+    ADD CONSTRAINT coach_profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: coach_profiles coach_profiles_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.coach_profiles
+    ADD CONSTRAINT coach_profiles_user_id_key UNIQUE (user_id);
 
 
 --
@@ -4507,6 +4582,22 @@ ALTER TABLE ONLY public.goal_presets
 
 ALTER TABLE ONLY public.goal_presets
     ADD CONSTRAINT goal_presets_unique_name_per_user UNIQUE (user_id, preset_name);
+
+
+--
+-- Name: gym_equipment_profiles gym_equipment_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gym_equipment_profiles
+    ADD CONSTRAINT gym_equipment_profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: gym_equipment_profiles gym_equipment_profiles_user_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gym_equipment_profiles
+    ADD CONSTRAINT gym_equipment_profiles_user_id_name_key UNIQUE (user_id, name);
 
 
 --
@@ -5254,6 +5345,22 @@ ALTER TABLE ONLY public.workout_presets
 
 
 --
+-- Name: workout_recommendations workout_recommendations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workout_recommendations
+    ADD CONSTRAINT workout_recommendations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: workout_recommendations workout_recommendations_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workout_recommendations
+    ADD CONSTRAINT workout_recommendations_user_id_key UNIQUE (user_id);
+
+
+--
 -- Name: schema_migrations schema_migrations_name_key; Type: CONSTRAINT; Schema: system; Owner: -
 --
 
@@ -5352,6 +5459,13 @@ CREATE INDEX idx_api_key_user_id ON public.api_key USING btree (reference_id);
 --
 
 CREATE INDEX idx_assignment_sets_assignment_id ON public.workout_plan_assignment_sets USING btree (assignment_id);
+
+
+--
+-- Name: idx_coach_profiles_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_coach_profiles_user_id ON public.coach_profiles USING btree (user_id);
 
 
 --
@@ -5597,6 +5711,20 @@ CREATE INDEX idx_foods_provider_external_id_provider_type ON public.foods USING 
 --
 
 CREATE INDEX idx_foods_provider_type_user_id ON public.foods USING btree (provider_type, user_id) WHERE (provider_type IS NOT NULL);
+
+
+--
+-- Name: idx_gym_equipment_profiles_one_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_gym_equipment_profiles_one_active ON public.gym_equipment_profiles USING btree (user_id) WHERE is_active;
+
+
+--
+-- Name: idx_gym_equipment_profiles_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_gym_equipment_profiles_user_id ON public.gym_equipment_profiles USING btree (user_id);
 
 
 --
@@ -6462,6 +6590,14 @@ ALTER TABLE ONLY public.check_in_photos
 
 
 --
+-- Name: coach_profiles coach_profiles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.coach_profiles
+    ADD CONSTRAINT coach_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public."user"(id) ON DELETE CASCADE;
+
+
+--
 -- Name: custom_categories custom_categories_created_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6907,6 +7043,14 @@ ALTER TABLE ONLY public.global_settings
 
 ALTER TABLE ONLY public.goal_presets
     ADD CONSTRAINT goal_presets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public."user"(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gym_equipment_profiles gym_equipment_profiles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gym_equipment_profiles
+    ADD CONSTRAINT gym_equipment_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public."user"(id) ON DELETE CASCADE;
 
 
 --
@@ -7774,6 +7918,22 @@ ALTER TABLE ONLY public.workout_presets
 
 
 --
+-- Name: workout_recommendations workout_recommendations_gym_profile_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workout_recommendations
+    ADD CONSTRAINT workout_recommendations_gym_profile_id_fkey FOREIGN KEY (gym_profile_id) REFERENCES public.gym_equipment_profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: workout_recommendations workout_recommendations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workout_recommendations
+    ADD CONSTRAINT workout_recommendations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public."user"(id) ON DELETE CASCADE;
+
+
+--
 -- Name: admin_activity_logs; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -7844,6 +8004,12 @@ ALTER TABLE public.check_in_measurements ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.check_in_photos ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: coach_profiles; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.coach_profiles ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: custom_categories; Type: ROW SECURITY; Schema: public; Owner: -
@@ -8021,6 +8187,12 @@ ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.goal_presets ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gym_equipment_profiles; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gym_equipment_profiles ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: health_appointments; Type: ROW SECURITY; Schema: public; Owner: -
@@ -8632,6 +8804,13 @@ CREATE POLICY owner_policy ON public.api_key USING ((reference_id = public.authe
 
 
 --
+-- Name: coach_profiles owner_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY owner_policy ON public.coach_profiles USING ((user_id = public.authenticated_user_id())) WITH CHECK ((user_id = public.authenticated_user_id()));
+
+
+--
 -- Name: cycle_daily_entries owner_policy; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -8657,6 +8836,13 @@ CREATE POLICY owner_policy ON public.cycle_test_entries USING ((user_id = public
 --
 
 CREATE POLICY owner_policy ON public.cycles USING ((user_id = public.authenticated_user_id())) WITH CHECK ((user_id = public.authenticated_user_id()));
+
+
+--
+-- Name: gym_equipment_profiles owner_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY owner_policy ON public.gym_equipment_profiles USING ((user_id = public.authenticated_user_id())) WITH CHECK ((user_id = public.authenticated_user_id()));
 
 
 --
@@ -8782,6 +8968,13 @@ CREATE POLICY owner_policy ON public.workout_plan_template_assignments USING ((E
   WHERE ((wpt.id = workout_plan_template_assignments.template_id) AND public.has_diary_access(wpt.user_id))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM public.workout_plan_templates wpt
   WHERE ((wpt.id = workout_plan_template_assignments.template_id) AND public.has_diary_access(wpt.user_id)))));
+
+
+--
+-- Name: workout_recommendations owner_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY owner_policy ON public.workout_recommendations USING ((user_id = public.authenticated_user_id())) WITH CHECK ((user_id = public.authenticated_user_id()));
 
 
 --
@@ -9513,6 +9706,12 @@ ALTER TABLE public.workout_preset_exercises ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_presets ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: workout_recommendations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.workout_recommendations ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: SCHEMA auth; Type: ACL; Schema: -; Owner: -
 --
 
@@ -9919,6 +10118,13 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.check_in_photos TO sparky_app;
 
 
 --
+-- Name: TABLE coach_profiles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.coach_profiles TO sparky_app;
+
+
+--
 -- Name: TABLE custom_categories; Type: ACL; Schema: public; Owner: -
 --
 
@@ -10119,6 +10325,13 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.global_settings TO sparky_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.goal_presets TO sparky_app;
+
+
+--
+-- Name: TABLE gym_equipment_profiles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.gym_equipment_profiles TO sparky_app;
 
 
 --
@@ -10665,6 +10878,13 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workout_presets TO sparky_app;
 --
 
 GRANT SELECT,USAGE ON SEQUENCE public.workout_presets_id_seq TO sparky_app;
+
+
+--
+-- Name: TABLE workout_recommendations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workout_recommendations TO sparky_app;
 
 
 --
