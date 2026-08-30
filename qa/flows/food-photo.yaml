@@ -1,0 +1,220 @@
+appId: ${APP_ID}
+---
+# Estimate a meal from a photograph and log what comes back.
+#
+# The last three screens the harness could not reach: FoodPhotoFlow's Improve,
+# EstimateReview and LogEntry. Both of the things standing in their way are
+# seeded by qa/setup/food-photo.sh before this starts, because neither can be
+# produced from inside the app:
+#
+#   a photograph  — the simulator has no camera, so the only way in is the
+#                   library, and the library only has what simctl put there;
+#   a provider    — AI services are configured in the web frontend, so a
+#                   mobile-only account can never clear the scan screen's
+#                   "AI photo estimates aren't set up" gate.
+#
+# The provider it is pointed at is a local stub (qa/bin/qa-ai-stub.mjs) that
+# always answers with the same estimate. That is what makes this scenario
+# assertable at all: a real model returns different numbers for the same
+# photograph every run, so the oracle could only ever check that *something*
+# plausible was written. Everything between the shutter and the diary row —
+# the app, the estimate route, the provider dispatch, the schema validation,
+# the review form — is the real thing.
+#
+# The typed values below are load-bearing: qa/oracles/food-photo.mjs asserts
+# the weight and the description back out of what the provider was sent, and
+# the estimate back out of the diary row.
+- runFlow: lib/boot.yaml
+
+# === into the photo flow ====================================================
+# Same way in as crawl.yaml: the Add sheet's Scan Food card. Centring "Ask
+# Sparky" first is what puts the sheet's rows clear of the tab bar.
+- scrollUntilVisible:
+    element: ".*Ask Sparky.*"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn: "Add"
+- tapOn: ".*Scan Food"
+
+# The scanner opens on Barcode. Switching to Photo is what runs the gate: with
+# no provider configured this leaves the shutter disabled behind an overlay,
+# which is why the setup script has to have run.
+- tapOn: "Photo"
+
+# First entry into photo mode pushes the one-time explainer over the scanner.
+# It is a screen crawl.yaml could never reach either, since it only appears
+# once an account has a provider.
+- extendedWaitUntil:
+    visible: "Estimate nutrition from a photo"
+    timeout: 30000
+- tapOn: "Continue"
+
+# === the photograph =========================================================
+# THE SYSTEM PHOTO PICKER IS INVISIBLE TO THE DRIVER. PHPickerViewController
+# renders out of process, and the app's accessibility tree shows it as one
+# empty node the size of the screen — no cells, no labels, nothing any
+# selector can match. `maestro hierarchy` with the picker plainly on screen
+# returns 8 KB of status bar. Elsewhere in this harness a collapsed subtree is
+# fixed in app source with `accessible={false}` (see the bottom-sheet trap in
+# qa/README.md); here there is no app source to fix, so this one tap is by
+# coordinate, and it is the only one in the harness.
+#
+# What makes the coordinate stable is the seeding, not luck. The grid is
+# sorted newest first and the seeded photo is stamped 2019 against the six
+# stock photographs every iOS runtime ships, which carry 2011 EXIF dates — so
+# the seeded file is always the top-left cell. Repeated runs stack more
+# identical copies in front of it, which changes nothing: they are the same
+# bytes with the same date.
+#
+# The number itself came off a screenshot of the picker on this simulator
+# (1206x2622 px at 3x, so 402x874 pt): the sheet's header ends around y=16%,
+# and the first row of a three-across grid spans x 0-25% and y 17-32%. 12%,19%
+# is inside that cell with a margin on every side, which is what it is for —
+# the cell is a sixth of the screen, so this is not a pixel-hunted coordinate
+# and it does not need to be re-measured for a device of a different size
+# unless the grid stops being three across.
+- extendedWaitUntil:
+    visible: "Choose photo from library"
+    timeout: 30000
+- tapOn: "Choose photo from library"
+
+# The picker is presented by another process, so there is nothing to wait for:
+# every selector reports the scanner underneath, satisfied the instant the sheet
+# starts animating up. `optional: true` on a string that can never match turns
+# the wait into the sleep Maestro has no other way to express, and the sheet is
+# reliably settled well inside it.
+- extendedWaitUntil:
+    visible: "ZZZ-NEVER-MATCHES-A-SLEEP"
+    timeout: 6000
+    optional: true
+- tapOn:
+    point: "12%,19%"
+
+# === improve the estimate ===================================================
+- extendedWaitUntil:
+    visible: "Improve estimate"
+    timeout: 60000
+
+# Neither field has a testID, and unlike the food form they do not need one:
+# their placeholders are distinct sentences rather than the bare "0" every
+# numeric field shares. Each is centred before it is tapped, because the
+# driver has no notion of the keyboard and would otherwise type into whatever
+# key sits at those coordinates.
+- scrollUntilVisible:
+    element: "e.g. 350"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "e.g. 350"
+- waitForAnimationToEnd
+- inputText: "400"
+
+# Put the keypad away BEFORE going for the second field. The description sits
+# below the fold with the keypad over it, and the driver has no notion of
+# either: `scrollUntilVisible` was satisfied without scrolling and the tap
+# landed on a key. Nothing went red — the field simply stayed empty, the
+# request went out with an empty description, and only the oracle noticed. The
+# scroll view is keyboardShouldPersistTaps="handled", so a tap on an inert
+# label is the dismiss; the same move the food form needs before Save.
+- tapOn: "Total weight (optional)"
+- waitForAnimationToEnd
+
+- scrollUntilVisible:
+    element: "e.g. salmon with lemon dill cream sauce"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "e.g. salmon with lemon dill cream sauce"
+- waitForAnimationToEnd
+- inputText: "qa stub grilled chicken and rice"
+
+# And again before the button. The submit bar is a KeyboardStickyView so it
+# does ride above the keyboard, but this keyboard is the tall alphabetic one
+# and the bar it rides above is not where the selector says it is.
+- scrollUntilVisible:
+    element: "Total weight (optional)"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn: "Total weight (optional)"
+- waitForAnimationToEnd
+
+- tapOn: "Generate estimate"
+
+# === review it ==============================================================
+# Long: this is a real round trip through the server and the provider dispatch,
+# and the app base64s the photograph before sending it.
+- extendedWaitUntil:
+    visible: "Review estimate"
+    timeout: 90000
+
+# The per-item breakdown is collapsed by default, so nothing renders the
+# estimate's items until this is tapped. The label carries a ▾, hence the
+# trailing `.*`.
+- scrollUntilVisible:
+    element: "Show detected ingredients.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Show detected ingredients.*"
+- waitForAnimationToEnd
+
+# The form arrives pre-filled from the estimate and is accepted as it stands:
+# what the oracle checks is that those numbers survive to the diary row, and
+# the serving size is the 400 g typed above rather than the estimate's own
+# 465 g total.
+- scrollUntilVisible:
+    element: "Next"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Next"
+
+# === log it =================================================================
+- extendedWaitUntil:
+    visible: "Log entry"
+    timeout: 30000
+
+# Pick the meal type rather than accepting the one the screen offers: that
+# default comes from the time of day, so an oracle asserting it would pass or
+# fail on when the run happened. Same trigger shape as saved-meal.yaml — the
+# control has no label of its own, only the meal name it displays plus the
+# chevron's "go down".
+- tapOn: "(Breakfast|Lunch|Dinner|Snacks), go down"
+- extendedWaitUntil:
+    visible: "Select Meal"
+    timeout: 20000
+- tapOn: "Dinner"
+- extendedWaitUntil:
+    notVisible: "Select Meal"
+    timeout: 20000
+
+# One press of the stepper takes the servings from 1 to 2, which is what makes
+# the logged quantity (2 x 400 g) different from the serving size and so
+# capable of catching a screen that logged one serving regardless.
+#
+# saved-meal.yaml taps the same control as "add" — the SF Symbol name, which is
+# all an unlabelled StepperInput announces. That cannot work here: this screen
+# is a MODAL over the tabs rather than a push, so with modal honouring off the
+# tab bar is still in the tree and its centre button is "Add" too. The tap went
+# to the tab bar's coordinates, which on this screen is the full-width Save at
+# the bottom — the entry saved at one serving, the flow popped back to Home,
+# and the next step failed looking for a button on a screen it had left. The
+# fix is in app source: the stepper now says what it steps (see qa/README.md).
+- scrollUntilVisible:
+    element: "Increase servings"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Increase servings"
+
+- tapOn: "Save"
+
+# Assert on what the save destroys. The photo flow is a modal and modal
+# honouring is off, so waiting for the screen behind it would be satisfied by
+# a save that failed and left the flow up; the flow pops itself only on a
+# write that came back clean.
+- extendedWaitUntil:
+    notVisible: "Log entry"
+    timeout: 60000

@@ -1,0 +1,105 @@
+appId: ${APP_ID}
+---
+# Bring the app up and connect it to the QA server.
+#
+# The clean slate this depends on is established in qa-run.sh, which uninstalls
+# the app before installing it and then writes the expo-dev-menu preferences
+# that keep the dev overlay out of the way. Do NOT add `clearState: true` here:
+# it runs after those preferences are written and would wipe them, putting the
+# floating dev button back over the app's top-right corner.
+- launchApp:
+    permissions:
+      all: allow
+
+# A fresh install has no saved packager, so expo-dev-launcher shows its
+# discovered servers. Match on the QA port specifically: a developer's own Metro
+# is normally on 8081 and would otherwise be picked at random.
+- runFlow:
+    when:
+      visible: "DEVELOPMENT SERVERS"
+    commands:
+      - tapOn: ".*:8082.*"
+      # The launcher confirms a deep link into itself with a system dialog the
+      # first time; it is absent once the app is the registered handler.
+      - runFlow:
+          when:
+            visible: "Open"
+          commands:
+            - tapOn: "Open"
+
+# Long: this is the wait for the first bundle, which from a cold Metro is
+# minutes rather than seconds.
+- extendedWaitUntil:
+    visible: "Frontend URL"
+    timeout: 240000
+
+# Defence in depth for the trap described in qa-run.sh: with modal honouring
+# off, an open dev menu leaves the app's own controls satisfying every selector
+# while the taps land on the menu, so the flow "passes" its way into pressing
+# Go home. "Runtime version:" appears nowhere else, which makes it a reliable
+# tell that the menu is up despite the preferences.
+- runFlow:
+    when:
+      visible: "Runtime version:.*"
+    commands:
+      - tapOn: "Close"
+
+# --- onboarding -------------------------------------------------------------
+# The onboarding inputs carry no testIDs, so they are addressed relative to
+# their own labels. That is deliberate for now: relative selectors work today
+# without touching app source, and where they turn out to be too brittle the
+# fix is to add a testID to that field, not to pin coordinates.
+- tapOn:
+    below: "Frontend URL"
+- inputText: ${SERVER_URL}
+- hideKeyboard
+# Dismissing the keyboard submits the URL field, so the app normally advances to
+# the sign-in page by itself. Tap Next only if it has not.
+- runFlow:
+    when:
+      visible: "Next"
+    commands:
+      - tapOn: "Next"
+
+- extendedWaitUntil:
+    visible: "Email"
+    timeout: 60000
+- tapOn:
+    below: "Email"
+- inputText: ${QA_EMAIL}
+- hideKeyboard
+- tapOn:
+    below: "Password"
+- inputText: ${QA_PASSWORD}
+- hideKeyboard
+# "Sign In" is the tab that chooses password auth over an API key — the button
+# that actually submits is "Connect". Conditional for the same reason as Next:
+# dismissing the keyboard may already have submitted the form.
+- runFlow:
+    when:
+      visible: "Connect"
+    commands:
+      - tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 90000
+
+# --- clear the welcome mat ---------------------------------------------------
+# Two things stack on top of a first-ever sign-in, and with modal honouring off
+# neither of them stops a selector from matching the screen behind it — so
+# leaving either up means the rest of the scenario taps the dialog instead of
+# the app. Innermost first: iOS offers to save the password, then the app shows
+# its contributions announcement.
+- runFlow:
+    when:
+      visible: "Save Password?"
+    commands:
+      - tapOn: "Not Now"
+- runFlow:
+    when:
+      visible: "Got it, don't show again"
+    commands:
+      - tapOn: "Got it, don't show again"
+
+- assertVisible: "Home"

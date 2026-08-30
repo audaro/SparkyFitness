@@ -3,7 +3,13 @@ import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { useTranslation } from 'react-i18next';
-import { isCardioModality, type RecommendedExercise } from '@workspace/shared';
+import {
+  isCardioModality,
+  toCanonicalMuscle,
+  type GenerateWorkoutRecommendationRequest,
+  type Muscle,
+  type RecommendedExercise,
+} from '@workspace/shared';
 
 import ActionSheet, {
   type ActionSheetItem,
@@ -179,6 +185,38 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     navigation.navigate('OnDemandWorkouts');
   }, [navigation]);
 
+  // The workout on screen, restated as the request that would rebuild it.
+  //
+  // `POST /generate` reads an absent field as "use the default": no
+  // `target_muscles` asks for the freshest muscles, no `duration_minutes` falls
+  // back to the coach profile's session length. That is right for the first
+  // workout of the day and wrong for every regenerate from this screen, which
+  // adjusts ONE thing about a workout the user is already looking at. Sent
+  // bare, "make it 45 minutes" also silently re-targets a Push day onto
+  // whatever is freshest, and Refresh's "same targets, different exercises" is
+  // only true if the targets are sent at all. So each path below spreads this
+  // and overrides the single field it owns.
+  const currentContext = useCallback((): GenerateWorkoutRecommendationRequest => {
+    if (!recommendation || !payload) return {};
+    // `muscle_groups` is free text on the wire — a custom exercise's own muscle
+    // string rides along in it — while `target_muscles` is the pinned enum and
+    // a non-member is a 400. So anything outside the vocabulary is dropped, and
+    // when nothing survives the field is omitted rather than sent empty: it is
+    // `.min(1)`, and omitting it is what asks for freshness anyway.
+    const muscles = [
+      ...new Set(
+        payload.muscle_groups
+          .map(toCanonicalMuscle)
+          .filter((muscle): muscle is Muscle => muscle !== null),
+      ),
+    ];
+    return {
+      ...(muscles.length > 0 ? { target_muscles: muscles } : {}),
+      duration_minutes: recommendation.target_duration_minutes,
+      gym_profile_id: recommendation.gym_profile_id,
+    };
+  }, [recommendation, payload]);
+
   const runGenerate = useCallback(
     async (
       body: Parameters<typeof generateAsync>[0],
@@ -204,8 +242,8 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   // Whole-workout regeneration: same targets, different exercises. This is the
   // screen's only whole-workout swap path — the Swap button is the sheet now.
   const handleRefreshWorkout = useCallback(() => {
-    void runGenerate({ swap: true }, 'swap');
-  }, [runGenerate]);
+    void runGenerate({ ...currentContext(), swap: true }, 'swap');
+  }, [currentContext, runGenerate]);
 
   // Templating the generated workout is review-and-save through the preset
   // create form, prefilled from the payload — the same shape as "Save as
@@ -414,9 +452,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
 
   const handleSelectDuration = useCallback(
     (minutes: number) => {
-      void runGenerate({ duration_minutes: minutes }, 'settings');
+      void runGenerate({ ...currentContext(), duration_minutes: minutes }, 'settings');
     },
-    [runGenerate],
+    [currentContext, runGenerate],
   );
 
   const handleSelectGym = useCallback(
@@ -433,9 +471,15 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           return;
         }
       }
-      await runGenerate({ gym_profile_id: value === ANY_GYM ? null : value }, 'settings');
+      await runGenerate(
+        {
+          ...currentContext(),
+          gym_profile_id: value === ANY_GYM ? null : value,
+        },
+        'settings',
+      );
     },
-    [activateProfileAsync, runGenerate],
+    [activateProfileAsync, currentContext, runGenerate],
   );
 
   const handleStart = useCallback(() => {

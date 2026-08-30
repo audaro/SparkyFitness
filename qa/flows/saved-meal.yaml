@@ -1,0 +1,202 @@
+appId: ${APP_ID}
+---
+# Build a meal out of a food, log the meal, then edit the logged meal.
+#
+# These are the last three screens an empty account cannot reach, and they are
+# gated on a chain rather than on one row: MealDetail needs a saved meal,
+# FoodEntryAdd's meal branch needs that meal to be logged, and EditLoggedMeal
+# needs the diary row the logging created. Nothing in the app makes any of them
+# without a food to build on, so this stands on lib/create-and-log-food.yaml
+# for the ingredient and then never touches that entry again.
+#
+# WHAT IT REACHES, and from where:
+#   MealAdd        the Food tab's "Meal" create tile (also reached by
+#                  content-crawl.yaml, which only opens and closes it)
+#   FoodSearch     MealAdd's "Add Food", in meal-builder mode this time
+#   FoodEntryAdd   twice, and they are different screens: once from the
+#                  meal-builder search, which has no date/meal-type row and
+#                  adds an INGREDIENT; once from MealDetail's "Log Meal",
+#                  which does and writes a food_entry_meals row
+#   MealDetail     the Meals library
+#   EditLoggedMeal the logged meal's row in the diary
+#
+# STILL NOT REACHED after this, and by any flow:
+#   Onboarding   only on a fresh install, which lib/boot.yaml walks
+#
+# FoodPhotoFlow used to be on that list; food-photo.yaml reaches it by seeding
+# a photograph and an AI provider from outside the app.
+#
+# The oracle is qa/oracles/saved-meal.mjs. A meal that saved its ingredient at
+# the wrong quantity, a log that filed itself under the time of day rather than
+# the meal type that was picked, and a servings edit that changed the header
+# without touching the component food underneath all render exactly right.
+#
+# SELECTORS. crawl.yaml's four rules and fasting-and-cycle.yaml's two apply
+# here too, and this flow adds the one that cost it a green run:
+#
+# 7. A pushed screen does NOT remove the screen it was pushed over. With modal
+#    honouring off (qa-env.sh) the whole stack is one tree, so "Add Food"
+#    matches BOTH the meal builder's button and the ingredient sheet's footer
+#    that is sitting on top of it. There is no anchor that separates them —
+#    they are the only two texts at those depths — so the footer is `index: 1`.
+- runFlow: lib/boot.yaml
+- runFlow: lib/create-and-log-food.yaml
+
+# === build the meal =========================================================
+- scrollUntilVisible:
+    element:
+      id: "food-home-create-meal"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "food-home-create-meal"
+- extendedWaitUntil:
+    visible: "Create Meal"
+    timeout: 30000
+
+- tapOn: "e.g. Chicken Rice Bowl"
+- waitForAnimationToEnd
+- inputText: "QA Harness Bowl"
+# Put the keyboard away before going anywhere near "Add Food". The button sits
+# in the bottom third of the form, the driver cannot see the keyboard, and a
+# tap through it lands on whichever key holds those coordinates — which typed a
+# "t" onto the end of the meal name and left the flow asserting a search screen
+# it had never opened. The builder's ScrollView is keyboardShouldPersistTaps
+# ="handled", so a tap on the field's own label dismisses it and goes nowhere.
+#
+# "Meal Name.*", not "Meal Name *": a selector is a regex matched against the
+# whole string, so the label's literal asterisk has to be matched as one.
+- tapOn: "Meal Name.*"
+- waitForAnimationToEnd
+
+- scrollUntilVisible:
+    element: "Foods in Meal"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    text: "Add Food"
+    below: "Foods in Meal"
+
+# The search opens in meal-builder mode and focuses itself, so the query goes
+# straight in. The trailing comma is what tells the result row apart from the
+# search box, which now holds the query verbatim.
+- extendedWaitUntil:
+    visible: "Search foods..."
+    timeout: 20000
+- inputText: "QA Harness Oat Bar"
+- extendedWaitUntil:
+    visible: "QA Harness Oat Bar, .*"
+    timeout: 30000
+- tapOn: "QA Harness Oat Bar, .*"
+
+# In meal-builder mode this screen has no date, time or meal-type row: it is
+# choosing a quantity for an INGREDIENT, not logging anything. "Meal total" is
+# what the builder draws once it has one, so it is the evidence the ingredient
+# came back rather than that the sheet closed.
+#
+# Waited on by a header button rather than by "Add Food": the button this step
+# is about is the ambiguous one (SELECTORS 7), so it is already "visible" from
+# the builder underneath and would assert nothing.
+- extendedWaitUntil:
+    visible: "Adjust nutrition"
+    timeout: 20000
+- tapOn:
+    text: "Add Food"
+    index: 1
+- extendedWaitUntil:
+    visible: "Meal total"
+    timeout: 20000
+
+- scrollUntilVisible:
+    element: "Save"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Save"
+# The builder is a modal over the diary and dismisses itself only on a save
+# that came back clean, so its disappearance is the assertion. Waiting for the
+# diary would assert nothing: modal honouring is off, so the diary is "visible"
+# through the builder the whole time.
+- extendedWaitUntil:
+    notVisible: "Create Meal"
+    timeout: 30000
+
+# === log it =================================================================
+- scrollUntilVisible:
+    element:
+      id: "food-home-meals-library"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "food-home-meals-library"
+- extendedWaitUntil:
+    visible: "Search meals..."
+    timeout: 20000
+- tapOn: "QA Harness Bowl.*"
+
+- extendedWaitUntil:
+    visible: "Log Meal"
+    timeout: 30000
+- tapOn: "Log Meal"
+
+# Pick the meal type rather than accepting the one the screen offers: that
+# default is derived from the time of day, so an oracle that asserted it would
+# pass or fail on when the run happened. Dinner is the pick, and the oracle
+# asserts dinner.
+#
+# The trigger has no label of its own — its accessibility text is the meal
+# name it is displaying plus the chevron's "go down" — so it is matched by the
+# set of names it can be showing. "Meal" is no anchor: the label sits BESIDE
+# the trigger, not above it, and `below:` is the only relation Maestro enforces.
+- extendedWaitUntil:
+    visible: "Add Meal"
+    timeout: 20000
+- tapOn: "(Breakfast|Lunch|Dinner|Snacks), go down"
+- extendedWaitUntil:
+    visible: "Select Meal"
+    timeout: 20000
+- tapOn: "Dinner"
+- extendedWaitUntil:
+    notVisible: "Select Meal"
+    timeout: 20000
+- tapOn: "Add Meal"
+
+# Logging pops the whole meal stack, so this lands back on the diary with the
+# meal in its own section.
+- extendedWaitUntil:
+    visible: "QA Harness Bowl,.* serving"
+    timeout: 30000
+
+# === edit what was logged ===================================================
+# A logged meal's row does NOT open the food detail the other diary rows do —
+# SwipeableFoodRow sends a meal component straight to EditLoggedMeal, which is
+# the only way in.
+- scrollUntilVisible:
+    element: "QA Harness Bowl,.* serving"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn: "QA Harness Bowl,.* serving"
+- extendedWaitUntil:
+    visible: "Foods in this meal"
+    timeout: 30000
+
+# One press of the stepper, which steps by half a serving. Save is disabled
+# until something is dirty, so this is both the edit the oracle checks for and
+# the thing that makes Save pressable at all.
+- scrollUntilVisible:
+    element: "add"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "add"
+- extendedWaitUntil:
+    visible: "Save meal"
+    timeout: 20000
+- tapOn: "Save meal"
+- extendedWaitUntil:
+    notVisible: "Foods in this meal"
+    timeout: 30000

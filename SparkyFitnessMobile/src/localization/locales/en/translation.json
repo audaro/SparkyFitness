@@ -1869,6 +1869,7 @@
   "cycleSettings": {
     "updateFailed": "Update failed",
     "saveFailed": "Could not save cycle settings. Please try again.",
+    "loadFailed": "Could not load your settings",
     "mode": {
       "standard": "Standard Cycle",
       "ttc": "Trying to Conceive",
@@ -3741,7 +3742,12 @@
     "meal": "Meal",
     "selectMeal": "Select Meal",
     "date": "Date",
-    "servings": "Servings"
+    "servings": "Servings",
+    "accessibility": {
+      "decreaseServings": "Decrease servings",
+      "servingsValue": "Servings",
+      "increaseServings": "Increase servings"
+    }
   },
   "workoutAdd": {
     "addExercise": "Add an Exercise",

@@ -76,3 +76,8 @@ dossier sans titre/
 
 # Local MCP server config (contains bearer tokens)
 .mcp.json
+
+# Mobile QA harness: per-run state (databases, pids, logs, findings) and the
+# locally generated secrets its throwaway server boots with.
+qa/run/
+qa/.qa-secrets

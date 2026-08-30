@@ -196,6 +196,12 @@ const ActionSheet = React.forwardRef<ActionSheetRef, ActionSheetProps>(
     return (
       <BottomSheetModal
         ref={modalRef}
+        // @gorhom/bottom-sheet marks its content container as a single
+        // accessibility element ("Bottom Sheet", role adjustable) by default,
+        // which collapses every row inside it — VoiceOver, and the QA driver,
+        // see one opaque node instead of the actions. Opting out exposes the
+        // rows themselves, which is what a sheet of actions should announce.
+        accessible={false}
         enableDynamicSizing
         maxDynamicContentSize={windowHeight * 0.8}
         backdropComponent={renderBackdrop}

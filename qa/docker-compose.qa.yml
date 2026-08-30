@@ -1,0 +1,38 @@
+# Throwaway Postgres for the mobile QA harness.
+#
+# Separate from docker/docker-compose.db_dev.yml in every way that matters: its
+# own compose project, its own container name, its own port, and a NAMED volume
+# rather than a bind mount into the repo — so `docker compose down -v` really
+# does reset the world, and a reset can never delete a developer's data
+# directory by pointing at the wrong path.
+name: sparkyfitness-qa
+
+services:
+  qa-db:
+    # Pinned to the same engine the developer's own stack runs. A QA database on
+    # a different major version can pass a run that production would fail (and
+    # vice versa) on jsonb, collation and DISTINCT ON behaviour — this codebase
+    # leans on all three.
+    image: postgres:18.3-alpine
+    container_name: ${QA_DB_CONTAINER:-sparkyfitness-qa-db}
+    environment:
+      POSTGRES_DB: ${QA_DB_NAME:-sparkyfitness_qa}
+      POSTGRES_USER: ${QA_DB_USER:-sparky_qa}
+      POSTGRES_PASSWORD: ${QA_DB_PASSWORD:-qa_local_only}
+    ports:
+      - "${QA_DB_PORT:-55433}:5432"
+    volumes:
+      # Postgres 18 moved PGDATA to /var/lib/postgresql/<major>/docker, so the
+      # volume mounts the parent. Mounting .../data instead silently gives you
+      # an empty database on every boot.
+      - qa-pgdata:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${QA_DB_USER:-sparky_qa} -d ${QA_DB_NAME:-sparkyfitness_qa}
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+volumes:
+  qa-pgdata:

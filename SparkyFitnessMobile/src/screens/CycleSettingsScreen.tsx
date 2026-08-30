@@ -18,7 +18,7 @@ import type { RootStackScreenProps } from '../types/navigation';
 import BottomSheetPicker from '../components/BottomSheetPicker';
 import StepperInput, { useStepperDraft } from '../components/StepperInput';
 import Switch from '../components/ui/Switch';
-import { CYCLE_SETTING_LIMITS } from '../utils/cycleDisplayUtils';
+import { CYCLE_SETTING_LIMITS, UNCONFIGURED_CYCLE_SETTINGS } from '../utils/cycleDisplayUtils';
 
 import {
   BIRTH_CONTROL_METHODS,
@@ -39,8 +39,20 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
   const {
     settings,
     isLoading,
+    isError,
+    refetch,
     updateSettings,
   } = useCycleSettings();
+
+  // The server answers `null` — not a 404, and not an empty object — for an
+  // account that has never stored cycle settings, which is every account until
+  // this screen writes the first row. Treating that as "still loading" left a
+  // spinner with no header and therefore no way back, and since this screen is
+  // the only route to CycleOnboarding and the Cycle Hub (the dashboard card
+  // that links to them renders nothing while there is no row), it also made the
+  // whole feature unreachable. A missing row is a real answer: show the screen
+  // with nothing configured yet.
+  const effectiveSettings = settings ?? UNCONFIGURED_CYCLE_SETTINGS;
 
   const modeOptions = [
     { value: 'standard' as const, label: t('cycleSettings.mode.standard', { defaultValue: 'Standard Cycle' }) },
@@ -96,8 +108,7 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
   }, [updateSettings]);
 
   const handleToggleCondition = useCallback((condition: string, active: boolean) => {
-    if (!settings) return;
-    const conditions = [...(settings.conditions || [])];
+    const conditions = [...(effectiveSettings.conditions || [])];
     if (active) {
       if (!conditions.includes(condition)) {
         conditions.push(condition);
@@ -109,7 +120,7 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
       }
     }
     updateSettings({ conditions });
-  }, [settings, updateSettings]);
+  }, [effectiveSettings, updateSettings]);
 
   const handleToggleFertileWindow = useCallback((value: boolean) => {
     updateSettings({ show_fertile_window: value });
@@ -163,9 +174,9 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
     }
   }, [t]);
 
-  const cycleLengthVal = settings?.avg_cycle_length_override || CYCLE_DEFAULTS.cycleLength;
-  const periodLengthVal = settings?.avg_period_length_override || CYCLE_DEFAULTS.periodLength;
-  const lutealLengthVal = settings?.luteal_phase_length || CYCLE_DEFAULTS.lutealLength;
+  const cycleLengthVal = effectiveSettings.avg_cycle_length_override || CYCLE_DEFAULTS.cycleLength;
+  const periodLengthVal = effectiveSettings.avg_period_length_override || CYCLE_DEFAULTS.periodLength;
+  const lutealLengthVal = effectiveSettings.luteal_phase_length || CYCLE_DEFAULTS.lutealLength;
 
   const cycleLengthProps = useStepperDraft({
     value: cycleLengthVal,
@@ -198,8 +209,38 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
     left: { kind: 'back' },
   });
 
-  if (isLoading || !settings) {
-    return <StatusView loading className="bg-background" />;
+  // Both states keep the header, because a screen with no way off it is worse
+  // than whatever it is failing to show.
+  if (isLoading) {
+    return (
+      <View
+        className="flex-1 bg-background"
+        style={usesNativeHeader ? undefined : { paddingTop: insets.top }}
+      >
+        {header}
+        <StatusView loading />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View
+        className="flex-1 bg-background"
+        style={usesNativeHeader ? undefined : { paddingTop: insets.top }}
+      >
+        {header}
+        <StatusView
+          icon="alert-circle"
+          iconTone="danger"
+          title={t('cycleSettings.loadFailed', { defaultValue: 'Could not load your settings' })}
+          action={{
+            label: t('common.retry', { defaultValue: 'Retry' }),
+            onPress: () => { refetch(); },
+          }}
+        />
+      </View>
+    );
   }
 
   return (
@@ -222,21 +263,26 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
             subtitle={t('cycleSettings.enable.subtitle', { defaultValue: 'Turn on logging, predictions, and history' })}
             rightAccessory={
               <Switch
-                value={settings.enabled}
+                value={effectiveSettings.enabled}
                 onValueChange={handleToggleEnabled}
+                // A Switch offered as a row's rightAccessory is its own
+                // accessibility element, and the row's title is a sibling Text
+                // it never sees — so without this VoiceOver announces "off,
+                // switch button" with no idea what it controls.
+                accessibilityLabel={t('cycleSettings.enable.title', { defaultValue: 'Enable Cycle & Pregnancy Tracking' })}
               />
             }
           />
         </SettingsRowGroup>
 
-        {settings.enabled && (
+        {effectiveSettings.enabled && (
           <>
             <SettingsRowGroup title={t('cycleSettings.groups.features', { defaultValue: 'Feature Configuration' })}>
               <SettingsRow
                 title={t('cycleSettings.fields.trackingMode', { defaultValue: 'Tracking Mode' })}
                 rightAccessory={
                   <BottomSheetPicker
-                    value={settings.mode}
+                    value={effectiveSettings.mode}
                     options={modeOptions}
                     onSelect={handleModeChange}
                     title={t('cycleSettings.pickers.mode', { defaultValue: 'Select Mode' })}
@@ -248,7 +294,7 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
                 title={t('cycleSettings.fields.birthControl', { defaultValue: 'Birth Control Method' })}
                 rightAccessory={
                   <BottomSheetPicker
-                    value={settings.birth_control_method}
+                    value={effectiveSettings.birth_control_method}
                     options={bcOptions}
                     onSelect={handleBcChange}
                     title={t('cycleSettings.pickers.method', { defaultValue: 'Select Method' })}
@@ -261,14 +307,14 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
             <SettingsRowGroup title={t('cycleSettings.groups.calculations', { defaultValue: 'Cycle Calculations Overrides' })}>
               <SettingsRow
                 title={t('cycleSettings.fields.averageCycleLength', { defaultValue: 'Average Cycle Length' })}
-                subtitle={settings.avg_cycle_length_override ? t('cycleSettings.values.custom', { defaultValue: 'Custom override' }) : t('cycleSettings.values.defaultHistory', { defaultValue: 'Default/History' })}
+                subtitle={effectiveSettings.avg_cycle_length_override ? t('cycleSettings.values.custom', { defaultValue: 'Custom override' }) : t('cycleSettings.values.defaultHistory', { defaultValue: 'Default/History' })}
                 rightAccessory={
                   <StepperInput {...cycleLengthProps} keyboardType="number-pad" />
                 }
               />
               <SettingsRow
                 title={t('cycleSettings.fields.averagePeriodLength', { defaultValue: 'Average Period Length' })}
-                subtitle={settings.avg_period_length_override ? t('cycleSettings.values.custom', { defaultValue: 'Custom override' }) : t('cycleSettings.values.defaultHistory', { defaultValue: 'Default/History' })}
+                subtitle={effectiveSettings.avg_period_length_override ? t('cycleSettings.values.custom', { defaultValue: 'Custom override' }) : t('cycleSettings.values.defaultHistory', { defaultValue: 'Default/History' })}
                 rightAccessory={
                   <StepperInput {...periodLengthProps} keyboardType="number-pad" />
                 }
@@ -292,8 +338,9 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
                   title={getConditionLabel(cond.value, cond.displayName)}
                   rightAccessory={
                     <Switch
-                      value={settings.conditions?.includes(cond.value) || false}
+                      value={effectiveSettings.conditions?.includes(cond.value) || false}
                       onValueChange={(val) => handleToggleCondition(cond.value, val)}
+                      accessibilityLabel={getConditionLabel(cond.value, cond.displayName)}
                     />
                   }
                 />
@@ -306,8 +353,9 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
                 subtitle={t('cycleSettings.values.fertileSubtitle', { defaultValue: 'Highlight fertile days on calendar' })}
                 rightAccessory={
                   <Switch
-                    value={settings.show_fertile_window}
+                    value={effectiveSettings.show_fertile_window}
                     onValueChange={handleToggleFertileWindow}
+                    accessibilityLabel={t('cycleSettings.fields.showFertileWindow', { defaultValue: 'Show Fertile Window' })}
                   />
                 }
               />
@@ -316,8 +364,9 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
                 subtitle={t('cycleSettings.values.discreetSubtitle', { defaultValue: 'Hides \"Cycle\" or \"Pregnancy\" labels in UI' })}
                 rightAccessory={
                   <Switch
-                    value={settings.discreet_mode}
+                    value={effectiveSettings.discreet_mode}
                     onValueChange={handleToggleDiscreetMode}
+                    accessibilityLabel={t('cycleSettings.fields.discreetMode', { defaultValue: 'Discreet Mode' })}
                   />
                 }
               />
@@ -325,7 +374,7 @@ const CycleSettingsScreen: React.FC<CycleSettingsScreenProps> = ({ navigation })
                 title={t('cycleSettings.fields.terminology', { defaultValue: 'Terminology' })}
                 rightAccessory={
                   <BottomSheetPicker
-                    value={settings.terminology}
+                    value={effectiveSettings.terminology}
                     options={terminologyOptions}
                     onSelect={handleTerminologyChange}
                     title={t('cycleSettings.pickers.terminology', { defaultValue: 'Select Terminology' })}

@@ -1,0 +1,271 @@
+appId: ${APP_ID}
+---
+# Generate a workout for a named split, change the gym, shorten it, refresh it,
+# run it — and check the programming that came back rather than the screen that
+# renders it.
+#
+# Nothing about a generated workout is decided on the client. The muscles, the
+# exercises, the number of sets, the reps, the rest between them and the
+# estimated length all arrive from POST /api/workout-recommendations/generate,
+# and the app draws whatever it is handed. So a generator that prescribed one
+# set instead of three, rested nobody, or built a Push day out of a hamstring
+# curl would render perfectly — which is exactly the class of bug a screen-text
+# assertion cannot see and qa/oracles/suggested-workout.mjs can.
+#
+# WHAT IT REACHES that crawl.yaml only opens and closes:
+#   PickMuscles  crawl opens the picker and backs out of it; this one taps a
+#                split, which is the only way to make a workout exist
+#   UpNext       crawl only ever sees its empty state, because an account with
+#                no workout has no workout to show — and the length and gym
+#                chips are only rendered once one exists, so this is the only
+#                scenario that can press either
+#
+# WHAT IS SEEDED, and why it has to be: qa/setup/suggested-workout.sh puts an
+# exercise catalog and one gym profile in the database before this runs. A fresh
+# account has neither. The catalog is the load-bearing one — the server bundles
+# none, and the generator does not degrade when a target muscle has nothing to
+# prescribe: it imports one from free-exercise-db over the network, so the
+# seeded catalog is what keeps the run offline and repeatable, and the oracle
+# asserts the fallback never fired. The gym profile is what makes the gym chip
+# a control at all rather than a menu of one dead option.
+#
+# THE SPLIT IS THE ASSERTION. Push is picked rather than "Recovered muscles"
+# because the client resolves the split to canonical muscles itself and sends
+# those (`MUSCLE_SPLIT_MEMBERS.push` = chest, shoulders, triceps) — the server
+# has no split vocabulary. So the muscles that come back in the payload are
+# evidence that the tap on that row reached the wire intact. "Recovered
+# muscles" sends no constraint at all and would assert nothing about the tap.
+#
+# SELECTORS. crawl.yaml's four rules apply. Nothing here needs a new one: every
+# control on the path either carries a testID or is a header button with an
+# accessibility label.
+- runFlow: lib/boot.yaml
+# Before anything can start a live workout: the rest timer asks for
+# notifications, and the prompt must not be allowed to land on ActiveWorkout.
+- runFlow: lib/grant-notifications.yaml
+
+# === into the picker ========================================================
+# Same path crawl.yaml takes: the Exercise tab's Up Next card, then the "New"
+# header button's sheet. The card is above the fold on a fresh account, but it
+# is scrolled to anyway — it grows a summary line the moment a workout exists,
+# and this flow is the thing that makes one.
+- tapOn: "Exercise"
+- scrollUntilVisible:
+    element:
+      id: "up-next-card"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "up-next-card"
+
+# With no workout yet the header's right slot is the sheet rather than the ⋯
+# menu, and it is labelled for what it does here: there is nothing to swap.
+- extendedWaitUntil:
+    visible: "New workout options"
+    timeout: 30000
+- tapOn: "New workout options"
+# The sheet slides up, and Maestro resolves an element's bounds and then taps
+# the coordinate — so a row resolved mid-animation is tapped where it *was*,
+# which by then belongs to a row further down the list. This flow failed once
+# with the driver on WorkoutPresetForm: the Pick Muscles row was resolved while
+# the sheet was still rising and the tap landed on "Create From Scratch", three
+# rows down, and the run only fell over a step later on a screen that was
+# working perfectly.
+- waitForAnimationToEnd
+- tapOn:
+    id: "action-sheet-item-pick-muscles"
+
+# === generate ===============================================================
+- extendedWaitUntil:
+    visible:
+      id: "pick-muscles-splits"
+    timeout: 30000
+- tapOn:
+    id: "pick-muscles-split-push"
+
+# Generation reads the whole catalog, prescribes every set from the exercise's
+# own history and programs a warm-up ramp for each one, so it is slower than a
+# read. The screen it lands on is Up Next with the workout on it — the Start
+# button only exists once there is something to start.
+- extendedWaitUntil:
+    visible:
+      id: "up-next-start"
+    timeout: 90000
+
+# Every prescribed exercise is a row on that screen. Waiting for the first one
+# is what makes the run's failure legible when the payload arrives empty: the
+# oracle would say so either way, but a flow that walked off the end of a
+# half-drawn screen reports the wrong thing first.
+- assertVisible:
+    id: "up-next-exercise-row"
+
+# === change the gym =========================================================
+# The third of Up Next's three regenerate paths, and the one no flow could
+# reach until qa/setup seeded a profile: the picker lists the account's gym
+# profiles, and with none there the chip offered only "Any equipment" and
+# tapping it changed nothing.
+#
+# It runs BEFORE the length change on purpose. The workout does not visibly
+# change across this step — every seeded exercise is `body only`, which is
+# always available whatever gym is active, so the same six exercises come back —
+# which means this step has no landing signal of its own. Ordering it first
+# makes the length change the signal for both: "5 Exercises • 45 min" cannot
+# appear unless this regenerate finished, the chip re-enabled and the next tap
+# was taken.
+#
+# What the oracle gets out of it is two claims that were previously untestable
+# and one that was vacuous:
+#   * the split has to survive THIS chip too — if the gym switch dropped the
+#     muscles, the workout would be rebuilt around whatever is freshest and the
+#     length change would then carry those wrong muscles to the end, where
+#     `payload.muscles-are-the-split` reads them
+#   * the gym has to survive the LENGTH chip — `recommendation.gym-is-the-one-
+#     picked` asserts the profile id on the final row, which is two regenerates
+#     after the tap that set it. That check existed before as "gym_profile_id is
+#     null", which every possible client behaviour satisfied
+#
+# The profile is seeded inactive, so the workout on screen was built with no gym
+# and the chip reads "Any equipment" until this tap.
+- tapOn: "Change gym equipment"
+- extendedWaitUntil:
+    visible: "Gym equipment"
+    timeout: 20000
+- tapOn: "QA Gym"
+- extendedWaitUntil:
+    notVisible: "Gym equipment"
+    timeout: 20000
+# Selecting activates the profile and then regenerates, and both chips are
+# disabled while that is in flight. This absorbs most of that: the regenerate
+# spinner sits between the two chips and usually keeps the screen from settling
+# until the workout is back. It is a courtesy, not the guarantee — the spinner
+# is a small region and this is a frame comparison. The guarantee is the wait
+# after the next tap: "5 Exercises • 45 min" cannot appear unless this
+# regenerate finished and the length chip was live when it was pressed.
+- waitForAnimationToEnd
+
+# === shorten it =============================================================
+# Changing the length is a REGENERATE, not a trim: the whole workout is rebuilt
+# server-side around the new budget. Two things are being asserted by doing it
+# here, and only one of them is about duration.
+#
+# The duration half is the fitter. 45 minutes is the pressure point for this
+# catalog — a 60-minute Push day comes back as six exercises (a compound and an
+# isolation for each of chest, shoulders and triceps) and 45 forces exactly one
+# isolation out, which is enough for "it trimmed" and "it never trimmed a
+# compound" to both be real claims rather than vacuous ones.
+#
+# The other half is the muscles. `POST /generate` reads an absent field as "use
+# the default", so a client that sent nothing but the new duration would get a
+# workout built around whatever muscles are freshest — a Push day silently
+# becoming a leg day, with a perfectly correct-looking screen. The oracle's
+# `payload.muscles-are-the-split` check runs against the payload AFTER this
+# step, so it is the regression test for that: the split has to survive the
+# chip.
+#
+# The chip's label is what it does ("Change workout length"); the sheet's title
+# is what it is ("Workout length"). Maestro matches full strings, so the two are
+# distinct, and waiting for the title to go is how the option tap is known to
+# have been taken before anything looks for the result.
+- tapOn: "Change workout length"
+- extendedWaitUntil:
+    visible: "Workout length"
+    timeout: 20000
+- tapOn: "45 min"
+- extendedWaitUntil:
+    notVisible: "Workout length"
+    timeout: 20000
+# The chip itself cannot be the landing signal even though it is the thing that
+# changes: it is a `TouchableOpacity` carrying its own accessibilityLabel, so
+# iOS collapses the subtree and the driver sees one button labelled "Change
+# workout length" — the "45 min" inside it is not an element at all. The summary
+# line above it is a plain `Text` and is one, and the whole regenerate shows up
+# in it: six exercises and 53 minutes before, five and 45 after. Text selectors
+# are full-string regex, hence the `.*`.
+- extendedWaitUntil:
+    visible: "5 Exercises.*45 min"
+    timeout: 90000
+- assertVisible:
+    id: "up-next-exercise-row"
+
+# === refresh it =============================================================
+# The third and last of Up Next's regenerate paths, and the one whose own
+# comment in the source used to claim "same targets, different exercises" while
+# sending no targets at all.
+#
+# Nothing is asserted here about the exercises CHANGING, and that is deliberate.
+# `swap: true` does not exclude the previous workout's exercises — it adds
+# `swapPenalty` to their score — so a penalized candidate is still picked when
+# nothing else covers the muscle, and this catalog has two variants per muscle
+# with five of the six already in use. A refresh has almost nowhere to move.
+# Giving it room means a third variant per muscle, which is a separate change.
+#
+# What IS asserted is the carry, and it needs no new check: every claim about
+# the muscles, the length and the gym now runs on a payload that survived THREE
+# regenerates, this one included. Sent bare — as the handler did before the fix
+# — Refresh would rebuild the workout around the freshest muscles at the coach
+# profile's default length with no gym, and `payload.muscles-are-the-split`,
+# `recommendation.target-duration` and `recommendation.gym-is-the-one-picked`
+# would each fail on their own.
+#
+# The ⋯ menu is the header's right slot once a workout exists, labelled for what
+# it opens rather than for the glyph.
+- tapOn: "Workout options"
+- waitForAnimationToEnd
+- tapOn: "Refresh"
+- waitForAnimationToEnd
+
+# === run it =================================================================
+# Starting turns the suggestion into a session: the whole plan is created
+# server-side as an exercise_preset_entries row with an entry and a set row for
+# every prescribed set — and the sets are created EMPTY. The plan's numbers ride
+# along on the client as gray placeholders and are written only when a set is
+# completed or typed over, which is the behaviour the oracle is here for: on
+# screen a placeholder and a saved value look almost the same, and in the
+# database one of them is null.
+- tapOn:
+    id: "up-next-start"
+# The landing signal is the header's per-exercise progress bar, not the End
+# Workout button. That button is at the bottom of the log, and a six-exercise
+# session puts it well below the fold — Maestro honours occlusion, so waiting on
+# it here fails on a screen that is perfectly fine. The segments are always in
+# view, one per exercise, and there is one only once a session is live.
+- extendedWaitUntil:
+    visible:
+      id: "header-segment"
+    timeout: 60000
+- waitForAnimationToEnd
+
+# One set, and NOTHING is typed. The row already shows 10 reps in gray — the
+# prescription, rendered as a placeholder — and completing the set is what
+# turns it into a stored value. That is the whole point of running the workout
+# here rather than just generating it: on screen a placeholder and a saved
+# number are a shade of gray apart, and in the database one of them is null.
+# The oracle checks both halves — this set carries the prescribed 10, and the
+# seventeen untouched ones carry nothing.
+#
+# The rest bar's button is the one that takes no aim: it acts on whichever set
+# is active (set 1, on arrival), so it needs no anchor, no index, and no
+# assumption about which of the three identical rows a selector lands on.
+- tapOn: "Complete Set"
+
+- scrollUntilVisible:
+    element: "End Workout"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "End Workout"
+# The confirmation is a native alert whose default button carries the SAME text
+# as the button that opened it, and the screen behind stays in the tree — so the
+# alert's own button is identified by sitting to the right of the cancel one,
+# which exists nowhere else.
+- extendedWaitUntil:
+    visible: "Keep going"
+    timeout: 20000
+- tapOn:
+    text: "End Workout"
+    rightOf: "Keep going"
+
+- extendedWaitUntil:
+    visible: "Workout Complete"
+    timeout: 60000

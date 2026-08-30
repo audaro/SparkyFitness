@@ -127,8 +127,19 @@ const CycleHubScreen: React.FC<CycleHubScreenProps> = ({ navigation }) => {
     },
   });
 
+  // The header stays on both branches: without it a screen that never resolves
+  // has no way off it. `!settings` is reachable here whenever the settings read
+  // failed, since this screen only opens for an account that has a row.
   if (isLoading || !settings) {
-    return <StatusView loading className="bg-background" />;
+    return (
+      <View
+        className="flex-1 bg-background"
+        style={usesNativeHeader ? undefined : { paddingTop: insets.top }}
+      >
+        {header}
+        <StatusView loading />
+      </View>
+    );
   }
 
   return (

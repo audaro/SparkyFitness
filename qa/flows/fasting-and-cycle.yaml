@@ -1,0 +1,276 @@
+appId: ${APP_ID}
+---
+# Start a fast and switch on cycle tracking, then walk what each one opens up.
+#
+# These are the two features an account has to OPT IN to before their screens
+# exist at all: the fasting card offers its protocol sheet until a fast is
+# actually running, and the cycle card is not on the dashboard until the
+# setting is on. content-crawl.yaml creates content; this one changes state,
+# which is the other reason a screen an empty account cannot reach.
+#
+# WHAT IT REACHES, and from where:
+#   FastingDetail    the dashboard's fasting card, once a fast is running
+#   CycleOnboarding  the cycle card, once tracking is switched on in Settings
+#                    AND the onboarding the switch claimed is reset (below)
+#   CycleHub         where onboarding lands (it replaces itself with the hub)
+#   CycleLogModal    the hub's "Log Entry" header button
+#   PregnancySetup   the hub's Overview, after the mode is switched to
+#                    Pregnancy Tracking — the only mode that offers it
+#
+# STILL NOT REACHED after this, and by any other flow:
+#   FoodPhotoFlow's Improve / EstimateReview / LogEntry   need a photograph
+# (FoodEntryAdd, MealDetail and EditLoggedMeal were on this list too; they are
+# reached by saved-meal.yaml.)
+#
+# It has an oracle for the same reason content-crawl.yaml does: a fast with the
+# wrong goal, an onboarding that seeded no period days, or a pregnancy dated
+# today all render perfectly well. qa/oracles/fasting-and-cycle.mjs reads them
+# back out.
+#
+# SELECTORS. crawl.yaml's four rules apply here too, and this flow adds the two
+# ways a settings row goes wrong:
+#
+# 5. A row whose control is a Switch matches its own label TWICE — once as the
+#    row's title Text, once as the switch itself, which now carries the same
+#    label so a screen reader can say what it toggles. The title comes first,
+#    and tapping a Text does nothing, so the switch is `index: 1`.
+# 6. The Settings root has rows titled "Home", "Food" and "Food Diary", which
+#    shadow the tabs of the same name. The row comes first in the tree, so the
+#    TAB is `index: 1` — the mirror image of the rule above.
+- runFlow: lib/boot.yaml
+
+# === the fast ===============================================================
+# The card is one node: its Pressable carries a label, so what the driver sees
+# is the action rather than the six Texts inside it.
+- scrollUntilVisible:
+    element: "Start a fast"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Start a fast"
+
+# Every @gorhom sheet is one opaque "Bottom Sheet" node until it opts out; this
+# one now does, which is what makes the protocol rows selectable at all.
+- extendedWaitUntil:
+    visible: "Start Fasting"
+    timeout: 20000
+# Selecting a protocol does not start it — the button below does — so the goal
+# is 16 hours from now, which is what the oracle checks the row against.
+- tapOn: "16:8 Leangains"
+- tapOn: "Start Fasting"
+
+# The card swaps its "Start a fast" label for a running one, which is the only
+# on-screen evidence the mutation came back before the flow taps again.
+- extendedWaitUntil:
+    visible: "Open fasting details"
+    timeout: 30000
+- tapOn: "Open fasting details"
+
+- extendedWaitUntil:
+    visible: "Metabolic Stages"
+    timeout: 20000
+# Scrolled to, never tapped: "End Fast" is the bottom of this screen and ending
+# the fast is exactly what the oracle would then fail on.
+- scrollUntilVisible:
+    element: "End Fast"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Back"
+
+# === cycle tracking, switched on ============================================
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: "Cycle & Pregnancy"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Cycle & Pregnancy"
+
+- extendedWaitUntil:
+    visible: "Enable Cycle & Pregnancy Tracking"
+    timeout: 20000
+# The switch, not the row's title (SELECTORS 5). A tap on the title is silent,
+# so the wait below is what turns that into a failure instead of a flow that
+# carries on against a feature that is still off.
+- tapOn:
+    text: "Enable Cycle & Pregnancy Tracking"
+    index: 1
+- extendedWaitUntil:
+    visible: "Feature Configuration"
+    timeout: 20000
+
+# Then straight back out of the setup this switch just claimed to have done.
+# handleToggleEnabled sends `mark_onboarded: true` alongside `enabled`, so
+# turning the feature on here stamps onboarded_at — and the dashboard card is
+# keyed on that timestamp, so it offers the hub rather than the wizard. Nothing
+# else on mobile writes a cycle_settings row (CycleOnboardingScreen is the only
+# other writer, and it is reached FROM the card), which leaves the wizard
+# unreachable for an account that opts in the only way an account can. That is
+# a product defect, not a driver one: an account onboarded this way has null
+# averages and no seeded period days, so the hub predicts from nothing. Until
+# it is fixed, this row is the way back to the wizard.
+- scrollUntilVisible:
+    element: "Reset Onboarding Wizard"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Reset Onboarding Wizard"
+- extendedWaitUntil:
+    visible: "Reset Onboarding"
+    timeout: 20000
+# The alert's confirm button. "Reset" is a full-string match, so it cannot hit
+# the row or the alert title behind it, both of which say more than that.
+- tapOn: "Reset"
+- tapOn: "Back"
+
+# The Home TAB, not the "Home" settings row (SELECTORS 6).
+- tapOn:
+    text: "Home"
+    index: 1
+
+# === the onboarding wizard ==================================================
+# Four steps, all of them already answered: the form opens on Standard Cycle,
+# a last period of today, and the 28/5 averages, so the flow accepts the
+# defaults and the oracle asserts those exact numbers came back.
+- scrollUntilVisible:
+    element: "Set up cycle and pregnancy tracking"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Set up cycle and pregnancy tracking"
+
+- extendedWaitUntil:
+    visible: "What is your tracking goal?"
+    timeout: 30000
+- tapOn: "Next"
+- extendedWaitUntil:
+    visible: "Dates & Averages"
+    timeout: 20000
+- tapOn: "Next"
+- extendedWaitUntil:
+    visible: "Profile & Conditions"
+    timeout: 20000
+- tapOn: "Next"
+- extendedWaitUntil:
+    visible: "Medical Disclaimer"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "Accept & Initialize Profile"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Accept & Initialize Profile"
+
+# === the hub, and a logged day ==============================================
+# Onboarding REPLACES itself with the hub, so this is the profile that was just
+# written rather than one navigated to.
+- extendedWaitUntil:
+    visible: "Cycle Hub"
+    timeout: 30000
+- tapOn: "History"
+- tapOn: "Trends"
+- tapOn: "Overview"
+
+- tapOn: "Log Entry"
+- extendedWaitUntil:
+    visible: "Log Daily Entry"
+    timeout: 20000
+# Today already has a row — onboarding seeded five period days starting today —
+# so the note is what tells this save apart from that seed in the database.
+- scrollUntilVisible:
+    element: "Log details about how you feel, energy level..."
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Log details about how you feel, energy level..."
+- waitForAnimationToEnd
+- inputText: "QA harness cycle note"
+# Save is a sticky footer bar and the keyboard covers it. This scroll view is
+# keyboardShouldPersistTaps="handled", so a tap on the field's own label puts
+# the keyboard away without going anywhere.
+- tapOn: "Notes"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element: "Save"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Save"
+
+# The modal dismisses itself only on a save that came back clean, so its
+# disappearance is the assertion. Waiting for "Cycle Hub" instead would assert
+# nothing at all: modal honouring is off, so the hub is "visible" through the
+# modal sitting on top of it, and a failed save reads exactly like a good one.
+- extendedWaitUntil:
+    notVisible: "Log Daily Entry"
+    timeout: 30000
+- tapOn: "Back"
+
+# === the pregnancy branch ===================================================
+# PregnancySetup hangs off the hub's Overview, and only in Pregnancy Tracking
+# mode — the rest of the hub is a cycle it no longer expects. The mode is a
+# picker on the settings screen rather than anything on the hub.
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: "Cycle & Pregnancy"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Cycle & Pregnancy"
+- extendedWaitUntil:
+    visible: "Tracking Mode"
+    timeout: 20000
+# The picker's trigger DISPLAYS the current value but is LABELLED with the
+# sheet's title, so "Standard Cycle" — the text on screen — matches nothing,
+# and "Select Mode" matches both the trigger and the sheet it opens. (A screen
+# reader has the same problem in reverse: the trigger announces what the picker
+# is for and never what it is set to.)
+- tapOn: "Select Mode"
+- extendedWaitUntil:
+    visible: "Pregnancy Tracking"
+    timeout: 20000
+- tapOn: "Pregnancy Tracking"
+- tapOn: "Back"
+- tapOn:
+    text: "Home"
+    index: 1
+
+# The card now leads to the hub rather than to onboarding: onboarded_at is set,
+# which is what the label is keyed on.
+- scrollUntilVisible:
+    element: "Open cycle and pregnancy tracking hub"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Open cycle and pregnancy tracking hub"
+
+- extendedWaitUntil:
+    visible: "Pregnancy Hub"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Get Started"
+    timeout: 20000
+- tapOn: "Get Started"
+
+# The due-date form opens a full term out (today + 280 days) precisely so an
+# untouched form does not save a due date of today, so Save is all it needs —
+# and that date is what the oracle recomputes.
+- extendedWaitUntil:
+    visible: "Pregnancy Setup"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "Number of babies"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Save"
+
+# Back on the hub, now with a pregnancy behind it: this is the branch that
+# renders the week banner, the growth view and the checklist, none of which an
+# account without a pregnancy row ever draws.
+- extendedWaitUntil:
+    visible: "Pregnancy Hub"
+    timeout: 30000
+- tapOn: "Tools"
+- tapOn: "Overview"

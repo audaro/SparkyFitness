@@ -167,6 +167,12 @@ const FastingProtocolSheet = forwardRef<FastingProtocolSheetRef>((_props, ref) =
   return (
     <BottomSheetModal
       ref={bottomSheetRef}
+      // @gorhom/bottom-sheet marks its content container as one accessibility
+      // element ("Bottom Sheet", role adjustable) by default, which collapses
+      // the protocol list and the start button into a single opaque node —
+      // there is no way to choose a protocol with a screen reader. Opting out
+      // exposes the rows, as AddSheet and ActionSheet already do.
+      accessible={false}
       enableDynamicSizing
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"

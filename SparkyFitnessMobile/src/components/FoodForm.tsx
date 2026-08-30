@@ -792,6 +792,7 @@ const FoodForm: React.FC<FoodFormProps> = ({
       </Text>
       <FormInput
         ref={fieldRefs[field as keyof typeof fieldRefs]}
+        testID={`food-form-${field}`}
         placeholder={placeholder}
         value={form[field]}
         onChangeText={(v) => update(field, v)}
@@ -816,6 +817,10 @@ const FoodForm: React.FC<FoodFormProps> = ({
       </Text>
       <FormInput
         ref={fieldRefs[field as keyof typeof fieldRefs]}
+        // Every numeric field shares the placeholder "0", and iOS reports a
+        // placeholder whether or not the field has a value — so on the UI
+        // automation side these are indistinguishable without an id.
+        testID={`food-form-${field}`}
         placeholder="0"
         value={form[field]}
         onChangeText={(v) => {
@@ -1074,6 +1079,7 @@ const FoodForm: React.FC<FoodFormProps> = ({
             </Text>
             <FormInput
               ref={fieldRefs.calories}
+              testID="food-form-calories"
               placeholder="0"
               value={form.calories}
               onChangeText={(v) => {

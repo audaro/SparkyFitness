@@ -31,6 +31,10 @@ export const fetchRecommendation = async (): Promise<WorkoutRecommendation | nul
       endpoint: '/api/workout-recommendations',
       serviceName: SERVICE_NAME,
       operation: 'fetch workout recommendation',
+      // The 404 below is this endpoint's "none generated yet", so it must not
+      // be written to the app log as an error — every account sees it on the
+      // Exercise tab until it generates its first workout.
+      expectedStatuses: [404],
     });
   } catch (error) {
     if (error instanceof ApiError && error.statusCode === 404) return null;

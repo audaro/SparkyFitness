@@ -1,0 +1,421 @@
+appId: ${APP_ID}
+---
+# Walk the whole app and touch every screen a signed-in account can navigate to
+# from an empty database.
+#
+# This flow asserts NOTHING about what it finds. Its only product is the walk
+# itself: `qa/oracles/app-logs.mjs` drains the app's log afterwards and fails on
+# anything recorded as ERROR, so mounting 45 screens in one session turns into
+# crash-and-exception coverage over all of them without a single expectation
+# being written down. A screen that renders wrong still passes here — that is
+# what a scenario with an oracle of its own is for.
+#
+# WHY THERE ARE NO extendedWaitUntil GUARDS: `tapOn` already retries its
+# selector before failing, so the tap that leaves a screen doubles as the wait
+# for that screen to have arrived. Each destination is therefore left by an
+# element only that destination has ("Close" for a sheet, "Back" for a pushed
+# screen), which keeps the flow free of assertions while still going red if a
+# screen never opened.
+#
+# SELECTORS. Four things shape every line below; the first three are the traps
+# qa/README.md documents, the fourth is this flow's own.
+#
+# 1. Modals do not hide the screen behind them (`snapshotKeyHonorModalViews` is
+#    off), so a selector has to be unambiguous against the WHOLE tree. Both
+#    day-scoped tab roots put a date navigator on screen whose previous-day
+#    arrow is labelled "Back", so a modal presented over Home or Exercise is
+#    dismissed by its own "Close", never by "Back". Pushed screens are safe: a
+#    native-stack push replaces the tree, and "Back" is then unique.
+#
+# 2. Pushed screens hide the tab bar, and the two tab roots that are not day-
+#    scoped do not. Tabs are therefore only ever switched from a screen whose
+#    own content cannot collide with the tab label — Home has no "Exercise",
+#    Exercise has no "Food", the diary has no "Settings". Settings is visited
+#    last on purpose: its rows are titled "Food" and "Home", which would shadow
+#    those two tabs.
+#
+# 3. The driver has no notion of the fold. An element below it — or behind the
+#    tab bar, or under the floating "Talk to Sparky" button — still reads as
+#    on-screen and 100% visible, so the tap lands on whatever occupies those
+#    coordinates instead. Tapping "Create Exercise" from the top of the Exercise
+#    tab silently pressed the tab bar. Every off-screen target is therefore
+#    centred with `scrollUntilVisible` + `centerElement: true` first, and each
+#    screen is walked top-to-bottom because `scrollUntilVisible` only scrolls
+#    the way it is told.
+#
+# 4. Icon-plus-label buttons report BOTH: the Add sheet's Measurements card
+#    reads "ruler, Measurements", never "Measurements". Those are matched with a
+#    leading `.*` rather than by their bare label.
+#
+# NOT REACHED FROM HERE, and why — every one of these needs content that an
+# empty QA database does not have. Most of them are now reached by
+# content-crawl.yaml, which creates that content through the UI first and then
+# walks what it unlocks; this flow keeps the empty-database walk it was written
+# for, so the two together cover both start states.
+#
+# Reached by content-crawl.yaml instead:
+#   FoodDetail, EditBarcode, FoodEntryView, MealTypeDetail  (a food and a
+#     logged entry; the diary swaps its meal tiles for an empty-day
+#     illustration until the day has something on it)
+#   DailyNutritionDetails, NutrientTrends  (the Nutrients card renders only
+#     once food has been logged)
+#   ExerciseDetail, ActivityAdd, ActivityDetail, ActiveWorkout,
+#   WorkoutComplete, WorkoutDetail, WorkoutPresetDetail  (need an exercise to
+#     exist: even "Empty workout" in PresetSearch routes through picking a
+#     first exercise)
+#   MedicationDetail, MedicationScheduleForm  (need a medication)
+#
+# Reached by fasting-and-cycle.yaml instead, which opts the account in rather
+# than giving it content:
+#   FastingDetail  (the fasting card opens its protocol sheet until a fast is
+#     actually running)
+#   CycleOnboarding, CycleHub, CycleLogModal, PregnancySetup  (cycle tracking is
+#     off by default, so the card that leads to them is not on the dashboard)
+#
+# Reached by saved-meal.yaml instead, which needs a chain rather than one row:
+#   MealDetail, EditLoggedMeal, and FoodEntryAdd's two different faces  (a meal
+#     has to be built out of a food, logged, and then edited; the builder
+#     stacks FoodEntryAdd over FoodSearch over MealAdd, and two of those three
+#     offer a button labelled exactly "Add Food")
+#
+# Reached by food-photo.yaml instead, which needs two things seeded from
+# outside the app before it can start:
+#   FoodPhotoIntro, and FoodPhotoFlow's Improve / EstimateReview / LogEntry
+#     (a photograph, which a simulator with no camera can only get from
+#     `simctl addmedia`, and an AI provider, which is configured in the web
+#     frontend and so is out of a mobile-only account's reach entirely)
+#
+# Still unreached by any flow:
+#   Onboarding  (lib/boot.yaml has already walked it by the time this starts)
+- runFlow: lib/boot.yaml
+
+# === Home tab ===============================================================
+# Ask Sparky is a card, not a field: the sparkle icon contributes its own name,
+# hence the leading `.*`.
+- scrollUntilVisible:
+    element: ".*Ask Sparky.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: ".*Ask Sparky.*"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element: "Food, Tap to add food"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Food, Tap to add food"
+- tapOn: "Close"
+
+- scrollUntilVisible:
+    element:
+      id: "dashboard-medications-row"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "dashboard-medications-row"
+# The list is empty, so the only way on is the header's add action.
+- tapOn: "Add medication"
+- tapOn: "Close"
+- tapOn: "Back"
+
+# === Add sheet ==============================================================
+# The + tab presents a sheet rather than pushing a screen, and it is the only
+# route to four of the screens below. While it is up the dashboard behind it is
+# hidden from the tree, so its own "Back" row is unambiguous.
+- scrollUntilVisible:
+    element: ".*Ask Sparky.*"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+
+- tapOn: "Add"
+- tapOn: ".*Measurements"
+- tapOn: "Close"
+
+- tapOn: "Add"
+- tapOn: ".*Scan Food"
+# The scanner is full-bleed camera with its own overlay controls, so its back
+# button is labelled rather than a header chevron.
+- tapOn: "Go back"
+
+- tapOn: "Add"
+- tapOn: ".*, Exercise"
+- tapOn: ".*Workout, Live sets & reps"
+- tapOn: "Close"
+
+- tapOn: "Add"
+- tapOn: ".*, Exercise"
+- tapOn: ".*Activity, Duration & distance"
+- tapOn: "Close"
+
+- tapOn: "Add"
+- tapOn: ".*, Exercise"
+- tapOn: ".*Log Workout, Past sets & reps"
+- tapOn: "Close"
+
+# The sheet's remaining two rows are deliberately not tapped: "Ask Sparky" goes
+# to Chat, which the dashboard card above already covered, and "Sync Health
+# Data" is not navigation at all — it starts a health sync. The Sync SCREEN
+# lives on the Settings tab, and is visited there.
+
+# === Exercise tab ===========================================================
+- tapOn: "Exercise"
+
+- scrollUntilVisible:
+    element:
+      id: "up-next-card"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "up-next-card"
+# Three of this menu's four entries are the only route an empty account has to
+# the screens behind them ("Saved Workouts" is the exception — the Exercise tab
+# reaches that one). The menu closes on selection, so it is reopened each time.
+#
+# Each sheet row is tapped only after the sheet has settled. Maestro resolves an
+# element's bounds and then taps the coordinate, so a row resolved while the
+# sheet is still rising gets tapped where it used to be — which is a different
+# row by the time it lands. It is not hypothetical: it cost `suggested-workout`
+# a whole run, landing the driver on the preset form instead.
+- tapOn: "New workout options"
+- waitForAnimationToEnd
+- tapOn:
+    id: "action-sheet-item-pick-muscles"
+- tapOn: "Back"
+- tapOn: "New workout options"
+- waitForAnimationToEnd
+- tapOn:
+    id: "action-sheet-item-on-demand"
+- tapOn: "Back"
+- tapOn: "New workout options"
+- waitForAnimationToEnd
+- tapOn:
+    id: "action-sheet-item-create-from-scratch"
+# The preset form is where an empty account can still open the exercise picker:
+# it offers to add one whether or not any exist yet. Capital E, and matched with
+# a leading `.*` for its icon: the Exercise tab behind this modal carries a
+# lowercase "Add exercise" of its own, which the case-sensitive regex excludes.
+- scrollUntilVisible:
+    element: ".*Add Exercise"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: ".*Add Exercise"
+- tapOn: "Close"
+- tapOn: "Close"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-week-card"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-week-card"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-create-exercise"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-create-exercise"
+- tapOn: "Close"
+
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-workout-presets"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-workout-presets"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-exercises-library"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-exercises-library"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-gym-profiles"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-gym-profiles"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-exercise-packs"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-exercise-packs"
+- tapOn: "Back"
+
+# === Food tab ===============================================================
+- tapOn: "Food"
+
+- scrollUntilVisible:
+    element:
+      id: "food-home-create-food"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "food-home-create-food"
+- tapOn: "Close"
+
+- scrollUntilVisible:
+    element:
+      id: "food-home-create-meal"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "food-home-create-meal"
+- tapOn: "Close"
+
+- scrollUntilVisible:
+    element:
+      id: "food-home-foods-library"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "food-home-foods-library"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element:
+      id: "food-home-meals-library"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "food-home-meals-library"
+- tapOn: "Back"
+
+# === Settings tab ===========================================================
+# Last, because two of its rows are titled "Food" and "Home" — the same labels
+# as the tabs they would otherwise shadow.
+- tapOn: "Settings"
+
+- tapOn: "Server settings. Connected."
+- scrollUntilVisible:
+    element: "Passkeys"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Passkeys"
+- tapOn: "Back"
+- tapOn: "Back"
+
+- tapOn: "Health Data Sync"
+- scrollUntilVisible:
+    element: "Import Full History"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Import Full History"
+- tapOn: "Back"
+- tapOn: "Back"
+
+- tapOn: "App Settings"
+- scrollUntilVisible:
+    element: "Notifications"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Notifications"
+- tapOn: "Back"
+- tapOn: "Back"
+
+- tapOn: "Calories & BMR"
+- tapOn: "Back"
+
+# The settings row, not the tab: the row comes first in the tree, and the tab
+# bar is not rendered over a pushed screen at all.
+- tapOn: "Food"
+- tapOn: "Meal Types"
+- tapOn: "Back"
+- tapOn: "Back"
+
+- tapOn: "Home"
+- tapOn: "Back"
+
+- tapOn: "Food Diary"
+- tapOn: "Back"
+
+# From here down the settings group runs under the tab bar, so these three rows
+# are centred first: "Workout" reads as visible while its centre is the + tab,
+# and tapping it opened the Add sheet.
+#
+# This row used to be left by an explicit edge swipe rather than by "Back", and
+# not for a driver reason: CycleSettings returned a headerless spinner for an
+# account with no cycle_settings row, which is every account until the screen
+# writes one, so it had no back button to tap. It renders its header on every
+# branch now.
+- scrollUntilVisible:
+    element: "Cycle & Pregnancy"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Cycle & Pregnancy"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element: "Workout"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Workout"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element: "Medications"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Medications"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element: "What's New"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "What's New"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element: "View Logs"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "View Logs"
+- tapOn: "Back"
+
+- scrollUntilVisible:
+    element: "About"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "About"
+- tapOn: "Back"

@@ -1,0 +1,48 @@
+appId: ${APP_ID}
+---
+# Grant the notification permission deliberately, from Settings, before
+# anything starts a live workout.
+#
+# Starting a live workout calls ensureNotificationPermission() for the rest
+# timer, and the OS prompt it raises arrives whenever iOS gets round to it —
+# sometimes over the screen that started it, sometimes over ActiveWorkout,
+# sometimes not at all (the request is fired one line before
+# `navigation.replace`, and a prompt that lands mid-transition is simply
+# dropped). Dismissing it there is what broke content-crawl.yaml twice: the tap
+# that clears a system alert also reaches the app underneath, and what sits
+# under the alert's "Allow" on ActiveWorkout is "Add an Exercise" — so the
+# picker opened, every selector below matched the search results in front of
+# the set row instead of the set row itself, and the run finished with the
+# exercise logged twice and no weight or reps on either.
+#
+# So it is granted here instead, from the one control that asks for it as a
+# direct user action, on a screen that is holding still. `when: visible` is
+# safe on a settled screen (it is a race only against a dialog that is still
+# appearing), and the banner is absent exactly when the permission is already
+# granted — which a simulator remembers across an uninstall, so this must be
+# skippable rather than required.
+#
+# Starts and ends on a tab root, so a caller runs it from anywhere it is not
+# inside a pushed screen.
+- tapOn: "Settings"
+- tapOn: "App Settings"
+- scrollUntilVisible:
+    element: "Notifications"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Notifications"
+- runFlow:
+    when:
+      visible: "Enable Notifications"
+    commands:
+      - tapOn: "Enable Notifications"
+      - extendedWaitUntil:
+          visible: "Allow"
+          timeout: 20000
+      # Nothing on this screen is destructive if the tap does reach through it.
+      - tapOn:
+          text: "Allow"
+          retryTapIfNoChange: false
+- tapOn: "Back"
+- tapOn: "Back"

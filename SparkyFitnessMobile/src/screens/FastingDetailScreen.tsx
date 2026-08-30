@@ -85,6 +85,12 @@ const FastingDetailScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.goBack()}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         className="py-0 px-0"
+        // This header is hand-rolled rather than declared through
+        // useScreenHeader, so nothing supplies the back button's name: its only
+        // child is an Icon, and an Icon with no label of its own announces the
+        // raw SF Symbol identifier.
+        accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
+        accessibilityRole="button"
       >
         <Icon name="chevron-back" size={22} color={backColor} />
       </Button>

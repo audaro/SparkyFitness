@@ -4,6 +4,7 @@ import Toast from 'react-native-toast-message';
 import { getSettings, putSettings } from '../services/api/cycleApi';
 import { cycleSettingsQueryKey } from './queryKeys';
 import { addLog } from '../services/LogService';
+import { UNCONFIGURED_CYCLE_SETTINGS } from '../utils/cycleDisplayUtils';
 import type { SharedCycleSettings } from '../types/womensHealth';
 
 export function useCycleSettings() {
@@ -31,23 +32,31 @@ export function useCycleSettings() {
       // Snapshot previous value
       const previousSettings = queryClient.getQueryData<SharedCycleSettings | null>(cycleSettingsQueryKey);
 
-      // Optimistically update to new value immediately
-      if (previousSettings) {
-        queryClient.setQueryData<SharedCycleSettings | null>(cycleSettingsQueryKey, {
-          ...previousSettings,
-          ...newVars,
-          onboarded_at: newVars.mark_onboarded ? new Date().toISOString() : previousSettings.onboarded_at,
-        });
-      }
+      // Optimistically update to new value immediately. An account that has
+      // never written cycle settings has no row, so the server answers null and
+      // there is nothing to spread: the first write — turning the feature on —
+      // would otherwise leave the switch visibly off for a whole round trip.
+      // Seeding from the unconfigured defaults gives that tap the same
+      // immediate response every later one gets.
+      const base = previousSettings ?? UNCONFIGURED_CYCLE_SETTINGS;
+      queryClient.setQueryData<SharedCycleSettings | null>(cycleSettingsQueryKey, {
+        ...base,
+        ...newVars,
+        onboarded_at: newVars.mark_onboarded ? new Date().toISOString() : base.onboarded_at,
+      });
 
-      return { previousSettings };
+      return { previousSettings: previousSettings ?? null };
     },
     onSuccess: (data) => {
       queryClient.setQueryData<SharedCycleSettings | null>(cycleSettingsQueryKey, data);
     },
     onError: (error, _variables, context) => {
-      // Rollback to previous settings on error
-      if (context?.previousSettings) {
+      // Roll back to previous settings on error. `context` is checked rather
+      // than `context.previousSettings`, because null is now a value we
+      // optimistically wrote over and therefore have to restore — testing the
+      // snapshot for truthiness would leave a failed first write showing the
+      // feature as on.
+      if (context) {
         queryClient.setQueryData<SharedCycleSettings | null>(cycleSettingsQueryKey, context.previousSettings);
       }
       addLog(`Failed to update cycle settings: ${error}`, 'ERROR');

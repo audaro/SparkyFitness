@@ -1,0 +1,15 @@
+appId: ${APP_ID}
+---
+# Create a custom food, then log it to today's diary.
+#
+# This is the harness's reference scenario: it crosses the mobile client, the
+# API, and three tables, and every value it types is asserted back out of the
+# database by qa/oracles/custom-food-log.mjs. Nothing here checks the screen —
+# a green flow only means the taps landed.
+#
+# The taps themselves live in lib/create-and-log-food.yaml, along with the four
+# driver traps that shape them; content-crawl.yaml needs the same food and the
+# same entry before it can reach the diary's detail screens, and one copy of a
+# trap-laden sequence is the only copy that stays correct.
+- runFlow: lib/boot.yaml
+- runFlow: lib/create-and-log-food.yaml

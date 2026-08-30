@@ -240,6 +240,14 @@ const AddSheet = React.forwardRef<AddSheetRef, AddSheetProps>(
     return (
       <BottomSheetModal
         ref={bottomSheetRef}
+        // @gorhom/bottom-sheet marks its content container as a single
+        // accessibility element ("Bottom Sheet", role adjustable) by default,
+        // which collapses everything inside it: VoiceOver — and the QA
+        // driver — see one opaque node instead of Food / Exercise /
+        // Measurements / Scan Food / Ask Sparky / Sync Health Data. Opting out
+        // exposes the buttons themselves, which is what a sheet of buttons
+        // should announce.
+        accessible={false}
         enableDynamicSizing
         backdropComponent={renderBackdrop}
         backgroundStyle={{ backgroundColor: surfaceBg }}

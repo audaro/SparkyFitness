@@ -3,13 +3,15 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import CycleSettingsScreen from '../../src/screens/CycleSettingsScreen';
 import { cycleSettingsQueryKey } from '../../src/hooks/queryKeys';
-import { putSettings } from '../../src/services/api/cycleApi';
+import { getSettings, putSettings } from '../../src/services/api/cycleApi';
 
 jest.mock('../../src/services/api/cycleApi', () => ({
   ...jest.requireActual('../../src/services/api/cycleApi'),
+  getSettings: jest.fn(),
   putSettings: jest.fn(),
 }));
 
+const mockGetSettings = getSettings as jest.MockedFunction<typeof getSettings>;
 const mockPutSettings = putSettings as jest.MockedFunction<typeof putSettings>;
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
@@ -51,6 +53,16 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
+// Which header path the screen takes decides where its Back button lives: the
+// native path hands it to the navigator through setOptions, the fallback path
+// (Android, and iOS with the Liquid Glass tab bar off — the shipped default)
+// makes it an element the screen has to render itself. Both are exercised here.
+let mockNativeHeadersActive = true;
+jest.mock('../../src/services/nativeTabBarPreference', () => ({
+  useNativeIOSTabsActive: () => false,
+  useNativeIOSHeadersActive: () => mockNativeHeadersActive,
+}));
+
 const mockNavigation = { goBack: jest.fn(), navigate: jest.fn(), setOptions: jest.fn() } as any;
 const mockRoute = { params: {} } as any;
 jest.mock('@react-navigation/native', () => ({
@@ -58,11 +70,11 @@ jest.mock('@react-navigation/native', () => ({
   useNavigation: () => mockNavigation,
 }));
 
-function renderScreen(initialSettings: any) {
+function renderScreen(initialSettings: any, { seed = true }: { seed?: boolean } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
-  queryClient.setQueryData(cycleSettingsQueryKey, initialSettings);
+  if (seed) queryClient.setQueryData(cycleSettingsQueryKey, initialSettings);
   return {
     queryClient,
     ...render(
@@ -91,6 +103,7 @@ const baseSettings = {
 describe('CycleSettingsScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockNativeHeadersActive = true;
     mockPutSettings.mockImplementation(async (body) => ({ ...baseSettings, ...body }));
   });
 
@@ -114,6 +127,40 @@ describe('CycleSettingsScreen', () => {
 
     expect(nativeTitleFor(baseSettings)).toBe('Cycle & Pregnancy');
     expect(nativeTitleFor({ ...baseSettings, discreet_mode: true })).toBe('Wellness Settings');
+  });
+
+  // The server answers null — not a 404, and not an empty object — until this
+  // screen writes the first row, so this is what every account sees the first
+  // time it opens the screen. Treating that as "still loading" left a spinner
+  // with no header, and since this screen is the only route into cycle
+  // onboarding, it made the whole feature unreachable rather than merely
+  // awkward.
+  it('offers the enable toggle to an account that has no settings row', () => {
+    const { getByText, queryByText } = renderScreen(null);
+    expect(getByText('Enable Cycle & Pregnancy Tracking')).toBeTruthy();
+    // Everything else stays hidden: nothing is configured until it is on.
+    expect(queryByText('Tracking Mode')).toBeNull();
+  });
+
+  it('writes the first settings row when that toggle is turned on', async () => {
+    const { UNSAFE_getAllByType } = renderScreen(null);
+    const Switch = require('../../src/components/ui/Switch').default;
+    const [enableSwitch] = UNSAFE_getAllByType(Switch);
+
+    fireEvent(enableSwitch, 'valueChange', true);
+
+    await waitFor(() => {
+      expect(mockPutSettings).toHaveBeenCalledWith({ enabled: true, mark_onboarded: true });
+    });
+  });
+
+  it('keeps the header while the settings read is still in flight', () => {
+    // A spinner with no back button is a screen with no way off it, and on the
+    // fallback header path the screen owns that button.
+    mockNativeHeadersActive = false;
+    mockGetSettings.mockReturnValue(new Promise(() => {}));
+    const { getByLabelText } = renderScreen(undefined, { seed: false });
+    expect(getByLabelText('Back')).toBeTruthy();
   });
 
   it('clears a custom cycle-length override when the field is left empty', async () => {

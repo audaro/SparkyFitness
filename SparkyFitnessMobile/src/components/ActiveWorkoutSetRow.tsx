@@ -888,6 +888,13 @@ function ActiveWorkoutSetRow({
     <Pressable
       testID="set-row"
       onLongPress={longPress}
+      // A Pressable is one accessibility element by default, which collapsed the
+      // whole row into a single "Change type for set 1, -, Weight, Reps, RPE,
+      // Log set 1" blob: the weight and reps fields could not be focused, so a
+      // screen-reader user could see the set but never edit it. The long press
+      // this wrapper carries is a shortcut (the set-number button opens the same
+      // menu), whereas the cells inside are the row's only way to enter a set.
+      accessible={false}
       className={`flex-row items-center ${isLive ? 'py-2' : 'py-2.5'} px-1 ${isCursor ? 'rounded-xl' : 'bg-background'}`}
       style={isCursor ? { backgroundColor: withAlpha(accentPrimary, 0.12) } : undefined}
     >

@@ -285,6 +285,14 @@ const FoodPhotoLogEntryScreen: React.FC<Props> = ({ navigation, route }) => {
             onIncrement={() => adjustQuantity(1)}
             onDecrement={() => adjustQuantity(-1)}
             keyboardType="decimal-pad"
+            // Unlabelled, this stepper announces its SF Symbol names: VoiceOver
+            // reads the buttons as "add" and "remove" with nothing to say what
+            // they change, and every other stepper on screen says the same.
+            accessibilityLabels={{
+              decrement: t('foodPhotoLogEntry.accessibility.decreaseServings', { defaultValue: 'Decrease servings' }),
+              input: t('foodPhotoLogEntry.accessibility.servingsValue', { defaultValue: 'Servings' }),
+              increment: t('foodPhotoLogEntry.accessibility.increaseServings', { defaultValue: 'Increase servings' }),
+            }}
           />
         </View>
       </KeyboardAwareScrollView>

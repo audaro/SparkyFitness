@@ -210,6 +210,10 @@ function BottomSheetPicker<T extends string | number>({
 
       <BottomSheetModal
         ref={bottomSheetRef}
+        // One accessibility element by default (see AddSheet): the options
+        // collapse into a single "Bottom Sheet" node, so a screen reader can
+        // open this picker but never pick anything in it.
+        accessible={false}
         snapPoints={snapPoints}
         enableDynamicSizing={enableDynamic}
         backdropComponent={renderBackdrop}
