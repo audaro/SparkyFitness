@@ -8,6 +8,7 @@ on:
       - "SparkyFitnessMobile/**"
       - "SparkyFitnessServer/**"
       - "SparkyFitnessGarmin/**"
+      - "shared/**"
       - ".github/workflows/ci-tests.yml"
   push:
     branches: [main]
@@ -16,6 +17,7 @@ on:
       - "SparkyFitnessMobile/**"
       - "SparkyFitnessServer/**"
       - "SparkyFitnessGarmin/**"
+      - "shared/**"
       - ".github/workflows/ci-tests.yml"
 
 jobs:
@@ -38,12 +40,20 @@ jobs:
         id: filter
         with:
           filters: |
+            # `shared/` is the source-first @workspace/shared package: the
+            # frontend, mobile and server all compile it from source, so a
+            # change confined to it can break any of them and must fan out to
+            # all three. Garmin is a standalone Python service outside the pnpm
+            # workspace and does not consume it.
             frontend:
               - 'SparkyFitnessFrontend/**'
+              - 'shared/**'
             mobile:
               - 'SparkyFitnessMobile/**'
+              - 'shared/**'
             server:
               - 'SparkyFitnessServer/**'
+              - 'shared/**'
             garmin:
               - 'SparkyFitnessGarmin/**'
             # Files whose change can break a fresh-install migration run.
