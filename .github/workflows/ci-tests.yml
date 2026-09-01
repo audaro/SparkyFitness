@@ -10,6 +10,10 @@ on:
       - "SparkyFitnessGarmin/**"
       - "shared/**"
       - ".github/workflows/ci-tests.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "patches/**"
   push:
     branches: [main]
     paths:
@@ -19,6 +23,10 @@ on:
       - "SparkyFitnessGarmin/**"
       - "shared/**"
       - ".github/workflows/ci-tests.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "patches/**"
 
 jobs:
   # Detect which components changed
@@ -40,6 +48,16 @@ jobs:
         id: filter
         with:
           filters: |
+            # Root workspace config: the manifest, the lockfile, the workspace
+            # definition and the patches every install applies. A change to any
+            # of them can break any package's install or build, so every
+            # workspace filter carries them. Garmin is standalone Python outside
+            # the pnpm workspace and is deliberately not one of them.
+            root-workspace-config: &root-workspace-config
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'patches/**'
             # `shared/` is the source-first @workspace/shared package: the
             # frontend, mobile and server all compile it from source, so a
             # change confined to it can break any of them and must fan out to
@@ -48,12 +66,15 @@ jobs:
             frontend:
               - 'SparkyFitnessFrontend/**'
               - 'shared/**'
+              - *root-workspace-config
             mobile:
               - 'SparkyFitnessMobile/**'
               - 'shared/**'
+              - *root-workspace-config
             server:
               - 'SparkyFitnessServer/**'
               - 'shared/**'
+              - *root-workspace-config
             garmin:
               - 'SparkyFitnessGarmin/**'
             # Files whose change can break a fresh-install migration run.
@@ -69,6 +90,7 @@ jobs:
               - 'SparkyFitnessServer/tests/rlsPermissionMatrix.integration.test.ts'
               - 'SparkyFitnessServer/package.json'
               - '.github/workflows/ci-tests.yml'
+              - *root-workspace-config
 
   frontend-tests:
     name: Frontend Tests

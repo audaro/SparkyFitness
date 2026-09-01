@@ -24,6 +24,10 @@ on:
       - "SparkyFitnessServer/tests/migrate.script.ts"
       - "SparkyFitnessServer/package.json"
       - ".github/workflows/schema-backup.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "patches/**"
   workflow_dispatch:
 
 permissions:
