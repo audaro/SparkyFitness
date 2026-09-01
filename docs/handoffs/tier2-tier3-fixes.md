@@ -51,10 +51,36 @@ take `'YYYY-MM-DD'`, a distinction the shared `any` had erased; and
 Four AI tools (`exerciseTools`, `foodTools`) gained explicit validation errors
 where an optional id had been allowed to reach the database as `undefined`.
 
-What is left is the Express `req`/`res`/`next` handler triples (~270), a design
-question rather than a rename, since the useful types are
-`Request`/`Response`/`NextFunction` and the handlers read properties
-(`req.userId`) that only exist through module augmentation.
+The Express triples closed the item. The ~270 estimate was mostly test files,
+which the config exempts; the real surface was 26 sites, and they were all
+middleware rather than route handlers — a handler registered through
+`router.get(path, ...)` already gets its types from Express's overloads. What
+actually blocked the middleware was that `multer` and `cors` ship no types, so
+`@types/multer` and `@types/cors` went in as devDependencies and 40
+`@ts-expect-error` directives came out, including every `Property 'file' does
+not exist on type 'Request'` in the upload routes.
+
+`types/expressHandlers.ts` records the one trap worth knowing. Express 5's
+`ParamsDictionary` is `{ [key: string]: string | string[] }`, so annotating a
+middleware with the default `Request` pins `RouteParameters<Route>` during
+`router.get` overload resolution and every handler on that route starts reading
+path segments as `string | string[]` — 81 new errors on code that was correct.
+`RouteParams` is `Record<string, string>`: it accepts any route's params while
+contributing no inference candidate, so the route literal still decides what the
+handlers see. Annotate middleware with `Request<RouteParams>`, never `Request`.
+
+The pass also changed behaviour in five places the `any` had been covering:
+`authMiddleware` now passes `fromNodeHeaders(req.headers)` to
+`auth.api.getSession` (Node's `IncomingHttpHeaders` is not a fetch `Headers`, and
+the two authCoreRoutes call sites already did this — worth knowing that
+`getSession` is mocked in every test, so nothing covers the real header shape);
+`onBehalfOfMiddleware` ignores a repeated `x-on-behalf-of-user-id` header rather
+than passing an array into the permission check; the authCoreRoutes rate
+limiters bucket a missing `req.ip` under `'unknown'`; `errorHandler` falls back
+to its default message when a ValidationError carries none; and
+`exerciseEntryRoutes` calls multer's destination callback with both arguments.
+
+Server suppressions across the four passes: 1,390 → 635.
 
 The typing surfaced three latent bugs that `any` had been hiding, all fixed in
 the same commit: `ensureUserInitialization` was called with three arguments
