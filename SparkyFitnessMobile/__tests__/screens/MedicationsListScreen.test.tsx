@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MedicationsListScreen from '../../src/screens/MedicationsListScreen';

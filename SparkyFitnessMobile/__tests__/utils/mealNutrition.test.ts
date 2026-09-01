@@ -286,7 +286,7 @@ describe('calculateEntryNutrition / calculateMealNutrition', () => {
 
 describe('getMealPercentage', () => {
   it('uses legacy percentage fields for system meal types', () => {
-    const goals: DailyGoals = { breakfast_percentage: 25, lunch_percentage: 30 } as DailyGoals;
+    const goals: DailyGoals = { breakfast_percentage: 25, lunch_percentage: 30 } as unknown as DailyGoals;
     expect(getMealPercentage('breakfast', goals)).toBe(25);
     expect(getMealPercentage('lunch', goals)).toBe(30);
   });
@@ -294,7 +294,7 @@ describe('getMealPercentage', () => {
   it('looks up custom meal percentages by lowercase name (web contract)', () => {
     const goals: DailyGoals = {
       custom_meal_percentages: { 'pre-workout': 15, 'drugie śniadanie': 10 },
-    } as DailyGoals;
+    } as unknown as DailyGoals;
     expect(getMealPercentage('Pre-Workout', goals)).toBe(15);
     expect(getMealPercentage('Drugie śniadanie', goals)).toBe(10);
   });
@@ -302,14 +302,14 @@ describe('getMealPercentage', () => {
   it('returns 0 after a rename because percentages are keyed by name', () => {
     const goals: DailyGoals = {
       custom_meal_percentages: { 'old-name': 15 },
-    } as DailyGoals;
+    } as unknown as DailyGoals;
     expect(getMealPercentage('New Name', goals)).toBe(0);
   });
 
   it('returns 0 for a zero percentage and for a missing percentage', () => {
     const goals: DailyGoals = {
       custom_meal_percentages: { 'zero-meal': 0 },
-    } as DailyGoals;
+    } as unknown as DailyGoals;
     expect(getMealPercentage('zero-meal', goals)).toBe(0);
     expect(getMealPercentage('missing', goals)).toBe(0);
   });
@@ -347,7 +347,7 @@ describe('groupFoodEntriesByMealType — canonical ID contract', () => {
       { id: 'system-breakfast', name: 'breakfast', sort_order: 10, user_id: null, created_at: '', is_visible: true, show_in_quick_log: true },
     ];
     const groups = groupFoodEntriesByMealType(
-      [{ id: 'e1', meal_type_id: null, meal_type: 'breakfast' }] as FoodEntry[],
+      [{ id: 'e1', meal_type_id: null, meal_type: 'breakfast' }] as unknown as FoodEntry[],
       types,
     );
     expect(groups).toHaveLength(1);
@@ -364,7 +364,6 @@ describe('getMealGroupLabel — historical groups stay literal', () => {
       sortOrder: 9999,
       entries: [],
       isSystem: false,
-      user_id: null,
     };
     expect(getMealGroupLabel(group, t)).toBe('breakfast');
   });
@@ -376,7 +375,6 @@ describe('getMealGroupLabel — historical groups stay literal', () => {
       sortOrder: 10,
       entries: [],
       isSystem: true,
-      user_id: null,
     };
     expect(getMealGroupLabel(group, t)).toBe('Breakfast');
   });
@@ -388,7 +386,7 @@ describe('groupFoodEntriesByMealType — distinct historical fallback groups', (
       [
         { id: 'e1', meal_type_id: null, meal_type: 'Morning Snack' },
         { id: 'e2', meal_type_id: null, meal_type: 'Night Snack' },
-      ] as FoodEntry[],
+      ] as unknown as FoodEntry[],
       [],
     );
 
@@ -435,7 +433,7 @@ describe('blank historical meal type compatibility', () => {
   it('groups a blank-name entry into the synthetic Other bucket', () => {
     const { getMealGroupLabel, groupFoodEntriesByMealType } = require('../../src/utils/mealNutrition');
     const groups = groupFoodEntriesByMealType(
-      [{ id: 'e1', meal_type_id: null, meal_type: '' } as FoodEntry],
+      [{ id: 'e1', meal_type_id: null, meal_type: '' } as unknown as FoodEntry],
       [],
     );
     expect(groups).toHaveLength(1);
@@ -446,7 +444,7 @@ describe('blank historical meal type compatibility', () => {
 
   it('detail filter matches a blank-name entry under the other bucket', () => {
     const { filterFoodEntriesByMealTypeId } = require('../../src/utils/mealNutrition');
-    const entries = [{ id: 'e1', meal_type_id: null, meal_type: '' } as FoodEntry];
+    const entries = [{ id: 'e1', meal_type_id: null, meal_type: '' } as unknown as FoodEntry];
     // Opening "Other" from the summary must show the blank-name entry.
     expect(filterFoodEntriesByMealTypeId(entries, null, 'other', [])).toHaveLength(1);
     expect(filterFoodEntriesByMealTypeId(entries, null, 'Other', [])).toHaveLength(1);

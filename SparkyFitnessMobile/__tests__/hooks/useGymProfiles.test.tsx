@@ -41,6 +41,12 @@ const profile = (overrides?: Partial<GymProfile>): GymProfile => ({
   // Canonical lowercase: the catalog filter (`equipment::jsonb ?|`) is exact
   // and case-sensitive, so a capitalized value matches no exercise.
   equipment: ['barbell', 'dumbbell'],
+  // Unstated (null) rather than empty: an apparatus list of [] is the
+  // authoritative "none", which is a different profile.
+  apparatus: null,
+  equipment_items: null,
+  load_limits: null,
+  equipment_preference: null,
   is_active: false,
   created_at: '2026-08-01T00:00:00Z',
   updated_at: '2026-08-01T00:00:00Z',

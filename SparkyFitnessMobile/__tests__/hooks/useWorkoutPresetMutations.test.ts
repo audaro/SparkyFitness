@@ -105,10 +105,10 @@ describe('useWorkoutPresetMutations', () => {
 
       const payload = { name: 'Updated', exercises: [] } as never;
       await act(async () => {
-        await result.current.updatePresetAsync({ id: 'p1', payload });
+        await result.current.updatePresetAsync({ id: 1, payload });
       });
 
-      expect(mockUpdate).toHaveBeenCalledWith('p1', payload);
+      expect(mockUpdate).toHaveBeenCalledWith(1, payload);
       expectCachesInvalidated(invalidateSpy, resetSpy);
     });
 
@@ -119,7 +119,7 @@ describe('useWorkoutPresetMutations', () => {
 
       await act(async () => {
         await expect(
-          result.current.updatePresetAsync({ id: 'p1', payload: {} as never }),
+          result.current.updatePresetAsync({ id: 1, payload: {} as never }),
         ).rejects.toThrow();
       });
 
@@ -142,7 +142,7 @@ describe('useWorkoutPresetMutations', () => {
 
       await act(async () => {
         await expect(
-          result.current.updatePresetAsync({ id: 'p1', payload: {} as never }),
+          result.current.updatePresetAsync({ id: 1, payload: {} as never }),
         ).rejects.toThrow();
       });
 
@@ -160,7 +160,7 @@ describe('useWorkoutPresetMutations', () => {
 
       await act(async () => {
         await expect(
-          result.current.updatePresetAsync({ id: 'p1', payload: {} as never }),
+          result.current.updatePresetAsync({ id: 1, payload: {} as never }),
         ).rejects.toThrow();
       });
 
@@ -177,7 +177,7 @@ describe('useWorkoutPresetMutations', () => {
   describe('useDeleteWorkoutPreset', () => {
     it('confirmAndDelete shows a destructive confirmation alert', () => {
       const { result } = renderHook(
-        () => useDeleteWorkoutPreset({ presetId: 'p1' }),
+        () => useDeleteWorkoutPreset({ presetId: 1 }),
         { wrapper },
       );
 
@@ -200,7 +200,7 @@ describe('useWorkoutPresetMutations', () => {
       const resetSpy = jest.spyOn(queryClient, 'resetQueries');
 
       const { result } = renderHook(
-        () => useDeleteWorkoutPreset({ presetId: 'p1', onSuccess }),
+        () => useDeleteWorkoutPreset({ presetId: 1, onSuccess }),
         { wrapper },
       );
 
@@ -213,7 +213,7 @@ describe('useWorkoutPresetMutations', () => {
       });
 
       await waitFor(() => {
-        expect(mockDelete).toHaveBeenCalledWith('p1');
+        expect(mockDelete).toHaveBeenCalledWith(1);
         expect(onSuccess).toHaveBeenCalled();
       });
       expectCachesInvalidated(invalidateSpy, resetSpy);
@@ -223,7 +223,7 @@ describe('useWorkoutPresetMutations', () => {
       mockDelete.mockResolvedValue(undefined as never);
 
       const { result } = renderHook(
-        () => useDeleteWorkoutPreset({ presetId: 'p1' }),
+        () => useDeleteWorkoutPreset({ presetId: 1 }),
         { wrapper },
       );
 
@@ -237,7 +237,7 @@ describe('useWorkoutPresetMutations', () => {
 
       // The optional `onSuccess?.()` chain must not throw when omitted.
       await waitFor(() => {
-        expect(mockDelete).toHaveBeenCalledWith('p1');
+        expect(mockDelete).toHaveBeenCalledWith(1);
       });
       expect(Toast.show).not.toHaveBeenCalled();
     });
@@ -246,7 +246,7 @@ describe('useWorkoutPresetMutations', () => {
       mockDelete.mockRejectedValue(apiError(404, 'Not Found'));
 
       const { result } = renderHook(
-        () => useDeleteWorkoutPreset({ presetId: 'p1' }),
+        () => useDeleteWorkoutPreset({ presetId: 1 }),
         { wrapper },
       );
 

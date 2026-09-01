@@ -1,4 +1,3 @@
-import React from 'react';
 import { Platform, View } from 'react-native';
 import { render } from '@testing-library/react-native';
 
@@ -62,7 +61,7 @@ const primaryExplicitA11y = [
 ];
 
 describe('useScreenHeader accessibility label (custom path)', () => {
-  let osSpy: jest.SpyInstance | null = null;
+  let osSpy: jest.ReplaceProperty<typeof Platform.OS> | null = null;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -121,7 +120,7 @@ describe('useScreenHeader accessibility label (custom path)', () => {
 });
 
 describe('useScreenHeader custom bar title layout', () => {
-  let osSpy: jest.SpyInstance | null = null;
+  let osSpy: jest.ReplaceProperty<typeof Platform.OS> | null = null;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -176,7 +175,7 @@ describe('useScreenHeader custom bar title layout', () => {
 });
 
 describe('useScreenHeader accessibility label (native path)', () => {
-  let osSpy: jest.SpyInstance | null = null;
+  let osSpy: jest.ReplaceProperty<typeof Platform.OS> | null = null;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -197,7 +196,9 @@ describe('useScreenHeader accessibility label (native path)', () => {
       unstable_headerRightItems?: () => unknown[];
     };
     const items = options.unstable_headerRightItems?.() ?? [];
-    return items[0] as { label?: string; accessibilityLabel?: string } | undefined;
+    return items[0] as
+      | { label?: string; accessibilityLabel?: string; onPress?: () => void }
+      | undefined;
   }
 
   function nativeLeftItem() {
@@ -206,7 +207,9 @@ describe('useScreenHeader accessibility label (native path)', () => {
       unstable_headerLeftItems?: () => unknown[];
     };
     const items = options.unstable_headerLeftItems?.() ?? [];
-    return items[0] as { label?: string; accessibilityLabel?: string } | undefined;
+    return items[0] as
+      | { label?: string; accessibilityLabel?: string; onPress?: () => void }
+      | undefined;
   }
 
   it('English busy: native label is Saving… and accessibility mirrors it', async () => {

@@ -3,7 +3,18 @@ import { filterByOwnership } from '../../src/utils/shareStatus';
 const CURRENT_USER = 'user-1';
 
 describe('filterByOwnership', () => {
-  const mine = { id: 'mine', user_id: CURRENT_USER };
+  // Annotated so the array keeps every ownership shape: TypeScript's best-common
+  // -type rule would otherwise collapse the literals to `{ id: string }`, which
+  // shares no property with the all-optional generic constraint.
+  type ShareItem = {
+    id: string;
+    user_id?: string;
+    userId?: string;
+    is_public?: boolean;
+    shared_with_public?: boolean;
+    sharedWithPublic?: boolean;
+  };
+  const mine: ShareItem = { id: 'mine', user_id: CURRENT_USER };
   const mineCamel = { id: 'mine-camel', userId: CURRENT_USER };
   const family = { id: 'family', user_id: 'user-2' };
   const familyCamel = { id: 'family-camel', userId: 'user-2' };
@@ -12,7 +23,7 @@ describe('filterByOwnership', () => {
   const publicCamel = { id: 'public-camel', userId: 'user-2', sharedWithPublic: true };
   const ownPublic = { id: 'own-public', user_id: CURRENT_USER, is_public: true };
   const noOwner = { id: 'no-owner' };
-  const items = [mine, mineCamel, family, familyCamel, publicSnake, publicShared, publicCamel, ownPublic, noOwner];
+  const items: ShareItem[] = [mine, mineCamel, family, familyCamel, publicSnake, publicShared, publicCamel, ownPublic, noOwner];
 
   it('returns the input unchanged for the all filter', () => {
     expect(filterByOwnership(items, 'all', CURRENT_USER)).toBe(items);

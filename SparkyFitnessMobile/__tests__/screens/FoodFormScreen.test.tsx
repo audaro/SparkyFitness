@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -87,7 +86,6 @@ jest.mock('../../src/components/Icon', () => {
 });
 
 jest.mock('../../src/components/StepperInput', () => {
-  const React = require('react');
   const { TextInput } = require('react-native');
   return {
     __esModule: true,
@@ -103,7 +101,6 @@ jest.mock('../../src/components/StepperInput', () => {
 });
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
-  const React = require('react');
   const { Pressable, Text, View } = require('react-native');
   return {
     __esModule: true,
@@ -142,7 +139,6 @@ let mockUnitSelectionResult: any;
 let mockEquivalentDraft: any[] = [];
 
 jest.mock('../../src/components/FoodForm', () => {
-  const React = require('react');
   const { Pressable, Text, View } = require('react-native');
   return {
     __esModule: true,
@@ -308,6 +304,7 @@ describe('FoodFormScreen', () => {
         mockAddEntry(input);
         options?.onSuccess?.({ entry_date: '2026-04-23' } as any);
       },
+      addEntryAsync: jest.fn(),
       isPending: false,
       invalidateCache: mockInvalidateCache,
     }));

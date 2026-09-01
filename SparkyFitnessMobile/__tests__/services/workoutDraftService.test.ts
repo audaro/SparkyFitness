@@ -22,6 +22,7 @@ describe('workoutDraftService', () => {
         exerciseId: 'uuid-bench',
         exerciseName: 'Bench Press',
         exerciseCategory: 'Strength',
+        images: [],
         sets: [
           { clientId: 'set-1', weight: '135', reps: '10' },
           { clientId: 'set-2', weight: '155', reps: '8' },

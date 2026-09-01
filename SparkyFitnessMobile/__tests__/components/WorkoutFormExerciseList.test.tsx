@@ -9,7 +9,6 @@ import type { WorkoutDraftExercise } from '../../src/types/drafts';
 
 // Drive the reorder overlay through pressable stubs (established pattern).
 jest.mock('../../src/components/WorkoutReorderList', () => {
-  const React = require('react');
   const { View, Pressable } = require('react-native');
   return {
     __esModule: true,
@@ -34,7 +33,6 @@ jest.mock('../../src/components/Icon', () => {
 // Expose the card's derived props and callback surface through simple
 // pressables so the list's wiring is drivable without the real card UI.
 jest.mock('../../src/components/ActiveWorkoutExerciseCard', () => {
-  const React = require('react');
   const { View, Pressable, Text } = require('react-native');
   return {
     __esModule: true,
@@ -132,7 +130,6 @@ jest.mock('../../src/components/ActiveWorkoutExerciseCard', () => {
 // Serves the set-type menu (via WorkoutMenus). The real menu closes (onClose)
 // before running the pressed item — mirror that order.
 jest.mock('../../src/components/AnchoredMenu', () => {
-  const React = require('react');
   const { View, Pressable, Text } = require('react-native');
   return {
     __esModule: true,

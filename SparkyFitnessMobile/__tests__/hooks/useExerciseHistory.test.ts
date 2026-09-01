@@ -35,6 +35,7 @@ const makePage = (
 const makeIndividualSession = (id: string, name: string) => ({
   type: 'individual' as const,
   id,
+  name,
   exercise_id: `ex-${id}`,
   duration_minutes: 30,
   calories_burned: 200,
@@ -44,8 +45,23 @@ const makeIndividualSession = (id: string, name: string) => ({
   avg_heart_rate: null,
   source: null,
   sets: [],
-  exercise_snapshot: { id: `snap-${id}`, name, category: 'Strength' },
+  // The eight nullable catalog fields are required by the response contract but
+  // say nothing this suite asserts, so they are null.
+  exercise_snapshot: {
+    id: `snap-${id}`,
+    name,
+    category: 'Strength',
+    images: null,
+    primary_muscles: null,
+    secondary_muscles: null,
+    equipment: null,
+    instructions: null,
+    force: null,
+    level: null,
+    mechanic: null,
+  },
   activity_details: [],
+  superset_group: null,
 });
 
 describe('useExerciseHistory', () => {

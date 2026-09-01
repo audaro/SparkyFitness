@@ -60,7 +60,7 @@ describe('useIOSWidgetLanguageRefresh', () => {
   let initializedListeners: I18nEventListener[] = [];
   let isInitialized = true;
   let resolvedLanguage = 'en';
-  let osSpy: jest.SpyInstance | null = null;
+  let osSpy: jest.ReplaceProperty<typeof Platform.OS> | null = null;
 
   beforeEach(() => {
     jest.clearAllMocks();

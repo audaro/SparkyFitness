@@ -30,7 +30,13 @@ jest.mock('../../src/services/LogService', () => ({
   addLog: jest.fn(() => Promise.resolve()),
 }));
 
-const mockNative = AppLanguageNative as jest.Mocked<typeof AppLanguageNative>;
+// `AppLanguageNative` exposes its two flags as getters, so `typeof` reports them
+// read-only; the jest.mock above replaces the whole module with plain writable
+// fields, which is what these tests set per case.
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+const mockNative = AppLanguageNative as Mutable<
+  jest.Mocked<typeof AppLanguageNative>
+>;
 const mockAddLog = addLog as jest.MockedFunction<typeof addLog>;
 
 
@@ -462,7 +468,8 @@ describe('app language service', () => {
       });
       const changeLanguage = jest.spyOn(i18n, 'changeLanguage').mockImplementation(async (language) => {
         order.push(`i18n:${language}`);
-        return i18n;
+        // changeLanguage resolves with the t function, not the i18n instance.
+        return i18n.t;
       });
 
       await setAppLanguagePreference('pl');
@@ -570,7 +577,8 @@ describe('app language service', () => {
       });
       const changeLanguage = jest.spyOn(i18n, 'changeLanguage').mockImplementation(async (language) => {
         order.push(`i18n:${language}`);
-        return i18n;
+        // changeLanguage resolves with the t function, not the i18n instance.
+        return i18n.t;
       });
       useAppPreferencesStore.setState({ languagePreference: 'en' });
 

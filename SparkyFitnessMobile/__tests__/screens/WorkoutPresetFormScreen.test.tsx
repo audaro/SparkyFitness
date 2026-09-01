@@ -3,7 +3,7 @@ import type { PresetDraft } from '../../src/hooks/useWorkoutPresetForm';
 import type { WorkoutPreset } from '../../src/types/workoutPresets';
 
 const basePreset: WorkoutPreset = {
-  id: 'pre-1',
+  id: 1,
   user_id: 'user-1',
   name: 'Push Day',
   description: 'Chest and triceps',
@@ -12,13 +12,15 @@ const basePreset: WorkoutPreset = {
   updated_at: '2026-04-01T00:00:00.000Z',
   exercises: [
     {
-      id: 'pe-1',
+      id: 1,
       exercise_id: 'ex-1',
       image_url: null,
       exercise_name: 'Bench Press',
+      category: null,
+      superset_group: null,
       sets: [
         {
-          id: 'ps-1',
+          id: 1,
           set_number: 1,
           set_type: 'normal',
           reps: 10,
@@ -159,9 +161,9 @@ describe('WorkoutPresetFormScreen — buildPresetEditPayload', () => {
       distanceUnit: 'km',
     });
     expect(payload.exercises).toHaveLength(1);
-    expect(payload.exercises?.[0].exercise_id).toBe('ex-1');
-    expect(payload.exercises?.[0].sets[0].weight).toBe(100);
-    expect(payload.exercises?.[0].sets[0].reps).toBe(10);
+    expect(payload.exercises![0]!.exercise_id).toBe('ex-1');
+    expect(payload.exercises![0]!.sets![0]!.weight).toBe(100);
+    expect(payload.exercises![0]!.sets![0]!.reps).toBe(10);
   });
 
   it('emits superset_group when exercises are modified', () => {
@@ -217,9 +219,9 @@ describe('WorkoutPresetFormScreen — buildPresetEditPayload', () => {
       weightUnit: 'kg',
       distanceUnit: 'km',
     });
-    expect(payload.exercises?.[0].sets[0].set_type).toBe('warmup');
-    expect(payload.exercises?.[0].sets[0].duration).toBe(30);
-    expect(payload.exercises?.[0].sets[0].notes).toBe('easy set');
+    expect(payload.exercises![0]!.sets![0]!.set_type).toBe('warmup');
+    expect(payload.exercises![0]!.sets![0]!.duration).toBe(30);
+    expect(payload.exercises![0]!.sets![0]!.notes).toBe('easy set');
   });
 
   it('never includes is_public', () => {

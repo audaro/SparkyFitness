@@ -3,6 +3,7 @@ import { useFoodVariants } from '../../src/hooks/useFoodVariants';
 import { foodVariantsQueryKey } from '../../src/hooks/queryKeys';
 import { fetchFoodVariants } from '../../src/services/api/foodsApi';
 import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import type { FoodVariantDetail } from '../../src/types/foods';
 
 jest.mock('../../src/services/api/foodsApi', () => ({
   fetchFoodVariants: jest.fn(),
@@ -77,7 +78,7 @@ describe('useFoodVariants', () => {
   });
 
   test('returns isLoading while fetching', async () => {
-    let resolveVariants: (value: unknown[]) => void;
+    let resolveVariants: (value: FoodVariantDetail[]) => void;
     mockFetchFoodVariants.mockReturnValue(
       new Promise((resolve) => {
         resolveVariants = resolve;

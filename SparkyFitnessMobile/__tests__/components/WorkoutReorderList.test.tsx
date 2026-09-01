@@ -1,4 +1,3 @@
-import React from 'react';
 import { StyleSheet } from 'react-native';
 import { act, render, fireEvent } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -10,12 +9,15 @@ import WorkoutReorderList, {
 } from '../../src/components/WorkoutReorderList';
 import { moveSessionExerciseItem } from '../../src/utils/workoutSession';
 import type { WorkoutCardExercise } from '../../src/utils/workoutSession';
+import type { GetImageSource } from '../../src/hooks/useExerciseImageSource';
 import i18n, { initializeI18n } from '../../src/localization/i18n';
 
 const insets = { top: 47, bottom: 34, left: 0, right: 0 };
 const frame = { x: 0, y: 0, width: 390, height: 844 };
 
-const getImageSource = jest.fn(() => ({ uri: 'mock' }));
+const getImageSource = jest.fn<ReturnType<GetImageSource>, Parameters<GetImageSource>>(
+  (_imagePath: string) => ({ uri: 'mock', headers: {} }),
+);
 
 function makeCard(
   id: string,

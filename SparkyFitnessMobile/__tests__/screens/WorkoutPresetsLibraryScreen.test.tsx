@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, waitFor, act } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -37,7 +36,7 @@ jest.mock('@react-navigation/native', () => ({
 const insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const frame = { x: 0, y: 0, width: 390, height: 844 };
 
-function createPreset(id: string, name: string, exerciseCount = 0): WorkoutPreset {
+function createPreset(id: number, name: string, exerciseCount = 0): WorkoutPreset {
   return {
     id,
     user_id: 'user-1',
@@ -47,10 +46,12 @@ function createPreset(id: string, name: string, exerciseCount = 0): WorkoutPrese
     created_at: '2026-04-01T00:00:00.000Z',
     updated_at: '2026-04-01T00:00:00.000Z',
     exercises: Array.from({ length: exerciseCount }).map((_, idx) => ({
-      id: `${id}-ex-${idx}`,
+      id: id * 100 + idx,
       exercise_id: `ex-${idx}`,
       image_url: null,
       exercise_name: `Exercise ${idx}`,
+      category: null,
+      superset_group: null,
       sets: [],
     })),
   };
@@ -100,7 +101,6 @@ describe('WorkoutPresetsLibraryScreen', () => {
       isConnected: true,
       isLoading: false,
       isError: false,
-      error: null,
       refetch: jest.fn(),
     });
     mockUseWorkoutPresetsLibrary.mockReturnValue(buildHookReturn());
@@ -109,7 +109,7 @@ describe('WorkoutPresetsLibraryScreen', () => {
   it('lists presets from the hook with their exercise counts', async () => {
     mockUseWorkoutPresetsLibrary.mockReturnValue(
       buildHookReturn({
-        presets: [createPreset('p-1', 'Push Day', 3), createPreset('p-2', 'Leg Day', 1)],
+        presets: [createPreset(1, 'Push Day', 3), createPreset(2, 'Leg Day', 1)],
       }),
     );
 
@@ -122,7 +122,7 @@ describe('WorkoutPresetsLibraryScreen', () => {
   });
 
   it('navigates to WorkoutPresetDetail with the preset on row tap', async () => {
-    const preset = createPreset('p-1', 'Push Day', 2);
+    const preset = createPreset(1, 'Push Day', 2);
     mockUseWorkoutPresetsLibrary.mockReturnValue(
       buildHookReturn({ presets: [preset] }),
     );
@@ -146,7 +146,7 @@ describe('WorkoutPresetsLibraryScreen', () => {
 
   it('renders search results as the hook returns them in search mode', async () => {
     mockUseWorkoutPresetsLibrary.mockReturnValue(
-      buildHookReturn({ presets: [createPreset('p-search', 'Push Day Search Result', 2)] }),
+      buildHookReturn({ presets: [createPreset(3, 'Push Day Search Result', 2)] }),
     );
 
     const screen = renderScreen();
@@ -163,8 +163,8 @@ describe('WorkoutPresetsLibraryScreen', () => {
     mockUseWorkoutPresetsLibrary.mockReturnValue(
       buildHookReturn({
         presets: [
-          createPreset('p-1', 'Push Day', 3),
-          { ...createPreset('p-2', 'Community Pull', 2), is_public: true },
+          createPreset(1, 'Push Day', 3),
+          { ...createPreset(2, 'Community Pull', 2), is_public: true },
         ],
       }),
     );
@@ -184,7 +184,6 @@ describe('WorkoutPresetsLibraryScreen', () => {
       isConnected: false,
       isLoading: false,
       isError: false,
-      error: null,
       refetch: jest.fn(),
     });
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';

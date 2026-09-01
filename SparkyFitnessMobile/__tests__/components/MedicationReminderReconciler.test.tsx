@@ -1,4 +1,3 @@
-import React from 'react';
 import { AppState } from 'react-native';
 import { act, render } from '@testing-library/react-native';
 

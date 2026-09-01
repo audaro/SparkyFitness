@@ -3,12 +3,31 @@ import { useMealSearch } from '../../src/hooks/useMealSearch';
 import { mealSearchQueryKey } from '../../src/hooks/queryKeys';
 import { searchMeals } from '../../src/services/api/mealsApi';
 import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import type { Meal } from '../../src/types/meals';
 
 jest.mock('../../src/services/api/mealsApi', () => ({
   searchMeals: jest.fn(),
 }));
 
 const mockSearchMeals = searchMeals as jest.MockedFunction<typeof searchMeals>;
+
+// A saved meal as the search endpoint returns it. Only the id and name matter
+// to these tests; the rest is what the response contract requires.
+function meal(id: string, name: string): Meal {
+  return {
+    id,
+    user_id: 'user-1',
+    name,
+    description: null,
+    is_public: false,
+    serving_size: 1,
+    serving_unit: 'serving',
+    total_servings: 1,
+    created_at: '2026-04-01T00:00:00.000Z',
+    updated_at: '2026-04-01T00:00:00.000Z',
+    foods: [],
+  };
+}
 
 describe('useMealSearch', () => {
   let queryClient: QueryClient;
@@ -92,8 +111,8 @@ describe('useMealSearch', () => {
 
     test('returns search results from response', async () => {
       const mealsData = [
-        { id: 'meal-1', name: 'Protein Shake', foods: [] },
-        { id: 'meal-2', name: 'Protein Bowl', foods: [] },
+        meal('meal-1', 'Protein Shake'),
+        meal('meal-2', 'Protein Bowl'),
       ];
       mockSearchMeals.mockResolvedValue(mealsData);
 

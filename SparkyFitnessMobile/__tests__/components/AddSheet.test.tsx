@@ -22,7 +22,7 @@ jest.mock('@gorhom/bottom-sheet', () => {
 
   return {
     BottomSheetModal: React.forwardRef(
-      ({ children, onDismiss, onAnimate }: any, ref) => {
+      ({ children, onDismiss, onAnimate }: any, ref: unknown) => {
         // Test mock stashes the latest handlers for assertions; writing to the
         // module-scoped controls during the mock's render is intentional.
         /* eslint-disable react-hooks/immutability */
@@ -62,7 +62,9 @@ function renderAddSheet(overrides: Partial<React.ComponentProps<typeof AddSheet>
 
 describe('AddSheet', () => {
   let requestAnimationFrameSpy: jest.SpyInstance<number, [FrameRequestCallback]>;
-  let cancelAnimationFrameSpy: jest.SpyInstance<void, [number]>;
+  // RN types the handle as nullable, so the spy has to be declared over the
+  // same parameter list the global carries.
+  let cancelAnimationFrameSpy: jest.SpyInstance<void, [handle: number | null | undefined]>;
 
   beforeEach(() => {
     jest.clearAllMocks();

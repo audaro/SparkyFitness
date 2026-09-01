@@ -1,7 +1,6 @@
-import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Alert, View } from 'react-native';
+import { Alert, View, type ViewStyle } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 import MealTypeSettingsScreen, {
@@ -138,7 +137,11 @@ function DragPreviewHarness({
     targetIndex,
     strideList,
   );
-  return <View testID="preview-row" style={style} />;
+  // A plain View on purpose: under the Reanimated jest mock useAnimatedStyle
+  // yields the computed style object, and reading it straight back off the
+  // rendered node is what lets these tests assert the transform. The animated
+  // handle type only means anything to Animated.View at runtime.
+  return <View testID="preview-row" style={style as unknown as ViewStyle} />;
 }
 
 const UNIFORM_STRIDES = [64, 64, 64, 64, 64, 64, 64];

@@ -5,7 +5,6 @@ import { extractActivitySummary } from '../../src/utils/activityDetails';
 function activityDetail(overrides: Partial<ActivityDetailResponse> = {}): ActivityDetailResponse {
   return {
     id: 'detail-1',
-    exercise_entry_id: 'entry-1',
     provider_name: 'garmin',
     detail_type: 'full_activity_data',
     detail_data: {},

@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import CycleSettingsScreen from '../../src/screens/CycleSettingsScreen';
@@ -87,16 +86,16 @@ function renderScreen(initialSettings: any, { seed = true }: { seed?: boolean } 
 
 const baseSettings = {
   enabled: true,
-  mode: 'standard',
+  mode: 'standard' as const,
   avg_cycle_length_override: 28,
   avg_period_length_override: 5,
   luteal_phase_length: 14,
-  birth_control_method: 'none',
+  birth_control_method: 'none' as const,
   conditions: [],
   show_fertile_window: true,
   preferred_products: [],
   dismissed_prompts: [],
-  terminology: 'default',
+  terminology: 'default' as const,
   discreet_mode: false,
 };
 

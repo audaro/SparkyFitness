@@ -24,7 +24,7 @@ describe('useWellnessTokens', () => {
     const { result } = renderHook(() => useWellnessTokens());
     REQUIRED_KEYS.forEach((key) => {
       expect(result.current).toHaveProperty(key);
-      expect(typeof (result.current as Record<string, string>)[key]).toBe('string');
+      expect(typeof (result.current as unknown as Record<string, string>)[key]).toBe('string');
     });
   });
 });

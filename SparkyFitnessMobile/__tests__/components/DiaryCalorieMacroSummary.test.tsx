@@ -2,6 +2,7 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import DiaryCalorieMacroSummary from '../../src/components/DiaryCalorieMacroSummary';
 import { useAppPreferencesStore, __resetAppPreferencesStoreForTests } from '../../src/stores/appPreferencesStore';
+import { EMPTY_SUPPLEMENT_TOTALS } from '@workspace/shared';
 import type { DailySummary } from '../../src/types/dailySummary';
 import type { UserCustomNutrient } from '../../src/hooks/useCustomNutrients';
 
@@ -44,6 +45,8 @@ function buildSummary(overrides: Partial<DailySummary> = {}): DailySummary {
       exerciseSource: 'none',
       tdeeProjection: null,
     },
+    supplementTotals: EMPTY_SUPPLEMENT_TOTALS,
+    goals: { calories: 2000, protein: 100, carbs: 250, fat: 67, dietary_fiber: 30 },
     customNutrientTotals: {},
     customNutrientGoals: {},
     ...overrides,

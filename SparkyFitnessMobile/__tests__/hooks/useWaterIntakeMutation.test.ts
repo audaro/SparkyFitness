@@ -42,6 +42,7 @@ const makeRawData = (waterMl = 500): DailySummaryRawData => ({
   foodEntries: [],
   exerciseEntries: [],
   waterIntake: { water_ml: waterMl },
+  stepCalories: 0,
 });
 
 describe('useWaterIntakeMutation', () => {

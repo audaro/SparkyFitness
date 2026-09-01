@@ -599,6 +599,7 @@ describe('useAddFoodEntry', () => {
       await result.current.addEntryAsync({
         saveFoodPayload: {
           name: 'Legacy Food',
+          brand: null,
           serving_size: 1,
           serving_unit: 'serving (80 g)',
           calories: 80,

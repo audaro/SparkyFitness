@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import type { ToastConfigParams } from 'react-native-toast-message';
 import { toastConfig } from '../../../src/components/ui/toastConfig';

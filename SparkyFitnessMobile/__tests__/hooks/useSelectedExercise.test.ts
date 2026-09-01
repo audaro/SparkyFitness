@@ -2,6 +2,11 @@ import { renderHook } from '@testing-library/react-native';
 import { useSelectedExercise } from '../../src/hooks/useSelectedExercise';
 import type { Exercise } from '../../src/types/exercise';
 
+type SelectedExerciseProps = {
+  params: Parameters<typeof useSelectedExercise>[0];
+  onSelectFn: Parameters<typeof useSelectedExercise>[1];
+};
+
 const makeExercise = (overrides?: Partial<Exercise>): Exercise => ({
   id: 'ex-1',
   name: 'Bench Press',
@@ -63,7 +68,7 @@ describe('useSelectedExercise', () => {
     const exercise = makeExercise();
 
     const { rerender } = renderHook(
-      ({ params, onSelectFn }) => useSelectedExercise(params, onSelectFn),
+      ({ params, onSelectFn }: SelectedExerciseProps) => useSelectedExercise(params, onSelectFn),
       {
         initialProps: {
           params: { selectedExercise: exercise, selectionNonce: 1 },
@@ -89,7 +94,7 @@ describe('useSelectedExercise', () => {
     const exercise2 = makeExercise({ id: 'ex-2', name: 'Squat' });
 
     const { rerender } = renderHook(
-      ({ params, onSelectFn }) => useSelectedExercise(params, onSelectFn),
+      ({ params, onSelectFn }: SelectedExerciseProps) => useSelectedExercise(params, onSelectFn),
       {
         initialProps: {
           params: { selectedExercise: exercise1, selectionNonce: 1 },

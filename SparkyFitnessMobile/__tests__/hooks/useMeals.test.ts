@@ -53,6 +53,7 @@ const mealData = {
   is_public: false,
   serving_size: 1,
   serving_unit: 'serving',
+  total_servings: 1,
   created_at: '2026-04-01T00:00:00.000Z',
   updated_at: '2026-04-01T00:00:00.000Z',
   foods: [],
@@ -84,8 +85,8 @@ describe('useMeals', () => {
 
   test('returns meals array from response', async () => {
     const mealsData = [
-      { id: 'meal-1', name: 'Overnight Oats', foods: [] },
-      { id: 'meal-2', name: 'Protein Shake', foods: [] },
+      { ...mealData, id: 'meal-1', name: 'Overnight Oats' },
+      { ...mealData, id: 'meal-2', name: 'Protein Shake' },
     ];
     mockFetchMeals.mockResolvedValue(mealsData);
 
@@ -138,7 +139,7 @@ describe('useMeals', () => {
       expect(result.current.meals).toEqual([]);
     });
 
-    const updatedMeals = [{ id: 'meal-1', name: 'Updated Meal', foods: [] }];
+    const updatedMeals = [{ ...mealData, id: 'meal-1', name: 'Updated Meal' }];
     mockFetchMeals.mockResolvedValue(updatedMeals);
 
     await act(async () => {
@@ -316,7 +317,7 @@ describe('useRecentMeals', () => {
   });
 
   test('returns recent meals from the response', async () => {
-    const mealsData = [{ id: 'meal-1', name: 'Overnight Oats', foods: [] }];
+    const mealsData = [{ ...mealData, id: 'meal-1', name: 'Overnight Oats' }];
     mockFetchRecentMeals.mockResolvedValue(mealsData);
 
     const { result } = renderHook(() => useRecentMeals({ limit: 3 }), {

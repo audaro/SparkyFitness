@@ -6,8 +6,18 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(pathToFileURL(__filename));
 const localeMod = require('../../scripts/i18n-audit/localeValidator.cjs');
-const LocaleValidator: new (enPath: string, plPath: string) => LocaleValidatorInstance =
-  localeMod.LocaleValidator;
+// Mirrors localeValidator.cjs's `constructor(sourcePath, legacyTranslationPath,
+// options = {})`: the legacy Polish path is optional once `localePaths` names
+// the targets explicitly.
+interface LocaleValidatorOptions {
+  localePaths?: { locale: string; path: string; intlLocale: string }[];
+  sourceIntlLocale?: string;
+}
+const LocaleValidator: new (
+  enPath: string,
+  plPath: string | null,
+  options?: LocaleValidatorOptions,
+) => LocaleValidatorInstance = localeMod.LocaleValidator;
 interface PluralGroup {
   base: string;
   isPlural: boolean;

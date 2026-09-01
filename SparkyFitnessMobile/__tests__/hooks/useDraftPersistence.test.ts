@@ -19,6 +19,7 @@ const makeActivityDraft = (overrides?: Partial<ActivityDraft>): ActivityDraft =>
   exerciseId: null,
   exerciseName: '',
   exerciseCategory: null,
+  exerciseImages: [],
   caloriesPerHour: 0,
   duration: '',
   distance: '',
@@ -40,7 +41,9 @@ const makeWorkoutDraft = (overrides?: Partial<WorkoutDraft>): WorkoutDraft => ({
 
 interface RenderOptions {
   state: ActivityDraft;
-  draftType?: 'activity' | 'workout';
+  // The harness renders the hook over an ActivityDraft, and the hook ties
+  // draftType to the state's own type, so this is 'activity' by construction.
+  draftType?: 'activity';
   isEditMode?: boolean;
   skipDraftLoad?: boolean;
   onDraftLoaded?: jest.Mock;
@@ -56,7 +59,7 @@ function renderDraftPersistence({
   onInitialDate = jest.fn(),
 }: RenderOptions) {
   return renderHook(
-    ({ state: s }) =>
+    ({ state: s }: { state: ActivityDraft }) =>
       useDraftPersistence({
         state: s,
         draftType,

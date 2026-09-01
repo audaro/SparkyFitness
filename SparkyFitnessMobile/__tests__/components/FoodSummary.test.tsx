@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import FoodSummary from '../../src/components/FoodSummary';
 import type { DailyGoals } from '../../src/types/goals';
@@ -150,7 +149,9 @@ describe('FoodSummary', () => {
       <FoodSummary
         // A deleted/unknown custom name with no id: falls into its own literal
         // historical group (isSystem=false) and must not receive any target.
-        foodEntries={[{ id: 'e3', meal_type_id: null, meal_type: 'my deleted custom' } as FoodEntry]}
+        foodEntries={[
+          { id: 'e3', meal_type_id: null, meal_type: 'my deleted custom' } as unknown as FoodEntry,
+        ]}
         mealTypes={mealTypes}
         goals={goals}
         calorieGoal={2000}

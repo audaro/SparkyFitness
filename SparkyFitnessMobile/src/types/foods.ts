@@ -2,6 +2,12 @@ export interface FoodDefaultVariant {
   id?: string;
   serving_size: number;
   serving_unit: string;
+  /**
+   * Provider-supplied portion label ("1 whole (20 g)"). Optional and nullable:
+   * the variant schema stores it as a nullable column, and a plain metric
+   * variant has none.
+   */
+  serving_description?: string | null;
   calories: number;
   protein: number;
   carbs: number;
@@ -89,6 +95,8 @@ export interface FoodVariantDetail {
   food_id: string;
   serving_size: number;
   serving_unit: string;
+  /** Portion label; see FoodDefaultVariant.serving_description. */
+  serving_description?: string | null;
   calories: number;
   protein: number;
   carbs: number;

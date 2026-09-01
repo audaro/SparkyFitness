@@ -1309,6 +1309,7 @@ describe('externalFoodSearchApi', () => {
           image_url: 'https://images.openfoodfacts.org/thumb.jpg',
           image_source_url: 'https://images.openfoodfacts.org/full.jpg',
           default_variant: {
+            is_default: true,
             serving_size: 100,
             serving_unit: 'g',
             calories: 0,

@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -39,6 +38,8 @@ describe('CustomTabBar', () => {
         index: 0,
         routeNames: routes.map(route => route.name),
         history: [],
+        // No tab is preloaded in these renders; the navigator fills this in.
+        preloadedRouteKeys: [],
         routes,
       },
       descriptors: Object.fromEntries(

@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';

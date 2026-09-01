@@ -1,4 +1,3 @@
-import React from 'react';
 import { Platform } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { pressAction } from './helpers/nativeHeaderTestUtils';
@@ -37,7 +36,6 @@ jest.mock('../../src/services/mealBuilderSelection', () => ({
 }));
 
 jest.mock('../../src/components/ui/Button', () => {
-  const React = require('react');
   const { Pressable } = require('react-native');
   return {
     __esModule: true,
@@ -61,7 +59,6 @@ jest.mock('../../src/components/Icon', () => {
 });
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
-  const React = require('react');
   const { Pressable, Text, View } = require('react-native');
   return {
     __esModule: true,

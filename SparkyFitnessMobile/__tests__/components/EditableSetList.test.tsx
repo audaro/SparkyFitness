@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import EditableSetList from '../../src/components/EditableSetList';
 import type { WorkoutDraftSet } from '../../src/types/drafts';

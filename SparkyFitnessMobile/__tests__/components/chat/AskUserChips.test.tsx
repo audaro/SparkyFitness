@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import AskUserChips from '../../../src/components/chat/AskUserChips';
 import FoodConfirmCards from '../../../src/components/chat/FoodConfirmCards';
@@ -6,6 +5,7 @@ import {
   CONFIRM_FOOD_REJECT_MESSAGE,
   confirmFoodPickMessage,
 } from '@workspace/shared';
+import type { ToolCallMessagePart } from '@assistant-ui/react-native';
 
 // Both components read assistant-ui state (message.isLast, thread.isRunning)
 // and send replies through aui.thread().append; mock the store surface so the
@@ -73,7 +73,7 @@ describe('AskUserChips', () => {
   });
 });
 
-const confirmPart = {
+const confirmPart: ToolCallMessagePart = {
   type: 'tool-call' as const,
   toolCallId: 'call-2',
   toolName: 'sparky_confirm_food',

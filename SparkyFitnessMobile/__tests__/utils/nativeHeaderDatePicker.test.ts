@@ -1,3 +1,5 @@
+import type { NativeStackHeaderItemButton } from '@react-navigation/native-stack';
+
 import {
   createNativeHeaderDatePickerItems,
   setNativeHeaderDatePickerOptions,
@@ -14,6 +16,10 @@ describe('nativeHeaderDatePicker', () => {
     onNextDate,
     tintColor: '#0A84FF',
     accessibilityLabel: 'Choose diary date',
+    // The picker only reads `t` for the optional label overrides, which these
+    // cases leave unset, so the identity function is enough.
+    t: ((key: string) => key) as unknown as import('i18next').TFunction,
+    locale: 'en',
   };
 
   beforeEach(() => {
@@ -21,7 +27,11 @@ describe('nativeHeaderDatePicker', () => {
   });
 
   it('creates tappable accent-colored date controls', () => {
-    const items = createNativeHeaderDatePickerItems(options);
+    // Every item the picker builds is a button; the union needs saying so before
+    // its button-only fields are readable.
+    const items = createNativeHeaderDatePickerItems(
+      options,
+    ) as NativeStackHeaderItemButton[];
 
     expect(items).toHaveLength(3);
     expect(items.map((item) => item.identifier)).toEqual([
@@ -32,9 +42,9 @@ describe('nativeHeaderDatePicker', () => {
     expect(items.every((item) => item.tintColor === '#0A84FF')).toBe(true);
     expect(items[1]?.label).toContain('Jan 15');
 
-    items[0]?.onPress();
-    items[1]?.onPress();
-    items[2]?.onPress();
+    items[0]?.onPress?.();
+    items[1]?.onPress?.();
+    items[2]?.onPress?.();
 
     expect(onPreviousDate).toHaveBeenCalledTimes(1);
     expect(onDatePress).toHaveBeenCalledTimes(1);

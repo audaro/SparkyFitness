@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, fireEvent, act, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Speech from 'expo-speech';

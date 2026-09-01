@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import FoodPhotoEstimateReviewScreen from '../../src/screens/FoodPhotoEstimateReviewScreen';
@@ -34,7 +33,6 @@ jest.mock('../../src/hooks/usePreferences', () => ({
 // Surface every option (flattening sections) as a Pressable so tests can select
 // units by tapping their displayed label (e.g. "g", "oz").
 jest.mock('../../src/components/BottomSheetPicker', () => {
-  const React = require('react');
   const { Pressable, Text, View } = require('react-native');
   return {
     __esModule: true,

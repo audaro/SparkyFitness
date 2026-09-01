@@ -322,7 +322,7 @@ describe('useFoodsLibrary', () => {
       });
 
     const { rerender } = renderHook(
-      ({ searchText }) => useFoodsLibrary(searchText),
+      ({ searchText }: { searchText: string }) => useFoodsLibrary(searchText),
       {
         initialProps: { searchText: '' },
         wrapper: createQueryWrapper(queryClient),

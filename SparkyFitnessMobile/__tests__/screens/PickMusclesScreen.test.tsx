@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { freshnessPercent, freshnessTone, MUSCLES } from '@workspace/shared';
 
@@ -45,7 +44,7 @@ const mockNavigation = {
   setOptions: jest.fn(),
   navigate: jest.fn(),
   addListener: mockAddListener,
-} as never;
+};
 
 /** The `beforeRemove` handler the screen registered, if it registered one. */
 function beforeRemoveListener(): ((event: { preventDefault: () => void }) => void) | null {
@@ -93,7 +92,7 @@ function setRecovery(muscles: ReturnType<typeof item>[]) {
 
 function renderScreen() {
   const route = { key: 'PickMuscles-1', name: 'PickMuscles', params: undefined } as never;
-  return render(<PickMusclesScreen navigation={mockNavigation} route={route} />, {
+  return render(<PickMusclesScreen navigation={mockNavigation as never} route={route} />, {
     wrapper: createQueryWrapper(createTestQueryClient()),
   });
 }

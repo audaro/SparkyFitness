@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, createContext } from 'react';
+import { useEffect, useState, useContext, createContext } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { render, renderHook, waitFor, fireEvent } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';

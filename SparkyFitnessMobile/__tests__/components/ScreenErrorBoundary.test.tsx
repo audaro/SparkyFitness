@@ -127,7 +127,9 @@ describe('withErrorBoundary HOC', () => {
   it('provides Go Back when canGoBack is true and navigation prop exists', () => {
     const goBack = jest.fn();
 
-    function CrashScreen(): React.ReactElement {
+    // The wrapper is typed by the screen it wraps, and the Go Back action reads
+    // `navigation` off those props, so the screen has to declare it.
+    function CrashScreen(_props: { navigation: { goBack: () => void } }): React.ReactElement {
       throw new Error('crash');
     }
 

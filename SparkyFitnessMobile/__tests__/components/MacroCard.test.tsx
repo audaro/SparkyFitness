@@ -1,4 +1,3 @@
-import React from 'react';
 import { render } from '@testing-library/react-native';
 import MacroCard from '../../src/components/MacroCard';
 
@@ -29,13 +28,13 @@ describe('MacroCard', () => {
 
   it('defaults to the 2-column width class when widthClassName is not provided', () => {
     const { toJSON } = render(<MacroCard {...baseProps} />);
-    const root = toJSON() as { props: { className: string } };
+    const root = toJSON() as unknown as { props: { className: string } };
     expect(root.props.className).toContain('w-[48%]');
   });
 
   it('applies a custom widthClassName when provided', () => {
     const { toJSON } = render(<MacroCard {...baseProps} widthClassName="w-[31%]" />);
-    const root = toJSON() as { props: { className: string } };
+    const root = toJSON() as unknown as { props: { className: string } };
     expect(root.props.className).toContain('w-[31%]');
   });
 

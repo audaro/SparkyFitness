@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import { pressAction } from './helpers/nativeHeaderTestUtils';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -76,7 +75,6 @@ jest.mock('uniwind', () => ({
 }));
 
 jest.mock('../../src/components/FadeView', () => {
-  const React = require('react');
   return {
     __esModule: true,
     default: ({ children }: any) => <>{children}</>,
@@ -92,7 +90,6 @@ jest.mock('../../src/components/Icon', () => {
 });
 
 jest.mock('../../src/components/ui/Button', () => {
-  const React = require('react');
   const { Pressable, Text } = require('react-native');
   return {
     __esModule: true,
@@ -105,7 +102,6 @@ jest.mock('../../src/components/ui/Button', () => {
 });
 
 jest.mock('../../src/components/StepperInput', () => {
-  const React = require('react');
   const { TextInput } = require('react-native');
   return {
     __esModule: true,
@@ -121,7 +117,6 @@ jest.mock('../../src/components/StepperInput', () => {
 });
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
-  const React = require('react');
   const { Pressable, Text, View } = require('react-native');
   return {
     __esModule: true,
@@ -142,7 +137,6 @@ jest.mock('../../src/components/BottomSheetPicker', () => {
 });
 
 jest.mock('../../src/components/FoodUnitSelectorSheet', () => {
-  const React = require('react');
   const { View } = require('react-native');
   return {
     __esModule: true,
@@ -260,6 +254,7 @@ describe('FoodEntryViewScreen', () => {
     });
     mockUseDeleteFoodEntry.mockReturnValue({
       confirmAndDelete: jest.fn(),
+      deleteEntry: jest.fn(),
       isPending: false,
       invalidateCache: jest.fn(),
     });

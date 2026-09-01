@@ -23,7 +23,7 @@ const mockAddLog = addLog as jest.MockedFunction<typeof addLog>;
 describe('useAppLanguageForegroundSync', () => {
   let listeners: ((state: string) => void)[] = [];
   let removeSubscription: jest.Mock;
-  let osSpy: jest.SpyInstance | null = null;
+  let osSpy: jest.ReplaceProperty<typeof Platform.OS> | null = null;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -125,7 +125,7 @@ describe('useAppLanguageForegroundSync', () => {
     expect(listeners).toHaveLength(1);
 
     useAppPreferencesStore.setState({ languagePreference: 'pl' });
-    rerender();
+    rerender(undefined);
 
     expect(removeSubscription).toHaveBeenCalledTimes(0);
     expect(listeners).toHaveLength(1);

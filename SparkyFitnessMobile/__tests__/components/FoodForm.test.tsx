@@ -2,6 +2,10 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import FoodForm from '../../src/components/FoodForm';
+import type {
+  EquivalentUnit,
+  FoodUnitSelectionResult,
+} from '../../src/types/foodUnitVariants';
 
 const mockBottomSheetPicker = jest.fn();
 const mockFoodUnitSelectorSheet = jest.fn();
@@ -11,7 +15,6 @@ let mockActiveAiServiceSetting: any = null;
 let mockUserPreferences: any = undefined;
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
-  const React = require('react');
   const { View } = require('react-native');
   return {
     __esModule: true,
@@ -30,7 +33,6 @@ jest.mock('../../src/components/BottomSheetPicker', () => {
 });
 
 jest.mock('../../src/components/FoodUnitSelectorSheet', () => {
-  const React = require('react');
   const { Pressable, Text, View } = require('react-native');
   return {
     __esModule: true,
@@ -304,13 +306,15 @@ describe('FoodForm', () => {
   });
 
   it('uses the unit selector sheet when conversion options are provided', async () => {
-    const onUnitSelectionChange = jest.fn((selection) => ({
-      kind: 'existing',
-      variant: {
-        ...selection.variant,
-        id: 'variant-oz',
-      },
-    }));
+    const onUnitSelectionChange = jest.fn(
+      (selection: FoodUnitSelectionResult): FoodUnitSelectionResult => ({
+        kind: 'existing',
+        variant: {
+          ...selection.variant,
+          id: 'variant-oz',
+        },
+      }),
+    );
 
     const screen = render(
       <FoodForm
@@ -1416,7 +1420,7 @@ describe('FoodForm', () => {
   it('keeps the trailing decimal while typing an equivalent size', () => {
     const handleChange = jest.fn();
     function Harness() {
-      const [items, setItems] = React.useState([
+      const [items, setItems] = React.useState<EquivalentUnit[]>([
         { serving_size: 3, serving_unit: 'g', _clientKey: 'eq-test' },
       ]);
       return (

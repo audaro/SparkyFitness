@@ -16,6 +16,7 @@ describe('getWorkoutSummary', () => {
       distance: 5,
       avg_heart_rate: 150,
       source: 'sparky',
+      superset_group: null,
       sets: [],
       exercise_snapshot: {
         id: 'snapshot-1',

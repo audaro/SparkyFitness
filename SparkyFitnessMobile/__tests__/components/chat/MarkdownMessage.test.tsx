@@ -1,4 +1,3 @@
-import React from 'react';
 import { Linking } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import MarkdownMessage from '../../../src/components/chat/MarkdownMessage';

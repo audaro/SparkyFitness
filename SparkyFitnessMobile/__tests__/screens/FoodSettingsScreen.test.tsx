@@ -1,4 +1,3 @@
-import React from 'react';
 import { Platform } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

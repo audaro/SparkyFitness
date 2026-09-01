@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert } from 'react-native';
 import { fireEvent, render, act } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -60,7 +59,6 @@ jest.mock('../../src/components/ActiveWorkoutRail', () => {
 });
 
 jest.mock('../../src/components/ActiveWorkoutHeader', () => {
-  const React = require('react');
   const { View } = require('react-native');
   const actual = jest.requireActual('../../src/components/ActiveWorkoutHeader');
   return {
@@ -352,7 +350,7 @@ describe('ActiveWorkoutScreen overflow menu wiring', () => {
     const removeItem = mockSheet.props?.items.find((i) => i.key === 'remove');
     expect(removeItem?.label).toBe('Remove exercise');
     // Press the remove menu item to trigger the alert
-    act(() => removeItem?.onPress?.('ex-a'));
+    act(() => removeItem?.onPress?.());
     // The alert's destructive button text should be "Remove" (common.remove),
     // not "Remove exercise" (workout.removeExercise).
     const lastCall = alertSpy.mock.calls[alertSpy.mock.calls.length - 1];

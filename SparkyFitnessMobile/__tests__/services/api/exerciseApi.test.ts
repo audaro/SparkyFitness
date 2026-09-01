@@ -37,12 +37,34 @@ const mockGetActiveServerConfig = getActiveServerConfig as jest.MockedFunction<
   typeof getActiveServerConfig
 >;
 
+/**
+ * A minimal exercise snapshot. The eight nullable catalog fields are required by
+ * the response contract but say nothing these tests assert, so they are null.
+ */
+function snapshot(id: string, name: string, category: string) {
+  return {
+    id,
+    name,
+    category,
+    images: null,
+    primary_muscles: null,
+    secondary_muscles: null,
+    equipment: null,
+    instructions: null,
+    force: null,
+    level: null,
+    mechanic: null,
+  };
+}
+
 /** Helper to build an individual session with sensible defaults */
 function individual(overrides: Partial<ExerciseSessionResponse & { type: 'individual' }> = {}): ExerciseSessionResponse {
   return {
     type: 'individual',
     id: 'i-1',
     exercise_id: 'ex-1',
+    // A session with no custom name falls back to the snapshot's.
+    name: null,
     entry_date: '2024-06-15',
     duration_minutes: 30,
     calories_burned: 0,
@@ -53,6 +75,7 @@ function individual(overrides: Partial<ExerciseSessionResponse & { type: 'indivi
     sets: [],
     exercise_snapshot: null,
     activity_details: [],
+    superset_group: null,
     ...overrides,
   };
 }
@@ -757,8 +780,8 @@ describe('exerciseApi', () => {
       const entries: ExerciseSessionResponse[] = [
         preset({
           exercises: [
-            { id: 'e1', exercise_id: 'ex-1', duration_minutes: 10, calories_burned: 100, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [] },
-            { id: 'e2', exercise_id: 'ex-2', duration_minutes: 15, calories_burned: 200, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [] },
+            { id: 'e1', exercise_id: 'ex-1', duration_minutes: 10, calories_burned: 100, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [], superset_group: null },
+            { id: 'e2', exercise_id: 'ex-2', duration_minutes: 15, calories_burned: 200, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [], superset_group: null },
           ],
         }),
       ];
@@ -770,7 +793,7 @@ describe('exerciseApi', () => {
         individual({ id: '1', calories_burned: 100 }),
         preset({
           exercises: [
-            { id: 'e1', exercise_id: 'ex-1', duration_minutes: 10, calories_burned: 150, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [] },
+            { id: 'e1', exercise_id: 'ex-1', duration_minutes: 10, calories_burned: 150, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [], superset_group: null },
           ],
         }),
       ];
@@ -785,17 +808,17 @@ describe('exerciseApi', () => {
 
     test('returns 0 when no Active Calories exercises exist', () => {
       const entries: ExerciseSessionResponse[] = [
-        individual({ id: '1', calories_burned: 200, exercise_snapshot: { id: 'e1', name: 'Running', category: 'Cardio' } }),
-        individual({ id: '2', calories_burned: 150, exercise_snapshot: { id: 'e2', name: 'Cycling', category: 'Cardio' } }),
+        individual({ id: '1', calories_burned: 200, exercise_snapshot: snapshot('e1', 'Running', 'Cardio') }),
+        individual({ id: '2', calories_burned: 150, exercise_snapshot: snapshot('e2', 'Cycling', 'Cardio') }),
       ];
       expect(calculateActiveCalories(entries)).toBe(0);
     });
 
     test('sums only Active Calories exercises', () => {
       const entries: ExerciseSessionResponse[] = [
-        individual({ id: '1', calories_burned: 200, exercise_snapshot: { id: 'e1', name: 'Running', category: 'Cardio' } }),
-        individual({ id: '2', calories_burned: 450, exercise_snapshot: { id: 'e2', name: 'Active Calories', category: 'Tracking' } }),
-        individual({ id: '3', calories_burned: 100, exercise_snapshot: { id: 'e3', name: 'Active Calories', category: 'Tracking' } }),
+        individual({ id: '1', calories_burned: 200, exercise_snapshot: snapshot('e1', 'Running', 'Cardio') }),
+        individual({ id: '2', calories_burned: 450, exercise_snapshot: snapshot('e2', 'Active Calories', 'Tracking') }),
+        individual({ id: '3', calories_burned: 100, exercise_snapshot: snapshot('e3', 'Active Calories', 'Tracking') }),
       ];
       expect(calculateActiveCalories(entries)).toBe(550);
     });
@@ -803,7 +826,7 @@ describe('exerciseApi', () => {
     test('handles entries without exercise_snapshot', () => {
       const entries: ExerciseSessionResponse[] = [
         individual({ id: '1', calories_burned: 200 }),
-        individual({ id: '2', calories_burned: 300, exercise_snapshot: { id: 'e2', name: 'Active Calories', category: 'Tracking' } }),
+        individual({ id: '2', calories_burned: 300, exercise_snapshot: snapshot('e2', 'Active Calories', 'Tracking') }),
       ];
       expect(calculateActiveCalories(entries)).toBe(300);
     });
@@ -812,7 +835,7 @@ describe('exerciseApi', () => {
       const entries: ExerciseSessionResponse[] = [
         preset({
           exercises: [
-            { id: 'e1', exercise_id: 'ex-1', duration_minutes: 10, calories_burned: 500, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [] },
+            { id: 'e1', exercise_id: 'ex-1', duration_minutes: 10, calories_burned: 500, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [], superset_group: null },
           ],
         }),
       ];
@@ -933,17 +956,17 @@ describe('exerciseApi', () => {
 
     test('returns all calories when no Active Calories exercises exist', () => {
       const entries: ExerciseSessionResponse[] = [
-        individual({ id: '1', calories_burned: 200, exercise_snapshot: { id: 'e1', name: 'Running', category: 'Cardio' } }),
-        individual({ id: '2', calories_burned: 150, exercise_snapshot: { id: 'e2', name: 'Cycling', category: 'Cardio' } }),
+        individual({ id: '1', calories_burned: 200, exercise_snapshot: snapshot('e1', 'Running', 'Cardio') }),
+        individual({ id: '2', calories_burned: 150, exercise_snapshot: snapshot('e2', 'Cycling', 'Cardio') }),
       ];
       expect(calculateOtherExerciseCalories(entries)).toBe(350);
     });
 
     test('excludes Active Calories exercises', () => {
       const entries: ExerciseSessionResponse[] = [
-        individual({ id: '1', calories_burned: 200, exercise_snapshot: { id: 'e1', name: 'Running', category: 'Cardio' } }),
-        individual({ id: '2', calories_burned: 450, exercise_snapshot: { id: 'e2', name: 'Active Calories', category: 'Tracking' } }),
-        individual({ id: '3', calories_burned: 150, exercise_snapshot: { id: 'e3', name: 'Cycling', category: 'Cardio' } }),
+        individual({ id: '1', calories_burned: 200, exercise_snapshot: snapshot('e1', 'Running', 'Cardio') }),
+        individual({ id: '2', calories_burned: 450, exercise_snapshot: snapshot('e2', 'Active Calories', 'Tracking') }),
+        individual({ id: '3', calories_burned: 150, exercise_snapshot: snapshot('e3', 'Cycling', 'Cardio') }),
       ];
       expect(calculateOtherExerciseCalories(entries)).toBe(350);
     });
@@ -951,7 +974,7 @@ describe('exerciseApi', () => {
     test('includes entries without exercise_snapshot', () => {
       const entries: ExerciseSessionResponse[] = [
         individual({ id: '1', calories_burned: 200 }),
-        individual({ id: '2', calories_burned: 300, exercise_snapshot: { id: 'e2', name: 'Active Calories', category: 'Tracking' } }),
+        individual({ id: '2', calories_burned: 300, exercise_snapshot: snapshot('e2', 'Active Calories', 'Tracking') }),
       ];
       expect(calculateOtherExerciseCalories(entries)).toBe(200);
     });
@@ -960,8 +983,8 @@ describe('exerciseApi', () => {
       const entries: ExerciseSessionResponse[] = [
         preset({
           exercises: [
-            { id: 'e1', exercise_id: 'ex-1', duration_minutes: 10, calories_burned: 100, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [] },
-            { id: 'e2', exercise_id: 'ex-2', duration_minutes: 15, calories_burned: 200, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [] },
+            { id: 'e1', exercise_id: 'ex-1', duration_minutes: 10, calories_burned: 100, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [], superset_group: null },
+            { id: 'e2', exercise_id: 'ex-2', duration_minutes: 15, calories_burned: 200, entry_date: null, notes: null, distance: null, avg_heart_rate: null, source: null, sets: [], exercise_snapshot: null, activity_details: [], superset_group: null },
           ],
         }),
       ];
@@ -976,9 +999,9 @@ describe('exerciseApi', () => {
 
     test('sums duration from individual entries, excluding Active Calories', () => {
       const entries: ExerciseSessionResponse[] = [
-        individual({ id: '1', duration_minutes: 30, exercise_snapshot: { id: 'e1', name: 'Running', category: 'Cardio' } }),
-        individual({ id: '2', duration_minutes: 45, exercise_snapshot: { id: 'e2', name: 'Active Calories', category: 'Tracking' } }),
-        individual({ id: '3', duration_minutes: 20, exercise_snapshot: { id: 'e3', name: 'Cycling', category: 'Cardio' } }),
+        individual({ id: '1', duration_minutes: 30, exercise_snapshot: snapshot('e1', 'Running', 'Cardio') }),
+        individual({ id: '2', duration_minutes: 45, exercise_snapshot: snapshot('e2', 'Active Calories', 'Tracking') }),
+        individual({ id: '3', duration_minutes: 20, exercise_snapshot: snapshot('e3', 'Cycling', 'Cardio') }),
       ];
       expect(calculateExerciseDuration(entries)).toBe(50);
     });
@@ -992,7 +1015,7 @@ describe('exerciseApi', () => {
 
     test('sums both individual and preset durations', () => {
       const entries: ExerciseSessionResponse[] = [
-        individual({ id: '1', duration_minutes: 30, exercise_snapshot: { id: 'e1', name: 'Running', category: 'Cardio' } }),
+        individual({ id: '1', duration_minutes: 30, exercise_snapshot: snapshot('e1', 'Running', 'Cardio') }),
         preset({ total_duration_minutes: 45 }),
       ];
       expect(calculateExerciseDuration(entries)).toBe(75);

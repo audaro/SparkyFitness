@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, within } from '@testing-library/react-native';
 import type { Medication, RxTermsProduct } from '@workspace/shared';
 import MedicationNameSuggestions from '../../src/components/MedicationNameSuggestions';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { act, render, waitFor } from '@testing-library/react-native';
 

@@ -4,7 +4,7 @@ import { dailySummaryQueryKey } from '../../src/hooks/queryKeys';
 import { fetchDailySummary } from '../../src/services/api/dailySummaryApi';
 import { fetchFoodEntryMealsByDate } from '../../src/services/api/foodEntryMealsApi';
 import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
-import { EMPTY_SUPPLEMENT_TOTALS } from '@workspace/shared';
+import { EMPTY_SUPPLEMENT_TOTALS, type SupplementTotals } from '@workspace/shared';
 
 jest.mock('../../src/services/api/dailySummaryApi', () => ({
   fetchDailySummary: jest.fn(),
@@ -76,7 +76,9 @@ const makeSummaryResponse = (overrides: Record<string, unknown> = {}) => ({
   waterIntake: (overrides.waterIntake ?? 0) as number,
   stepCalories: (overrides.stepCalories ?? 0) as number,
   calorieBalance: makeCalorieBalance(overrides.calorieBalance as Record<string, unknown>),
-  ...(overrides.supplementTotals ? { supplementTotals: overrides.supplementTotals } : {}),
+  ...(overrides.supplementTotals
+    ? { supplementTotals: overrides.supplementTotals as SupplementTotals }
+    : {}),
 });
 
 describe('useDailySummary', () => {

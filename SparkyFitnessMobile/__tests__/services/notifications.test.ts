@@ -151,7 +151,7 @@ describe('notifications service', () => {
   describe('foreground presentation', () => {
     const getHandler = async () => {
       await initNotifications();
-      return mockSetHandler.mock.calls[0][0].handleNotification;
+      return mockSetHandler.mock.calls[0][0]!.handleNotification;
     };
     const notificationWith = (categoryIdentifier: string | null) =>
       ({ request: { content: { categoryIdentifier } } }) as Notifications.Notification;

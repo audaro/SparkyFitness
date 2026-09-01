@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import i18n, { initializeI18n } from '../../src/localization/i18n';
@@ -48,7 +47,7 @@ jest.mock('uniwind', () => ({
 
 const navigation = {
   navigate: jest.fn(),
-} as never;
+};
 const route = {
   key: 'WhatsNew-key',
   name: 'WhatsNew',
@@ -63,7 +62,7 @@ describe('WhatsNewScreen localization', () => {
   });
 
   it('renders English content and navigates from the medications CTA', () => {
-    render(<WhatsNewScreen navigation={navigation} route={route} />);
+    render(<WhatsNewScreen navigation={navigation as never} route={route} />);
 
     expect(screen.getByText("What's New")).toBeTruthy();
     expect(screen.getByText('Track your medications')).toBeTruthy();
@@ -77,7 +76,7 @@ describe('WhatsNewScreen localization', () => {
 
   it('renders Polish feature and mockup copy after switching language', async () => {
     await i18n.changeLanguage('pl');
-    render(<WhatsNewScreen navigation={navigation} route={route} />);
+    render(<WhatsNewScreen navigation={navigation as never} route={route} />);
 
     expect(screen.getByText('Co nowego')).toBeTruthy();
     expect(screen.getByText('Monitoruj przyjmowanie leków')).toBeTruthy();

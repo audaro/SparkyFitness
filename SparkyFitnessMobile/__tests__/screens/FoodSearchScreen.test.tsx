@@ -1,10 +1,10 @@
-import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import FoodSearchScreen from '../../src/screens/FoodSearchScreen';
 import { fetchExternalFoodDetails } from '../../src/services/api/externalFoodSearchApi';
 import { ApiError } from '../../src/services/api/errors';
+import type { RootStackScreenProps } from '../../src/types/navigation';
 import {
   useExternalFoodSearch,
   useExternalProviders,
@@ -94,6 +94,7 @@ function buildMeal(): Meal {
     is_public: false,
     serving_size: 1,
     serving_unit: 'serving',
+    total_servings: 1,
     created_at: '2026-04-01T00:00:00.000Z',
     updated_at: '2026-04-01T00:00:00.000Z',
     foods: [
@@ -176,9 +177,9 @@ describe('FoodSearchScreen', () => {
     goBack: jest.fn(),
     navigate: jest.fn(),
   } as any;
-  const route = {
+  const route: RootStackScreenProps<'FoodSearch'>['route'] = {
     key: 'FoodSearch-key',
-    name: 'FoodSearch' as const,
+    name: 'FoodSearch',
     params: undefined,
   };
 

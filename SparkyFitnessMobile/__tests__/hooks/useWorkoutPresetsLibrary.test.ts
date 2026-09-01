@@ -23,7 +23,7 @@ const mockSearchWorkoutPresets = searchWorkoutPresets as jest.MockedFunction<
   typeof searchWorkoutPresets
 >;
 
-function createPreset(id: string, name: string): WorkoutPreset {
+function createPreset(id: number, name: string): WorkoutPreset {
   return {
     id,
     user_id: 'user-1',
@@ -57,7 +57,7 @@ describe('useWorkoutPresetsLibrary', () => {
   // before mounting to make the conflict deterministic.
   it('mounts cleanly even when the search-mode key already has data in the cache', async () => {
     mockFetchWorkoutPresetsPage.mockResolvedValue({
-      presets: [createPreset('p-1', 'Push Day')],
+      presets: [createPreset(1, 'Push Day')],
       pagination: { page: 1, pageSize: 20, totalCount: 1, hasMore: false },
     });
 
@@ -73,7 +73,7 @@ describe('useWorkoutPresetsLibrary', () => {
 
     await waitFor(() => {
       expect(result.current.presets).toEqual([
-        expect.objectContaining({ id: 'p-1', name: 'Push Day' }),
+        expect.objectContaining({ id: 1, name: 'Push Day' }),
       ]);
     });
     expect(result.current.hasNextPage).toBe(false);

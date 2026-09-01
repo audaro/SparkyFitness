@@ -1,4 +1,3 @@
-import React from 'react';
 import { Image } from 'expo-image';
 import { render } from '@testing-library/react-native';
 import SafeImage from '../../src/components/SafeImage';

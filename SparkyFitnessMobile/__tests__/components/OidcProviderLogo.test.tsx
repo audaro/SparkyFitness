@@ -1,4 +1,3 @@
-import React from 'react';
 import { Image } from 'expo-image';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { OidcProviderLogo } from '../../src/components/MfaForm';

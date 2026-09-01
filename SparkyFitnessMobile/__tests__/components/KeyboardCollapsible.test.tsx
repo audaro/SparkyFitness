@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text } from 'react-native';
 import { useAnimatedReaction } from 'react-native-reanimated';
 import { render, fireEvent } from '@testing-library/react-native';

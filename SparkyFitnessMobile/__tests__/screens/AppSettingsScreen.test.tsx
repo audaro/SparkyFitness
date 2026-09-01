@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, act, screen } from '@testing-library/react-native';
 import { Linking, Platform } from 'react-native';
 import { getLocales } from 'expo-localization';
@@ -57,7 +56,13 @@ jest.mock('../../src/utils/liquidGlass', () => ({
   canUseLiquidGlass: () => false,
 }));
 
-const mockNative = AppLanguageNative as jest.Mocked<typeof AppLanguageNative>;
+// `AppLanguageNative` exposes its two flags as getters, so `typeof` reports them
+// read-only; the jest.mock above replaces the whole module with plain writable
+// fields, which is what these tests set per case.
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+const mockNative = AppLanguageNative as Mutable<
+  jest.Mocked<typeof AppLanguageNative>
+>;
 const mockToastShow = Toast.show as jest.MockedFunction<typeof Toast.show>;
 
 const mockNavigation = {

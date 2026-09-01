@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -151,8 +150,8 @@ const navigation = {
   setParams: jest.fn(),
   addListener: jest.fn(() => jest.fn()),
   isFocused: jest.fn(() => true),
-} as never;
-const route = { params: undefined } as never;
+};
+const route = { params: undefined };
 
 // The logged-exercise rows own their own delete mutation, so the log section
 // needs a real client even though every read on this screen is mocked.
@@ -162,7 +161,7 @@ function renderScreen() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ExerciseHomeScreen navigation={navigation} route={route} />
+      <ExerciseHomeScreen navigation={navigation as never} route={route as never} />
     </QueryClientProvider>,
   );
 }

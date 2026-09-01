@@ -1,4 +1,3 @@
-import React from 'react';
 import { render } from '@testing-library/react-native';
 import MeasurementsSummary from '../../src/components/MeasurementsSummary';
 
@@ -51,10 +50,11 @@ describe('MeasurementsSummary', () => {
             entry_date: '2024-06-15',
             source: 'manual',
             custom_categories: {
-              id: 'cat-1',
               name: 'Blood Pressure',
               measurement_type: 'mmHg',
               frequency: 'Daily',
+              display_name: null,
+              data_type: 'numeric',
             },
           },
           {
@@ -64,11 +64,11 @@ describe('MeasurementsSummary', () => {
             entry_date: '2024-06-15',
             source: 'manual',
             custom_categories: {
-              id: 'cat-2',
               name: 'Blood Sugar',
               display_name: 'Glucose',
               measurement_type: 'mg/dL',
               frequency: 'Daily',
+              data_type: 'numeric',
             },
           },
         ]}
@@ -95,10 +95,11 @@ describe('MeasurementsSummary', () => {
             entry_date: '2024-06-15',
             source: 'manual',
             custom_categories: {
-              id: 'cat-1',
               name: 'Blood Pressure',
               measurement_type: 'mmHg',
               frequency: 'Daily',
+              display_name: null,
+              data_type: 'numeric',
             },
           },
         ]}
@@ -192,10 +193,11 @@ describe('MeasurementsSummary', () => {
       entry_date: '2024-06-15',
       source: 'manual',
       custom_categories: {
-        id: 'cat-1',
         name: 'Blood Pressure',
         measurement_type: 'mmHg',
         frequency: 'Daily',
+        display_name: null,
+        data_type: 'numeric',
       },
     };
     const syncedEntry = {
@@ -205,10 +207,11 @@ describe('MeasurementsSummary', () => {
       entry_date: '2024-06-15',
       source: 'healthkit',
       custom_categories: {
-        id: 'cat-2',
         name: 'Resting Heart Rate',
         measurement_type: 'bpm',
         frequency: 'Daily',
+        display_name: null,
+        data_type: 'numeric',
       },
     };
     const { getByText, queryByText } = render(
@@ -235,7 +238,7 @@ describe('MeasurementsSummary', () => {
             value: '75',
             entry_date: '2024-06-15',
             source: 'garmin',
-            custom_categories: { name: 'Heart Rate', measurement_type: 'bpm', frequency: 'Daily' },
+            custom_categories: { display_name: null, name: 'Heart Rate', measurement_type: 'bpm', frequency: 'Daily', data_type: 'numeric' },
           },
         ]}
       />,
@@ -254,7 +257,7 @@ describe('MeasurementsSummary', () => {
             value: '0',
             entry_date: '2024-06-15',
             source: 'manual',
-            custom_categories: { name: 'Zero', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
+            custom_categories: { display_name: null, name: 'Zero', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
           },
         ]}
       />,
@@ -276,7 +279,7 @@ describe('MeasurementsSummary', () => {
             value: 'false',
             entry_date: '2024-06-15',
             source: 'manual',
-            custom_categories: { name: 'Flag', measurement_type: '', frequency: 'Daily', data_type: 'boolean' },
+            custom_categories: { display_name: null, name: 'Flag', measurement_type: '', frequency: 'Daily', data_type: 'boolean' },
           },
         ]}
       />,
@@ -297,7 +300,7 @@ describe('MeasurementsSummary', () => {
             value: '50',
             entry_date: '2024-06-15',
             source: 'manual',
-            custom_categories: { name: 'Manual A', measurement_type: '', frequency: 'Daily' },
+            custom_categories: { display_name: null, name: 'Manual A', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
           },
           {
             id: 'e2',
@@ -305,7 +308,7 @@ describe('MeasurementsSummary', () => {
             value: '60',
             entry_date: '2024-06-15',
             source: 'oura',
-            custom_categories: { name: 'Oura Metric', measurement_type: '', frequency: 'Daily' },
+            custom_categories: { display_name: null, name: 'Oura Metric', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
           },
           {
             id: 'e3',
@@ -313,7 +316,7 @@ describe('MeasurementsSummary', () => {
             value: '70',
             entry_date: '2024-06-15',
             source: 'withings',
-            custom_categories: { name: 'Withings Metric', measurement_type: '', frequency: 'Daily' },
+            custom_categories: { display_name: null, name: 'Withings Metric', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
           },
         ]}
       />,
@@ -335,7 +338,7 @@ describe('MeasurementsSummary', () => {
             value: '75',
             entry_date: '2024-06-15',
             source: null,
-            custom_categories: { name: 'Null Source', measurement_type: '', frequency: 'Daily' },
+            custom_categories: { display_name: null, name: 'Null Source', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
           },
         ]}
       />,

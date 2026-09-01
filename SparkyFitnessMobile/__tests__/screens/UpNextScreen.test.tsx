@@ -291,13 +291,13 @@ const navigation = {
   replace: jest.fn(),
   isFocused: jest.fn(() => true),
   setOptions: jest.fn(),
-} as never;
+};
 
 function renderScreen(params: Record<string, unknown> | undefined = undefined) {
   return render(
     <SafeAreaProvider initialMetrics={{ insets, frame }}>
       <UpNextScreen
-        navigation={navigation}
+        navigation={navigation as never}
         route={{ key: 'UpNext-key', name: 'UpNext', params } as never}
       />
     </SafeAreaProvider>,
@@ -592,7 +592,7 @@ describe('UpNextScreen', () => {
         const screen = renderScreen();
 
         expect(screen.getByText('No workout yet')).toBeTruthy();
-        act(() => headerRightItem()?.onPress());
+        act(() => headerRightItem()?.onPress?.());
         expect(swapSheet()?.present).toHaveBeenCalled();
       });
 
@@ -842,7 +842,7 @@ describe('UpNextScreen', () => {
       screen.rerender(
         <SafeAreaProvider initialMetrics={{ insets, frame }}>
           <UpNextScreen
-            navigation={navigation}
+            navigation={navigation as never}
             route={{ key: 'UpNext-key', name: 'UpNext', params: undefined } as never}
           />
         </SafeAreaProvider>,
@@ -894,7 +894,7 @@ describe('UpNextScreen', () => {
       screen.rerender(
         <SafeAreaProvider initialMetrics={{ insets, frame }}>
           <UpNextScreen
-            navigation={navigation}
+            navigation={navigation as never}
             route={
               {
                 key: 'UpNext-key',
@@ -933,7 +933,7 @@ describe('UpNextScreen', () => {
       screen.rerender(
         <SafeAreaProvider initialMetrics={{ insets, frame }}>
           <UpNextScreen
-            navigation={navigation}
+            navigation={navigation as never}
             route={
               {
                 key: 'UpNext-key',

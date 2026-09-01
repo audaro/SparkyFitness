@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -333,7 +332,11 @@ describe('MedicationDetailScreen', () => {
   });
   it('localizes the PRN Logged fallback and keeps timestamp entries distinct', async () => {
     const med = buildMedication({ schedules: [] });
-    const logged = setupScreen(med, [buildEntry({ schedule_id: null, status: 'prn_taken', taken_at: null })]);
+    // taken_at is NOT NULL on the row, so the screen's empty-timestamp guard is
+    // defensive only — casting is the one way to reach the fallback label.
+    const logged = setupScreen(med, [
+      buildEntry({ schedule_id: null, status: 'prn_taken', taken_at: null as unknown as string }),
+    ]);
     expect(logged.getByText('Logged')).toBeTruthy();
     await act(async () => { await i18n.changeLanguage('pl'); });
     expect(logged.getByText('Zapisano')).toBeTruthy();

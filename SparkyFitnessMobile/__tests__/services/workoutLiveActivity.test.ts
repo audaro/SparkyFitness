@@ -105,6 +105,7 @@ function makeSet(id: number, setNumber: number, restTime = 60) {
     notes: null,
     rpe: null,
     completed_at: null,
+    is_pr: false,
   };
 }
 
@@ -138,7 +139,16 @@ function makeSession(overrides?: Partial<PresetSessionResponse>): PresetSessionR
           category: 'Strength',
           images: [],
           calories_per_hour: 400,
-        } as ExerciseSnapshotResponse,
+          // Required by the snapshot contract; the Live Activity layout reads
+          // only the name and the calorie rate.
+          primary_muscles: null,
+          secondary_muscles: null,
+          equipment: null,
+          instructions: null,
+          force: null,
+          level: null,
+          mechanic: null,
+        } satisfies ExerciseSnapshotResponse,
         activity_details: [],
         sets: [makeSet(101, 1), makeSet(102, 2)],
       } satisfies PresetSessionResponse['exercises'][number],
@@ -369,10 +379,10 @@ describe('workoutLiveActivity', () => {
 
     it('holds all operations until hydration, then adopts without a duplicate start', async () => {
       (useActiveWorkoutStore.persist.hasHydrated as jest.Mock).mockReturnValue(false);
-      let finishHydration: ((state?: unknown) => void) | undefined;
+      let finishHydration: Parameters<typeof useActiveWorkoutStore.persist.onFinishHydration>[0] | undefined;
       jest
         .spyOn(useActiveWorkoutStore.persist, 'onFinishHydration')
-        .mockImplementation((cb: (state?: unknown) => void) => {
+        .mockImplementation((cb) => {
           finishHydration = cb;
           return () => undefined;
         });
@@ -387,7 +397,7 @@ describe('workoutLiveActivity', () => {
       expect(mockFactory.start).not.toHaveBeenCalled();
       expect(leftover.update).not.toHaveBeenCalled();
 
-      finishHydration!();
+      finishHydration!(useActiveWorkoutStore.getState());
       await flushPromises();
       expect(mockFactory.start).not.toHaveBeenCalled();
       expect(leftover.update).toHaveBeenCalledWith(

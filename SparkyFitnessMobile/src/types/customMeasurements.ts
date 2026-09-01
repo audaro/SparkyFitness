@@ -30,7 +30,9 @@ export interface CustomMeasurementEntry {
   entry_hour?: number | null;
   entry_timestamp?: string;
   notes?: string | null;
-  source?: string;
+  // Nullable, not merely absent: rows written before the column existed carry a
+  // SQL NULL, which is why `isManualSource` accepts null as a distinct value.
+  source?: string | null;
   custom_categories?: CustomCategoryEntryInfo;
 }
 

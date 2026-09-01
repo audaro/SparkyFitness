@@ -1,4 +1,3 @@
-import React from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import { act, render, fireEvent } from '@testing-library/react-native';
 import { useCSSVariable } from 'uniwind';
@@ -51,6 +50,7 @@ function makeSet(overrides?: Partial<ExerciseEntrySetResponse>): ExerciseEntrySe
     notes: null,
     rpe: null,
     completed_at: null,
+    is_pr: false,
     ...overrides,
   };
 }
@@ -127,7 +127,7 @@ function renderRow(overrides?: RenderOverrides) {
   return { ...utils, callbacks, rerenderRow };
 }
 
-function textColor(element: { props: { style: unknown } }) {
+function textColor(element: { props: { style?: unknown } }) {
   return StyleSheet.flatten(element.props.style as any).color;
 }
 

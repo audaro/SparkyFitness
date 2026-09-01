@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { pressAction } from './helpers/nativeHeaderTestUtils';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -136,7 +135,6 @@ jest.mock('../../src/components/FormInput', () => {
 });
 
 jest.mock('../../src/components/StepperInput', () => {
-  const React = require('react');
   const { TextInput } = require('react-native');
   return {
     __esModule: true,
@@ -152,7 +150,6 @@ jest.mock('../../src/components/StepperInput', () => {
 });
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
-  const React = require('react');
   const { View, Text, Pressable } = require('react-native');
   return {
     __esModule: true,

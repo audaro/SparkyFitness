@@ -151,10 +151,10 @@ const customEntry = (overrides: Record<string, unknown> = {}) => ({
   value: '5',
   entry_date: ENTRY_DATE,
   entry_hour: null,
-  entry_timestamp: null,
+  entry_timestamp: undefined,
   notes: null,
   source: 'manual',
-  custom_categories: null,
+  custom_categories: undefined,
   ...overrides,
 });
 
@@ -786,7 +786,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     deleteMock.mutateAsync.mockResolvedValueOnce(undefined);
     saveMock.mutateAsync.mockRejectedValueOnce(new Error('boom'));
     await pressSave(screen);
-    await confirmClearAlert(screen);
+    await confirmClearAlert();
 
     expect(deleteMock.mutateAsync).toHaveBeenCalledTimes(1);
 

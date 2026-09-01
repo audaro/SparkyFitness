@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import EditableSetRow from '../../src/components/EditableSetRow';
 import type { ExerciseModality } from '@workspace/shared';

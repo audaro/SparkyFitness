@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { MUSCLES, ON_DEMAND_WORKOUTS } from '@workspace/shared';
 
@@ -36,7 +35,7 @@ const mockNavigation = {
   setOptions: jest.fn(),
   navigate: jest.fn(),
   addListener: jest.fn(() => jest.fn()),
-} as never;
+};
 
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
@@ -56,7 +55,7 @@ function renderScreen() {
     params: undefined,
   } as never;
   return render(
-    <OnDemandWorkoutsScreen navigation={mockNavigation} route={route} />,
+    <OnDemandWorkoutsScreen navigation={mockNavigation as never} route={route} />,
     { wrapper: createQueryWrapper(createTestQueryClient()) },
   );
 }

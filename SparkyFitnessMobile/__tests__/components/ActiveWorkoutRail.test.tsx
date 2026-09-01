@@ -1,4 +1,3 @@
-import React from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import type { ExerciseEntryResponse } from '@workspace/shared';
@@ -57,6 +56,8 @@ function makeExercise(id: string, name: string): ExerciseEntryResponse {
         rest_time: 90,
         notes: null,
         rpe: null,
+        completed_at: null,
+        is_pr: false,
       },
     ],
   };

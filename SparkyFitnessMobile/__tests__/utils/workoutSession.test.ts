@@ -104,6 +104,31 @@ const buildSessionSubtitle = (
   distanceUnit: 'km' | 'miles' = 'km',
 ) => buildSessionSubtitleWithTranslation(session, duration, calories, i18n.t, weightUnit, distanceUnit);
 
+/**
+ * Every field the snapshot schema requires, so a fixture only names what the
+ * test is actually about. The schema is `.strict()`, so a stray key is a type
+ * error here for the same reason it would be a 400 at runtime.
+ */
+const makeSnapshot = (
+  overrides?: Partial<ExerciseSnapshotResponse>,
+): ExerciseSnapshotResponse => ({
+  id: 'ex-1',
+  name: 'Exercise',
+  // Every default is the "not stated" value. A fixture that says nothing about
+  // category must not silently acquire one: category decides modality, and a
+  // stray 'Cardio' would change what the function under test does.
+  category: null,
+  images: [],
+  primary_muscles: [],
+  secondary_muscles: [],
+  equipment: [],
+  instructions: [],
+  force: null,
+  level: null,
+  mechanic: null,
+  ...overrides,
+});
+
 const makeIndividual = (overrides?: Partial<IndividualSession>): IndividualSession => ({
   type: 'individual',
   id: 'ind-1',
@@ -118,14 +143,14 @@ const makeIndividual = (overrides?: Partial<IndividualSession>): IndividualSessi
   source: null,
   superset_group: null,
   sets: [],
-  exercise_snapshot: {
+  exercise_snapshot: makeSnapshot({
     id: 'ex-1',
     name: 'Running',
     category: 'Cardio',
     calories_per_hour: 600,
     source: 'system',
     images: [],
-  },
+  }),
   activity_details: [],
   ...overrides,
 });
@@ -154,7 +179,7 @@ describe('workoutSession', () => {
     it('uses exact name match from CATEGORY_ICON_MAP', () => {
       const session = makeIndividual({
         name: 'Swimming',
-        exercise_snapshot: { id: 'ex-1', name: 'Swimming', category: 'Cardio', calories_per_hour: 500, source: 'system' },
+        exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Swimming', category: 'Cardio', calories_per_hour: 500, source: 'system' }),
       });
       expect(getWorkoutIcon(session)).toBe('exercise-swimming');
     });
@@ -162,7 +187,7 @@ describe('workoutSession', () => {
     it('uses category match for non-Cardio categories', () => {
       const session = makeIndividual({
         name: 'My Custom Workout',
-        exercise_snapshot: { id: 'ex-1', name: 'My Custom Workout', category: 'Strength', calories_per_hour: 400, source: 'system' },
+        exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'My Custom Workout', category: 'Strength', calories_per_hour: 400, source: 'system' }),
       });
       expect(getWorkoutIcon(session)).toBe('exercise-weights');
     });
@@ -170,7 +195,7 @@ describe('workoutSession', () => {
     it('skips Cardio category for keyword matching first', () => {
       const session = makeIndividual({
         name: 'swimming laps',
-        exercise_snapshot: { id: 'ex-1', name: 'swimming laps', category: 'Cardio', calories_per_hour: 500, source: 'system' },
+        exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'swimming laps', category: 'Cardio', calories_per_hour: 500, source: 'system' }),
       });
       expect(getWorkoutIcon(session)).toBe('exercise-swimming');
     });
@@ -178,7 +203,7 @@ describe('workoutSession', () => {
     it('falls back to Cardio category when no keyword matches', () => {
       const session = makeIndividual({
         name: 'Unknown Cardio Activity',
-        exercise_snapshot: { id: 'ex-1', name: 'Unknown Cardio Activity', category: 'Cardio', calories_per_hour: 300, source: 'system' },
+        exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Unknown Cardio Activity', category: 'Cardio', calories_per_hour: 300, source: 'system' }),
       });
       expect(getWorkoutIcon(session)).toBe('exercise-running');
     });
@@ -186,7 +211,7 @@ describe('workoutSession', () => {
     it('returns exercise-default when nothing matches', () => {
       const session = makeIndividual({
         name: 'Meditation',
-        exercise_snapshot: { id: 'ex-1', name: 'Meditation', category: 'Mindfulness', calories_per_hour: 50, source: 'system' },
+        exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Meditation', category: 'Mindfulness', calories_per_hour: 50, source: 'system' }),
       });
       expect(getWorkoutIcon(session)).toBe('exercise-default');
     });
@@ -194,7 +219,7 @@ describe('workoutSession', () => {
     it('uses exercise_snapshot.name when session name is null', () => {
       const session = makeIndividual({
         name: null,
-        exercise_snapshot: { id: 'ex-1', name: 'Cycling', category: 'Cardio', calories_per_hour: 500, source: 'system' },
+        exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Cycling', category: 'Cardio', calories_per_hour: 500, source: 'system' }),
       });
       expect(getWorkoutIcon(session)).toBe('exercise-cycling');
     });
@@ -202,7 +227,7 @@ describe('workoutSession', () => {
     it('handles keyword matching for strength-related names', () => {
       const session = makeIndividual({
         name: 'Traditional Strength Training',
-        exercise_snapshot: { id: 'ex-1', name: 'Traditional Strength Training', category: 'Cardio', calories_per_hour: 400, source: 'system' },
+        exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Traditional Strength Training', category: 'Cardio', calories_per_hour: 400, source: 'system' }),
       });
       expect(getWorkoutIcon(session)).toBe('exercise-weights');
     });
@@ -210,7 +235,7 @@ describe('workoutSession', () => {
     it('handles keyword matching for stair-related names', () => {
       const session = makeIndividual({
         name: 'Stair Climbing',
-        exercise_snapshot: { id: 'ex-1', name: 'Stair Climbing', category: null, calories_per_hour: 400, source: 'system' },
+        exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Stair Climbing', category: null, calories_per_hour: 400, source: 'system' }),
       });
       expect(getWorkoutIcon(session)).toBe('exercise-stair');
     });
@@ -228,7 +253,7 @@ describe('workoutSession', () => {
         if (category === 'Cardio') continue; // Cardio is only a fallback
         const session = makeIndividual({
           name: 'Unknown',
-          exercise_snapshot: { id: 'ex-1', name: 'Unknown', category, calories_per_hour: 300, source: 'system' },
+          exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Unknown', category, calories_per_hour: 300, source: 'system' }),
         });
         expect(getWorkoutIcon(session)).toBe(expectedIcon);
       }
@@ -327,28 +352,28 @@ describe('workoutSession', () => {
   describe('getFirstImage', () => {
     it('returns the first image from an individual session', () => {
       const session = makeIndividual({
-        exercise_snapshot: {
+        exercise_snapshot: makeSnapshot({
           id: 'ex-1',
           name: 'Running',
           category: 'Cardio',
           calories_per_hour: 600,
           source: 'system',
           images: ['img1.jpg', 'img2.jpg'],
-        },
+        }),
       });
       expect(getFirstImage(session)).toBe('img1.jpg');
     });
 
     it('returns null when individual session has no images', () => {
       const session = makeIndividual({
-        exercise_snapshot: {
+        exercise_snapshot: makeSnapshot({
           id: 'ex-1',
           name: 'Running',
           category: 'Cardio',
           calories_per_hour: 600,
           source: 'system',
           images: [],
-        },
+        }),
       });
       expect(getFirstImage(session)).toBeNull();
     });
@@ -365,14 +390,14 @@ describe('workoutSession', () => {
         exercises: [
           {
             exercise_id: 'ex-1',
-            exercise_snapshot: { id: 'ex-1', name: 'Bench', category: 'Strength', calories_per_hour: 400, source: 'system', images: [] },
+            exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Bench', category: 'Strength', calories_per_hour: 400, source: 'system', images: [] }),
             sets: [],
             calories_burned: 100,
             duration_minutes: 20,
           } as any,
           {
             exercise_id: 'ex-2',
-            exercise_snapshot: { id: 'ex-2', name: 'Squat', category: 'Strength', calories_per_hour: 500, source: 'system', images: ['squat.jpg'] },
+            exercise_snapshot: makeSnapshot({ id: 'ex-2', name: 'Squat', category: 'Strength', calories_per_hour: 500, source: 'system', images: ['squat.jpg'] }),
             sets: [],
             calories_burned: 150,
             duration_minutes: 25,
@@ -445,7 +470,7 @@ describe('workoutSession', () => {
     it('falls back to snapshot name when session name is null', () => {
       const session = makeIndividual({
         name: null,
-        exercise_snapshot: { id: 'ex-1', name: 'Cycling', category: 'Cardio', calories_per_hour: 500, source: 'system' },
+        exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Cycling', category: 'Cardio', calories_per_hour: 500, source: 'system' }),
       });
       expect(getWorkoutSummary(session).name).toBe('Cycling');
     });
@@ -871,13 +896,13 @@ describe('workoutSession', () => {
         makeIndividual({
           calories_burned: 400,
           duration_minutes: 0,
-          exercise_snapshot: {
+          exercise_snapshot: makeSnapshot({
             id: 'ac-1',
             name: 'Active Calories',
             category: 'Cardio',
             calories_per_hour: 0,
             source: 'system',
-          },
+          }),
         }),
         makeIndividual({ calories_burned: 300, duration_minutes: 30 }),
       ];
@@ -893,13 +918,13 @@ describe('workoutSession', () => {
         makeIndividual({
           calories_burned: 500,
           duration_minutes: 60,
-          exercise_snapshot: {
+          exercise_snapshot: makeSnapshot({
             id: 'ac-1',
             name: 'Active Calories',
             category: 'Cardio',
             calories_per_hour: 0,
             source: 'system',
-          },
+          }),
         }),
       ];
       const stats = calculateExerciseStats(sessions);
@@ -918,13 +943,13 @@ describe('workoutSession', () => {
         makeIndividual({
           calories_burned: 150,
           duration_minutes: 0,
-          exercise_snapshot: {
+          exercise_snapshot: makeSnapshot({
             id: 'ac-1',
             name: 'Active Calories',
             category: 'Cardio',
             calories_per_hour: 0,
             source: 'system',
-          },
+          }),
         }),
       ];
       const stats = calculateExerciseStats(sessions);
@@ -958,13 +983,13 @@ describe('workoutSession', () => {
         makeIndividual({
           calories_burned: 200,
           duration_minutes: 20,
-          exercise_snapshot: {
+          exercise_snapshot: makeSnapshot({
             id: 'ex-1',
             name: 'Active Calories Estimate',
             category: 'Cardio',
             calories_per_hour: 0,
             source: 'system',
-          },
+          }),
         }),
       ];
       const stats = calculateExerciseStats(sessions);
@@ -990,13 +1015,13 @@ describe('workoutSession', () => {
       const session = makeIndividual({
         calories_burned: null as any,
         duration_minutes: 0,
-        exercise_snapshot: {
+        exercise_snapshot: makeSnapshot({
           id: 'ac-1',
           name: 'Active Calories',
           category: 'Cardio',
           calories_per_hour: 0,
           source: 'system',
-        },
+        }),
       });
       const stats = calculateExerciseStats([session]);
       expect(stats.activeCalories).toBe(0);
@@ -1016,13 +1041,13 @@ describe('workoutSession', () => {
       makeIndividual({
         calories_burned: 100,
         duration_minutes: 0,
-        exercise_snapshot: {
+        exercise_snapshot: makeSnapshot({
           id: 'ac-1',
           name: 'Active Calories',
           category: 'Cardio',
           calories_per_hour: 0,
           source: 'system',
-        },
+        }),
       }),
     ];
 
@@ -1059,7 +1084,7 @@ describe('workoutSession', () => {
         makeDraftExercise({ exerciseId: 'ex-1' }),
         makeDraftExercise({ exerciseId: 'ex-2' }),
       ];
-      const payload = buildExercisesPayload(exercises, 'kg');
+      const payload = buildExercisesPayload(exercises, 'kg', 'km');
       expect(payload[0].exercise_id).toBe('ex-1');
       expect(payload[0].sort_order).toBe(0);
       expect(payload[1].exercise_id).toBe('ex-2');
@@ -1113,8 +1138,8 @@ describe('workoutSession', () => {
         ],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].set_number).toBe(1);
-      expect(payload[0].sets[1].set_number).toBe(2);
+      expect(payload[0].sets![0].set_number).toBe(1);
+      expect(payload[0].sets![1].set_number).toBe(2);
     });
 
     it('passes weight as-is in kg when unit is kg', () => {
@@ -1122,8 +1147,8 @@ describe('workoutSession', () => {
         sets: [{ clientId: 's1', weight: '100', reps: '10' }],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].weight).toBe(100);
-      expect(payload[0].sets[0].reps).toBe(10);
+      expect(payload[0].sets![0].weight).toBe(100);
+      expect(payload[0].sets![0].reps).toBe(10);
     });
 
     it('converts weight from lbs to kg when unit is lbs', () => {
@@ -1132,8 +1157,8 @@ describe('workoutSession', () => {
       });
       const payload = buildExercisesPayload([exercise], 'lbs', 'km');
       // 225 lbs * 0.45359237 ≈ 102.06
-      expect(payload[0].sets[0].weight).toBeCloseTo(102.058, 1);
-      expect(payload[0].sets[0].reps).toBe(5);
+      expect(payload[0].sets![0].weight).toBeCloseTo(102.058, 1);
+      expect(payload[0].sets![0].reps).toBe(5);
     });
 
     it('emits set distance in km as-is when unit is km', () => {
@@ -1141,7 +1166,7 @@ describe('workoutSession', () => {
         sets: [{ clientId: 's1', weight: '', reps: '', distance: '5.2', duration: 1800 }],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].distance).toBe(5.2);
+      expect(payload[0].sets![0].distance).toBe(5.2);
     });
 
     it('converts set distance from miles to km when unit is miles', () => {
@@ -1150,7 +1175,7 @@ describe('workoutSession', () => {
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'miles');
       // 3.1 mi * 1.609344 ≈ 4.99
-      expect(payload[0].sets[0].distance).toBeCloseTo(4.989, 2);
+      expect(payload[0].sets![0].distance).toBeCloseTo(4.989, 2);
     });
 
     it('emits null distance for empty or missing distance text', () => {
@@ -1161,8 +1186,8 @@ describe('workoutSession', () => {
         ],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].distance).toBeNull();
-      expect(payload[0].sets[1].distance).toBeNull();
+      expect(payload[0].sets![0].distance).toBeNull();
+      expect(payload[0].sets![1].distance).toBeNull();
     });
 
     it('derives cardio duration_minutes from the sets, ignoring the round-tripped value', () => {
@@ -1192,7 +1217,7 @@ describe('workoutSession', () => {
         sets: [{ clientId: 's1', weight: '', reps: '10' }],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].weight).toBeNull();
+      expect(payload[0].sets![0].weight).toBeNull();
     });
 
     it('returns null for reps when value is not a number', () => {
@@ -1200,7 +1225,7 @@ describe('workoutSession', () => {
         sets: [{ clientId: 's1', weight: '100', reps: '' }],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].reps).toBeNull();
+      expect(payload[0].sets![0].reps).toBeNull();
     });
 
     it('returns null for both when both are empty strings', () => {
@@ -1208,8 +1233,8 @@ describe('workoutSession', () => {
         sets: [{ clientId: 's1', weight: '', reps: '' }],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].weight).toBeNull();
-      expect(payload[0].sets[0].reps).toBeNull();
+      expect(payload[0].sets![0].weight).toBeNull();
+      expect(payload[0].sets![0].reps).toBeNull();
     });
 
     it('returns null for non-numeric strings', () => {
@@ -1217,8 +1242,8 @@ describe('workoutSession', () => {
         sets: [{ clientId: 's1', weight: 'abc', reps: 'xyz' }],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].weight).toBeNull();
-      expect(payload[0].sets[0].reps).toBeNull();
+      expect(payload[0].sets![0].weight).toBeNull();
+      expect(payload[0].sets![0].reps).toBeNull();
     });
 
     it('handles decimal weight strings', () => {
@@ -1226,7 +1251,7 @@ describe('workoutSession', () => {
         sets: [{ clientId: 's1', weight: '62.5', reps: '8' }],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].weight).toBe(62.5);
+      expect(payload[0].sets![0].weight).toBe(62.5);
     });
 
     it('truncates decimal reps via parseInt', () => {
@@ -1234,7 +1259,7 @@ describe('workoutSession', () => {
         sets: [{ clientId: 's1', weight: '100', reps: '8.7' }],
       });
       const payload = buildExercisesPayload([exercise], 'kg', 'km');
-      expect(payload[0].sets[0].reps).toBe(8);
+      expect(payload[0].sets![0].reps).toBe(8);
     });
 
     it('returns empty array for empty exercises', () => {
@@ -1270,9 +1295,9 @@ describe('workoutSession', () => {
         'kg',
         'km',
       );
-      expect(payload[0].sets[0].completed_at).toBe(completedAt);
+      expect(payload[0].sets![0].completed_at).toBe(completedAt);
       // A new form set has no completion — the server stores null.
-      expect(payload[0].sets[1].completed_at).toBeNull();
+      expect(payload[0].sets![1].completed_at).toBeNull();
     });
 
     it('handles exercise with empty sets array', () => {
@@ -1298,7 +1323,7 @@ describe('workoutSession', () => {
           'km',
         );
         expect(payload[0]).not.toHaveProperty('id');
-        expect(payload[0].sets[0]).not.toHaveProperty('id');
+        expect(payload[0].sets![0]).not.toHaveProperty('id');
         // Round-trip parse to confirm the shape is schema-valid.
         expect(() => presetSessionExerciseRequestSchema.parse(payload[0])).not.toThrow();
       });
@@ -1324,10 +1349,10 @@ describe('workoutSession', () => {
           'km',
         );
         expect((payload[0] as any).id).toBe(UUID_A);
-        expect((payload[0].sets[0] as any).id).toBe(101);
-        expect((payload[0].sets[1] as any).id).toBe(102);
+        expect((payload[0].sets![0] as any).id).toBe(101);
+        expect((payload[0].sets![1] as any).id).toBe(102);
         expect((payload[1] as any).id).toBe(UUID_B);
-        expect((payload[1].sets[0] as any).id).toBe(201);
+        expect((payload[1].sets![0] as any).id).toBe(201);
         expect(() => presetSessionExerciseRequestSchema.parse(payload[0])).not.toThrow();
         expect(() => presetSessionExerciseRequestSchema.parse(payload[1])).not.toThrow();
       });
@@ -1352,7 +1377,7 @@ describe('workoutSession', () => {
           'kg',
           'km',
         );
-        expect((payload[0].sets[0] as any).rest_time).toBe(120);
+        expect((payload[0].sets![0] as any).rest_time).toBe(120);
       });
 
       it('omits rest_time when restTime is null', () => {
@@ -1375,7 +1400,7 @@ describe('workoutSession', () => {
           'kg',
           'km',
         );
-        expect(payload[0].sets[0]).not.toHaveProperty('rest_time');
+        expect(payload[0].sets![0]).not.toHaveProperty('rest_time');
       });
 
       it('strips all exercise and set IDs when any exercise lacks serverId (mixed fallback)', () => {
@@ -1396,9 +1421,9 @@ describe('workoutSession', () => {
           'km',
         );
         expect(payload[0]).not.toHaveProperty('id');
-        expect(payload[0].sets[0]).not.toHaveProperty('id');
+        expect(payload[0].sets![0]).not.toHaveProperty('id');
         expect(payload[1]).not.toHaveProperty('id');
-        expect(payload[1].sets[0]).not.toHaveProperty('id');
+        expect(payload[1].sets![0]).not.toHaveProperty('id');
         expect(() => presetSessionExerciseRequestSchema.parse(payload[0])).not.toThrow();
         expect(() => presetSessionExerciseRequestSchema.parse(payload[1])).not.toThrow();
       });
@@ -1415,10 +1440,10 @@ describe('workoutSession', () => {
           'kg',
           'km',
         );
-        expect(payload[0].sets[0].set_type).toBeNull();
-        expect(payload[0].sets[0].duration).toBeNull();
-        expect(payload[0].sets[0].notes).toBeNull();
-        expect(payload[0].sets[0].rpe).toBeNull();
+        expect(payload[0].sets![0].set_type).toBeNull();
+        expect(payload[0].sets![0].duration).toBeNull();
+        expect(payload[0].sets![0].notes).toBeNull();
+        expect(payload[0].sets![0].rpe).toBeNull();
       });
 
       it('round-trips set_type, duration, notes, and rpe from the draft', () => {
@@ -1441,10 +1466,10 @@ describe('workoutSession', () => {
           'kg',
           'km',
         );
-        expect(payload[0].sets[0].set_type).toBe('warmup');
-        expect(payload[0].sets[0].duration).toBe(45);
-        expect(payload[0].sets[0].notes).toBe('easy');
-        expect(payload[0].sets[0].rpe).toBe(7.5);
+        expect(payload[0].sets![0].set_type).toBe('warmup');
+        expect(payload[0].sets![0].duration).toBe(45);
+        expect(payload[0].sets![0].notes).toBe('easy');
+        expect(payload[0].sets![0].rpe).toBe(7.5);
       });
 
       it('round-trips is_pr from the draft, defaulting to false when absent', () => {
@@ -1460,8 +1485,8 @@ describe('workoutSession', () => {
           'kg',
           'km',
         );
-        expect(payload[0].sets[0].is_pr).toBe(true);
-        expect(payload[0].sets[1].is_pr).toBe(false);
+        expect(payload[0].sets![0].is_pr).toBe(true);
+        expect(payload[0].sets![1].is_pr).toBe(false);
       });
     });
   });
@@ -1478,7 +1503,7 @@ describe('workoutSession', () => {
     });
 
     it('returns empty array for no exercises', () => {
-      expect(buildPresetExercisesPayload([], 'kg')).toEqual([]);
+      expect(buildPresetExercisesPayload([], 'kg', 'km')).toEqual([]);
     });
 
     it('preserves exercises with zero sets so saving an unrelated edit does not delete them', () => {
@@ -1491,6 +1516,7 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
       expect(payload).toHaveLength(2);
       expect(payload[0].exercise_id).toBe('ex-1');
@@ -1508,9 +1534,10 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
-      expect(payload[0].sets[0].weight).toBe(0);
-      expect(payload[0].sets[0].reps).toBe(10);
+      expect(payload[0].sets![0].weight).toBe(0);
+      expect(payload[0].sets![0].reps).toBe(10);
     });
 
     it('preserves reps of 0 (not collapsed to null)', () => {
@@ -1521,8 +1548,9 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
-      expect(payload[0].sets[0].reps).toBe(0);
+      expect(payload[0].sets![0].reps).toBe(0);
     });
 
     it('returns null for non-numeric reps and weight', () => {
@@ -1533,9 +1561,10 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
-      expect(payload[0].sets[0].weight).toBeNull();
-      expect(payload[0].sets[0].reps).toBeNull();
+      expect(payload[0].sets![0].weight).toBeNull();
+      expect(payload[0].sets![0].reps).toBeNull();
     });
 
     it('converts weight from lbs to kg when unit is lbs', () => {
@@ -1546,8 +1575,9 @@ describe('workoutSession', () => {
           }),
         ],
         'lbs',
+        'km',
       );
-      expect(payload[0].sets[0].weight).toBeCloseTo(102.058, 1);
+      expect(payload[0].sets![0].weight).toBeCloseTo(102.058, 1);
     });
 
     it('defaults set_type to "normal" when not provided', () => {
@@ -1558,8 +1588,9 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
-      expect(payload[0].sets[0].set_type).toBe('normal');
+      expect(payload[0].sets![0].set_type).toBe('normal');
     });
 
     it('round-trips set_type and notes, sanitizing duration off non-duration modalities', () => {
@@ -1583,9 +1614,9 @@ describe('workoutSession', () => {
         'kg',
         'km',
       );
-      expect(payload[0].sets[0].set_type).toBe('warmup');
-      expect(payload[0].sets[0].duration).toBeNull();
-      expect(payload[0].sets[0].notes).toBe('easy set');
+      expect(payload[0].sets![0].set_type).toBe('warmup');
+      expect(payload[0].sets![0].duration).toBeNull();
+      expect(payload[0].sets![0].notes).toBe('easy set');
     });
 
     it('keeps duration on duration-modality exercises', () => {
@@ -1599,7 +1630,7 @@ describe('workoutSession', () => {
         'kg',
         'km',
       );
-      expect(payload[0].sets[0].duration).toBe(45);
+      expect(payload[0].sets![0].duration).toBe(45);
     });
 
     it('converts cardio distance to km and nulls it on non-cardio exercises', () => {
@@ -1617,8 +1648,8 @@ describe('workoutSession', () => {
         'kg',
         'miles',
       );
-      expect(payload[0].sets[0].distance).toBeCloseTo(5.005, 2);
-      expect(payload[1].sets[0].distance).toBeNull();
+      expect(payload[0].sets![0].distance).toBeCloseTo(5.005, 2);
+      expect(payload[1].sets![0].distance).toBeNull();
     });
 
     it('emits superset_group from the draft, defaulting to null', () => {
@@ -1628,6 +1659,7 @@ describe('workoutSession', () => {
           makeDraftExercise({ exerciseId: 'ex-2' }),
         ],
         'kg',
+        'km',
       );
       expect(payload[0].superset_group).toBe(2);
       expect(payload[1].superset_group).toBeNull();
@@ -1641,9 +1673,10 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
-      expect(payload[0].sets[0].duration).toBeNull();
-      expect(payload[0].sets[0].notes).toBeNull();
+      expect(payload[0].sets![0].duration).toBeNull();
+      expect(payload[0].sets![0].notes).toBeNull();
     });
 
     it('uses set restTime, defaulting null when undefined', () => {
@@ -1657,9 +1690,10 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
-      expect(payload[0].sets[0].rest_time).toBe(120);
-      expect(payload[0].sets[1].rest_time).toBeNull();
+      expect(payload[0].sets![0].rest_time).toBe(120);
+      expect(payload[0].sets![1].rest_time).toBeNull();
     });
 
     it('takes the first image as image_url', () => {
@@ -1671,6 +1705,7 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
       expect(payload[0].image_url).toBe('first.jpg');
     });
@@ -1684,6 +1719,7 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
       expect(payload[0].image_url).toBeNull();
     });
@@ -1704,12 +1740,13 @@ describe('workoutSession', () => {
           }),
         ],
         'kg',
+        'km',
       );
       expect(payload[0].sort_order).toBe(0);
-      expect(payload[0].sets[0].set_number).toBe(1);
-      expect(payload[0].sets[1].set_number).toBe(2);
+      expect(payload[0].sets![0].set_number).toBe(1);
+      expect(payload[0].sets![1].set_number).toBe(2);
       expect(payload[1].sort_order).toBe(1);
-      expect(payload[1].sets[0].set_number).toBe(1);
+      expect(payload[1].sets![0].set_number).toBe(1);
     });
   });
 
@@ -1887,6 +1924,7 @@ describe('workoutSession', () => {
       notes: null,
       rpe: 8,
       completed_at: null,
+      is_pr: false,
       ...overrides,
     });
 
@@ -1936,7 +1974,7 @@ describe('workoutSession', () => {
       const payload = buildSessionExercisesPayload(session, {}, {});
       expect(payload[0].id).toBe(ENTRY_A);
       expect(payload[0].exercise_id).toBe(EX_1);
-      expect(payload[0].sets[0]).toEqual({
+      expect(payload[0].sets![0]).toEqual({
         id: 101,
         set_number: 1,
         set_type: 'warmup',
@@ -1950,7 +1988,7 @@ describe('workoutSession', () => {
         completed_at: null,
         is_pr: false,
       });
-      expect(payload[0].sets[1]).toEqual({
+      expect(payload[0].sets![1]).toEqual({
         id: 102,
         set_number: 2,
         set_type: 'normal',
@@ -1979,9 +2017,9 @@ describe('workoutSession', () => {
 
       const payload = buildSessionExercisesPayload(session, {}, {});
       expect(payload[0].id).toBe(ENTRY_A);
-      expect((payload[0].sets[0] as any).id).toBe(101);
-      expect(payload[0].sets[1]).not.toHaveProperty('id');
-      expect(payload[0].sets[1].set_number).toBe(2);
+      expect((payload[0].sets![0] as any).id).toBe(101);
+      expect(payload[0].sets![1]).not.toHaveProperty('id');
+      expect(payload[0].sets![1].set_number).toBe(2);
       expect(() => presetSessionExerciseRequestSchema.parse(payload[0])).not.toThrow();
       expectNoTempIds(payload);
     });
@@ -2004,9 +2042,9 @@ describe('workoutSession', () => {
 
       const payload = buildSessionExercisesPayload(session, {}, {});
       expect(payload[0].id).toBe(ENTRY_A);
-      expect((payload[0].sets[0] as { id?: number }).id).toBe(101);
+      expect((payload[0].sets![0] as { id?: number }).id).toBe(101);
       expect(payload[1].id).toBe(ADDED);
-      expect(payload[1].sets[0]).not.toHaveProperty('id');
+      expect(payload[1].sets![0]).not.toHaveProperty('id');
       expect(() => presetSessionExerciseRequestSchema.parse(payload[0])).not.toThrow();
       expect(() => presetSessionExerciseRequestSchema.parse(payload[1])).not.toThrow();
       expectNoTempIds(payload);
@@ -2016,7 +2054,7 @@ describe('workoutSession', () => {
       const session = makePreset({
         exercises: [makeExercise({ sets: [makeSet({ weight: 102.5 })] })],
       });
-      expect(buildSessionExercisesPayload(session, {}, {})[0].sets[0].weight).toBe(102.5);
+      expect(buildSessionExercisesPayload(session, {}, {})[0].sets![0].weight).toBe(102.5);
     });
 
     it('assigns positional set_number and sort_order regardless of stored values', () => {
@@ -2034,8 +2072,8 @@ describe('workoutSession', () => {
       const payload = buildSessionExercisesPayload(session, {}, {});
       expect(payload[0].sort_order).toBe(0);
       expect(payload[1].sort_order).toBe(1);
-      expect(payload[0].sets[0].set_number).toBe(1);
-      expect(payload[0].sets[1].set_number).toBe(2);
+      expect(payload[0].sets![0].set_number).toBe(1);
+      expect(payload[0].sets![1].set_number).toBe(2);
     });
 
     it('round-trips exercise-level notes and duration_minutes', () => {
@@ -2222,8 +2260,8 @@ describe('workoutSession', () => {
         ],
       });
       const payload = buildSessionExercisesPayload(session, {}, {});
-      expect(payload[0].sets[0].distance).toBe(5.2);
-      expect(payload[0].sets[1].distance).toBeNull();
+      expect(payload[0].sets![0].distance).toBe(5.2);
+      expect(payload[0].sets![1].distance).toBeNull();
     });
 
     it('emits explicit nulls for absent exercise notes', () => {
@@ -2261,9 +2299,9 @@ describe('workoutSession', () => {
       });
 
       const payload = buildSessionExercisesPayload(session, { '101': completedMs }, {});
-      expect(payload[0].sets[0].completed_at).toBe(new Date(completedMs).toISOString());
+      expect(payload[0].sets![0].completed_at).toBe(new Date(completedMs).toISOString());
       // Unmapped sets send an explicit null so unchecking propagates as a clear.
-      expect(payload[0].sets[1].completed_at).toBeNull();
+      expect(payload[0].sets![1].completed_at).toBeNull();
       expect(() => presetSessionExerciseRequestSchema.parse(payload[0])).not.toThrow();
     });
 
@@ -2291,10 +2329,10 @@ describe('workoutSession', () => {
       );
       // The existing set keeps its id; the temp set's id is omitted — but its
       // completion still travels in the row so the server-INSERTed set is done.
-      expect((payload[0].sets[0] as { id?: number }).id).toBe(101);
-      expect(payload[0].sets[0].completed_at).toBe(new Date(completedMs).toISOString());
-      expect(payload[1].sets[0]).not.toHaveProperty('id');
-      expect(payload[1].sets[0].completed_at).toBe(new Date(completedMs).toISOString());
+      expect((payload[0].sets![0] as { id?: number }).id).toBe(101);
+      expect(payload[0].sets![0].completed_at).toBe(new Date(completedMs).toISOString());
+      expect(payload[1].sets![0]).not.toHaveProperty('id');
+      expect(payload[1].sets![0].completed_at).toBe(new Date(completedMs).toISOString());
     });
 
     it('emits is_pr from the stamp map: true for stamped ids, false otherwise', () => {
@@ -2307,9 +2345,9 @@ describe('workoutSession', () => {
       });
 
       const payload = buildSessionExercisesPayload(session, {}, { '101': true });
-      expect(payload[0].sets[0].is_pr).toBe(true);
+      expect(payload[0].sets![0].is_pr).toBe(true);
       // Unstamped sets send an explicit false so unchecking a PR clears it.
-      expect(payload[0].sets[1].is_pr).toBe(false);
+      expect(payload[0].sets![1].is_pr).toBe(false);
       expect(() => presetSessionExerciseRequestSchema.parse(payload[0])).not.toThrow();
     });
 
@@ -2327,10 +2365,10 @@ describe('workoutSession', () => {
       });
 
       const payload = buildSessionExercisesPayload(session, {}, { '101': true, '-1': true });
-      expect((payload[0].sets[0] as { id?: number }).id).toBe(101);
-      expect(payload[0].sets[0].is_pr).toBe(true);
-      expect(payload[1].sets[0]).not.toHaveProperty('id');
-      expect(payload[1].sets[0].is_pr).toBe(true);
+      expect((payload[0].sets![0] as { id?: number }).id).toBe(101);
+      expect(payload[0].sets![0].is_pr).toBe(true);
+      expect(payload[1].sets![0]).not.toHaveProperty('id');
+      expect(payload[1].sets![0].is_pr).toBe(true);
     });
   });
 
@@ -2500,7 +2538,7 @@ describe('workoutSession', () => {
           {
             id: 'ex-a',
             notes: null,
-            exercise_snapshot: { name: 'Bench Press' },
+            exercise_snapshot: makeSnapshot({ name: 'Bench Press' }),
             sets: [
               // Completed working set.
               { id: 101, set_type: 'normal', weight: 100, reps: 5, rpe: 8 },
@@ -2513,7 +2551,7 @@ describe('workoutSession', () => {
           {
             id: 'ex-b',
             notes: 'felt strong',
-            exercise_snapshot: { name: 'Squat' },
+            exercise_snapshot: makeSnapshot({ name: 'Squat' }),
             sets: [{ id: 201, set_type: 'drop', weight: 120, reps: 3, rpe: null }],
           },
         ],
@@ -2540,7 +2578,7 @@ describe('workoutSession', () => {
           {
             id: 'ex-run',
             notes: null,
-            exercise_snapshot: { name: 'Run', modality: 'duration_distance' },
+            exercise_snapshot: makeSnapshot({ name: 'Run', modality: 'duration_distance' }),
             sets: [
               { id: 301, set_type: 'normal', weight: null, reps: null, duration: 1800, distance: 5.2, rpe: null },
             ],
@@ -2548,7 +2586,7 @@ describe('workoutSession', () => {
           {
             id: 'ex-skip',
             notes: null,
-            exercise_snapshot: { name: 'Bike', modality: 'duration_distance' },
+            exercise_snapshot: makeSnapshot({ name: 'Bike', modality: 'duration_distance' }),
             // Skipped — its distance must not count.
             sets: [
               { id: 302, set_type: 'normal', weight: null, reps: null, duration: 600, distance: 3, rpe: null },
@@ -2585,10 +2623,15 @@ describe('workoutSession', () => {
     });
 
     it('emits one PR row per stamped set and flags the exercise', () => {
-      const summary = buildWorkoutCompletionSummary(makeSummarySession(), completed, {
-        '101': true,
-        '201': true,
-      });
+      const summary = buildWorkoutCompletionSummary(
+        makeSummarySession(),
+        completed,
+        {
+          '101': true,
+          '201': true,
+        },
+        i18n.t,
+      );
 
       expect(summary.prRows).toEqual([
         { exerciseName: 'Bench Press', weightKg: 100, reps: 5 },
@@ -2612,7 +2655,7 @@ describe('workoutSession', () => {
           {
             id: 'ex-a',
             notes: null,
-            exercise_snapshot: { name: 'Pull-up' },
+            exercise_snapshot: makeSnapshot({ name: 'Pull-up' }),
             sets: [
               { id: 301, set_type: 'normal', weight: null, reps: 8, rpe: null },
               { id: 302, set_type: 'normal', weight: null, reps: 12, rpe: null },
@@ -2625,6 +2668,7 @@ describe('workoutSession', () => {
         session,
         { '301': 1_000, '302': 2_000 },
         {},
+        i18n.t,
       );
 
       expect(summary.volumeKg).toBe(0);
@@ -2638,7 +2682,7 @@ describe('workoutSession', () => {
           {
             id: 'ex-a',
             notes: null,
-            exercise_snapshot: { name: 'Plank', modality: 'duration' },
+            exercise_snapshot: makeSnapshot({ name: 'Plank', modality: 'duration' }),
             sets: [
               { id: 401, set_type: 'normal', weight: null, reps: null, duration: 45, rpe: null },
               { id: 402, set_type: 'normal', weight: null, reps: null, duration: 60, rpe: null },
@@ -2655,6 +2699,7 @@ describe('workoutSession', () => {
         session,
         { '401': 1_000, '402': 2_000, '403': 3_000, '404': 4_000 },
         {},
+        i18n.t,
       );
 
       expect(summary.exercises[0].topSet).toEqual({
@@ -2783,13 +2828,13 @@ describe('workoutSession', () => {
         const payload = buildPresetStartExercisesPayload(preset);
 
         expect(payload.map(e => e.sort_order)).toEqual([0, 1]);
-        expect(payload[0].sets.map(s => s.set_number)).toEqual([1, 2]);
+        expect(payload[0].sets!.map(s => s.set_number)).toEqual([1, 2]);
       });
 
       it('never emits exercise or set ids', () => {
         const payload = buildPresetStartExercisesPayload(makeWorkoutPreset());
         expect(payload[0]).not.toHaveProperty('id');
-        expect(payload[0].sets[0]).not.toHaveProperty('id');
+        expect(payload[0].sets![0]).not.toHaveProperty('id');
       });
 
       it('injects one default set for a zero-set preset exercise', () => {
@@ -2845,9 +2890,9 @@ describe('workoutSession', () => {
 
         const payload = buildPresetStartExercisesPayload(preset);
 
-        expect(payload[0].sets[0].distance).toBe(5);
-        expect(payload[0].sets[0].rest_time).toBe(0);
-        expect(payload[1].sets[0].distance).toBeNull();
+        expect(payload[0].sets![0].distance).toBe(5);
+        expect(payload[0].sets![0].rest_time).toBe(0);
+        expect(payload[1].sets![0].distance).toBeNull();
       });
 
       it('emits exercises that parse under the request schema', () => {
@@ -2866,7 +2911,7 @@ describe('workoutSession', () => {
 
     describe('buildSingleExerciseStartPayload', () => {
       it('builds one exercise with one default set', () => {
-        expect(buildSingleExerciseStartPayload({ id: EX_A })).toEqual([
+        expect(buildSingleExerciseStartPayload({ id: EX_A, modality: null, category: null })).toEqual([
           {
             exercise_id: EX_A,
             sort_order: 0,
@@ -2891,7 +2936,7 @@ describe('workoutSession', () => {
       });
 
       it('parses under the request schema', () => {
-        const [exercise] = buildSingleExerciseStartPayload({ id: EX_A });
+        const [exercise] = buildSingleExerciseStartPayload({ id: EX_A, modality: null, category: null });
         expect(() => presetSessionExerciseRequestSchema.parse(exercise)).not.toThrow();
       });
     });
@@ -3108,14 +3153,14 @@ describe('workoutSession', () => {
             avg_heart_rate: null,
             source: null,
             superset_group: null,
-            exercise_snapshot: {
+            exercise_snapshot: makeSnapshot({
               id: 'ex-1',
               name: 'Bench Press',
               category: 'Strength',
               calories_per_hour: 400,
               source: 'system',
               images: [],
-            },
+            }),
             activity_details: [],
             sets: [
               {
@@ -3129,6 +3174,7 @@ describe('workoutSession', () => {
                 notes: null,
                 rpe: null,
                 completed_at: null,
+                is_pr: false,
               },
               {
                 id: 102,
@@ -3141,6 +3187,7 @@ describe('workoutSession', () => {
                 notes: null,
                 rpe: null,
                 completed_at: null,
+                is_pr: false,
               },
             ],
           },
@@ -3169,6 +3216,7 @@ describe('workoutSession', () => {
                 notes: null,
                 rpe: null,
                 completed_at: null,
+                is_pr: false,
               },
             ],
           },
@@ -3214,7 +3262,7 @@ describe('workoutSession', () => {
               },
               sets: [
                 {
-                  ...sessionWithSets.exercises[0].sets[0],
+                  ...sessionWithSets.exercises[0].sets![0],
                   id: 301,
                   reps: 45,
                   weight: null,
@@ -3450,14 +3498,14 @@ describe('workoutSession', () => {
           ],
         ]);
         const stripped = stripPlannedSetValues(exercises);
-        expect(stripped[0].sets.map((s) => [s.weight, s.reps])).toEqual([
+        expect(stripped[0].sets!.map((s) => [s.weight, s.reps])).toEqual([
           [null, null],
           [null, null],
         ]);
         // Structure survives the strip.
-        expect(stripped[0].sets.map((s) => s.rest_time)).toEqual([120, 120]);
+        expect(stripped[0].sets!.map((s) => s.rest_time)).toEqual([120, 120]);
         // The source payload is not mutated.
-        expect(exercises[0].sets[0].weight).toBe(80);
+        expect(exercises[0].sets![0].weight).toBe(80);
       });
 
       it('strips duration for every modality, including stray values on strength sets', () => {
@@ -3482,9 +3530,9 @@ describe('workoutSession', () => {
           },
         ];
         const stripped = stripPlannedSetValues(timed);
-        expect(stripped[0].sets[0].duration).toBeNull();
-        expect(stripped[0].sets[0].weight).toBeNull();
-        expect(stripped[1].sets[0].duration).toBeNull();
+        expect(stripped[0].sets![0].duration).toBeNull();
+        expect(stripped[0].sets![0].weight).toBeNull();
+        expect(stripped[1].sets![0].duration).toBeNull();
       });
 
       it('captures and strips cardio distance alongside duration', () => {
@@ -3505,8 +3553,8 @@ describe('workoutSession', () => {
           [{ weight: null, reps: null, duration: 1500, distance: 5 }],
         ]);
         const stripped = stripPlannedSetValues(cardio);
-        expect(stripped[0].sets[0].duration).toBeNull();
-        expect(stripped[0].sets[0].distance).toBeNull();
+        expect(stripped[0].sets![0].duration).toBeNull();
+        expect(stripped[0].sets![0].distance).toBeNull();
       });
     });
 
@@ -4064,13 +4112,16 @@ describe('workoutSession', () => {
     });
 
     it('defaults the sparse nutritionix shape, coercing null calories to 0', () => {
-      const exercise = exerciseFromExternalItem({
-        id: 'nx-1',
-        name: 'Running',
-        category: 'External',
-        calories_per_hour: null,
-        source: 'nutritionix',
-      });
+      const exercise = exerciseFromExternalItem(
+        {
+          id: 'nx-1',
+          name: 'Running',
+          category: 'External',
+          calories_per_hour: null,
+          source: 'nutritionix',
+        },
+        i18n.t,
+      );
       expect(exercise).toMatchObject({
         id: 'nx-1',
         name: 'Running',
@@ -4296,8 +4347,8 @@ describe('workoutSession', () => {
         makeTargetPreset(),
         allCompleted(session),
       );
-      expect(payload![0].sets.map((s) => s.set_number)).toEqual([1, 2]);
-      expect(payload![0].sets[1].weight).toBe(90);
+      expect(payload![0].sets!.map((s) => s.set_number)).toEqual([1, 2]);
+      expect(payload![0].sets![1].weight).toBe(90);
     });
 
     it('flags a removed set', () => {
@@ -4419,7 +4470,7 @@ describe('workoutSession', () => {
         completedSetIds: { '101': 1 },
         plannedSetValues: { '102': { weight: 100, reps: 5, duration: null } },
       });
-      expect(payload![0].sets[1]).toEqual(expect.objectContaining({ weight: 100, reps: 5 }));
+      expect(payload![0].sets![1]).toEqual(expect.objectContaining({ weight: 100, reps: 5 }));
     });
 
     it('returns null when the only open question is a skipped set still matching its plan', () => {
@@ -4453,7 +4504,7 @@ describe('workoutSession', () => {
           '103': { weight: 100, reps: 5, duration: null },
         },
       });
-      expect(payload![0].sets[1]).toEqual(expect.objectContaining({ weight: 100, reps: 5 }));
+      expect(payload![0].sets![1]).toEqual(expect.objectContaining({ weight: 100, reps: 5 }));
     });
 
     it('treats an explicitly cleared note on a completed set as a deviation, not a resurrection', () => {
@@ -4465,7 +4516,7 @@ describe('workoutSession', () => {
       });
       const payload = buildPresetUpdateExercises(session, preset, allCompleted(session));
       expect(payload).not.toBeNull();
-      expect(payload![0].sets[0].notes).toBeNull();
+      expect(payload![0].sets![0].notes).toBeNull();
     });
 
     it('nulls duration on non-duration modalities so leaked values are not deviations', () => {
@@ -4498,7 +4549,7 @@ describe('workoutSession', () => {
         ],
       });
       const payload = buildPresetUpdateExercises(session, preset, allCompleted(session));
-      expect(payload![0].sets[0].duration).toBe(75);
+      expect(payload![0].sets![0].duration).toBe(75);
     });
 
     it('coerces cardio rest to 0 on both sides so preset-null vs live-0 is not a deviation', () => {
@@ -4567,7 +4618,7 @@ describe('workoutSession', () => {
         ],
       });
       const payload = buildPresetUpdateExercises(session, preset, allCompleted(session));
-      expect(payload![0].sets[0].distance).toBe(6);
+      expect(payload![0].sets![0].distance).toBe(6);
     });
 
     it('returns null when a skipped cardio set still matches its planned duration and distance', () => {
@@ -4760,7 +4811,7 @@ describe('workout recommendations', () => {
       });
 
       expect(
-        buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets.map((set) => set.set_type),
+        buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets!.map((set) => set.set_type),
       ).toEqual(['warmup', 'normal', 'drop', 'failure']);
     });
 
@@ -4773,7 +4824,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0].set_type).toBe('normal');
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets![0].set_type).toBe('normal');
     });
 
     it('keeps warm-ups first and renumbers sets from 1', () => {
@@ -4805,7 +4856,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0]).toEqual({
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets![0]).toEqual({
         set_number: 1,
         set_type: 'normal',
         reps: 10,
@@ -4829,7 +4880,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0].weight).toBeNull();
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets![0].weight).toBeNull();
     });
 
     it('zeroes rest and keeps distance on a cardio prescription', () => {
@@ -4850,7 +4901,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0]).toMatchObject({
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets![0]).toMatchObject({
         duration: 1800,
         distance: 5.2,
         rest_time: 0,
@@ -4867,7 +4918,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets[0]).toMatchObject({
+      expect(buildRecommendationStartPayload(orderedRecommendationExercises(payload))[0].sets![0]).toMatchObject({
         duration: 45,
         distance: null,
         rest_time: 120,
@@ -4996,7 +5047,7 @@ describe('workout recommendations', () => {
     it('converts the load into the unit the form edits in', () => {
       const drafts = build(makePayload(), 'lbs');
 
-      expect(drafts[0].sets[0].weight).toBe(
+      expect(drafts[0].sets![0].weight).toBe(
         String(parseFloat(weightFromKg(80, 'lbs').toFixed(1))),
       );
     });
@@ -5012,7 +5063,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(build(payload)[0].sets[0].weight).toBe('');
+      expect(build(payload)[0].sets![0].weight).toBe('');
     });
 
     it('gates the cardio measures exactly as starting the workout does', () => {
@@ -5029,7 +5080,7 @@ describe('workout recommendations', () => {
 
       // Same two gates as buildRecommendationStartPayload: distance is
       // meaningful here, and cardio takes no between-set rest.
-      expect(build(payload)[0].sets[0]).toMatchObject({ distance: '5', restTime: 0 });
+      expect(build(payload)[0].sets![0]).toMatchObject({ distance: '5', restTime: 0 });
     });
 
     it('drops a distance the modality cannot mean', () => {
@@ -5039,7 +5090,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(build(payload)[0].sets[0].distance).toBe('');
+      expect(build(payload)[0].sets![0].distance).toBe('');
     });
 
     it('re-keys canonical set types to the vocabulary the form stores', () => {
@@ -5054,7 +5105,7 @@ describe('workout recommendations', () => {
         ],
       });
 
-      expect(build(payload)[0].sets.map((set) => set.setType)).toEqual([
+      expect(build(payload)[0].sets!.map((set) => set.setType)).toEqual([
         'warmup',
         'normal',
       ]);

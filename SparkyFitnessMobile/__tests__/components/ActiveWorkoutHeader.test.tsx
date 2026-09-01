@@ -1,10 +1,14 @@
-import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import type { PresetSessionResponse } from '@workspace/shared';
 import ActiveWorkoutHeader, {
   buildExerciseProgress,
 } from '../../src/components/ActiveWorkoutHeader';
 import { formatElapsed } from '../../src/utils/workoutSession';
+import type { CompletedSetMap } from '../../src/stores/activeWorkoutStore';
+
+// The map's values are the epoch-ms the set was checked off; only the presence
+// of a key matters to the progress counts under test.
+const COMPLETED_AT = 1_700_000_000_000;
 
 function makeSession(): PresetSessionResponse {
   return {
@@ -52,7 +56,7 @@ describe('formatElapsed', () => {
 
 describe('buildExerciseProgress', () => {
   it('counts completed sets per exercise', () => {
-    const progress = buildExerciseProgress(makeSession(), { '101': true, '301': true });
+    const progress = buildExerciseProgress(makeSession(), { '101': COMPLETED_AT, '301': COMPLETED_AT });
     expect(progress).toEqual([
       { entryId: 'ex-1', totalSets: 2, completedSets: 1 },
       { entryId: 'ex-2', totalSets: 1, completedSets: 0 },
@@ -70,7 +74,7 @@ describe('ActiveWorkoutHeader', () => {
   const start = 1_700_000_000_000;
 
   function renderHeaderComponent(
-    completedSetIds: Record<string, true>,
+    completedSetIds: CompletedSetMap,
     overrides?: {
       onBack?: () => void;
       onDiscard?: () => void;
@@ -112,9 +116,9 @@ describe('ActiveWorkoutHeader', () => {
   it('shows one segment per exercise and the done count', () => {
     // ex-1 fully done (2/2), ex-3 partial (1/2), ex-2 untouched.
     const { getByText, getAllByTestId, queryAllByTestId } = renderHeaderComponent({
-      '101': true,
-      '102': true,
-      '301': true,
+      '101': COMPLETED_AT,
+      '102': COMPLETED_AT,
+      '301': COMPLETED_AT,
     });
     expect(getByText('1 / 3 exercises')).toBeTruthy();
     expect(getAllByTestId('header-segment-done')).toHaveLength(1);
@@ -125,11 +129,11 @@ describe('ActiveWorkoutHeader', () => {
 
   it('counts all exercises done', () => {
     const { getByText, getAllByTestId } = renderHeaderComponent({
-      '101': true,
-      '102': true,
-      '201': true,
-      '301': true,
-      '302': true,
+      '101': COMPLETED_AT,
+      '102': COMPLETED_AT,
+      '201': COMPLETED_AT,
+      '301': COMPLETED_AT,
+      '302': COMPLETED_AT,
     });
     expect(getByText('3 / 3 exercises')).toBeTruthy();
     expect(getAllByTestId('header-segment-done')).toHaveLength(3);

@@ -77,7 +77,8 @@ function mockHappyPathServices() {
   mockLoadTimeRange.mockResolvedValue('7d');
   mockLoadHealthPreference.mockResolvedValue(true);
   mockRecordAutoSyncTime.mockResolvedValue(undefined);
-  mockFlushPendingRefresh.mockResolvedValue(undefined);
+  // Resolves false: nothing was pending, so no cache refresh ran.
+  mockFlushPendingRefresh.mockResolvedValue(false);
   mockShouldRunResume.mockResolvedValue(true);
 }
 

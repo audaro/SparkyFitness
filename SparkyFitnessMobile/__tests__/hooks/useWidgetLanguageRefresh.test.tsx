@@ -37,7 +37,7 @@ const flushSync = async () => {
 describe('useWidgetLanguageRefresh', () => {
   let languageListeners: I18nEventListener[] = [];
   let resolvedLanguage = 'en';
-  let osSpy: jest.SpyInstance | null = null;
+  let osSpy: jest.ReplaceProperty<typeof Platform.OS> | null = null;
 
   beforeEach(() => {
     jest.clearAllMocks();

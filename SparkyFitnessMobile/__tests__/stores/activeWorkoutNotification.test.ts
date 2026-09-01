@@ -257,8 +257,8 @@ describe('buildRestNotificationContent — dependency injection', () => {
       ],
     } as unknown as PresetSessionResponse;
     useActiveWorkoutStore.setState({
-      previousSessionSets: [],
-      plannedSetValues: { 'set-reps-pl-1': { reps: 1 } },
+      previousSessionSets: {},
+      plannedSetValues: { 'set-reps-pl-1': { weight: null, reps: 1 } },
     });
     const content = buildRestNotificationContent(plT, repsSession, 'set-reps-pl-1', 'Rest');
     // PL singular (_one): 1 powtórzenie
@@ -280,8 +280,8 @@ describe('buildRestNotificationContent — dependency injection', () => {
       ],
     } as unknown as PresetSessionResponse;
     useActiveWorkoutStore.setState({
-      previousSessionSets: [],
-      plannedSetValues: { 'set-reps-pl-2': { reps: 2 } },
+      previousSessionSets: {},
+      plannedSetValues: { 'set-reps-pl-2': { weight: null, reps: 2 } },
     });
     const content = buildRestNotificationContent(plT, repsSession, 'set-reps-pl-2', 'Rest');
     // PL _few: 2 powtórzenia
@@ -303,8 +303,8 @@ describe('buildRestNotificationContent — dependency injection', () => {
       ],
     } as unknown as PresetSessionResponse;
     useActiveWorkoutStore.setState({
-      previousSessionSets: [],
-      plannedSetValues: { 'set-reps-pl-5': { reps: 5 } },
+      previousSessionSets: {},
+      plannedSetValues: { 'set-reps-pl-5': { weight: null, reps: 5 } },
     });
     const content = buildRestNotificationContent(plT, repsSession, 'set-reps-pl-5', 'Rest');
     // PL _many: 5 powtórzeń

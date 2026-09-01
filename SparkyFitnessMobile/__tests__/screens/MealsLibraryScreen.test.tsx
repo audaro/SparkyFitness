@@ -1,4 +1,3 @@
-import React from 'react';
 import { Platform } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -48,6 +47,7 @@ function createMeal(id: string, name: string, calories: number) {
     is_public: false,
     serving_size: 1,
     serving_unit: 'serving',
+    total_servings: 1,
     created_at: '2026-04-01T00:00:00.000Z',
     updated_at: '2026-04-01T00:00:00.000Z',
     foods: [
@@ -93,7 +93,6 @@ describe('MealsLibraryScreen', () => {
       isConnected: true,
       isLoading: false,
       isError: false,
-      error: null,
       refetch: jest.fn(),
     });
     mockUseMeals.mockReturnValue({
@@ -191,7 +190,6 @@ describe('MealsLibraryScreen', () => {
       isConnected: false,
       isLoading: false,
       isError: false,
-      error: null,
       refetch: jest.fn(),
     });
 

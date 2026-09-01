@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert } from 'react-native';
 import { fireEvent, render, act } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -80,7 +79,6 @@ jest.mock('../../src/components/ActiveWorkoutRail', () => {
 });
 
 jest.mock('../../src/components/ActiveWorkoutHeader', () => {
-  const React = require('react');
   const { View } = require('react-native');
   const actual = jest.requireActual('../../src/components/ActiveWorkoutHeader');
   return {
@@ -93,7 +91,6 @@ jest.mock('../../src/components/ActiveWorkoutHeader', () => {
 // Minimal card stand-ins: the suite completes sets through the store, so the
 // card only needs to render without touching the network.
 jest.mock('../../src/components/ActiveWorkoutExerciseCard', () => {
-  const React = require('react');
   const { View } = require('react-native');
   return {
     __esModule: true,

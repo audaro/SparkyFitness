@@ -4,6 +4,7 @@ import { KeyboardEvents } from 'react-native-keyboard-controller';
 import { render, fireEvent, act } from '@testing-library/react-native';
 import {
   useSetEditAccessoryBar,
+  type SetInputField,
   type SetRowAccessoryHandle,
 } from '../../src/components/SetRowChrome';
 import {
@@ -27,7 +28,7 @@ function Harness({
   handles,
 }: {
   activeSetKey: string | null;
-  activeSetField: 'weight' | 'reps' | 'rpe';
+  activeSetField: SetInputField;
   onDeactivateSet: () => void;
   rpeEnabled?: boolean;
   handles: Record<string, SetRowAccessoryHandle>;

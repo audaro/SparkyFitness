@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 
 import UpNextCard from '../../src/components/UpNextCard';
@@ -12,7 +11,7 @@ const mockUseWorkoutRecommendation = useWorkoutRecommendation as jest.MockedFunc
   typeof useWorkoutRecommendation
 >;
 
-const navigation = { navigate: jest.fn() } as never;
+const navigation = { navigate: jest.fn() };
 
 function setState(state: Record<string, unknown>) {
   mockUseWorkoutRecommendation.mockReturnValue({
@@ -52,7 +51,7 @@ describe('UpNextCard', () => {
   it('summarizes the generated workout', () => {
     setState({ recommendation });
 
-    const screen = render(<UpNextCard navigation={navigation} />);
+    const screen = render(<UpNextCard navigation={navigation as never} />);
 
     expect(screen.getByText('Chest · Triceps')).toBeTruthy();
     expect(screen.getByText('3 exercises · 2 muscles · 38 min')).toBeTruthy();
@@ -61,7 +60,7 @@ describe('UpNextCard', () => {
   it('prompts a first-run user to generate one', () => {
     setState({ recommendation: null });
 
-    const screen = render(<UpNextCard navigation={navigation} />);
+    const screen = render(<UpNextCard navigation={navigation as never} />);
 
     expect(screen.getByText("Generate today's workout")).toBeTruthy();
   });
@@ -69,7 +68,7 @@ describe('UpNextCard', () => {
   it('stays silent rather than showing an error block on a failed read', () => {
     setState({ recommendation: null, isError: true });
 
-    const screen = render(<UpNextCard navigation={navigation} />);
+    const screen = render(<UpNextCard navigation={navigation as never} />);
 
     expect(screen.queryByTestId('up-next-card')).toBeNull();
   });
@@ -80,7 +79,7 @@ describe('UpNextCard', () => {
   it('keeps showing a cached workout when a refetch fails', () => {
     setState({ recommendation, isError: true });
 
-    const screen = render(<UpNextCard navigation={navigation} />);
+    const screen = render(<UpNextCard navigation={navigation as never} />);
 
     expect(screen.getByTestId('up-next-card')).toBeTruthy();
     expect(screen.getByText('Chest · Triceps')).toBeTruthy();
@@ -89,7 +88,7 @@ describe('UpNextCard', () => {
   it('navigates to the Up Next screen', () => {
     setState({ recommendation });
 
-    const screen = render(<UpNextCard navigation={navigation} />);
+    const screen = render(<UpNextCard navigation={navigation as never} />);
     fireEvent.press(screen.getByTestId('up-next-card'));
 
     expect(navigation.navigate).toHaveBeenCalledWith('UpNext');

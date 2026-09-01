@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -76,7 +75,7 @@ const frame = { x: 0, y: 0, width: 390, height: 844 };
 
 function buildSet(overrides: Partial<WorkoutPresetSet> = {}): WorkoutPresetSet {
   return {
-    id: 'set-1',
+    id: 1,
     set_number: 1,
     set_type: 'normal',
     reps: null,
@@ -145,7 +144,7 @@ describe('WorkoutPresetDetailScreen', () => {
 
   it('renders application-owned strings in Polish while preserving literal user content', async () => {
     await i18n.changeLanguage('pl');
-    const preset = buildPreset({ exercises: [{ id: 'pe-1', exercise_id: 'ex-1', exercise_name: 'Bench Press', image_url: null, sets: [buildSet()] }] });
+    const preset = buildPreset({ exercises: [{ id: 1, exercise_id: 'ex-1', exercise_name: 'Bench Press', image_url: null, category: null, superset_group: null, sets: [buildSet()] }] });
     const screen = renderScreen(preset);
     expect(screen.getByText('Rozpocznij trening')).toBeTruthy();
     expect(screen.getByText('Zapisz wcześniejszy trening')).toBeTruthy();
@@ -156,7 +155,7 @@ describe('WorkoutPresetDetailScreen', () => {
   });
 
   it('updates visible strings on an EN to PL runtime language switch without remounting', async () => {
-    const screen = renderScreen(buildPreset({ exercises: [{ id: 'pe-1', exercise_id: 'ex-1', exercise_name: 'Bench Press', image_url: null, sets: [buildSet()] }] }));
+    const screen = renderScreen(buildPreset({ exercises: [{ id: 1, exercise_id: 'ex-1', exercise_name: 'Bench Press', image_url: null, category: null, superset_group: null, sets: [buildSet()] }] }));
     expect(screen.getByText('Start workout')).toBeTruthy();
     expect(screen.getByText('Duplicate preset')).toBeTruthy();
     await act(async () => { await i18n.changeLanguage('pl'); });
@@ -180,10 +179,12 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
+          category: null,
+          superset_group: null,
           sets: [buildSet()],
         },
       ],
@@ -208,11 +209,13 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
-          sets: [buildSet({ id: 's-1', set_number: 1, reps: 5, weight: 100 })],
+          category: null,
+          superset_group: null,
+          sets: [buildSet({ id: 1, set_number: 1, reps: 5, weight: 100 })],
         },
       ],
     });
@@ -230,7 +233,7 @@ describe('WorkoutPresetDetailScreen', () => {
           exercise_id: 'ex-1',
           image_url: null,
           sort_order: 0,
-          superset_group: undefined,
+          superset_group: null,
           sets: [
             {
               set_number: 1,
@@ -265,17 +268,21 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
+          category: null,
+          superset_group: null,
           sets: [buildSet()],
         },
         {
-          id: 'pe-2',
+          id: 2,
           exercise_id: 'ex-2',
           exercise_name: 'Squat',
           image_url: null,
+          category: null,
+          superset_group: null,
           sets: [buildSet()],
         },
       ],
@@ -360,10 +367,12 @@ describe('WorkoutPresetDetailScreen', () => {
     await i18n.changeLanguage('pl');
     const preset = buildPreset({
       exercises: Array.from({ length: count as number }, (_, index) => ({
-        id: `pe-${index + 1}`,
+        id: index + 1,
         exercise_id: `ex-${index + 1}`,
         exercise_name: `Exercise ${index + 1}`,
         image_url: null,
+        category: null,
+        superset_group: null,
         sets: [buildSet()],
       })),
     });
@@ -375,10 +384,12 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
+          category: null,
+          superset_group: null,
           sets: [buildSet()],
         },
       ],
@@ -398,11 +409,13 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
-          sets: [buildSet({ id: 's-1', set_number: 1, reps: 5, weight: 100 })],
+          category: null,
+          superset_group: null,
+          sets: [buildSet({ id: 1, set_number: 1, reps: 5, weight: 100 })],
         },
       ],
     });
@@ -419,11 +432,13 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
-          sets: [buildSet({ id: 's-1', set_number: 1, reps: 5, weight: 100 })],
+          category: null,
+          superset_group: null,
+          sets: [buildSet({ id: 1, set_number: 1, reps: 5, weight: 100 })],
         },
       ],
     });
@@ -449,11 +464,13 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
-          sets: [buildSet({ id: 's-1', set_number: 1, reps: 5, weight: 100 })],
+          category: null,
+          superset_group: null,
+          sets: [buildSet({ id: 1, set_number: 1, reps: 5, weight: 100 })],
         },
       ],
     });
@@ -474,11 +491,13 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
-          sets: [buildSet({ id: 's-1', set_number: 1, reps: 5, weight: 100 })],
+          category: null,
+          superset_group: null,
+          sets: [buildSet({ id: 1, set_number: 1, reps: 5, weight: 100 })],
         },
       ],
     });
@@ -491,14 +510,16 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
+          category: null,
+          superset_group: null,
           sets: [
-            buildSet({ id: 's-1', set_number: 1, reps: 5, weight: 100, rest_time: 45 }),
-            buildSet({ id: 's-2', set_number: 2, reps: 5, weight: 100, rest_time: 90 }),
-            buildSet({ id: 's-3', set_number: 3, reps: 5, weight: 100, rest_time: 120 }),
+            buildSet({ id: 1, set_number: 1, reps: 5, weight: 100, rest_time: 45 }),
+            buildSet({ id: 2, set_number: 2, reps: 5, weight: 100, rest_time: 90 }),
+            buildSet({ id: 3, set_number: 3, reps: 5, weight: 100, rest_time: 120 }),
           ],
         },
       ],
@@ -519,24 +540,27 @@ describe('WorkoutPresetDetailScreen', () => {
           exercise_id: 'ex-1',
           exercise_name: 'Bench Press',
           image_url: null,
+          category: null,
           superset_group: 1,
-          sets: [buildSet({ id: 's-1' })],
+          sets: [buildSet({ id: 1 })],
         },
         {
           id: 802,
           exercise_id: 'ex-2',
           exercise_name: 'Bent-over Row',
           image_url: null,
+          category: null,
           superset_group: 1,
-          sets: [buildSet({ id: 's-2' })],
+          sets: [buildSet({ id: 2 })],
         },
         {
           id: 803,
           exercise_id: 'ex-3',
           exercise_name: 'Plank',
           image_url: null,
+          category: null,
           superset_group: null,
-          sets: [buildSet({ id: 's-3' })],
+          sets: [buildSet({ id: 3 })],
         },
       ],
     } as never);
@@ -551,14 +575,16 @@ describe('WorkoutPresetDetailScreen', () => {
     const preset = buildPreset({
       exercises: [
         {
-          id: 'pe-1',
+          id: 1,
           exercise_id: 'ex-1',
           exercise_name: 'Plank',
           image_url: null,
+          category: null,
+          superset_group: null,
           modality: 'duration',
           sets: [
-            buildSet({ id: 's-1', set_number: 1, duration: 45 }),
-            buildSet({ id: 's-2', set_number: 2, duration: 90 }),
+            buildSet({ id: 1, set_number: 1, duration: 45 }),
+            buildSet({ id: 2, set_number: 2, duration: 90 }),
           ],
         },
       ],

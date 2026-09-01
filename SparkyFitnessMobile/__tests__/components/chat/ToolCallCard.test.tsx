@@ -1,4 +1,3 @@
-import React from 'react';
 import { ActivityIndicator } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import ToolCallCard from '../../../src/components/chat/ToolCallCard';

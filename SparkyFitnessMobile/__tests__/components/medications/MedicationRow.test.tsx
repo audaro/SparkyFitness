@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import MedicationRow from '../../../src/components/medications/MedicationRow';
 import type { Medication } from '@workspace/shared';

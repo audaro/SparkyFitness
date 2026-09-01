@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import i18n, { initializeI18n } from '../../src/localization/i18n';
 import CalorieSettingsScreen from '../../src/screens/CalorieSettingsScreen';

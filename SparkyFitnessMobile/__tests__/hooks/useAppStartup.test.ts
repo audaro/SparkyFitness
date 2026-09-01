@@ -87,7 +87,8 @@ beforeEach(async () => {
   mockEnsureTimezoneBootstrapped.mockResolvedValue('America/New_York');
   mockConfigureBackgroundSync.mockResolvedValue(undefined);
   mockLoadBackgroundSyncEnabled.mockResolvedValue(true);
-  mockFlushPendingRefresh.mockResolvedValue(undefined);
+  // Resolves false: nothing was pending, so no cache refresh ran.
+  mockFlushPendingRefresh.mockResolvedValue(false);
   mockRegisterLocalized.mockResolvedValue(undefined);
   mockPerformBackgroundSync.mockResolvedValue(undefined as Awaited<ReturnType<typeof performBackgroundSync>>);
 });

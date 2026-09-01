@@ -108,7 +108,19 @@ describe('useCustomMeasurements', () => {
 
     test('returns custom measurement entries', async () => {
       const entries = [
-        { id: 'entry-1', category_id: 'cat-1', value: '120', entry_date: testDate, custom_categories: { name: 'BP' } },
+        {
+          id: 'entry-1',
+          category_id: 'cat-1',
+          value: '120',
+          entry_date: testDate,
+          custom_categories: {
+            name: 'BP',
+            display_name: null,
+            measurement_type: 'mmHg',
+            frequency: 'Daily',
+            data_type: 'numeric',
+          },
+        },
       ];
       mockFetchCustomMeasurementsByDate.mockResolvedValue(entries);
 

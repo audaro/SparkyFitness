@@ -34,7 +34,8 @@ const writeback = require('../../../src/services/writeback') as { runWriteback: 
 
 const metric = (overrides: Partial<HealthMetric>): HealthMetric => ({
   id: 'test-metric',
-  label: 'Test Metric',
+  defaultLabel: 'Test Metric',
+  labelKey: 'healthMetrics.test',
   stateKey: 'isTestSyncEnabled',
   preferenceKey: 'syncTestEnabled',
   recordType: 'Test',

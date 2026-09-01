@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, render, fireEvent } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NavigationContainer } from '@react-navigation/native';
@@ -118,9 +117,12 @@ jest.mock('../../src/hooks/useSymptoms', () => ({
   }),
 }));
 
+// Held separately from the cast navigation prop, which types `navigate` as the
+// real overloaded signature rather than a mock.
+const mockNavigate = jest.fn();
 const mockNavigation = {
   goBack: jest.fn(),
-  navigate: jest.fn(),
+  navigate: mockNavigate,
   replace: jest.fn(),
   setOptions: jest.fn(),
 } as unknown as RootStackScreenProps<'CycleHub'>['navigation'];
@@ -155,7 +157,7 @@ describe('CycleHubScreen', () => {
   beforeEach(async () => {
     await initializeI18n('en');
     await i18n.changeLanguage('en');
-    mockNavigation.navigate.mockClear();
+    mockNavigate.mockClear();
     mockLogs.length = 0;
     mockMode = 'standard';
   });
@@ -223,7 +225,7 @@ describe('CycleHubScreen', () => {
     fireEvent.press(getByText('History'));
 
     fireEvent.press(getByText('15'));
-    expect(mockNavigation.navigate).toHaveBeenCalledWith('CycleLogModal', {
+    expect(mockNavigate).toHaveBeenCalledWith('CycleLogModal', {
       date: expect.stringMatching(/^\d{4}-\d{2}-15$/),
     });
   });

@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -48,7 +47,6 @@ jest.mock('../../src/components/Icon', () => {
 });
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
-  const React = require('react');
   const { View, Text, Pressable } = require('react-native');
   return {
     __esModule: true,
@@ -186,7 +184,6 @@ describe('FoodDetailScreen', () => {
           isConnected: true,
         isLoading: false,
         isError: false,
-        error: null,
         refetch: jest.fn(),
     });
         mockUseFavorites.mockReturnValue({

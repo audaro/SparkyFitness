@@ -8,10 +8,11 @@ export interface WorkoutDraftSet {
   reps: string;
   /**
    * Display-unit text (km/mi), converted at payload build like `weight`.
-   * Meaningful only on cardio sets; drafts persisted before the field
-   * existed surface it as undefined at runtime.
+   * Meaningful only on cardio sets, and optional because drafts persisted
+   * before the field existed surface it as undefined at runtime — the payload
+   * builders treat missing and empty alike.
    */
-  distance: string;
+  distance?: string;
   /** Editable in the card forms via long-press (set type) and the RPE column. */
   setType?: string;
   rpe?: number | null;

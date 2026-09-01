@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import DoseRow from '../../../src/components/medications/DoseRow';
 

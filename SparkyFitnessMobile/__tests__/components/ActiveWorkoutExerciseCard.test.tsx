@@ -165,6 +165,7 @@ function makeExercise(overrides?: Partial<ExerciseEntryResponse>): ExerciseEntry
         notes: null,
         rpe: null,
         completed_at: null,
+        is_pr: false,
       },
     ],
     ...overrides,
@@ -559,6 +560,7 @@ describe('ActiveWorkoutExerciseCard', () => {
             notes: null,
             rpe: null,
             completed_at: '2026-07-06T10:00:00.000Z',
+            is_pr: false,
           },
         ],
       });

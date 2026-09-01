@@ -145,7 +145,11 @@ describe('ReauthModal', () => {
 
   it('signs in via an OIDC provider and saves the refreshed session', async () => {
     mockFetchAuthSettings.mockResolvedValue(oidcAuthSettings);
-    mockLoginWithOidc.mockResolvedValue({ type: 'success', sessionToken: 'fresh-token' });
+    mockLoginWithOidc.mockResolvedValue({
+      type: 'success',
+      sessionToken: 'fresh-token',
+      user: { email: 'user@example.com' },
+    });
     const onLoginSuccess = jest.fn();
 
     const result = renderModal({ onLoginSuccess });

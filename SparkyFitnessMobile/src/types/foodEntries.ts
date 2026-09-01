@@ -16,7 +16,9 @@ export interface FoodEntry {
   unit: string;
   variant_id?: string;
   food_name?: string;
-  brand_name?: string;
+  // Nullable, not merely absent: the column is nullable and the entry response
+  // passes it straight through, so an unbranded food arrives as null.
+  brand_name?: string | null;
   entry_date: string;
   entry_time?: string | null;
   meal_plan_template_id?: string;

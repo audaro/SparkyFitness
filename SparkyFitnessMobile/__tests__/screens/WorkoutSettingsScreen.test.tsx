@@ -1,4 +1,3 @@
-import React from 'react';
 import { Platform } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import WorkoutSettingsScreen from '../../src/screens/WorkoutSettingsScreen';

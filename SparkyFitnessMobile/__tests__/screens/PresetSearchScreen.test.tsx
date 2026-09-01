@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import PresetSearchScreen from '../../src/screens/PresetSearchScreen';
@@ -77,10 +76,12 @@ function buildPreset(overrides: Partial<WorkoutPreset> = {}): WorkoutPreset {
     updated_at: '2026-04-01T00:00:00.000Z',
     exercises: [
       {
-        id: 'pe-1',
+        id: 1,
         exercise_id: 'ex-1',
         exercise_name: 'Bench Press',
         image_url: null,
+        category: null,
+        superset_group: null,
         sets: [],
       },
     ],

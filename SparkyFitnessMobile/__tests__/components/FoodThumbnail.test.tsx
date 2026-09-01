@@ -1,4 +1,3 @@
-import React from 'react';
 import { Image } from 'expo-image';
 import { fireEvent, render } from '@testing-library/react-native';
 import FoodThumbnail from '../../src/components/FoodThumbnail';

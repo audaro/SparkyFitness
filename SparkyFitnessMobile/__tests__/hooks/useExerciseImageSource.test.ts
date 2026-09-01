@@ -100,7 +100,7 @@ describe('useExerciseImageSource', () => {
       id: 'test',
       url: 'https://example.com/',
       apiKey: 'key',
-      proxyHeaders: [{ key: 'X-Custom', value: 'test' }],
+      proxyHeaders: [{ name: 'X-Custom', value: 'test' }],
     });
     mockProxyHeadersToRecord.mockReturnValue({ 'X-Custom': 'test' });
 
@@ -122,7 +122,7 @@ describe('useExerciseImageSource', () => {
       id: 'test',
       url: 'https://example.com/',
       apiKey: 'key',
-      proxyHeaders: [{ key: 'X-Custom', value: 'test' }],
+      proxyHeaders: [{ name: 'X-Custom', value: 'test' }],
     });
     mockProxyHeadersToRecord.mockReturnValue({ 'X-Custom': 'test' });
 

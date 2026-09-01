@@ -4,6 +4,14 @@
     "strict": true,
     "noUnusedLocals": true,
     "allowImportingTsExtensions": true,
+    // The test suite is type-checked too, so the jest globals have to be in
+    // the program. Naming `types` at all switches off automatic @types
+    // inclusion, which is why react is listed alongside it; the frontend
+    // tsconfig pins its test types the same way.
+    "types": [
+      "jest",
+      "react"
+    ],
     "paths": {
       "@/*": [
         "./*"
@@ -18,7 +26,6 @@
     "**/*.tsx"
   ],
   "exclude": [
-    "__tests__",
     "plugins",
     "drivers",
     "reports",

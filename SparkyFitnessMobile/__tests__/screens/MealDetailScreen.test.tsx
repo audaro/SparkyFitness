@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -79,6 +78,7 @@ function buildMeal(overrides: Partial<Meal> = {}): Meal {
     is_public: false,
     serving_size: 2,
     serving_unit: 'servings',
+    total_servings: 1,
     created_at: '2026-04-01T00:00:00.000Z',
     updated_at: '2026-04-01T00:00:00.000Z',
     foods: [
@@ -145,7 +145,6 @@ describe('MealDetailScreen', () => {
       isConnected: true,
       isLoading: false,
       isError: false,
-      error: null,
       refetch: jest.fn(),
     });
     mockUseProfile.mockReturnValue({

@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { pressAction } from './helpers/nativeHeaderTestUtils';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -34,7 +33,6 @@ jest.mock('uniwind', () => ({
 }));
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
-  const React = require('react');
   const { Pressable, Text, View } = require('react-native');
   return {
     __esModule: true,

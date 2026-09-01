@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import ChartTouchOverlay, {
   CHART_TOUCH_LONG_PRESS_DELAY_MS,

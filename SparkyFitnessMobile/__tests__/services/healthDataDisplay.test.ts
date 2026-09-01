@@ -39,6 +39,10 @@ jest.mock('../../src/services/LogService', () => ({
   addLog: jest.fn(),
 }));
 
+// The aggregated fetchers return AggregatedHealthRecord[]. Only `value` matters
+// to the formatters under test, so the date and type carry fixed placeholders.
+const agg = (value: number) => ({ value, date: '2026-06-01', type: 'aggregated' });
+
 const mockReadHealthRecords = readHealthRecords as jest.MockedFunction<typeof readHealthRecords>;
 const mockGetSyncStartDate = getSyncStartDate as jest.MockedFunction<typeof getSyncStartDate>;
 const mockSteps = getAggregatedStepsByDate as jest.MockedFunction<typeof getAggregatedStepsByDate>;
@@ -90,40 +94,40 @@ describe('fetchHealthDisplayData', () => {
 
   it('formats aggregated values according to the active Polish app locale', async () => {
     await i18n.changeLanguage('pl');
-    mockSteps.mockResolvedValue([{ value: 5000 }, { value: 432 }]);
+    mockSteps.mockResolvedValue([agg(5000), agg(432)]);
     expect(await displayFor('Steps')).toBe(formatLocalizedNumber(5432));
   });
 
   describe('aggregated formatters', () => {
     it('formats steps as a localized total', async () => {
-      mockSteps.mockResolvedValue([{ value: 5000 }, { value: 432 }]);
+      mockSteps.mockResolvedValue([agg(5000), agg(432)]);
       expect(await displayFor('Steps')).toBe(formatLocalizedNumber(5432));
       // Aggregated metrics never read raw records.
       expect(mockReadHealthRecords).not.toHaveBeenCalled();
     });
 
     it('formats active calories as a localized total', async () => {
-      mockActiveCals.mockResolvedValue([{ value: 300 }, { value: 200 }]);
+      mockActiveCals.mockResolvedValue([agg(300), agg(200)]);
       expect(await displayFor('ActiveCaloriesBurned')).toBe(formatLocalizedNumber(500));
     });
 
     it('formats total calories as a localized total', async () => {
-      mockTotalCals.mockResolvedValue([{ value: 1500 }, { value: 500 }]);
+      mockTotalCals.mockResolvedValue([agg(1500), agg(500)]);
       expect(await displayFor('TotalCaloriesBurned')).toBe(formatLocalizedNumber(2000));
     });
 
     it('converts distance from metres to kilometres', async () => {
-      mockDistance.mockResolvedValue([{ value: 3500 }, { value: 1500 }]);
+      mockDistance.mockResolvedValue([agg(3500), agg(1500)]);
       expect(await displayFor('Distance')).toBe('5.00 km');
     });
 
     it('rounds floors climbed before localizing', async () => {
-      mockFloors.mockResolvedValue([{ value: 10.4 }, { value: 2.4 }]);
+      mockFloors.mockResolvedValue([agg(10.4), agg(2.4)]);
       expect(await displayFor('FloorsClimbed')).toBe(formatLocalizedNumber(13));
     });
 
     it('passes the resolved start/end window to the fetcher', async () => {
-      mockSteps.mockResolvedValue([{ value: 1 }]);
+      mockSteps.mockResolvedValue([agg(1)]);
       await displayFor('Steps');
       expect(mockSteps).toHaveBeenCalledWith(
         new Date('2026-06-01T00:00:00Z'),
@@ -141,7 +145,7 @@ describe('fetchHealthDisplayData', () => {
 
   describe('basal metabolic rate', () => {
     it('averages the aggregated resting-energy values when present', async () => {
-      mockBasalEnergy.mockResolvedValue([{ value: 1500 }, { value: 1600 }]);
+      mockBasalEnergy.mockResolvedValue([agg(1500), agg(1600)]);
       expect(await displayFor('BasalMetabolicRate')).toBe('1,550 kcal');
       expect(mockReadHealthRecords).not.toHaveBeenCalled();
     });
@@ -340,7 +344,7 @@ describe('fetchHealthDisplayData', () => {
 
     it('formats aggregated and pluralized output in Polish using app locale', async () => {
       await i18n.changeLanguage('pl');
-      mockSteps.mockResolvedValue([{ value: 1234.5 }]);
+      mockSteps.mockResolvedValue([agg(1234.5)]);
       expect(await displayFor('Steps')).toBe('1234,5');
       mockReadHealthRecords.mockResolvedValue([{}, {}, {}, {}, {}]);
       expect(await displayFor('Workout')).toBe('5 treningów');
@@ -371,7 +375,7 @@ describe('fetchHealthDisplayData', () => {
     // Body-fat readings arrive in several shapes across platforms.
     it.each([
       { label: 'bodyFatPercentage.inPercent', record: { time: 't', bodyFatPercentage: { inPercent: 22 } } },
-      { label: 'percentage.value', record: { time: 't', percentage: { value: 22 } } },
+      { label: 'percentage.value', record: { time: 't', percentage: agg(22) } },
       { label: 'numeric percentage', record: { time: 't', percentage: 22 } },
       { label: 'value', record: { time: 't', value: 22 } },
       { label: 'bodyFat', record: { time: 't', bodyFat: 22 } },

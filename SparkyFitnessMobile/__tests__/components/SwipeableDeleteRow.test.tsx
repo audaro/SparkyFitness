@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import SwipeableDeleteRow from '../../src/components/SwipeableDeleteRow';

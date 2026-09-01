@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -38,7 +37,6 @@ jest.mock('uniwind', () => ({
 }));
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
-  const React = require('react');
   const { Pressable, Text, View } = require('react-native');
   return {
     __esModule: true,

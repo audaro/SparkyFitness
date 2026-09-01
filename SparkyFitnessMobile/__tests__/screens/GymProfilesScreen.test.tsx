@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import GymProfilesScreen from '../../src/screens/GymProfilesScreen';
 import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';

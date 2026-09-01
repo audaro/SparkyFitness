@@ -13,10 +13,10 @@ const mockFetchMealTypes = fetchMealTypes as jest.MockedFunction<typeof fetchMea
 // Full set of meal types used in tests that require all four to be present so
 // getDefaultMealTypeId always finds a name match regardless of the current hour.
 const allMealTypes = [
-  { id: 'mt-breakfast', name: 'Breakfast', is_visible: true, sort_order: 1 },
-  { id: 'mt-lunch', name: 'Lunch', is_visible: true, sort_order: 2 },
-  { id: 'mt-dinner', name: 'Dinner', is_visible: true, sort_order: 3 },
-  { id: 'mt-snacks', name: 'Snacks', is_visible: true, sort_order: 4 },
+  { id: 'mt-breakfast', name: 'Breakfast', is_visible: true, sort_order: 1, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
+  { id: 'mt-lunch', name: 'Lunch', is_visible: true, sort_order: 2, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
+  { id: 'mt-dinner', name: 'Dinner', is_visible: true, sort_order: 3, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
+  { id: 'mt-snacks', name: 'Snacks', is_visible: true, sort_order: 4, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
 ];
 
 describe('useMealTypes', () => {
@@ -45,9 +45,9 @@ describe('useMealTypes', () => {
 
   test('filters out non-visible meal types', async () => {
     const mixedMealTypes = [
-      { id: 'mt-1', name: 'Breakfast', is_visible: true, sort_order: 1 },
-      { id: 'mt-2', name: 'Hidden Snack', is_visible: false, sort_order: 2 },
-      { id: 'mt-3', name: 'Lunch', is_visible: true, sort_order: 3 },
+      { id: 'mt-1', name: 'Breakfast', is_visible: true, sort_order: 1, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
+      { id: 'mt-2', name: 'Hidden Snack', is_visible: false, sort_order: 2, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
+      { id: 'mt-3', name: 'Lunch', is_visible: true, sort_order: 3, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
     ];
     mockFetchMealTypes.mockResolvedValue(mixedMealTypes);
 
@@ -66,9 +66,9 @@ describe('useMealTypes', () => {
 
   test('sorts meal types by sort_order ascending', async () => {
     const unsortedMealTypes = [
-      { id: 'mt-dinner', name: 'Dinner', is_visible: true, sort_order: 3 },
-      { id: 'mt-breakfast', name: 'Breakfast', is_visible: true, sort_order: 1 },
-      { id: 'mt-lunch', name: 'Lunch', is_visible: true, sort_order: 2 },
+      { id: 'mt-dinner', name: 'Dinner', is_visible: true, sort_order: 3, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
+      { id: 'mt-breakfast', name: 'Breakfast', is_visible: true, sort_order: 1, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
+      { id: 'mt-lunch', name: 'Lunch', is_visible: true, sort_order: 2, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
     ];
     mockFetchMealTypes.mockResolvedValue(unsortedMealTypes);
 
@@ -107,8 +107,8 @@ describe('useMealTypes', () => {
   test('defaultMealTypeId falls back to first meal type when no name matches', async () => {
     // Use a meal type list whose names do not match any of the four default names
     const customMealTypes = [
-      { id: 'mt-custom-1', name: 'Pre-Workout', is_visible: true, sort_order: 1 },
-      { id: 'mt-custom-2', name: 'Post-Workout', is_visible: true, sort_order: 2 },
+      { id: 'mt-custom-1', name: 'Pre-Workout', is_visible: true, sort_order: 1, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
+      { id: 'mt-custom-2', name: 'Post-Workout', is_visible: true, sort_order: 2, user_id: null, created_at: '2026-04-01T00:00:00.000Z', show_in_quick_log: true },
     ];
     mockFetchMealTypes.mockResolvedValue(customMealTypes);
 

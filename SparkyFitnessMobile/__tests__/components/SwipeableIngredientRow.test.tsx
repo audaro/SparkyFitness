@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import SwipeableIngredientRow from '../../src/components/SwipeableIngredientRow';

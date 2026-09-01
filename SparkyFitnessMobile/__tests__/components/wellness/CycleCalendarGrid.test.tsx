@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import CycleCalendarGrid from '../../../src/components/wellness/CycleCalendarGrid';
 import { queryProviderForPreferences } from '../../screens/helpers/preferencesQueryTestUtil';

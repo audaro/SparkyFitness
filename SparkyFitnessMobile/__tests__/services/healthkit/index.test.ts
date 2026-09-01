@@ -29,6 +29,7 @@ import { aggregateByDay, toLocalDateString } from '../../../src/services/healthk
 import { transformHealthRecords } from '../../../src/services/healthkit/dataTransformation';
 import type { TransformedRecord } from '../../../src/types/healthRecords';
 
+import { createTelemetryRunContext } from '../../../src/services/shared/telemetryBudget';
 import type { SyncDuration } from '../../../src/services/healthkit/preferences';
 
 jest.mock('../../../src/services/LogService', () => ({
@@ -1652,7 +1653,8 @@ describe('readHealthRecordsDetailed', () => {
     const result = await readHealthRecordsDetailed(
       'Steps',
       new Date('2024-01-15T00:00:00Z'),
-      new Date('2024-01-15T23:59:59Z')
+      new Date('2024-01-15T23:59:59Z'),
+      createTelemetryRunContext({ budget: 0, interactive: false })
     );
 
     expect(result.error).toBeUndefined();
@@ -1667,7 +1669,8 @@ describe('readHealthRecordsDetailed', () => {
     const result = await readHealthRecordsDetailed(
       'Steps',
       new Date('2024-01-15T00:00:00Z'),
-      new Date('2024-01-15T23:59:59Z')
+      new Date('2024-01-15T23:59:59Z'),
+      createTelemetryRunContext({ budget: 0, interactive: false })
     );
 
     expect(result.records).toEqual([]);
@@ -1682,7 +1685,8 @@ describe('readHealthRecordsDetailed', () => {
     const result = await readHealthRecordsDetailed(
       'Steps',
       new Date('2024-01-15T00:00:00Z'),
-      new Date('2024-01-15T23:59:59Z')
+      new Date('2024-01-15T23:59:59Z'),
+      createTelemetryRunContext({ budget: 0, interactive: false })
     );
 
     expect(result.error).toContain('Protected health data');

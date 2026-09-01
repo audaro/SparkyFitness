@@ -15,11 +15,12 @@ import { ExtensionStorage } from '@bacons/apple-targets';
 import { useWidgetSync } from '../../src/hooks/useWidgetSync';
 import { addLog } from '../../src/services/LogService';
 import { getTodayDate } from '../../src/utils/dateUtils';
+import { EMPTY_SUPPLEMENT_TOTALS } from '@workspace/shared';
 import type { DailySummary } from '../../src/types/dailySummary';
 
 jest.mock('@bacons/apple-targets', () => {
   const mockSet = jest.fn();
-  const mockGet = jest.fn(() => 'stored');
+  const mockGet = jest.fn((_key: string) => 'stored');
   const mockReload = jest.fn();
 
   class ExtensionStorage {
@@ -110,6 +111,10 @@ const makeSummary = (overrides: Partial<DailySummary> = {}): DailySummary => ({
     exerciseSource: 'active',
     tdeeProjection: null,
   },
+  supplementTotals: EMPTY_SUPPLEMENT_TOTALS,
+  goals: { calories: 2000, protein: 150, carbs: 200, fat: 65, dietary_fiber: 30 },
+  customNutrientTotals: {},
+  customNutrientGoals: {},
   ...overrides,
 });
 
@@ -227,7 +232,7 @@ describe('useWidgetSync', () => {
     });
 
     const { rerender } = renderHook(
-      ({ summary }) => useWidgetSync(summary),
+      ({ summary }: { summary: DailySummary }) => useWidgetSync(summary),
       { initialProps: { summary: makeSummary() } },
     );
     await flushWidgetPush();
@@ -254,7 +259,7 @@ describe('useWidgetSync', () => {
       configurable: true,
     });
 
-    const { rerender } = renderHook(({ summary }) => useWidgetSync(summary), {
+    const { rerender } = renderHook(({ summary }: { summary: DailySummary }) => useWidgetSync(summary), {
       initialProps: { summary: makeSummary() },
     });
 
@@ -281,7 +286,7 @@ describe('useWidgetSync', () => {
       configurable: true,
     });
 
-    const { rerender } = renderHook(({ summary }) => useWidgetSync(summary), {
+    const { rerender } = renderHook(({ summary }: { summary: DailySummary }) => useWidgetSync(summary), {
       initialProps: { summary: makeSummary() },
     });
 
@@ -329,7 +334,7 @@ describe('useWidgetSync', () => {
       configurable: true,
     });
 
-    const { rerender } = renderHook(({ summary }) => useWidgetSync(summary), {
+    const { rerender } = renderHook(({ summary }: { summary: DailySummary }) => useWidgetSync(summary), {
       initialProps: { summary: makeSummary() },
     });
 
@@ -407,7 +412,7 @@ describe('useWidgetSync', () => {
     });
     androidSetMacroSnapshot.mockRejectedValueOnce(new Error('macro failed'));
 
-    const { rerender } = renderHook(({ summary }) => useWidgetSync(summary), {
+    const { rerender } = renderHook(({ summary }: { summary: DailySummary }) => useWidgetSync(summary), {
       initialProps: { summary: makeSummary() },
     });
 

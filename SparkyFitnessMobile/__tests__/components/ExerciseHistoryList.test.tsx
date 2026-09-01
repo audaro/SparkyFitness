@@ -55,6 +55,7 @@ const makeEntry = (
   sets,
   exercise_snapshot: null,
   activity_details: [],
+  superset_group: null,
   ...overrides,
 });
 

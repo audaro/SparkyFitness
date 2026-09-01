@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, waitFor, act } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -105,7 +104,6 @@ describe('ExercisesLibraryScreen', () => {
       isConnected: true,
       isLoading: false,
       isError: false,
-      error: null,
       refetch: jest.fn(),
     });
     mockUseExercisesLibrary.mockReturnValue(buildHookReturn());
@@ -170,7 +168,6 @@ describe('ExercisesLibraryScreen', () => {
       isConnected: false,
       isLoading: false,
       isError: false,
-      error: null,
       refetch: jest.fn(),
     });
 

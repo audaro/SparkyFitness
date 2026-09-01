@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import Toast from 'react-native-toast-message';
 import FoodUnitSelectorSheet from '../../src/components/FoodUnitSelectorSheet';
@@ -49,7 +48,6 @@ jest.mock('uniwind', () => ({
 }));
 
 jest.mock('../../src/components/Icon', () => {
-  const React = require('react');
   const { Text } = require('react-native');
   return {
     __esModule: true,
