@@ -1,4 +1,3 @@
-// @ts-expect-error TS(7016): Could not find a declaration file for module 'multer'
 import multer from 'multer';
 import path from 'path';
 
@@ -60,8 +59,7 @@ export const isAllowedImageBuffer = (buffer: Buffer): boolean =>
 const checkInPhotoUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10_000_000 }, // 10 MB
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  fileFilter: (_req: any, file: any, cb: any) => {
+  fileFilter: (_req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp/;
     const okExt = allowed.test(path.extname(file.originalname).toLowerCase());
     const okMime = allowed.test(file.mimetype);

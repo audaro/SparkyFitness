@@ -238,7 +238,6 @@ const listContractionsHandler: RequestHandler = async (req, res, next) => {
 
 const uploadPhoto: RequestHandler = async (req, res, next) => {
   try {
-    // @ts-expect-error multer attaches req.file at runtime; it ships no types.
     const file = req.file as { buffer: Buffer } | undefined;
     if (!file?.buffer || !isAllowedImageBuffer(file.buffer)) {
       res.status(400).json({ error: 'A valid image file is required' });

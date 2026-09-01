@@ -5,7 +5,6 @@ import checkPermissionMiddleware from '../middleware/checkPermissionMiddleware.j
 import exerciseService from '../services/exerciseService.js';
 import exerciseEntryService from '../services/exerciseEntryService.js';
 import fitImportService from '../services/fitImportService.js';
-// @ts-expect-error TS(7016): Could not find a declaration file for module 'mult... Remove this comment to see the full error message
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -23,23 +22,20 @@ const baseUploadsDir = process.env.SPARKY_FITNESS_CUSTOM_UPLOADS_DIRECTORY
   ? path.resolve(process.env.SPARKY_FITNESS_CUSTOM_UPLOADS_DIRECTORY)
   : path.join(__dirname, '../uploads');
 // Function to sanitize filename
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sanitizeFilename = (filename: any) => {
+const sanitizeFilename = (filename: string) => {
   return filename.replace(/[^a-zA-Z0-9_.-]/g, '_').substring(0, 50);
 };
 // Custom storage for exercise entries
 const exerciseEntryStorage = multer.diskStorage({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  destination: (req: any, file: any, cb: any) => {
+  destination: (req, file, cb) => {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const dir = path.join(baseUploadsDir, `exercise_entries/${today}`);
     fs.mkdir(dir, { recursive: true }, (err) => {
-      if (err) return cb(err);
+      if (err) return cb(err, dir);
       cb(null, dir);
     });
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  filename: (req: any, file: any, cb: any) => {
+  filename: (req, file, cb) => {
     const shortUuid = uuidv4().split('-')[0];
     const timestamp = Date.now();
     const sanitizedOriginalName = sanitizeFilename(file.originalname);
@@ -339,11 +335,9 @@ router.post(
           .json({ error: 'Exercise ID must be a valid UUID.' });
       }
       let imageUrl = entryData.image_url || null;
-      // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{}... Remove this comment to see the full error message
       if (req.file) {
         // Construct the URL path for the image
         const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{}... Remove this comment to see the full error message
         imageUrl = `/uploads/exercise_entries/${today}/${req.file.filename}`;
       }
 
@@ -763,10 +757,8 @@ router.put(
         error: 'Exercise Entry ID is required and must be a valid UUID.',
       });
     }
-    // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{ ... Remove this comment to see the full error message
     if (req.file) {
       const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{ ... Remove this comment to see the full error message
       updateData.image_url = `/uploads/exercise_entries/${today}/${req.file.filename}`;
     }
     // Add new fields to updateData
@@ -1142,7 +1134,6 @@ router.post('/import-fit', authenticate, (req, res, next) => {
       return next(uploadError);
     }
     try {
-      // @ts-expect-error TS(2339): Property 'files' does not exist on type 'Request<{}... Remove this comment to see the full error message
       const files = req.files;
       if (!files || !Array.isArray(files) || files.length === 0) {
         return res.status(400).json({

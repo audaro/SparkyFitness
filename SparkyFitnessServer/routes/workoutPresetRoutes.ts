@@ -1,4 +1,6 @@
 import express from 'express';
+import type { Response } from 'express';
+import type { ZodError } from 'zod';
 import {
   workoutPresetCreateRequestSchema,
   workoutPresetUpdateRequestSchema,
@@ -6,8 +8,7 @@ import {
 import { authenticate } from '../middleware/authMiddleware.js';
 import workoutPresetService from '../services/workoutPresetService.js';
 const router = express.Router();
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function sendValidationError(res: any, message: any, error: any) {
+function sendValidationError(res: Response, message: string, error: ZodError) {
   return res.status(400).json({
     error: message,
     details: error.flatten(),

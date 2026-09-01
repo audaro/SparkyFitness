@@ -9,8 +9,14 @@ import {
   setCachedSession,
 } from '../utils/apiKeySessionCache.js';
 import { bridgeBearerAuthHeader } from '../utils/bearerAuthBridge.js';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const authenticate = async (req: any, res: any, next: any) => {
+import type { NextFunction, Request, Response } from 'express';
+import { fromNodeHeaders } from 'better-auth/node';
+import type { RouteParams } from '../types/expressHandlers.js';
+const authenticate = async (
+  req: Request<RouteParams>,
+  res: Response,
+  next: NextFunction
+) => {
   //log("debug", `authenticate middleware: req.path = ${req.path}, req.headers.cookie = ${req.headers.cookie}`);
   // 1. Better Auth Session & API Key Check (Unified Identity)
   // Tracks the raw API key when this request is API-key-authed, so we can
@@ -41,7 +47,9 @@ const authenticate = async (req: any, res: any, next: any) => {
     }
     if (!session) {
       session = await auth.api.getSession({
-        headers: req.headers,
+        // Node's IncomingHttpHeaders is not a fetch Headers; better-auth ships
+        // the adapter, and the other getSession call sites already use it.
+        headers: fromNodeHeaders(req.headers),
       });
       if (session && session.user && apiKeyToken) {
         setCachedSession(apiKeyToken, session);
@@ -145,8 +153,11 @@ const authenticate = async (req: any, res: any, next: any) => {
   log('warn', `Authentication: No valid identity provided for ${req.path}`);
   return res.status(401).json({ error: 'Authentication required.' });
 };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const isAdmin = async (req: any, res: any, next: any) => {
+const isAdmin = async (
+  req: Request<RouteParams>,
+  res: Response,
+  next: NextFunction
+) => {
   if (!req.userId) {
     return res.status(401).json({ error: 'Authentication required.' });
   }

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // @ts-expect-error TS(7016): Could not find a declaration file for module 'supertest'
 import request from 'supertest';
 import express from 'express';
-// @ts-expect-error TS(7016): Could not find a declaration file for module 'multer'
 import multer from 'multer';
 import exerciseEntryRoutes from '../routes/exerciseEntryRoutes.js';
 import exerciseService from '../services/exerciseService.js';

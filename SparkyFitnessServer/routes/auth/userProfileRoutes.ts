@@ -1,7 +1,6 @@
 import express from 'express';
 import { authenticate } from '../../middleware/authMiddleware.js';
 import authService from '../../services/authService.js';
-// @ts-expect-error TS(7016): Could not find a declaration file for module 'mult... Remove this comment to see the full error message
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -19,12 +18,10 @@ log('info', 'UserProfileRoutes UPLOADS_DIR:', UPLOADS_DIR);
 // Ensure the uploads directory exists
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 const storage = multer.diskStorage({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  destination: (req: any, file: any, cb: any) => {
+  destination: (req, file, cb) => {
     cb(null, UPLOADS_DIR);
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  filename: (req: any, file: any, cb: any) => {
+  filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const fileExtension = path.extname(file.originalname);
     cb(null, req.userId + '-' + uniqueSuffix + fileExtension);
@@ -33,8 +30,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  fileFilter: (req: any, file: any, cb: any) => {
+  fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif/;
     const extname = allowedTypes.test(
       path.extname(file.originalname).toLowerCase()
@@ -450,7 +446,6 @@ router.post(
   upload.single('avatar'),
   async (req, res, next) => {
     try {
-      // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{}... Remove this comment to see the full error message
       if (!req.file) {
         return res
           .status(400)
@@ -458,7 +453,6 @@ router.post(
       }
       // The avatar URL should be a relative path that the frontend can use.
       // The logic for serving the file will handle the rest.
-      // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{}... Remove this comment to see the full error message
       const avatarUrl = `/uploads/avatars/${req.file.filename}`;
       // Update the profile of the active user context
 

@@ -1,5 +1,6 @@
-// @ts-expect-error TS(7016): No declaration file for module 'multer'.
 import multer from 'multer';
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import type { RouteParams } from '../types/expressHandlers.js';
 import path from 'path';
 import fs from 'fs';
 import { promises as fsp } from 'fs';
@@ -38,24 +39,10 @@ function entityDirFor(domain: ImageDomain, entityId: string): string {
   return path.join(baseUploadsDir, domain, entityId);
 }
 
-/** The fields multer hands to a fileFilter / diskStorage callback. */
-interface IncomingFile {
-  originalname: string;
-  mimetype: string;
-}
-
-/** multer's node-style callback, narrowed to how this module calls it. */
-type MulterCallback<T> = (error: Error | null, value?: T) => void;
-
-/** Carries the per-request staging directory key across multer callbacks. */
-interface UploadRequest {
-  imageUploadId?: string;
-}
-
 function imageFileFilter(
-  _req: UploadRequest,
-  file: IncomingFile,
-  cb: MulterCallback<boolean>
+  _req: Request<RouteParams>,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
 ) {
   if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
     cb(new Error(`Unsupported image type: ${file.mimetype}`));
@@ -65,11 +52,7 @@ function imageFileFilter(
 }
 
 const storage = multer.diskStorage({
-  destination: (
-    req: UploadRequest,
-    _file: IncomingFile,
-    cb: MulterCallback<string>
-  ) => {
+  destination: (req, _file, cb) => {
     if (!req.imageUploadId) {
       req.imageUploadId = randomUUID();
     }
@@ -77,11 +60,7 @@ const storage = multer.diskStorage({
     fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
-  filename: (
-    _req: UploadRequest,
-    file: IncomingFile,
-    cb: MulterCallback<string>
-  ) => {
+  filename: (_req, file, cb) => {
     // Strip any directory component a client may have smuggled in the name.
     const safeName = path.basename(file.originalname).replace(/[^\w.-]/g, '_');
     // A random prefix rather than a timestamp: two files with the same name in
@@ -106,19 +85,9 @@ const imageUpload = multer({
  * Cleanup is also scheduled on response finish, so a handler that forgets to
  * call `cleanupStagedImages` still does not leak.
  */
-function withStagingCleanup(
-  middleware: (
-    req: unknown,
-    res: unknown,
-    next: (err?: unknown) => void
-  ) => void
-) {
-  return (
-    req: unknown,
-    res: { on?: (event: string, cb: () => void) => void },
-    next: (err?: unknown) => void
-  ) => {
-    res.on?.('finish', () => {
+function withStagingCleanup(middleware: RequestHandler) {
+  return (req: Request<RouteParams>, res: Response, next: NextFunction) => {
+    res.on('finish', () => {
       void cleanupStagedImages(req);
     });
     middleware(req, res, (err?: unknown) => {
@@ -156,9 +125,10 @@ function isStagedFile(value: unknown): value is StagedFile {
 }
 
 /**
- * Reads multer's parsed uploads off a request. `req.files`/`req.file` are not
- * on Express's Request type, and augmenting it globally would conflict with the
- * memory-storage uploads elsewhere in this package, so narrow locally instead.
+ * Reads multer's parsed uploads off a request. `@types/multer` declares
+ * `file`/`files` as always-populated, and `files` as either an array or one
+ * entry per field, so narrow to the disk-storage shape this module wrote
+ * rather than trusting the declaration.
  */
 function stagedFilesFrom(req: unknown): StagedFile[] {
   const { files, file } = (req ?? {}) as { files?: unknown; file?: unknown };
@@ -338,8 +308,8 @@ function applyImageOrder(
 }
 
 /** Removes a request's staging directory. Never throws. */
-async function cleanupStagedImages(req: unknown): Promise<void> {
-  const uploadId = (req as UploadRequest | null | undefined)?.imageUploadId;
+async function cleanupStagedImages(req: Request<RouteParams>): Promise<void> {
+  const uploadId = req.imageUploadId;
   if (!uploadId) {
     return;
   }

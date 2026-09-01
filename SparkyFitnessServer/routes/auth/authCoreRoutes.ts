@@ -1,4 +1,5 @@
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { log } from '../../config/logging.js';
@@ -8,6 +9,7 @@ import userRepository from '../../models/userRepository.js';
 import authModule from '../../auth.js';
 import { fromNodeHeaders } from 'better-auth/node';
 import { bridgeBearerAuthHeader } from '../../utils/bearerAuthBridge.js';
+import type { RouteParams } from '../../types/expressHandlers.js';
 import {
   mintRegistrationTicket,
   redeemRegistrationTicket,
@@ -26,16 +28,16 @@ const mfaFactorsRateLimit = (() => {
   const MAX = 5;
   const WINDOW_MS = 30 * 1000;
   let lastSweepAt = 0;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function evictExpired(now: any) {
+  function evictExpired(now: number) {
     for (const [ip, entry] of hits) {
       if (now - entry.start >= WINDOW_MS) hits.delete(ip);
     }
     lastSweepAt = now;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (req: any, res: any, next: any) => {
-    const ip = req.ip;
+  return (req: Request<RouteParams>, res: Response, next: NextFunction) => {
+    // Express leaves `ip` undefined behind some proxy configurations; those
+    // requests share one bucket rather than escaping the limit entirely.
+    const ip = req.ip ?? 'unknown';
     const now = Date.now();
     // Sweep at most once per window to avoid O(n) cleanup on every request.
     if (hits.size > 0 && now - lastSweepAt >= WINDOW_MS) {
@@ -205,9 +207,8 @@ router.get('/web-login/register-passkey', (req, res) => {
 function makeIpRateLimit(max: number, windowMs: number) {
   const hits = new Map<string, { start: number; count: number }>();
   let lastSweepAt = 0;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (req: any, res: any, next: any) => {
-    const ip = req.ip;
+  return (req: Request<RouteParams>, res: Response, next: NextFunction) => {
+    const ip = req.ip ?? 'unknown';
     const now = Date.now();
     if (hits.size > 0 && now - lastSweepAt >= windowMs) {
       for (const [k, e] of hits) if (now - e.start >= windowMs) hits.delete(k);

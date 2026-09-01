@@ -1,4 +1,5 @@
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import {
   createPresetSessionRequestSchema,
@@ -8,28 +9,36 @@ import {
 import exercisePresetEntryRepository from '../models/exercisePresetEntryRepository.js';
 import exerciseService from '../services/exerciseService.js';
 import { log } from '../config/logging.js';
+import type { RouteParams } from '../types/expressHandlers.js';
 const router = express.Router();
 const presetEntryIdParamSchema = z.object({
   id: z.string().uuid(),
 });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const isAuthenticated = (req: any, res: any, next: any) => {
+const isAuthenticated = (
+  req: Request<RouteParams>,
+  res: Response,
+  next: NextFunction
+) => {
   if (!req.userId) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
   next();
 };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function sendValidationError(res: any, message: any, error: any) {
+function sendValidationError(
+  res: Response,
+  message: string,
+  error: z.ZodError
+) {
   return res.status(400).json({
     error: message,
     details: error.flatten(),
   });
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function handleRouteError(error: any, res: any, next: any) {
-  if (error?.status) {
-    return res.status(error.status).json({ message: error.message });
+function handleRouteError(error: unknown, res: Response, next: NextFunction) {
+  // Services signal an HTTP outcome by hanging `status` on the thrown Error.
+  const withStatus = error as { status?: number; message?: string } | null;
+  if (withStatus?.status) {
+    return res.status(withStatus.status).json({ message: withStatus.message });
   }
   if (error instanceof z.ZodError) {
     log('error', 'Grouped workout response validation failed:', error);

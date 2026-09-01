@@ -3,7 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import type { ServerResponse } from 'http';
 import express from 'express';
-// @ts-expect-error TS7016
+import type { NextFunction, Request, Response } from 'express';
+import type { RouteParams } from './types/expressHandlers.js';
 import cors from 'cors';
 // @ts-expect-error TS7016
 import cookieParser from 'cookie-parser';
@@ -146,7 +147,6 @@ if (allowPrivateNetworks) {
 // Use cors middleware to allow requests from your frontend (and optionally private networks)
 // Use cors middleware with dynamic configuration to allow Referer fallback (essential for HTTP IPs)
 app.use(
-  // @ts-expect-error TS7006
   cors((req, callback) => {
     const originChecker = createCorsOriginChecker(
       process.env.SPARKY_FITNESS_FRONTEND_URL || 'http://localhost:8080',
@@ -156,7 +156,6 @@ app.use(
     const origin = req.header('Origin');
     originChecker(
       origin,
-      // @ts-expect-error TS7006
       (_err, allowed) => {
         callback(null, {
           origin: allowed,
@@ -486,7 +485,7 @@ if (isPublicApiDocsEnabled) {
 }
 
 // Apply authentication middleware to all protected routes
-app.use((req, res, next) => {
+app.use((req: Request<RouteParams>, res: Response, next: NextFunction) => {
   const isPublic = publicRoutes.some((route) => {
     // Exact match or subpath match with trailing slash to prevent partial matches
     // e.g. "/api/health" matches "/api/health" and "/api/health/" but NOT "/api/health-data"

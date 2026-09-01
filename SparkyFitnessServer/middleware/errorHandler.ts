@@ -1,6 +1,24 @@
+import type { NextFunction, Request, Response } from 'express';
 import { log } from '../config/logging.js';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const errorHandler = (err: any, _req: any, res: any, _next: any) => {
+/**
+ * What this handler reads off a thrown value. Nothing guarantees any of it:
+ * `next(err)` accepts anything, so every field is treated as best-effort.
+ */
+interface HandledError {
+  message?: string;
+  stack?: string;
+  statusCode?: number;
+  name?: string;
+  code?: string;
+}
+const errorHandler = (
+  error: unknown,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+) => {
+  const err: HandledError =
+    error && typeof error === 'object' ? (error as HandledError) : {};
   log(
     'error',
     `Error caught by centralized handler: ${err.message}`,
@@ -21,7 +39,7 @@ const errorHandler = (err: any, _req: any, res: any, _next: any) => {
       break;
     case 'ValidationError': // Example for validation errors
       statusCode = 400;
-      message = err.message;
+      message = err.message || message;
       break;
     default:
       // Handle cases not based on err.name inside the default

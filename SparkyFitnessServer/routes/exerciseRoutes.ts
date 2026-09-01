@@ -3,7 +3,6 @@ import { authenticate } from '../middleware/authMiddleware.js';
 import exerciseService from '../services/exerciseService.js';
 import reportRepository from '../models/reportRepository.js';
 import wgerService from '../integrations/wger/wgerService.js';
-// @ts-expect-error TS(7016): Could not find a declaration file for module 'mult... Remove this comment to see the full error message
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -33,8 +32,7 @@ const baseUploadsDir = process.env.SPARKY_FITNESS_CUSTOM_UPLOADS_DIRECTORY
   : path.join(__dirname, '../uploads');
 // Setup Multer for file uploads
 const storage = multer.diskStorage({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  destination: (req: any, file: any, cb: any) => {
+  destination: (req, file, cb) => {
     // Runs per-file, before the route handler (and its exerciseData
     // validation) ever executes — malformed/wrongly-shaped exerciseData must
     // not throw here, or the request fails uncontrolled instead of getting
@@ -62,8 +60,7 @@ const storage = multer.diskStorage({
     fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  filename: (req: any, file: any, cb: any) => {
+  filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   },
 });
@@ -1166,21 +1163,17 @@ router.post(
     try {
       const parsed = parseExerciseData(req.body?.exerciseData);
       if (!parsed.ok) {
-        // @ts-expect-error TS(2339): Property 'files' does not exist on type 'Request<{... Remove this comment to see the full error message
         await cleanupUploadedFiles(req.files);
         return res.status(400).json(parsed.body);
       }
       const exerciseData = parsed.data;
-      // @ts-expect-error TS(2339): Property 'files' does not exist on type 'Request<{... Remove this comment to see the full error message
-      const imagePaths = req.files
-        ? // @ts-expect-error TS(2339): Property 'files' does not exist on type 'Request<{... Remove this comment to see the full error message
-          req.files.map(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (file: any) =>
-              // @ts-expect-error TS(18046): 'exerciseData.name' is of type 'unknown' (passthrough field, not part of exerciseWriteArrayFieldsSchema).
-              `${exerciseData.name.replace(/[^a-zA-Z0-9]/g, '_')}/${file.filename}`
-          )
-        : [];
+      // `upload.array()` is what these routes register, so multer's object
+      // form (one key per field) never occurs here.
+      const imagePaths = (Array.isArray(req.files) ? req.files : []).map(
+        (file) =>
+          // @ts-expect-error TS(18046): 'exerciseData.name' is of type 'unknown' (passthrough field, not part of exerciseWriteArrayFieldsSchema).
+          `${exerciseData.name.replace(/[^a-zA-Z0-9]/g, '_')}/${file.filename}`
+      );
 
       const newExercise = await exerciseService.createExercise(req.userId, {
         ...exerciseData,
@@ -1390,21 +1383,17 @@ router.put(
     try {
       const parsed = parseExerciseData(req.body?.exerciseData);
       if (!parsed.ok) {
-        // @ts-expect-error TS(2339): Property 'files' does not exist on type 'Request<{... Remove this comment to see the full error message
         await cleanupUploadedFiles(req.files);
         return res.status(400).json(parsed.body);
       }
       const exerciseData = parsed.data;
-      // @ts-expect-error TS(2339): Property 'files' does not exist on type 'Request<{... Remove this comment to see the full error message
-      const newImagePaths = req.files
-        ? // @ts-expect-error TS(2339): Property 'files' does not exist on type 'Request<{... Remove this comment to see the full error message
-          req.files.map(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (file: any) =>
-              // @ts-expect-error TS(18046): 'exerciseData.name' is of type 'unknown' (passthrough field, not part of exerciseWriteArrayFieldsSchema).
-              `${exerciseData.name.replace(/[^a-zA-Z0-9]/g, '_')}/${file.filename}`
-          )
-        : [];
+      // `upload.array()` is what these routes register, so multer's object
+      // form (one key per field) never occurs here.
+      const newImagePaths = (Array.isArray(req.files) ? req.files : []).map(
+        (file) =>
+          // @ts-expect-error TS(18046): 'exerciseData.name' is of type 'unknown' (passthrough field, not part of exerciseWriteArrayFieldsSchema).
+          `${exerciseData.name.replace(/[^a-zA-Z0-9]/g, '_')}/${file.filename}`
+      );
       // Combine existing images with new images. exerciseData.images is a
       // real string[] here (exerciseWriteArrayFieldsSchema normalizes it),
       // not a cast-away lie — a client-sent bare string is coerced to a

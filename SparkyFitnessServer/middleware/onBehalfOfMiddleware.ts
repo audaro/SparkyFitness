@@ -1,8 +1,15 @@
 import familyAccessRepository from '../models/familyAccessRepository.js';
+import type { NextFunction, Request, Response } from 'express';
 import { log } from '../config/logging.js';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const onBehalfOfMiddleware = async (req: any, res: any, next: any) => {
-  const onBehalfOfUserId = req.headers['x-on-behalf-of-user-id'];
+import { queryString } from '../utils/queryParams.js';
+import type { RouteParams } from '../types/expressHandlers.js';
+const onBehalfOfMiddleware = async (
+  req: Request<RouteParams>,
+  res: Response,
+  next: NextFunction
+) => {
+  // A repeated header arrives as an array; only a single value names a user.
+  const onBehalfOfUserId = queryString(req.headers['x-on-behalf-of-user-id']);
   const authUserId = req.authenticatedUserId || req.userId;
 
   if (onBehalfOfUserId && authUserId) {

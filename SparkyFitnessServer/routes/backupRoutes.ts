@@ -30,7 +30,6 @@ const backupSettingsBodySchema = z.object({
 });
 
 const backupFileNameSchema = z.string().regex(BACKUP_FILE_PATTERN);
-// @ts-expect-error TS(7016): Could not find a declaration file for module 'mult... Remove this comment to see the full error message
 import multer from 'multer';
 import path from 'path';
 import { promises } from 'fs';
@@ -168,13 +167,10 @@ router.post(
   upload.single('backupFile'),
   async (req, res) => {
     log('info', 'Restore initiated by admin.');
-    // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{}... Remove this comment to see the full error message
     if (!req.file) {
       return res.status(400).json({ message: 'No backup file uploaded.' });
     }
-    // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{}... Remove this comment to see the full error message
     const uploadedFilePath = req.file.path;
-    // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{}... Remove this comment to see the full error message
     const originalFileName = req.file.originalname;
     // Never derive the on-disk path from the uploaded filename. A server-generated
     // name keeps shell metacharacters and `..` traversal sequences out of the path

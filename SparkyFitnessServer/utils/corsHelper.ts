@@ -1,5 +1,6 @@
 import ipaddr from 'ipaddr.js';
 import { log } from '../config/logging.js';
+import type { CorsRequest } from 'cors';
 /**
  * Check if a host is a private network address
  * @param {string} hostname - The hostname to check (e.g., "192.168.1.100", "localhost", "10.0.0.5")
@@ -63,13 +64,11 @@ function isPrivateNetworkAddress(hostname: any) {
  * @returns {Function} A function suitable for the `origin` option in cors middleware
  */
 function createCorsOriginChecker(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  configuredFrontendUrl: any,
+  configuredFrontendUrl: string | undefined,
   allowPrivateNetworks = false,
   extraTrustedOrigins = ''
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allowedOrigins: any = [];
+  const allowedOrigins: string[] = [];
   // Add configured frontend URL with validation
   if (configuredFrontendUrl) {
     try {
@@ -93,8 +92,11 @@ function createCorsOriginChecker(
       }
     });
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (origin: any, callback: any, req: any) => {
+  return (
+    origin: string | undefined,
+    callback: (err: Error | null, allow: boolean) => void,
+    req: CorsRequest
+  ) => {
     // 1. Basic Check: Match the origin exactly against your list
     const effectiveOrigin = origin === 'null' ? undefined : origin;
     if (effectiveOrigin && allowedOrigins.includes(effectiveOrigin)) {

@@ -114,12 +114,10 @@ router.post(
   oidcLogoUpload.single('logo'),
   async (req, res) => {
     const { id } = req.params;
-    // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{ ... Remove this comment to see the full error message
     if (!req.file) {
       return res.status(400).json({ message: 'No logo file uploaded.' });
     }
     try {
-      // @ts-expect-error TS(2339): Property 'file' does not exist on type 'Request<{ ... Remove this comment to see the full error message
       const logoUrl = `/uploads/oidc/${req.file.filename}`;
       const success = await oidcProviderRepository.setProviderLogo(id, logoUrl);
       if (success) {

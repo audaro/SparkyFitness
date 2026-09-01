@@ -1,4 +1,3 @@
-// @ts-expect-error TS(7016): Could not find a declaration file for module 'mult... Remove this comment to see the full error message
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -17,12 +16,10 @@ if (!fs.existsSync(uploadDir)) {
 }
 // Create a storage configuration for OIDC logos
 const oidcLogoStorage = multer.diskStorage({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  destination: (req: any, file: any, cb: any) => {
+  destination: (req, file, cb) => {
     cb(null, uploadDir);
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  filename: (req: any, file: any, cb: any) => {
+  filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     cb(null, `oidc-logo-${uniqueSuffix}${path.extname(file.originalname)}`);
   },

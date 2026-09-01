@@ -1,9 +1,13 @@
 import { canAccessUserData } from '../utils/permissionUtils.js';
+import type { NextFunction, Request, Response } from 'express';
 import { log } from '../config/logging.js';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const checkPermissionMiddleware = (permissionType: any) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return async (req: any, res: any, next: any) => {
+import type { RouteParams } from '../types/expressHandlers.js';
+const checkPermissionMiddleware = (permissionType: string) => {
+  return async (
+    req: Request<RouteParams>,
+    res: Response,
+    next: NextFunction
+  ) => {
     // Identify the true authenticated caller (never the switched context).
     const authUserId =
       req.originalUserId || req.authenticatedUserId || req.userId;

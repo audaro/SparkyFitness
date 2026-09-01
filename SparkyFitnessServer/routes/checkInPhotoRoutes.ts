@@ -213,7 +213,6 @@ router.post(
   },
   checkInPhotoUpload.single('photo'),
   async (req, res) => {
-    // @ts-expect-error multer attaches req.file at runtime; it ships no types.
     const file = req.file as { buffer: Buffer } | undefined;
     if (!file) {
       res.status(400).json({ error: 'No photo file provided' });

@@ -11,6 +11,12 @@ declare global {
       activeUserId: string;
       /** Full Better Auth user object (includes role, email, etc.). */
       user: Record<string, unknown>;
+      /**
+       * Staging-directory key for an image upload, set by the multer disk
+       * storage in `middleware/imageUpload.ts` so the `destination` and the
+       * route handler agree on where the request's files landed.
+       */
+      imageUploadId?: string;
     }
   }
 }
