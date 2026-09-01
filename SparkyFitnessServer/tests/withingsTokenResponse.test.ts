@@ -28,7 +28,10 @@ const USER_ID = 'user-1';
 
 // The provider row both flows read before talking to Withings. Values are
 // irrelevant because decrypt is stubbed; only the row's presence matters.
+const OAUTH_STATE = 'issued-nonce';
+
 const PROVIDER_ROW = {
+  oauth_state: OAUTH_STATE,
   encrypted_app_id: 'a',
   app_id_iv: 'b',
   app_id_tag: 'c',
@@ -149,6 +152,7 @@ describe('Withings token response validation', () => {
       exchangeCodeForTokens(
         USER_ID,
         'code',
+        OAUTH_STATE,
         'https://app.test/withings/callback'
       )
     ).rejects.toThrow(/304/);
@@ -196,6 +200,7 @@ describe('Withings token response validation', () => {
     await exchangeCodeForTokens(
       USER_ID,
       'auth-code',
+      OAUTH_STATE,
       'https://app.test/withings/callback'
     );
 

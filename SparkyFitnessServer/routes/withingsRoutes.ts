@@ -60,54 +60,60 @@ router.get(
  *               code: { type: 'string' }
  *               state: { type: 'string' }
  *               error: { type: 'string', nullable: true }
+ *     security:
+ *       - cookieAuth: []
  *     responses:
  *       200:
  *         description: Successfully linked.
  */
-router.post('/callback', async (req, res) => {
-  try {
-    const { code, state, error } = req.body;
-    if (error) {
-      log('error', `Withings OAuth callback error: ${error}`);
-      return res.status(400).json({ message: 'Withings OAuth error', error });
-    }
-    if (!code) {
-      return res
-        .status(400)
-        .json({ message: 'Authorization code not received.' });
-    }
-    // In a real application, 'state' should be validated against a stored value
-    // associated with the user who initiated the authorization flow.
-    // For now, we'll just log it.
-    log('info', `Withings OAuth callback received. State: ${state}`);
-    // Assuming we can derive userId from the state or a session,
-    // for this example, we'll need to pass a placeholder or retrieve it differently.
-    // In a production app, 'state' would typically contain a user identifier or a session ID.
-    // For simplicity, let's assume a fixed user ID for now, or pass it through state.
-    // containing the userId, which can be decrypted/verified here.
-    const userId = state; // The userId was passed in the state parameter
-    const tokenExchangeResult = await withingsService.exchangeCodeForTokens(
-      userId,
-      code,
-      `${process.env.SPARKY_FITNESS_FRONTEND_URL}/withings/callback`
-    );
-    if (tokenExchangeResult.success) {
-      res
-        .status(200)
-        .json({ message: 'Withings account linked successfully.' });
-    } else {
-      res.status(500).json({ message: 'Failed to connect Withings account.' });
-    }
-  } catch (error) {
-    // @ts-expect-error TS(2571): Object is of type 'unknown'.
-    log('error', `Error handling Withings OAuth callback: ${error.message}`);
-    res.status(500).json({
-      message: 'Error handling Withings OAuth callback',
+router.post(
+  '/callback',
+  authMiddleware.authenticate,
+  checkPermissionMiddleware('diary'),
+  async (req, res) => {
+    try {
+      const { code, state, error } = req.body;
+      // The user is whoever is signed in, never whoever the request claims to
+      // be; `state` is only the CSRF nonce issued by /authorize.
+      const userId = req.userId;
+      if (error) {
+        log('error', `Withings OAuth callback error: ${error}`);
+        return res.status(400).json({ message: 'Withings OAuth error', error });
+      }
+      if (!code) {
+        return res
+          .status(400)
+          .json({ message: 'Authorization code not received.' });
+      }
+      if (!state) {
+        return res.status(400).json({ message: 'OAuth state not received.' });
+      }
+      const tokenExchangeResult = await withingsService.exchangeCodeForTokens(
+        userId,
+        code,
+        state,
+        `${process.env.SPARKY_FITNESS_FRONTEND_URL}/withings/callback`
+      );
+      if (tokenExchangeResult.success) {
+        res
+          .status(200)
+          .json({ message: 'Withings account linked successfully.' });
+      } else {
+        res
+          .status(500)
+          .json({ message: 'Failed to connect Withings account.' });
+      }
+    } catch (error) {
       // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      error: error.message,
-    });
+      log('error', `Error handling Withings OAuth callback: ${error.message}`);
+      res.status(500).json({
+        message: 'Error handling Withings OAuth callback',
+        // @ts-expect-error TS(2571): Object is of type 'unknown'.
+        error: error.message,
+      });
+    }
   }
-});
+);
 /**
  * @swagger
  * /withings/sync:

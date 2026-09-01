@@ -1,4 +1,5 @@
 import axios from 'axios';
+import crypto from 'crypto';
 import { getClient, getSystemClient } from '../../db/poolManager.js';
 import { encrypt, decrypt, ENCRYPTION_KEY } from '../../security/encryption.js';
 import { log } from '../../config/logging.js';
@@ -118,22 +119,38 @@ async function getAuthorizationUrl(userId: any) {
       ENCRYPTION_KEY
     );
     const scope = 'user.info,user.metrics,user.activity,user.sleepevents'; // Define required scopes
-    const state = userId; // Use the userId as the state to identify the user on callback
-    // Store state in session or database to validate on callback
+    // The state is an unguessable nonce, never the user id: it is echoed back by
+    // Withings on a public redirect, so anything derived from it would be a user
+    // identifier an attacker could forge. Persist it so the callback can match it.
+    const state = crypto.randomBytes(32).toString('hex');
+    await client.query(
+      `UPDATE external_data_providers
+             SET oauth_state = $1
+             WHERE user_id = $2 AND provider_type = 'withings'`,
+      [state, userId]
+    );
     return `${WITHINGS_ACCOUNT_BASE_URL}/oauth2_user/authorize2?response_type=code&client_id=${clientId}&scope=${scope}&redirect_uri=${process.env.SPARKY_FITNESS_FRONTEND_URL}/withings/callback&state=${state}`;
   } finally {
     client.release();
   }
 }
 // Function to exchange authorization code for access and refresh tokens
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function exchangeCodeForTokens(userId: any, code: any, redirectUri: any) {
+async function exchangeCodeForTokens(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  userId: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  code: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  state: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  redirectUri: any
+) {
   const client = await getSystemClient();
   try {
-    // Validate state parameter (implementation depends on where state is stored)
-    // For example, retrieve from session and compare
+    // The row is looked up by the nonce AND the authenticated user, so a code
+    // replayed with someone else's state finds nothing to bind to.
     const providerResult = await client.query(
-      `SELECT encrypted_app_id, app_id_iv, app_id_tag, encrypted_app_key, app_key_iv, app_key_tag
+      `SELECT encrypted_app_id, app_id_iv, app_id_tag, encrypted_app_key, app_key_iv, app_key_tag, oauth_state
              FROM external_data_providers
              WHERE user_id = $1 AND provider_type = 'withings'`,
       [userId]
@@ -148,7 +165,17 @@ async function exchangeCodeForTokens(userId: any, code: any, redirectUri: any) {
       encrypted_app_key,
       app_key_iv,
       app_key_tag,
+      oauth_state: storedState,
     } = providerResult.rows[0];
+    // Validate state to prevent CSRF. A missing stored nonce means no
+    // authorization was started for this user, which is just as invalid.
+    if (!state || !storedState || storedState !== state) {
+      log(
+        'warn',
+        `[Withings] OAuth state mismatch for user ${userId}; rejecting callback.`
+      );
+      throw new Error('Invalid OAuth state. Potential CSRF attack.');
+    }
     const clientId = await decrypt(
       encrypted_app_id,
       app_id_iv,
@@ -218,7 +245,8 @@ async function exchangeCodeForTokens(userId: any, code: any, redirectUri: any) {
       const updateQuery = `UPDATE external_data_providers
                 SET encrypted_access_token = $1, access_token_iv = $2, access_token_tag = $3,
                     encrypted_refresh_token = $4, refresh_token_iv = $5, refresh_token_tag = $6,
-                    scope = $7, token_expires_at = $8, external_user_id = $9, is_active = TRUE, updated_at = NOW()
+                    scope = $7, token_expires_at = $8, external_user_id = $9,
+                    oauth_state = NULL, is_active = TRUE, updated_at = NOW()
                 WHERE user_id = $10 AND provider_type = 'withings'`;
       log('info', `Executing SQL query: ${updateQuery}`);
       log('info', `With payload: ${JSON.stringify(updatePayload)}`);

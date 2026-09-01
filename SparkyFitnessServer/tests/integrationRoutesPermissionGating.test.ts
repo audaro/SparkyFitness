@@ -91,3 +91,18 @@ describe('integration routers reject switched-context delegates lacking diary ac
     });
   }
 });
+
+// Strava is absent on purpose: its POST /callback carries no middleware at all
+// and reads an undefined req.userId, so there is no gate here to assert.
+describe('integration routers gate the OAuth callback itself', () => {
+  for (const [mount, router] of cases.filter(([m]) => m !== '/strava')) {
+    it(`${mount} POST /callback returns 403 when permission is denied`, async () => {
+      permissionState.allow = false;
+      const app = appWith(mount, router);
+      const res = await request(app)
+        .post(`${mount}/callback`)
+        .send({ code: 'code', state: 'state' });
+      expect(res.statusCode).toBe(403);
+    });
+  }
+});
