@@ -19,9 +19,23 @@ possible was typing `db/poolManager.ts`: with `getClient` returning a real
 `PoolClient`, `client.query<Row>()` works and roughly 180 downstream sites had
 to say what they read. 359 dead disable comments went; `tests/**` states its
 exemption once in the config instead of through ~350 per-line comments; the 112
-unsuppressed `any` sites are typed. 1,375 suppressions remain in server `src` —
-they are now genuine, visible suppressions rather than decoration, and reducing
-them is a separate, mechanical follow-up (`userId: any` alone is ~380 of them).
+unsuppressed `any` sites are typed.
+
+The follow-up ran the same day in `45553a277`: all 559 user-id parameters
+(`userId`, `authenticatedUserId`, `actingUserId`, `targetUserId`,
+`createdByUserId`) are now `string`, which took server suppressions from 1,375 to
+984 and forced 34 Express handlers to stop passing `req.query.x` — typed
+`string | ParsedQs | (string | ParsedQs)[]` — into parameters that meant a single
+string. `utils/queryParams.ts` holds the `queryString` helper for that, promoted
+from the private copy `exerciseRoutes.ts` already had. It also caught
+`processStravaActivities` declaring uuid ids as `number`, a non-null
+`targetUserId` on the admin audit log that seven routes call with `null`, and
+three `actingUserId: string = null` defaults.
+
+What is left is the same mechanical work on other families: `id`/`providerId`/
+`exerciseId`/`entryId` (~150), `startDate`/`endDate`/`date` (~110), and the
+Express `req`/`res`/`next` handler triples (~270, and a design question rather
+than a rename, since the useful types are `Request`/`Response`/`NextFunction`).
 
 The typing surfaced three latent bugs that `any` had been hiding, all fixed in
 the same commit: `ensureUserInitialization` was called with three arguments
