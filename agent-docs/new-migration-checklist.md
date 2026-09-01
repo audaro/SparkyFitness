@@ -45,4 +45,12 @@ Follow this checklist whenever you add or change a server database migration —
 
 - [ ] Run `pnpm run validate` in `SparkyFitnessServer/` — typecheck, lint, format.
 - [ ] Run tests nearest the touched surface: `pnpm exec vitest run tests/<domain>*.test.ts`.
+- [ ] Run `pnpm run test:migrations` against a local test database. This is the
+      only command that reproduces CI's **Fresh-install Migrations** and
+      **Upgrade-path Migrations** jobs; `validate` does not touch Postgres, so a
+      migration can pass every other step here and still go red.
+- [ ] Run it **twice in a row** — that is what the fresh-install job does, to
+      prove the always-reapplied RLS policies survive a restart.
+- [ ] Run `pnpm exec vitest run tests/rlsPermissionMatrix.integration.test.ts`
+      if you touched `db/rls_policies.sql`.
 - [ ] If the API changed, validate from the consuming packages (frontend, mobile) too.

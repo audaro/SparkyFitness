@@ -65,6 +65,7 @@ Cheap ways to learn things:
 - Database security & permissions: `docs/content/8.developer/11.database-security-tiers.md` (security tier, permission type, and RLS rules for every table).
 - API request/response contract: `shared/src/schemas/api/<Name>.api.zod.ts`.
 - Definition of done: CI (`.github/workflows/ci-tests.yml`) runs `pnpm run validate` plus the package's CI test script for each changed package. Run those locally before declaring work complete.
+  - A change under `SparkyFitnessServer/db/` additionally triggers **Fresh-install Migrations** and **Upgrade-path Migrations** against Postgres 18.3, plus the RLS permission matrix. `validate` does not cover them: reproduce them locally with `pnpm run test:migrations` (server) and `pnpm exec vitest run tests/rlsPermissionMatrix.integration.test.ts`, or you can satisfy this bullet and still go red.
 
 ## Cross-Package Rules
 
