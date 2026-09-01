@@ -519,8 +519,7 @@ async function getMCTQStats(userId: string) {
 // ==========================================
 // DAILY NEED (WHOOP-style decomposition)
 // ==========================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getDailyNeed(userId: string, targetDate: any) {
+async function getDailyNeed(userId: string, targetDate: string) {
   log(
     'info',
     `Getting daily sleep need for user ${userId}, date=${targetDate}`

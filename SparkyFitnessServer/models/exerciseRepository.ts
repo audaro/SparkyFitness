@@ -34,8 +34,7 @@ async function getExercisesNeedingReview(userId: string) {
 }
 async function updateExerciseEntriesSnapshot(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any,
+  exerciseId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   newSnapshotData: any
 ) {
@@ -62,8 +61,7 @@ async function updateExerciseEntriesSnapshot(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function clearUserIgnoredUpdate(userId: string, variantId: any) {
+async function clearUserIgnoredUpdate(userId: string, variantId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query(

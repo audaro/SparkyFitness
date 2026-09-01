@@ -354,7 +354,12 @@ app.get(
     '/uploads/exercises/:exerciseId/:imageFileName',
   ],
   async (req, res, _next) => {
-    const { exerciseId, imageFileName } = req.params;
+    // Express widens `req.params` to `string | string[]` when a handler is
+    // registered against an array of paths; a path segment is always one string.
+    const { exerciseId, imageFileName } = req.params as {
+      exerciseId: string;
+      imageFileName: string;
+    };
 
     // Security: Resolve and normalize the path to prevent traversal attacks
     const exercisesBaseDir = path.resolve(UPLOADS_BASE_DIR, 'exercises');

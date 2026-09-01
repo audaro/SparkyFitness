@@ -84,8 +84,7 @@ async function createWorkoutPlanTemplate(userId: string, planData: any) {
 async function getWorkoutPlanTemplatesByUserId(userId: string) {
   return workoutPlanTemplateRepository.getWorkoutPlanTemplatesByUserId(userId);
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPlanTemplateById(userId: string, templateId: any) {
+async function getWorkoutPlanTemplateById(userId: string, templateId: number) {
   const template =
     await workoutPlanTemplateRepository.getWorkoutPlanTemplateById(
       templateId,
@@ -109,8 +108,7 @@ async function getWorkoutPlanTemplateById(userId: string, templateId: any) {
 
 async function updateWorkoutPlanTemplate(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  templateId: any,
+  templateId: number,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -211,8 +209,7 @@ async function updateWorkoutPlanTemplate(
     });
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWorkoutPlanTemplate(userId: string, templateId: any) {
+async function deleteWorkoutPlanTemplate(userId: string, templateId: number) {
   log(
     'info',
     `deleteWorkoutPlanTemplate service - received templateId: ${templateId} for user: ${userId}`
@@ -263,8 +260,7 @@ async function deleteWorkoutPlanTemplate(userId: string, templateId: any) {
     });
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getActiveWorkoutPlanForDate(userId: string, date: any) {
+async function getActiveWorkoutPlanForDate(userId: string, date: string) {
   return workoutPlanTemplateRepository.getActiveWorkoutPlanForDate(
     userId,
     date

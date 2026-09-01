@@ -111,7 +111,9 @@ router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const plan = await workoutPlanTemplateService.getWorkoutPlanTemplateById(
       req.userId,
-      req.params.id
+      // `workout_plan_templates.id` is an integer PK, so the path segment
+      // becomes a number here rather than a string the database coerces.
+      Number(req.params.id)
     );
     res.status(200).json(plan);
   } catch (error) {
@@ -172,7 +174,9 @@ router.put('/:id', authenticate, async (req, res, next) => {
     const updatedPlan =
       await workoutPlanTemplateService.updateWorkoutPlanTemplate(
         req.userId,
-        req.params.id,
+        // `workout_plan_templates.id` is an integer PK, so the path segment
+        // becomes a number here rather than a string the database coerces.
+        Number(req.params.id),
         req.body
       );
     res.status(200).json(updatedPlan);
@@ -226,7 +230,9 @@ router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     const result = await workoutPlanTemplateService.deleteWorkoutPlanTemplate(
       req.userId,
-      req.params.id
+      // `workout_plan_templates.id` is an integer PK, so the path segment
+      // becomes a number here rather than a string the database coerces.
+      Number(req.params.id)
     );
     res.status(200).json(result);
   } catch (error) {

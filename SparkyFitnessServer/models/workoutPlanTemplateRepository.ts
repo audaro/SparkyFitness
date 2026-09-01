@@ -143,8 +143,7 @@ async function getWorkoutPlanTemplatesByUserId(userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPlanTemplateById(templateId: any, userId: string) {
+async function getWorkoutPlanTemplateById(templateId: number, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const query = `
@@ -185,8 +184,7 @@ async function getWorkoutPlanTemplateById(templateId: any, userId: string) {
 }
 
 async function updateWorkoutPlanTemplate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  templateId: any,
+  templateId: number,
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
@@ -232,8 +230,7 @@ async function updateWorkoutPlanTemplate(
             !isNaN(id) &&
             Number.isInteger(Number(id))
         )
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((id: any) => Number(id));
+        .map((id: string) => Number(id));
       // Delete any assignments that are no longer in the plan
       const assignmentsToDelete = existingAssignmentIds.filter(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -370,8 +367,7 @@ async function updateWorkoutPlanTemplate(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWorkoutPlanTemplate(templateId: any, userId: string) {
+async function deleteWorkoutPlanTemplate(templateId: number, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -391,8 +387,10 @@ async function deleteWorkoutPlanTemplate(templateId: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPlanTemplateOwnerId(templateId: any, userId: string) {
+async function getWorkoutPlanTemplateOwnerId(
+  templateId: number,
+  userId: string
+) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -404,8 +402,7 @@ async function getWorkoutPlanTemplateOwnerId(templateId: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getActiveWorkoutPlanForDate(userId: string, date: any) {
+async function getActiveWorkoutPlanForDate(userId: string, date: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const query = `

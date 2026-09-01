@@ -3,8 +3,7 @@ import { log } from '../config/logging.js';
 
 async function upsertSleepEntry(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _actingUserId: any,
+  _actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sleepEntryData: any
 ) {
@@ -207,8 +206,7 @@ function normalizeSleepStageEventData(
 async function upsertSleepStageEventWithClient(
   client: Awaited<ReturnType<typeof getClient>>,
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryId: any,
+  entryId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sleepStageEventData: any,
   actingUserId: string | null = null
@@ -300,8 +298,7 @@ async function upsertSleepStageEventWithClient(
 
 async function upsertSleepStageEvent(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryId: any,
+  entryId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sleepStageEventData: any,
   actingUserId: string | null = null
@@ -334,8 +331,7 @@ async function upsertSleepStageEvent(
 async function deleteSupersededSleepStagesWithClient(
   client: Awaited<ReturnType<typeof getClient>>,
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryId: any,
+  entryId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   windowStart: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -381,8 +377,7 @@ async function deleteSupersededSleepStagesWithClient(
 
 async function mergeSleepStageEvents(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryId: any,
+  entryId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sleepStageEvents: any[],
   actingUserId: string | null = null
@@ -439,8 +434,7 @@ async function mergeSleepStageEvents(
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getSleepStageEventsByEntryId(userId: string, entryId: any) {
+async function getSleepStageEventsByEntryId(userId: string, entryId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -465,8 +459,7 @@ async function getSleepStageEventsByEntryId(userId: string, entryId: any) {
 
 async function updateSleepEntryAggregates(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryId: any,
+  entryId: string,
   actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   aggregates: any
@@ -523,10 +516,8 @@ async function updateSleepEntryAggregates(
 
 async function getSleepEntriesByUserIdAndDateRange(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   const client = await getClient(userId);
   try {
@@ -587,8 +578,7 @@ async function getSleepEntriesByUserIdAndDateRange(
 
 async function updateSleepEntry(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryId: any,
+  entryId: string,
   actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
@@ -807,8 +797,10 @@ async function updateSleepEntry(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteSleepStageEventsByEntryId(userId: string, entryId: any) {
+async function deleteSleepStageEventsByEntryId(
+  userId: string,
+  entryId: string
+) {
   const client = await getClient(userId);
   try {
     await client.query('BEGIN');
@@ -841,10 +833,8 @@ async function deleteSleepEntriesByEntrySourceAndDate(
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entrySource: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   const client = await getClient(userId);
   try {
@@ -888,10 +878,8 @@ async function deleteSleepEntriesByEntrySourceAndDate(
 }
 async function getSleepEntriesWithAllDetailsByUserIdAndDateRange(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   const client = await getClient(userId);
   try {
@@ -961,8 +949,7 @@ async function getSleepEntriesWithAllDetailsByUserIdAndDateRange(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteSleepEntry(userId: string, entryId: any) {
+async function deleteSleepEntry(userId: string, entryId: string) {
   const client = await getClient(userId);
   try {
     await client.query('BEGIN');

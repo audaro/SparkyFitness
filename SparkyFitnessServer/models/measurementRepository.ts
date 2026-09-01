@@ -86,8 +86,7 @@ async function upsertStepData(
   actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  date: any
+  date: string
 ) {
   const client = await getClient(actingUserId); // User-specific operation, using actingUserId for RLS context
   try {
@@ -125,8 +124,7 @@ async function upsertWaterData(
   actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   waterMl: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  date: any,
+  date: string,
   source = 'manual'
 ) {
   const client = await getClient(actingUserId);
@@ -209,8 +207,11 @@ async function incrementWaterData(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterIntakeByDate(userId: string, date: any, source = null) {
+async function getWaterIntakeByDate(
+  userId: string,
+  date: string,
+  source = null
+) {
   const client = await getClient(userId);
   try {
     let query;
@@ -249,8 +250,7 @@ async function getWaterIntakesByDates(userId: string, dates: string[]) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterIntakeEntryById(id: any, userId: string) {
+async function getWaterIntakeEntryById(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -262,8 +262,7 @@ async function getWaterIntakeEntryById(id: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterIntakeEntryOwnerId(id: any, userId: string) {
+async function getWaterIntakeEntryOwnerId(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     const entryResult = await client.query(
@@ -277,8 +276,7 @@ async function getWaterIntakeEntryOwnerId(id: any, userId: string) {
 }
 
 async function updateWaterIntake(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   userId: string,
   actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -309,8 +307,7 @@ async function updateWaterIntake(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWaterIntake(id: any, userId: string) {
+async function deleteWaterIntake(id: string, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -325,8 +322,7 @@ async function deleteWaterIntake(id: any, userId: string) {
 async function upsertCheckInMeasurements(
   userId: string,
   actingUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryDate: any,
+  entryDate: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   measurements: any
 ) {
@@ -547,8 +543,7 @@ async function bulkUpsertCheckInMeasurements(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCheckInMeasurementsByDate(userId: string, date: any) {
+async function getCheckInMeasurementsByDate(userId: string, date: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -563,8 +558,7 @@ async function getCheckInMeasurementsByDate(userId: string, date: any) {
 
 async function getLatestCheckInMeasurementsOnOrBeforeDate(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  date: any
+  date: string
 ) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -620,8 +614,7 @@ async function getLatestCheckInMeasurementsOnOrBeforeDate(
  */
 async function getExternalBmrForDate(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  date: any
+  date: string
 ): Promise<number | null> {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -648,8 +641,7 @@ async function getExternalBmrForDate(
 async function updateCheckInMeasurements(
   userId: string,
   actingUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryDate: any,
+  entryDate: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -703,8 +695,7 @@ async function updateCheckInMeasurements(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteCheckInMeasurements(id: any, userId: string) {
+async function deleteCheckInMeasurements(id: string, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -752,8 +743,7 @@ async function createCustomCategory(categoryData: any) {
 }
 
 async function updateCustomCategory(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   userId: string,
   actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -788,8 +778,7 @@ async function updateCustomCategory(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteCustomCategory(id: any, userId: string) {
+async function deleteCustomCategory(id: string, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -801,8 +790,7 @@ async function deleteCustomCategory(id: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCustomCategoryOwnerId(id: any, userId: string) {
+async function getCustomCategoryOwnerId(id: string, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -887,8 +875,7 @@ async function getCustomMeasurementEntries(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCustomMeasurementEntriesByDate(userId: string, date: any) {
+async function getCustomMeasurementEntriesByDate(userId: string, date: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -914,10 +901,8 @@ async function getCustomMeasurementEntriesByDate(userId: string, date: any) {
 
 async function getCheckInMeasurementsByDateRange(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   log(
     'debug',
@@ -940,12 +925,9 @@ async function getCheckInMeasurementsByDateRange(
 }
 async function getCustomMeasurementsByDateRange(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  categoryId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  categoryId: string,
+  startDate: string,
+  endDate: string,
   // Restricts the read to one ingest source (e.g. 'withings'); null reads every
   // source, which is what the diary and report callers want.
   source: string | null = null
@@ -1331,8 +1313,7 @@ async function bulkUpsertCustomMeasurements(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteCustomMeasurement(id: any, userId: string) {
+async function deleteCustomMeasurement(id: string, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -1488,8 +1469,7 @@ async function getLatestMeasurement(userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCustomMeasurementOwnerId(id: any, userId: string) {
+async function getCustomMeasurementOwnerId(id: string, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(

@@ -62,8 +62,7 @@ async function generateUserApiKey(targetUserId: string, description: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteUserApiKey(targetUserId: string, apiKeyId: any) {
+async function deleteUserApiKey(targetUserId: string, apiKeyId: string) {
   try {
     // @ts-expect-error TS(2339): Property 'deleteApiKey' does not exist on type '{ ... Remove this comment to see the full error message
     const success = await userRepository.deleteApiKey(apiKeyId, targetUserId);
@@ -260,8 +259,7 @@ async function updateUserEmail(
 
 async function checkFamilyAccess(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ownerUserId: any,
+  ownerUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   permission: any
 ) {
@@ -312,8 +310,7 @@ async function createFamilyAccessEntry(
 
 async function updateFamilyAccessEntry(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -333,8 +330,10 @@ async function updateFamilyAccessEntry(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteFamilyAccessEntry(authenticatedUserId: string, id: any) {
+async function deleteFamilyAccessEntry(
+  authenticatedUserId: string,
+  id: string
+) {
   try {
     const success = await familyAccessRepository.deleteFamilyAccessEntry(
       id,
@@ -393,8 +392,7 @@ async function updateUserMfaSettings(
  * Resets a user's MFA status (TOTP and Email).
  * Used by administrators.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function resetUserMfa(adminUserId: any, targetUserId: string) {
+async function resetUserMfa(adminUserId: string, targetUserId: string) {
   try {
     await userRepository.updateUserMfaSettings(
       targetUserId,
@@ -417,8 +415,7 @@ async function resetUserMfa(adminUserId: any, targetUserId: string) {
  * Internal logger for administrative actions.
  */
 async function logAdminAction(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adminUserId: any,
+  adminUserId: string,
   // Null for a global action with no target user (a server-wide setting
   // change), which is most of what this records.
   targetUserId: string | null,

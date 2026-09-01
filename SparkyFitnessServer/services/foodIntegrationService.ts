@@ -13,8 +13,7 @@ import NorishService from '../integrations/norish/norishService.js';
 async function searchFatSecretFoods(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  clientId: any,
+  clientId: string | undefined,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   clientSecret: any,
   page = 1
@@ -71,7 +70,10 @@ async function searchFatSecretFoods(
 // accounts are the common case, and every search enriches several foods, so
 // without this each of those calls would repeat the doomed premier handshake.
 // Re-checked hourly so an account that upgrades picks images up on its own.
-const premierUnavailableUntil = new Map<string, number>();
+// Keyed by FatSecret client id. `undefined` is a real key here: a caller running
+// on env-configured credentials has no provider row, and its premier backoff is
+// still worth remembering separately from any configured account's.
+const premierUnavailableUntil = new Map<string | undefined, number>();
 const PREMIER_RECHECK_MS = 60 * 60 * 1000;
 
 /**
@@ -120,10 +122,8 @@ function throwFatSecretHttpError(errorText: string): never {
 }
 
 async function getFatSecretNutrients(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  foodId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  clientId: any,
+  foodId: string,
+  clientId: string | undefined,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   clientSecret: any
 ) {
@@ -256,8 +256,7 @@ async function searchMealieFoods(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   apiKey: any,
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any,
+  providerId: string | undefined,
   page = 1
 ) {
   log(
@@ -304,8 +303,7 @@ async function getMealieFoodDetails(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   apiKey: any,
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string | undefined
 ) {
   log(
     'debug',
@@ -337,8 +335,7 @@ async function searchTandoorFoods(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   apiKey: any,
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string | undefined
 ) {
   log(
     'debug',
@@ -372,15 +369,13 @@ async function searchTandoorFoods(
 }
 
 async function getTandoorFoodDetails(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   baseUrl: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   apiKey: any,
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string | undefined
 ) {
   log(
     'debug',

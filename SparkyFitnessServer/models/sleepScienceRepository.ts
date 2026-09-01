@@ -250,8 +250,7 @@ async function getLatestCalculation(userId: string) {
  */
 async function upsertDailyNeed(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetDate: any,
+  targetDate: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   breakdown: any
 ) {
@@ -298,8 +297,7 @@ async function upsertDailyNeed(
  * @param {string} targetDate
  * @returns {Promise<Object|null>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getDailyNeed(userId: string, targetDate: any) {
+async function getDailyNeed(userId: string, targetDate: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(

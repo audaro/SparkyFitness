@@ -20,8 +20,7 @@ const DATE_FORMAT_REGEX = /^\d{4}-\d{2}-\d{2}$/; // YYYY-MM-DD format
  * @param {string} endDate - End date in YYYY-MM-DD format
  * @returns {{ valid: boolean, error?: string }} Validation result
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function validateDateRange(startDate: any, endDate: any) {
+function validateDateRange(startDate: string, endDate: string) {
   // Check required
   if (!startDate || !endDate) {
     return { valid: false, error: 'startDate and endDate are required.' };

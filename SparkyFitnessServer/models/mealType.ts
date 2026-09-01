@@ -63,8 +63,7 @@ async function getAllMealTypes(userId: string) {
  * Fetches a single meal type by ID.
  * Ensures the user has access to it (it's either theirs or a system default).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMealTypeById(mealTypeId: any, userId: string) {
+async function getMealTypeById(mealTypeId: string, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -86,7 +85,7 @@ async function getMealTypeById(mealTypeId: any, userId: string) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateMealType(mealTypeId: any, data: any, userId: string) {
+async function updateMealType(mealTypeId: string, data: any, userId: string) {
   log(
     'info',
     `updateMealType in mealType.js: id: ${mealTypeId}, data: ${JSON.stringify(data)}`
@@ -154,8 +153,7 @@ async function updateMealType(mealTypeId: any, data: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteMealType(mealTypeId: any, userId: string) {
+async function deleteMealType(mealTypeId: string, userId: string) {
   log('info', `deleteMealType in mealType.js: id: ${mealTypeId}`);
   const client = await getClient(userId);
   try {

@@ -19,13 +19,14 @@ import {
   getUsdaFoodDetails,
   searchUsdaFoodsByBarcode,
 } from '../integrations/usda/usdaService.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 router.use(express.json());
 // Apply diary permission check to all food routes
 router.use(checkPermissionMiddleware('diary'));
 // Middleware to get FatSecret API keys from Supabase - This middleware will be moved to a more generic place if needed for other providers
 router.use('/fatsecret', authenticate, async (req, res, next) => {
-  const providerId = req.headers['x-provider-id'];
+  const providerId = queryString(req.headers['x-provider-id']);
   if (!providerId) {
     return res.status(400).json({ error: 'Missing x-provider-id header' });
   }
@@ -59,7 +60,7 @@ router.use('/fatsecret', authenticate, async (req, res, next) => {
   }
 });
 router.use('/mealie', authenticate, async (req, res, next) => {
-  const providerId = req.headers['x-provider-id'];
+  const providerId = queryString(req.headers['x-provider-id']);
   log('debug', `foodRoutes: /mealie middleware: x-provider-id: ${providerId}`);
   if (!providerId) {
     return res.status(400).json({ error: 'Missing x-provider-id header' });
@@ -95,7 +96,7 @@ router.use('/mealie', authenticate, async (req, res, next) => {
 // Middleware to get Tandoor API keys and base URL
 router.use('/tandoor', authenticate, async (req, res, next) => {
   // @ts-expect-error TS(2339): Property 'providerId' does not exist on type 'Requ... Remove this comment to see the full error message
-  req.providerId = req.headers['x-provider-id']; // Attach to req object
+  req.providerId = queryString(req.headers['x-provider-id']); // Attach to req object
   log(
     'debug',
     // @ts-expect-error TS(2339): Property 'providerId' does not exist on type 'Requ... Remove this comment to see the full error message
@@ -154,7 +155,7 @@ router.use('/tandoor', authenticate, async (req, res, next) => {
 // Middleware to get Norish API keys and base URL
 router.use('/norish', authenticate, async (req, res, next) => {
   // @ts-expect-error TS(2339): Property 'providerId' does not exist on type 'Requ... Remove this comment to see the full error message
-  req.providerId = req.headers['x-provider-id']; // Attach to req object
+  req.providerId = queryString(req.headers['x-provider-id']); // Attach to req object
   log(
     'debug',
     // @ts-expect-error TS(2339): Property 'providerId' does not exist on type 'Requ... Remove this comment to see the full error message
@@ -191,7 +192,7 @@ router.use('/norish', authenticate, async (req, res, next) => {
   }
 });
 router.use('/usda', authenticate, async (req, res, next) => {
-  const providerId = req.headers['x-provider-id'];
+  const providerId = queryString(req.headers['x-provider-id']);
   log('debug', `foodRoutes: /usda middleware: x-provider-id: ${providerId}`);
   if (!providerId) {
     return res.status(400).json({ error: 'Missing x-provider-id header' });
@@ -299,7 +300,7 @@ router.get('/fatsecret/search', authenticate, async (req, res, next) => {
  *         description: Missing foodId or x-provider-id header.
  */
 router.get('/fatsecret/nutrients', authenticate, async (req, res, next) => {
-  const { foodId } = req.query;
+  const foodId = queryString(req.query.foodId);
   // @ts-expect-error TS(2339): Property 'clientId' does not exist on type 'Reques... Remove this comment to see the full error message
   const { clientId, clientSecret } = req;
   if (!foodId) {
@@ -417,7 +418,7 @@ router.get('/openfoodfacts/search', authenticate, async (req, res, next) => {
     );
     const language = userPrefs?.language || 'en';
     const providerId =
-      req.headers['x-provider-id'] ||
+      queryString(req.headers['x-provider-id']) ||
       (await externalProviderService.getActiveOpenFoodFactsProviderId(
         req.authenticatedUserId
       ));
@@ -470,7 +471,7 @@ router.get(
       );
       const language = userPrefs?.language || 'en';
       const providerId =
-        req.headers['x-provider-id'] ||
+        queryString(req.headers['x-provider-id']) ||
         (await externalProviderService.getActiveOpenFoodFactsProviderId(
           req.authenticatedUserId
         ));
@@ -794,7 +795,7 @@ router.get('/tandoor/search', authenticate, async (req, res, next) => {
  *         description: Missing food id or x-provider-id header.
  */
 router.get('/tandoor/details', authenticate, async (req, res, next) => {
-  const { id } = req.query; // Tandoor uses 'id' for details
+  const id = queryString(req.query.id); // Tandoor uses 'id' for details
   // @ts-expect-error TS(2339): Property 'tandoorBaseUrl' does not exist on type '... Remove this comment to see the full error message
   const { tandoorBaseUrl, tandoorApiKey, userId, providerId } = req;
   if (!id) {

@@ -7,8 +7,7 @@ async function createOrUpdateMoodEntry(
   moodValue: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   notes: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryDate: any,
+  entryDate: string,
   moodTags: string[] | null = null
 ) {
   const client = await getClient(userId); // User-specific operation
@@ -32,10 +31,8 @@ async function createOrUpdateMoodEntry(
 
 async function getMoodEntriesByUserId(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -62,8 +59,7 @@ async function getMoodEntriesByUserId(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMoodEntryById(moodEntryId: any, userId: string) {
+async function getMoodEntryById(moodEntryId: string, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -79,8 +75,7 @@ async function getMoodEntryById(moodEntryId: any, userId: string) {
 }
 
 async function updateMoodEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  moodEntryId: any,
+  moodEntryId: string,
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   moodValue: any,
@@ -105,8 +100,7 @@ async function updateMoodEntry(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteMoodEntry(moodEntryId: any, userId: string) {
+async function deleteMoodEntry(moodEntryId: string, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -118,8 +112,7 @@ async function deleteMoodEntry(moodEntryId: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMoodEntryByDate(userId: string, entryDate: any) {
+async function getMoodEntryByDate(userId: string, entryDate: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     log('debug', `Fetching mood entry for user ${userId} on date ${entryDate}`);

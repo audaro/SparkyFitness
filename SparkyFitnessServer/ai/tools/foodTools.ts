@@ -3406,6 +3406,11 @@ Actions:
                 }
                 variantId = food.default_variant.id;
               }
+              if (variantId === undefined) {
+                return ERRORS.VALIDATION(
+                  'Either variant_id or food_id must be provided'
+                );
+              }
               const variant = await foodRepository.getFoodVariantById(
                 variantId,
                 userId

@@ -148,8 +148,10 @@ async function getMealPlanTemplatesByUserId(userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMealPlanTemplateAssignments(templateId: any, userId: string) {
+async function getMealPlanTemplateAssignments(
+  templateId: string,
+  userId: string
+) {
   const client = await getClient(userId); // User-specific operation
   try {
     const query = `
@@ -180,7 +182,7 @@ async function getMealPlanTemplateAssignments(templateId: any, userId: string) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateMealPlanTemplate(planId: any, planData: any) {
+async function updateMealPlanTemplate(planId: string, planData: any) {
   const client = await getClient(planData.user_id); // User-specific operation
   try {
     await client.query('BEGIN');
@@ -301,8 +303,7 @@ async function updateMealPlanTemplate(planId: any, planData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteMealPlanTemplate(planId: any, userId: string) {
+async function deleteMealPlanTemplate(planId: string, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     // The assignments table will be cascade deleted due to the foreign key constraint
@@ -332,8 +333,7 @@ async function deactivateAllMealPlanTemplates(userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMealPlanTemplateOwnerId(templateId: any) {
+async function getMealPlanTemplateOwnerId(templateId: string) {
   const client = await getClient(templateId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -496,8 +496,7 @@ async function getActiveMealPlanForDate(userId: string, date: Date | string) {
   const plans = await getActiveMealPlansForDate(userId, date);
   return plans[0] || null;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMealPlanTemplatesByMealId(mealId: any) {
+async function getMealPlanTemplatesByMealId(mealId: string) {
   const client = await getClient(mealId); // User-specific operation (RLS will handle access)
   try {
     const query = `

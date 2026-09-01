@@ -42,8 +42,12 @@ async function getWaterContainersByUserId(userId: string) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateWaterContainer(id: any, userId: string, updateData: any) {
+async function updateWaterContainer(
+  id: number,
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updateData: any
+) {
   if (updateData.unit && !VALID_UNITS.includes(updateData.unit)) {
     throw new Error('Invalid unit provided.');
   }
@@ -78,8 +82,7 @@ async function updateWaterContainer(id: any, userId: string, updateData: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWaterContainer(id: any, userId: string) {
+async function deleteWaterContainer(id: number, userId: string) {
   try {
     // Add authorization check if needed
     const success = await waterContainerRepository.deleteWaterContainer(
@@ -99,8 +102,7 @@ async function deleteWaterContainer(id: any, userId: string) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function setPrimaryWaterContainer(id: any, userId: string) {
+async function setPrimaryWaterContainer(id: number, userId: string) {
   try {
     // Add authorization check if needed
     return await waterContainerRepository.setPrimaryWaterContainer(id, userId);

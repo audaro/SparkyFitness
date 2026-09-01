@@ -568,7 +568,7 @@ async function processFitbitActivities(
   createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any,
-  startDate = null
+  startDate: string | null = null
 ) {
   if (!data || !data.activities || data.activities.length === 0) return;
   const stepsPerDay = {};

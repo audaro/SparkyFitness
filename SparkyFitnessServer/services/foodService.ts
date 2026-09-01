@@ -30,8 +30,7 @@ async function createFoodDataProvider(
 }
 async function updateFoodDataProvider(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any,
+  providerId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -44,8 +43,7 @@ async function updateFoodDataProvider(
 
 async function getFoodDataProviderDetails(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string
 ) {
   return externalProviderService.getExternalDataProviderDetails(
     authenticatedUserId,
@@ -55,8 +53,7 @@ async function getFoodDataProviderDetails(
 
 async function deleteFoodDataProvider(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string
 ) {
   return externalProviderService.deleteExternalDataProvider(
     authenticatedUserId,

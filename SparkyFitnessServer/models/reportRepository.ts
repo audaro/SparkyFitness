@@ -8,10 +8,8 @@ import {
 } from './supplementSql.js';
 async function getNutritionData(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   customNutrients: Array<{ name: string }> = []
 ) {
   const client = await getClient(userId); // User-specific operation
@@ -129,10 +127,8 @@ async function getNutritionData(
 }
 async function getTabularFoodData(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   customNutrients: Array<{ name: string }> = []
 ) {
   const client = await getClient(userId); // User-specific operation
@@ -340,10 +336,8 @@ async function getTabularFoodData(
 }
 async function getMeasurementData(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -358,12 +352,9 @@ async function getMeasurementData(
 }
 async function getCustomMeasurementsData(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  categoryId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  categoryId: string,
+  startDate: string,
+  endDate: string
 ) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -395,10 +386,8 @@ async function getCustomMeasurementsData(
 }
 async function getMiniNutritionTrends(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   customNutrients: Array<{ name: string }> = []
 ) {
   const client = await getClient(userId); // User-specific operation
@@ -514,10 +503,8 @@ async function getMiniNutritionTrends(
 }
 async function getExerciseEntries(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   equipment: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

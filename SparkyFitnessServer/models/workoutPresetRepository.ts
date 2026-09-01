@@ -172,8 +172,7 @@ async function getWorkoutPresets(userId: string, page = 1, limit = 10) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPresetById(presetId: any, userId: string) {
+async function getWorkoutPresetById(presetId: number, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -219,8 +218,7 @@ async function getWorkoutPresetById(presetId: any, userId: string) {
 }
 
 async function updateWorkoutPreset(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  presetId: any,
+  presetId: number,
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
@@ -292,8 +290,7 @@ async function updateWorkoutPreset(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWorkoutPreset(presetId: any, userId: string) {
+async function deleteWorkoutPreset(presetId: number, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query('BEGIN');
@@ -311,8 +308,7 @@ async function deleteWorkoutPreset(presetId: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPresetOwnerId(userId: string, presetId: any) {
+async function getWorkoutPresetOwnerId(userId: string, presetId: number) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -326,10 +322,8 @@ async function getWorkoutPresetOwnerId(userId: string, presetId: any) {
 }
 async function addExerciseToWorkoutPreset(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  workoutPresetId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any,
+  workoutPresetId: number,
+  exerciseId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   imageUrl: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

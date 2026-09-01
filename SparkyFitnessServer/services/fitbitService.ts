@@ -25,8 +25,7 @@ async function syncFitbitData(
   customStartDate = null,
   customEndDate = null
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let startDate: any, endDate: any;
+  let startDate: string, endDate: string;
   const tz = await loadUserTimezone(userId);
   const today = todayInZone(tz);
   if (customStartDate) {

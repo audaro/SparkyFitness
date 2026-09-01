@@ -32,10 +32,29 @@ from the private copy `exerciseRoutes.ts` already had. It also caught
 `targetUserId` on the admin audit log that seven routes call with `null`, and
 three `actingUserId: string = null` defaults.
 
-What is left is the same mechanical work on other families: `id`/`providerId`/
-`exerciseId`/`entryId` (~150), `startDate`/`endDate`/`date` (~110), and the
-Express `req`/`res`/`next` handler triples (~270, and a design question rather
-than a rename, since the useful types are `Request`/`Response`/`NextFunction`).
+The entity-id and date families followed in the same session: 208 id
+parameters (`id`, `providerId`, `exerciseId`, `entryId`, `templateId`,
+`presetId`, `planId`, `variantId`, `clientId`) and 128 date parameters
+(`startDate`, `endDate`, `date`, `entryDate`, `selectedDate`, `targetDate`)
+now declare a type, taking server suppressions from 984 to 666. Neither family
+is uniformly a string, and the exceptions are the point of the pass:
+`workout_presets.id`, `workout_preset_exercises.id`, `workout_plan_templates.id`,
+`workout_plan_template_assignments.id` and `user_water_containers.id` are
+integer primary keys, so those routes now say `Number(req.params.id)` rather
+than binding a string the database silently coerces; `getValidAccessToken` and
+FatSecret's premier-backoff map take `string | undefined`, because a caller
+running on env-configured credentials has no provider row and its backoff is
+still worth remembering; `integrations/withings/withingsService.ts` takes unix
+seconds (`number`) for measures, heart and sleep while the workout endpoints
+take `'YYYY-MM-DD'`, a distinction the shared `any` had erased; and
+`updateProviderLastSync` takes a `Date`, which is what all eight callers pass.
+Four AI tools (`exerciseTools`, `foodTools`) gained explicit validation errors
+where an optional id had been allowed to reach the database as `undefined`.
+
+What is left is the Express `req`/`res`/`next` handler triples (~270), a design
+question rather than a rename, since the useful types are
+`Request`/`Response`/`NextFunction` and the handlers read properties
+(`req.userId`) that only exist through module augmentation.
 
 The typing surfaced three latent bugs that `any` had been hiding, all fixed in
 the same commit: `ensureUserInitialization` was called with three arguments

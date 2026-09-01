@@ -58,8 +58,7 @@ function buildEquipmentSubsetClause(paramIndex: number): string {
     )
   )`;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseById(id: any, userId: string) {
+async function getExerciseById(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -84,8 +83,7 @@ async function getExerciseById(id: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseOwnerId(id: any, userId: string) {
+async function getExerciseOwnerId(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     const exerciseResult = await client.query(
@@ -672,7 +670,7 @@ async function createExercise(exerciseData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateExercise(id: any, userId: string, updateData: any) {
+async function updateExercise(id: string, userId: string, updateData: any) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -737,8 +735,7 @@ async function updateExercise(id: any, userId: string, updateData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExercise(id: any, userId: string) {
+async function deleteExercise(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -854,8 +851,7 @@ async function getTopExercises(userId: string, limit: any) {
 async function getExerciseBySourceAndSourceId(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   source: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sourceId: any,
+  sourceId: string,
   userId: string
 ) {
   const client = await getSystemClient();
@@ -884,8 +880,7 @@ async function getExerciseBySourceAndSourceId(
 }
 
 async function getExerciseDeletionImpact(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any,
+  exerciseId: string,
   authenticatedUserId: string
 ) {
   const client = await getClient(authenticatedUserId);
@@ -1002,8 +997,10 @@ async function getExerciseDeletionImpact(
     systemClient.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExerciseAndDependencies(exerciseId: any, userId: string) {
+async function deleteExerciseAndDependencies(
+  exerciseId: string,
+  userId: string
+) {
   const client = await getClient(userId);
   try {
     await client.query('BEGIN');

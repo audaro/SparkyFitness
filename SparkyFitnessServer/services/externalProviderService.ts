@@ -19,7 +19,7 @@ function badRequest(message: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hasYazioLoginCredentials(appId: any, appKey: any) {
+function hasYazioLoginCredentials(appId: string, appKey: any) {
   const credentials = resolveYazioCredentials({
     username: appId,
     password: appKey,
@@ -28,7 +28,7 @@ function hasYazioLoginCredentials(appId: any, appKey: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hasYazioClientCredentials(appId: any, appKey: any) {
+function hasYazioClientCredentials(appId: string, appKey: any) {
   return hasYazioProviderOAuthConfig({
     username: appId,
     password: appKey,
@@ -36,7 +36,7 @@ function hasYazioClientCredentials(appId: any, appKey: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function validateYazioProviderCredentials(appId: any, appKey: any) {
+function validateYazioProviderCredentials(appId: string, appKey: any) {
   const hasLogin = hasYazioLoginCredentials(appId, appKey);
   const hasClient = hasYazioClientCredentials(appId, appKey);
 
@@ -277,8 +277,7 @@ async function createExternalDataProvider(
 }
 async function updateExternalDataProvider(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any,
+  providerId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -428,8 +427,7 @@ async function updateExternalDataProvider(
 
 async function getExternalDataProviderDetails(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string
 ) {
   try {
     const hasAccess =
@@ -457,8 +455,7 @@ async function getExternalDataProviderDetails(
 
 async function deleteExternalDataProvider(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string
 ) {
   try {
     const isOwner =

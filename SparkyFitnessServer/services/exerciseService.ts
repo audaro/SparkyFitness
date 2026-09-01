@@ -263,8 +263,7 @@ function mapRecentSessionRow(row: RecentSessionRow) {
 }
 async function getExerciseStats(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any,
+  exerciseId: string,
   excludePresetEntryId: string | null = null,
   presetId: number | null = null
 ) {
@@ -520,8 +519,7 @@ async function createExerciseEntry(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseEntryById(authenticatedUserId: string, id: any) {
+async function getExerciseEntryById(authenticatedUserId: string, id: string) {
   try {
     const entryOwnerId = await exerciseEntryDb.getExerciseEntryOwnerId(
       id,
@@ -553,8 +551,7 @@ async function getExerciseEntryById(authenticatedUserId: string, id: any) {
 async function updateExerciseEntry(
   authenticatedUserId: string,
   actingUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -751,8 +748,7 @@ async function updateExerciseEntry(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExerciseEntry(authenticatedUserId: string, id: any) {
+async function deleteExerciseEntry(authenticatedUserId: string, id: string) {
   try {
     const entryOwnerId = await exerciseEntryDb.getExerciseEntryOwnerId(
       id,
@@ -787,8 +783,7 @@ async function deleteExerciseEntry(authenticatedUserId: string, id: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseById(authenticatedUserId: string, id: any) {
+async function getExerciseById(authenticatedUserId: string, id: string) {
   try {
     const exerciseOwnerId = await exerciseDb.getExerciseOwnerId(
       id,
@@ -818,8 +813,7 @@ async function getExerciseById(authenticatedUserId: string, id: any) {
 
 async function updateExercise(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -855,8 +849,7 @@ async function updateExercise(
 }
 async function deleteExercise(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any,
+  exerciseId: string,
   forceDelete = false
 ) {
   log(
@@ -974,8 +967,7 @@ async function deleteExercise(
 async function getExerciseEntriesByDate(
   authenticatedUserId: string,
   targetUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  selectedDate: any
+  selectedDate: string
 ) {
   try {
     if (!targetUserId) {
@@ -1027,12 +1019,10 @@ async function getOrCreateActiveCaloriesExercise(userId: string) {
 }
 async function upsertExerciseEntryData(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any,
+  exerciseId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   caloriesBurned: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  date: any
+  date: string
 ) {
   try {
     // @ts-expect-error TS(2554): Expected 5 arguments, but got 4.
@@ -2004,12 +1994,9 @@ async function getTopExercises(authenticatedUserId: string, limit: any) {
 }
 async function getExerciseProgressData(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  exerciseId: string,
+  startDate: string,
+  endDate: string
 ) {
   try {
     // getExerciseProgressData is implemented in the exerciseEntry module
@@ -2032,8 +2019,7 @@ async function getExerciseProgressData(
 
 async function getExerciseHistory(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any,
+  exerciseId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   limit: any
 ) {
@@ -2231,8 +2217,7 @@ async function importExercisesFromCSV(
 
 async function getExerciseDeletionImpact(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any
+  exerciseId: string
 ) {
   log(
     'info',
@@ -2290,10 +2275,8 @@ async function createGroupedExerciseEntriesWithClient(
   client: any,
   userId: string,
   actingUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  presetEntryId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryDate: any,
+  presetEntryId: string,
+  entryDate: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exercises: any,
   options = {}
@@ -2351,8 +2334,7 @@ async function createGroupedExerciseEntriesWithClient(
 }
 async function getGroupedWorkoutSessionById(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  presetEntryId: any
+  presetEntryId: string
 ) {
   return getGroupedExerciseSessionById(userId, presetEntryId);
 }
@@ -2466,8 +2448,7 @@ async function createGroupedWorkoutSession(
 async function updateGroupedWorkoutSession(
   userId: string,
   actingUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  presetEntryId: any,
+  presetEntryId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -2676,10 +2657,8 @@ async function updateGroupedWorkoutSession(
 async function logWorkoutPresetGrouped(
   userId: string,
   actingUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  workoutPresetId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryDate: any,
+  workoutPresetId: number,
+  entryDate: string,
   options = {}
 ) {
   return createGroupedWorkoutSession(userId, actingUserId, {
@@ -2690,8 +2669,7 @@ async function logWorkoutPresetGrouped(
 }
 async function getActivityDetailsByExerciseEntryIdAndProvider(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  entryId: any,
+  entryId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerName: any
 ) {
@@ -2786,8 +2764,7 @@ async function getExercisesNeedingReview(authenticatedUserId: string) {
 
 async function updateExerciseEntriesSnapshot(
   authenticatedUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any
+  exerciseId: string
 ) {
   try {
     // Fetch the latest exercise details

@@ -20,8 +20,7 @@ log(
  * @param {string} providerId - The specific provider ID (optional but recommended).
  * @returns {Promise<string>} - The decrypted API key.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getHevyApiKey(userId: string, providerId: any) {
+async function getHevyApiKey(userId: string, providerId: string) {
   const client = await getSystemClient();
   try {
     let query = `SELECT encrypted_app_key, app_key_iv, app_key_tag
@@ -80,8 +79,7 @@ async function getHevyProviderId(userId: string) {
  * @param {string} userId - The Sparky Fitness user ID.
  * @returns {Promise<Object>} - The Hevy user info.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getUserInfo(userId: string, providerId: any) {
+async function getUserInfo(userId: string, providerId: string) {
   const apiKey = await getHevyApiKey(userId, providerId);
   try {
     const response = await axios.get(`${HEVY_API_BASE_URL}/v1/user/info`, {
@@ -110,8 +108,7 @@ async function getWorkouts(
   userId: string,
   page = 1,
   pageSize = 10,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string
 ) {
   const apiKey = await getHevyApiKey(userId, providerId);
   try {
@@ -141,8 +138,7 @@ async function getExerciseTemplates(
   userId: string,
   page = 1,
   pageSize = 10,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string
 ) {
   const apiKey = await getHevyApiKey(userId, providerId);
   try {
@@ -178,8 +174,7 @@ async function syncHevyData(
   userId: string,
   createdByUserId: string,
   fullSync = false,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any,
+  providerId: string,
   startDate = null,
   endDate = null
 ) {

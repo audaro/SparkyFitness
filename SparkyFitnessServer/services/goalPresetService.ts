@@ -89,8 +89,7 @@ async function getGoalPresets(userId: string) {
     throw new Error('Failed to fetch goal presets.', { cause: error });
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getGoalPreset(presetId: any, userId: string) {
+async function getGoalPreset(presetId: string, userId: string) {
   try {
     const preset = await goalPresetRepository.getGoalPresetById(
       presetId,
@@ -107,8 +106,7 @@ async function getGoalPreset(presetId: any, userId: string) {
   }
 }
 async function updateGoalPreset(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  presetId: any,
+  presetId: string,
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   presetData: any
@@ -159,8 +157,7 @@ async function updateGoalPreset(
     throw new Error('Failed to update goal preset.', { cause: error });
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteGoalPreset(presetId: any, userId: string) {
+async function deleteGoalPreset(presetId: string, userId: string) {
   try {
     const deletedPreset = await goalPresetRepository.deleteGoalPreset(
       presetId,

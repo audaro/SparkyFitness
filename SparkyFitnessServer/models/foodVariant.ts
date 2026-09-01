@@ -50,8 +50,7 @@ async function createFoodVariant(variantData: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFoodVariantById(id: any, userId: string) {
+async function getFoodVariantById(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -63,8 +62,7 @@ async function getFoodVariantById(id: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFoodVariantOwnerId(variantId: any, userId: string) {
+async function getFoodVariantOwnerId(variantId: string, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -84,8 +82,7 @@ async function getFoodVariantOwnerId(variantId: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFoodVariantsByFoodId(foodId: any, userId: string) {
+async function getFoodVariantsByFoodId(foodId: string, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -98,7 +95,7 @@ async function getFoodVariantsByFoodId(foodId: any, userId: string) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateFoodVariant(id: any, variantData: any, userId: string) {
+async function updateFoodVariant(id: string, variantData: any, userId: string) {
   // For update operations, we need the user_id of the food owner to ensure RLS is applied correctly.
   const client = await getClient(userId); // User-specific operation
   try {
@@ -181,8 +178,7 @@ async function updateFoodVariant(id: any, variantData: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteFoodVariant(id: any, userId: string) {
+async function deleteFoodVariant(id: string, userId: string) {
   // For delete operations, we need the user_id of the food owner to ensure RLS is applied correctly.
   const client = await getClient(userId); // User-specific operation
   try {

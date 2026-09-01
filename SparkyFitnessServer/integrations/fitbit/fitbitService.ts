@@ -333,10 +333,8 @@ async function disconnectFitbit(userId: string) {
  */
 async function fetchHeartRate(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -364,10 +362,8 @@ async function fetchHeartRate(
 
 async function fetchSteps(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -395,10 +391,8 @@ async function fetchSteps(
 
 async function fetchWeight(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -426,10 +420,8 @@ async function fetchWeight(
 
 async function fetchSpO2(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -456,10 +448,8 @@ async function fetchSpO2(
 }
 async function fetchTemperature(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -510,10 +500,8 @@ async function fetchProfile(userId: string, providedToken = null) {
 
 async function fetchBodyFat(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -561,10 +549,8 @@ async function fetchActivities(
 
 async function fetchSleep(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -591,10 +577,8 @@ async function fetchSleep(
 }
 async function fetchRespiratoryRate(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -613,10 +597,8 @@ async function fetchRespiratoryRate(
 
 async function fetchHRV(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -634,10 +616,8 @@ async function fetchHRV(
 }
 async function fetchActiveZoneMinutes(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -656,10 +636,8 @@ async function fetchActiveZoneMinutes(
 
 async function fetchWater(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -686,10 +664,8 @@ async function fetchWater(
 }
 async function fetchActivityMinutes(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -720,10 +696,8 @@ async function fetchActivityMinutes(
 }
 async function fetchCardioFitnessScore(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
@@ -750,10 +724,8 @@ async function fetchCardioFitnessScore(
 }
 async function fetchCoreTemperature(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   providedToken = null
 ) {
   const accessToken = providedToken || (await getValidAccessToken(userId));

@@ -208,7 +208,9 @@ router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const preset = await workoutPresetService.getWorkoutPresetById(
       req.userId,
-      req.params.id
+      // `workout_presets.id` is an integer PK, so the path segment becomes a
+      // number here rather than being bound as a string the database coerces.
+      Number(req.params.id)
     );
     res.status(200).json(preset);
   } catch (error) {
@@ -276,7 +278,9 @@ router.put('/:id', authenticate, async (req, res, next) => {
     }
     const updatedPreset = await workoutPresetService.updateWorkoutPreset(
       req.userId,
-      req.params.id,
+      // `workout_presets.id` is an integer PK, so the path segment becomes a
+      // number here rather than being bound as a string the database coerces.
+      Number(req.params.id),
       parsedBody.data
     );
     res.status(200).json(updatedPreset);
@@ -327,7 +331,9 @@ router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     const result = await workoutPresetService.deleteWorkoutPreset(
       req.userId,
-      req.params.id
+      // `workout_presets.id` is an integer PK, so the path segment becomes a
+      // number here rather than being bound as a string the database coerces.
+      Number(req.params.id)
     );
     res.status(200).json(result);
   } catch (error) {

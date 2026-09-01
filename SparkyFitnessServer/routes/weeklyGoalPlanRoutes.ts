@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/authMiddleware.js';
 import weeklyGoalPlanService from '../services/weeklyGoalPlanService.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 /**
  * @swagger
@@ -104,7 +105,7 @@ router.get('/', authenticate, async (req, res, next) => {
  */
 router.get('/active', authenticate, async (req, res, next) => {
   try {
-    const { date } = req.query;
+    const date = queryString(req.query.date);
     if (!date) {
       return res
         .status(400)

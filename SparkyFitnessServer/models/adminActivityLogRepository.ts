@@ -1,7 +1,6 @@
 import { getSystemClient } from '../db/poolManager.js';
 async function createAdminActivityLog(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adminUserId: any,
+  adminUserId: string,
   // Null for a global action with no target user.
   targetUserId: string | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -420,8 +420,11 @@ async function getValidAccessToken(userId: string) {
   }
 }
 // Function to fetch measures data (weight, blood pressure, etc.)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchMeasuresData(userId: string, startDate: any, endDate: any) {
+async function fetchMeasuresData(
+  userId: string,
+  startDate: number,
+  endDate: number
+) {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -479,10 +482,8 @@ async function fetchMeasuresData(userId: string, startDate: any, endDate: any) {
 async function fetchAndProcessMeasuresData(
   userId: string,
   createdByUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: number,
+  endDate: number
 ) {
   const measuregrps = await fetchMeasuresData(userId, startDate, endDate);
   if (measuregrps && measuregrps.length > 0) {
@@ -495,8 +496,11 @@ async function fetchAndProcessMeasuresData(
   return measuregrps;
 }
 // Function to fetch heart data
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchHeartData(userId: string, startDate: any, endDate: any) {
+async function fetchHeartData(
+  userId: string,
+  startDate: number,
+  endDate: number
+) {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -557,10 +561,8 @@ async function fetchHeartData(userId: string, startDate: any, endDate: any) {
 async function fetchAndProcessHeartData(
   userId: string,
   createdByUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: number,
+  endDate: number
 ) {
   const heartSeries = await fetchHeartData(userId, startDate, endDate);
   if (heartSeries && heartSeries.length > 0) {
@@ -573,8 +575,11 @@ async function fetchAndProcessHeartData(
   return heartSeries;
 }
 // Function to fetch sleep data (high-frequency stages)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchSleepData(userId: string, startDate: any, endDate: any) {
+async function fetchSleepData(
+  userId: string,
+  startDate: number,
+  endDate: number
+) {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -632,10 +637,8 @@ async function fetchSleepData(userId: string, startDate: any, endDate: any) {
 async function fetchAndProcessSleepData(
   userId: string,
   createdByUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: number,
+  endDate: number
 ) {
   const sleepSeries = await fetchSleepData(userId, startDate, endDate);
   if (sleepSeries && sleepSeries.length > 0) {
@@ -651,10 +654,8 @@ async function fetchAndProcessSleepData(
 
 async function fetchSleepSummaryData(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDateYMD: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDateYMD: any
+  startDateYMD: string,
+  endDateYMD: string
 ) {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
@@ -719,10 +720,8 @@ async function fetchSleepSummaryData(
 
 async function fetchActivityData(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDateYMD: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDateYMD: any
+  startDateYMD: string,
+  endDateYMD: string
 ) {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
@@ -784,10 +783,8 @@ async function fetchActivityData(
 
 async function fetchWorkoutsData(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDateYMD: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDateYMD: any
+  startDateYMD: string,
+  endDateYMD: string
 ) {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
@@ -851,10 +848,8 @@ async function fetchWorkoutsData(
 async function fetchAndProcessWorkoutsData(
   userId: string,
   createdByUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDateYMD: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDateYMD: any
+  startDateYMD: string,
+  endDateYMD: string
 ) {
   const workouts = await fetchWorkoutsData(userId, startDateYMD, endDateYMD);
   if (workouts && workouts.length > 0) {

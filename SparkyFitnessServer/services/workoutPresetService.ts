@@ -35,8 +35,7 @@ async function createWorkoutPreset(userId: string, presetData: any) {
 async function getWorkoutPresets(userId: string, page: any, limit: any) {
   return workoutPresetRepository.getWorkoutPresets(userId, page, limit);
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPresetById(userId: string, presetId: any) {
+async function getWorkoutPresetById(userId: string, presetId: number) {
   // RLS already gates read access (owner, public, or family-shared via
   // can_view_exercise_library). If the row comes back, the caller is allowed to
   // see it; an extra owner/public check here would wrongly 403 shared presets.
@@ -52,8 +51,7 @@ async function getWorkoutPresetById(userId: string, presetId: any) {
 
 async function updateWorkoutPreset(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  presetId: any,
+  presetId: number,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -96,8 +94,7 @@ async function updateWorkoutPreset(
     updateData
   );
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWorkoutPreset(userId: string, presetId: any) {
+async function deleteWorkoutPreset(userId: string, presetId: number) {
   const ownerId = await workoutPresetRepository.getWorkoutPresetOwnerId(
     userId,
     presetId

@@ -4,6 +4,7 @@ import polarService from '../services/polarService.js';
 import { log } from '../config/logging.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 import checkPermissionMiddleware from '../middleware/checkPermissionMiddleware.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 /**
  * @swagger
@@ -36,7 +37,7 @@ router.get(
   async (req, res) => {
     try {
       const userId = req.userId;
-      const { providerId } = req.query; // Optional providerId
+      const providerId = queryString(req.query.providerId); // Optional providerId
       const baseUrl =
         process.env.SPARKY_FITNESS_FRONTEND_URL || 'http://localhost:8080';
       const redirectUri = `${baseUrl}/polar/callback`;
@@ -276,7 +277,7 @@ router.get(
   async (req, res) => {
     try {
       const userId = req.userId;
-      const { providerId } = req.query;
+      const providerId = queryString(req.query.providerId);
       const status = await polarService.getStatus(userId, providerId);
       res.status(200).json(status);
     } catch (error) {

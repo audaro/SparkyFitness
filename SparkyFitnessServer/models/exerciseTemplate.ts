@@ -10,8 +10,7 @@ import {
 } from '@workspace/shared';
 
 async function createExerciseEntriesFromTemplate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  templateId: any,
+  templateId: number,
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   today: any
@@ -93,8 +92,7 @@ async function createExerciseEntriesFromTemplate(
       for (const assignment of template.assignments) {
         if (assignment.day_of_week === currentDayOfWeek) {
           const processExercise = async (
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            exerciseId: any,
+            exerciseId: string,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             sets: any,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -167,8 +165,7 @@ async function createExerciseEntriesFromTemplate(
 }
 
 async function deleteExerciseEntriesByTemplateId(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  templateId: any,
+  templateId: number,
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   today: any

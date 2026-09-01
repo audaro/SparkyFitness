@@ -17,8 +17,7 @@ async function addFavorite(
   authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any
+  id: string
 ) {
   if (type === 'food') {
     // foodCoreService.addFoodFavorite verifies access before inserting.
@@ -42,8 +41,7 @@ async function removeFavorite(
   authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any
+  id: string
 ) {
   if (type === 'food') {
     await foodCoreService.removeFoodFavorite(authenticatedUserId, id);

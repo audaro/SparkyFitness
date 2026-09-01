@@ -43,8 +43,7 @@ async function getWeeklyGoalPlansByUserId(userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getActiveWeeklyGoalPlan(userId: string, date: any) {
+async function getActiveWeeklyGoalPlan(userId: string, date: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -62,7 +61,7 @@ async function getActiveWeeklyGoalPlan(userId: string, date: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateWeeklyGoalPlan(planId: any, planData: any) {
+async function updateWeeklyGoalPlan(planId: string, planData: any) {
   const client = await getClient(planData.user_id); // User-specific operation
   try {
     const result = await client.query(
@@ -106,8 +105,7 @@ async function deactivateAllWeeklyGoalPlans(userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWeeklyGoalPlan(planId: any, userId: string) {
+async function deleteWeeklyGoalPlan(planId: string, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(

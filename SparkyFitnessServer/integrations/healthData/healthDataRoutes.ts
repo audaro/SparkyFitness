@@ -5,6 +5,7 @@ import { loadUserTimezone } from '../../utils/timezoneLoader.js';
 import { instantToDay } from '@workspace/shared';
 import sleepRepository from '../../models/sleepRepository.js';
 import checkPermissionMiddleware from '../../middleware/checkPermissionMiddleware.js';
+import { queryString } from '../../utils/queryParams.js';
 const router = express.Router();
 // Endpoint for receiving health data
 router.post('/', checkPermissionMiddleware('diary'), async (req, res, next) => {
@@ -119,7 +120,8 @@ router.get(
   checkPermissionMiddleware('diary'),
   async (req, res, next) => {
     try {
-      const { startDate, endDate } = req.query;
+      const startDate = queryString(req.query.startDate);
+      const endDate = queryString(req.query.endDate);
       if (!startDate || !endDate) {
         return res.status(400).json({
           error: 'Missing required query parameters: startDate and endDate.',

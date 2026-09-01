@@ -988,6 +988,11 @@ Actions:
                 }
                 presetId = preset.id;
               }
+              if (presetId === undefined) {
+                return ERRORS.VALIDATION(
+                  'Either preset_id or preset_name must be provided'
+                );
+              }
               const session = await exerciseService.logWorkoutPresetGrouped(
                 userId,
                 userId,
@@ -1170,6 +1175,11 @@ Actions:
                   return ERRORS.NOT_FOUND('Workout Preset', args.preset_name);
                 }
                 presetId = preset.id;
+              }
+              if (presetId === undefined) {
+                return ERRORS.VALIDATION(
+                  'Either preset_id or preset_name must be provided'
+                );
               }
               let updatedExercises:
                 | ReturnType<typeof toPresetExercises>
@@ -1357,6 +1367,11 @@ Actions:
                   );
                 }
                 planId = matches[0].id;
+              }
+              if (planId === undefined) {
+                return ERRORS.VALIDATION(
+                  'Either plan_id or plan_name must be provided'
+                );
               }
               // The repository update is a full-replace with '' / false
               // defaults — omitting plan_name would blank it and omitting

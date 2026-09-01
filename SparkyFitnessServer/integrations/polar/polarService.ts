@@ -18,8 +18,7 @@ async function getAuthorizationUrl(
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   redirectUri: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string | undefined
 ) {
   const client = await getSystemClient();
   try {
@@ -72,8 +71,7 @@ async function exchangeCodeForTokens(
   state: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   redirectUri: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  providerId: any
+  providerId: string | undefined
 ) {
   const client = await getSystemClient();
   try {
@@ -245,8 +243,7 @@ async function exchangeCodeForTokens(
  * Check for available notifications (Basic Auth).
  * Lists users who have new data available.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function checkNotifications(userId: string, providerId: any) {
+async function checkNotifications(userId: string, providerId: string) {
   const client = await getSystemClient();
   try {
     const query = providerId
@@ -339,8 +336,10 @@ async function checkNotifications(userId: string, providerId: any) {
 /**
  * Get a valid access token and external user ID.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getValidAccessToken(userId: string, providerId: any) {
+async function getValidAccessToken(
+  userId: string,
+  providerId: string | undefined
+) {
   const client = await getClient(userId);
   try {
     const query = providerId
@@ -384,8 +383,7 @@ async function getValidAccessToken(userId: string, providerId: any) {
 
 async function createTransaction(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  externalUserId: any,
+  externalUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   accessToken: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -424,12 +422,10 @@ async function createTransaction(
  */
 async function commitTransaction(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  externalUserId: any,
+  externalUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   accessToken: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  transactionId: any,
+  transactionId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type: any
 ) {
@@ -457,8 +453,7 @@ async function commitTransaction(
 
 async function fetchPhysicalInfo(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  externalUserId: any,
+  externalUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   accessToken: any
 ) {
@@ -579,8 +574,7 @@ async function fetchRecentPhysicalInfo(userId: string, accessToken: any) {
 
 async function fetchExercises(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  externalUserId: any,
+  externalUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   accessToken: any
 ) {
@@ -632,8 +626,7 @@ async function fetchRecentExercises(userId: string, accessToken: any) {
 
 async function fetchDailyActivity(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  externalUserId: any,
+  externalUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   accessToken: any
 ) {
@@ -688,8 +681,7 @@ async function fetchRecentDailyActivity(userId: string, accessToken: any) {
 
 async function fetchUserProfile(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  externalUserId: any,
+  externalUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   accessToken: any
 ) {
@@ -823,8 +815,7 @@ async function fetchAndProcessPolarData(
 /**
  * Disconnect Polar account.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function disconnectPolar(userId: string, providerId: any) {
+async function disconnectPolar(userId: string, providerId: string | undefined) {
   const client = await getClient(userId);
   try {
     const query = providerId
@@ -859,8 +850,7 @@ async function disconnectPolar(userId: string, providerId: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getStatus(userId: string, providerId: any) {
+async function getStatus(userId: string, providerId: string | undefined) {
   const client = await getClient(userId);
   try {
     const query = providerId

@@ -114,10 +114,8 @@ interface ExercisePerformance {
 async function getReportsData(
   authenticatedUserId: string,
   targetUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   try {
     // Fetch custom nutrients first as they are needed for dynamic SQL generation in repositories
@@ -387,10 +385,8 @@ async function getReportsData(
 async function getMiniNutritionTrends(
   authenticatedUserId: string,
   targetUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   try {
     if (!targetUserId) {
@@ -455,10 +451,8 @@ async function getMiniNutritionTrends(
 async function getNutritionTrendsWithGoals(
   authenticatedUserId: string,
   targetUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   try {
     // Fetch daily nutrition data
@@ -528,10 +522,8 @@ function getRepRangeCategory(reps: any) {
 function calculateWorkoutConsistency(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseEntries: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   timezone = 'UTC'
 ) {
   if (!exerciseEntries || exerciseEntries.length === 0) {
@@ -737,10 +729,8 @@ function calculateSetPerformance(exerciseEntries: WorkoutEntry[]) {
 async function getExerciseDashboardData(
   authenticatedUserId: string,
   targetUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   equipment: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

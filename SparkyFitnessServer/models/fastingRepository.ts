@@ -25,8 +25,7 @@ async function createFastingLog(
 }
 
 async function endFast(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   endTime: any,
@@ -62,8 +61,7 @@ async function endFast(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFastingById(id: any, userId: string) {
+async function getFastingById(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -114,7 +112,7 @@ async function getFastingHistory(userId: string, limit = 50, offset = 0) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateFast(id: any, userId: string, updates: any) {
+async function updateFast(id: string, userId: string, updates: any) {
   const client = await getClient(userId);
   try {
     const {
@@ -184,10 +182,8 @@ async function getFastingStats(userId: string) {
 // Get fasting logs within a date range (inclusive). Returns completed fasts only.
 async function getFastingLogsByDateRange(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any,
+  startDate: string,
+  endDate: string,
   timezone = 'UTC'
 ) {
   const client = await getClient(userId);
@@ -232,8 +228,7 @@ async function getFastingLogsOverlappingDay(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteFastingLog(id: any, userId: string) {
+async function deleteFastingLog(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(

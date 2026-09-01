@@ -974,8 +974,7 @@ const sleepSessionHandler: HealthTypeHandler = {
 interface CustomMeasurementWrite {
   index: number;
   row: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    categoryId: any;
+    categoryId: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     value: any;
     entryDate: string;

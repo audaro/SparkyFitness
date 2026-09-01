@@ -10,8 +10,7 @@ const PRESET_ENTRY_SELECT = `
 async function getExercisePresetEntryByIdWithClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   userId: string
 ) {
   const result = await client.query(
@@ -75,8 +74,7 @@ async function createExercisePresetEntry(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExercisePresetEntryById(id: any, userId: string) {
+async function getExercisePresetEntryById(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     return getExercisePresetEntryByIdWithClient(client, id, userId);
@@ -84,8 +82,10 @@ async function getExercisePresetEntryById(id: any, userId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExercisePresetEntriesByDate(userId: string, entryDate: any) {
+async function getExercisePresetEntriesByDate(
+  userId: string,
+  entryDate: string
+) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -102,8 +102,7 @@ async function getExercisePresetEntriesByDate(userId: string, entryDate: any) {
 async function updateExercisePresetEntryWithClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
@@ -166,8 +165,7 @@ async function updateExercisePresetEntryWithClient(
 }
 
 async function updateExercisePresetEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  id: any,
+  id: string,
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
@@ -191,8 +189,7 @@ async function updateExercisePresetEntry(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExercisePresetEntry(id: any, userId: string) {
+async function deleteExercisePresetEntry(id: string, userId: string) {
   const client = await getClient(userId);
   try {
     await client.query('BEGIN');

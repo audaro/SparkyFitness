@@ -1,17 +1,12 @@
 import exerciseRepository from '../models/exerciseRepository.js';
 // Helper function to validate UUID
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const isValidUuid = (uuid: any) => {
+const isValidUuid = (uuid: string) => {
   const uuidRegex =
     /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
   return uuidRegex.test(uuid);
 };
 // Helper function to resolve exercise ID to a UUID
-async function resolveExerciseIdToUuid(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exerciseId: any,
-  userId: string
-) {
+async function resolveExerciseIdToUuid(exerciseId: string, userId: string) {
   if (isValidUuid(exerciseId)) {
     return exerciseId;
   }

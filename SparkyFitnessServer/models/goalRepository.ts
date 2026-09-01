@@ -1,6 +1,5 @@
 import { getClient } from '../db/poolManager.js';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getGoalByDate(userId: string, selectedDate: any) {
+async function getGoalByDate(userId: string, selectedDate: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -79,8 +78,10 @@ async function getGoalsInRange(
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMostRecentGoalBeforeDate(userId: string, selectedDate: any) {
+async function getMostRecentGoalBeforeDate(
+  userId: string,
+  selectedDate: string
+) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -195,10 +196,8 @@ async function upsertGoal(goalData: any) {
 }
 async function deleteGoalsInRange(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startDate: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  endDate: any
+  startDate: string,
+  endDate: string
 ) {
   const client = await getClient(userId); // User-specific operation
   try {

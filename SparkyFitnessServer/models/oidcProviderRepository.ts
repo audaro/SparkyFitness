@@ -94,8 +94,7 @@ async function getOidcProviders() {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getOidcProviderById(id: any) {
+async function getOidcProviderById(id: string) {
   if (!id) return null;
   const client = await getSystemClient();
   try {
@@ -257,7 +256,7 @@ async function createOidcProvider(providerData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateOidcProvider(id: any, providerData: any) {
+async function updateOidcProvider(id: string, providerData: any) {
   const client = await getSystemClient();
   try {
     const existing = await getOidcProviderById(id);
@@ -347,8 +346,7 @@ async function updateOidcProvider(id: any, providerData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteOidcProvider(id: any) {
+async function deleteOidcProvider(id: string) {
   const client = await getSystemClient();
   try {
     await client.query(
@@ -397,7 +395,7 @@ async function getActiveOidcProviderIds() {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function setProviderLogo(id: any, logoUrl: any) {
+async function setProviderLogo(id: string, logoUrl: any) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
