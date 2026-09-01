@@ -8,9 +8,7 @@ vi.mock('../db/poolManager', () => ({
 }));
 
 describe('permissionUtils - canAccessUserData read/write segregation', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockSystemClient: any;
 
   const OWNER_ID = 'owner-uuid';

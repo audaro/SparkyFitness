@@ -93,7 +93,6 @@ async function namesFor(
     [],
     availableEquipment
   );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return rows.map((row: any) => row.name).sort();
 }
 

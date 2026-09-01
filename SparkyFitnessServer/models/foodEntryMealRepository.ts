@@ -285,7 +285,7 @@ async function deleteFoodEntryMeal(foodEntryMealId: string, userId: string) {
       RETURNING id`,
       [foodEntryMealId, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     log(
       'error',

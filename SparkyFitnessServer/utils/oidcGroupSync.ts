@@ -29,9 +29,8 @@ async function syncUserGroups(
       typeof oidcProviderRepository.getActiveOidcProviderIds === 'function'
         ? await oidcProviderRepository.getActiveOidcProviderIds()
         : [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const oidcAccount = allAccounts.find(
-      (a: any) =>
+      (a: { provider_id: string }) =>
         a.provider_id.startsWith('oidc-') ||
         activeOidcIds.includes(a.provider_id)
     );

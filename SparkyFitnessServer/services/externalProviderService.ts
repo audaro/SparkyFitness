@@ -74,10 +74,24 @@ function redactCredentialsForNonOwner(provider: any, authenticatedUserId: any) {
 // (which only sheds `app_id`/`app_key`), the by-id detail row also carries the
 // decrypted Garmin session dump and the provider's base URL / external user id,
 // so the detail endpoint needs a wider net. Owners get the row untouched.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface RedactableProviderDetail {
+  user_id?: string | null;
+  [column: string]: unknown;
+}
+
+// Two signatures so a caller that already has a row keeps a non-null result,
+// while the by-id path may still hand the guard a miss.
 function redactProviderDetailsForNonOwner(
-  provider: any,
-  authenticatedUserId: any
+  provider: RedactableProviderDetail,
+  authenticatedUserId: string | null
+): RedactableProviderDetail;
+function redactProviderDetailsForNonOwner(
+  provider: RedactableProviderDetail | null | undefined,
+  authenticatedUserId: string | null
+): RedactableProviderDetail | null | undefined;
+function redactProviderDetailsForNonOwner(
+  provider: RedactableProviderDetail | null | undefined,
+  authenticatedUserId: string | null
 ) {
   if (!provider || provider.user_id === authenticatedUserId) {
     return provider;
@@ -198,9 +212,10 @@ async function getExternalDataProvidersForUser(
               ? 'private'
               : 'family',
           is_public: !!p.is_public,
-          has_token:
-            p.encrypted_access_token !== null &&
-            p.encrypted_access_token !== undefined,
+          // has_token comes from the repository, which derives it from
+          // encrypted_access_token and deliberately does not expose that column.
+          // Recomputing it here read a property that is never present, so every
+          // provider came back has_token: false.
         }),
         authenticatedUserId
       )

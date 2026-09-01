@@ -17,7 +17,6 @@ vi.mock('../config/logging', () => ({
 }));
 
 describe('chatRepository.upsertAiServiceSetting', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {
@@ -72,7 +71,6 @@ describe('chatRepository.upsertAiServiceSetting', () => {
 });
 
 describe('chatRepository.getDecryptedAiServiceSettingById', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {
@@ -133,7 +131,6 @@ describe('chatRepository.getDecryptedAiServiceSettingById', () => {
 });
 
 describe('chatRepository.getChatHistoryByUserId', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {
@@ -173,7 +170,6 @@ describe('chatRepository.getChatHistoryByUserId', () => {
 });
 
 describe('chatRepository.getActiveVisionAiServiceSetting', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {

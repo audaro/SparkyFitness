@@ -20,7 +20,9 @@ export interface MealPlanTemplateData {
   id?: string;
   user_id?: string;
   plan_name: string;
-  description?: string;
+  // Nullable in the table, and the read path hands the row straight back, so a
+  // plan saved without a description arrives as null rather than absent.
+  description?: string | null;
   start_date?: Date | string;
   end_date?: Date | string | null;
   is_active?: boolean;

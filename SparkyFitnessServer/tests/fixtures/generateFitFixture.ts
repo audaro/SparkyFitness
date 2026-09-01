@@ -202,5 +202,4 @@ encoder.writeMesg({
 const bytes = encoder.close();
 const outPath = join(__dirname, 'tennis-activity.fit');
 writeFileSync(outPath, bytes);
-// eslint-disable-next-line no-console
 console.log(`Wrote ${bytes.length} bytes to ${outPath}`);

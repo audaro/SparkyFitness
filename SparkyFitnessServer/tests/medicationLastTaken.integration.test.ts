@@ -66,7 +66,7 @@ const M_OTHERS = '00000000-0000-4000-b000-0000000000d5';
 
 const ALL_MEDS = [M_RECENT, M_OLD, M_NEVER, M_REFUSED, M_OTHERS];
 
-type MedRow = { id: string; name: string; last_taken_at: string | null };
+type MedRow = { id: string; name: string; last_taken_at: Date | null };
 
 async function seedUser(sys: pg.PoolClient, id: string, email: string) {
   await sys.query(
@@ -150,7 +150,7 @@ describe.runIf(RUN)(
         sys.release();
       }
 
-      rows = (await medicationRepository.listMedications(U)) as MedRow[];
+      rows = await medicationRepository.listMedications(U);
     });
 
     afterAll(async () => {

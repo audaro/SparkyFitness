@@ -12,9 +12,7 @@ vi.mock('jose', () => ({
   }),
 }));
 describe('oidcGroupSync', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockPool: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockUserRepository: any;
   beforeEach(() => {
     mockPool = {
@@ -26,7 +24,6 @@ describe('oidcGroupSync', () => {
     };
     vi.clearAllMocks();
   });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const createIdToken = (payload: any) => {
     const header = Buffer.from(
       JSON.stringify({ alg: 'RS256', typ: 'JWT' })

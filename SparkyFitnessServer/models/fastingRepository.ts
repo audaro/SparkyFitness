@@ -90,7 +90,7 @@ async function getCurrentFast(userId: any) {
       [userId]
     );
     console.log(`[Repo] getCurrentFast result count: ${result.rowCount}`);
-    if (result.rowCount > 0) {
+    if ((result.rowCount ?? 0) > 0) {
       console.log(`[Repo] Found active fast: ${result.rows[0].id}`);
     }
     return result.rows[0];

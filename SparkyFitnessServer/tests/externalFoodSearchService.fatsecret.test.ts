@@ -204,7 +204,6 @@ describe('enrichFatSecretResults', () => {
     mockMapFatSecretFood.mockReturnValue(
       makeDetailResult('x', 370) as ReturnType<typeof mapFatSecretFood>
     );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockCache.set('5', { data: { food: {} }, expiry: undefined as any });
 
     const result = await enrichFatSecretResults(items, 'app_id', 'app_key');
@@ -277,7 +276,6 @@ describe('enrichFatSecretResults', () => {
 
   it('passes through items without provider_external_id untouched', async () => {
     const item = makeSearchItem('', 100);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (item as any).provider_external_id = undefined;
 
     const result = await enrichFatSecretResults(

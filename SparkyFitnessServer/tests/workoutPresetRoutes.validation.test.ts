@@ -3,7 +3,6 @@ import workoutPresetService from '../services/workoutPresetService.js';
 import workoutPresetRoutes from '../routes/workoutPresetRoutes.js';
 
 vi.mock('../middleware/authMiddleware', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: (req: any, res: any, next: any) => next(),
 }));
 
@@ -21,7 +20,6 @@ vi.mock('../config/logging', () => ({
 const USER_ID = '99999999-9999-4999-8999-999999999999';
 const EXERCISE_ID = '11111111-1111-4111-8111-111111111111';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getRouteHandlers(method: any, path: any) {
   const layer = workoutPresetRoutes.stack.find(
     (entry) =>
@@ -38,9 +36,7 @@ function getRouteHandlers(method: any, path: any) {
 }
 
 async function invokeRoute(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   method: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   path: any,
   { body = {}, params = {} } = {}
 ) {
@@ -55,18 +51,15 @@ async function invokeRoute(
   let responseBody;
   let finished = false;
   const res = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status(code: any) {
       statusCode = code;
       return this;
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     json(payload: any) {
       responseBody = payload;
       finished = true;
       return this;
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     send(payload: any) {
       responseBody = payload;
       finished = true;
@@ -76,7 +69,6 @@ async function invokeRoute(
   for (const handler of handlers) {
     let nextCalled = false;
     await new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const next = (error: any) => {
         nextCalled = true;
         if (error) {
@@ -198,9 +190,7 @@ describe('workoutPresetRoutes request validation', () => {
 
   it('passes per-set distance (km) through on create', async () => {
     const body = validCreateBody();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (body.exercises[0].sets[0] as any).duration = 1500;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (body.exercises[0].sets[0] as any).distance = 5.2;
 
     const { statusCode } = await invokeRoute('post', '/', { body });
@@ -213,7 +203,6 @@ describe('workoutPresetRoutes request validation', () => {
 
   it('rejects a non-numeric distance with 400', async () => {
     const body = validCreateBody();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (body.exercises[0].sets[0] as any).distance = '5k';
 
     const { statusCode } = await invokeRoute('post', '/', { body });
@@ -224,7 +213,6 @@ describe('workoutPresetRoutes request validation', () => {
 
   it('rejects a non-integer superset_group with 400', async () => {
     const body = validCreateBody();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (body.exercises[0] as any).superset_group = 1.5;
 
     const { statusCode } = await invokeRoute('post', '/', { body });
@@ -239,7 +227,6 @@ describe('workoutPresetRoutes request validation', () => {
         exercises: [
           {
             exercise_id: EXERCISE_ID,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             superset_group: 'a' as any,
             sets: [],
           },

@@ -24,7 +24,7 @@ async function checkFamilyAccessPermission(
          AND (${permissionChecks})`,
       [familyUserId, ownerUserId, ...permissionsArray]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -46,12 +46,11 @@ async function checkCopyPermissions(familyUserId: string, ownerUserId: string) {
          )`,
       [familyUserId, ownerUserId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getFamilyAccessEntriesByOwner(ownerUserId: string) {
   const client = await getClient(ownerUserId); // User-specific operation
   try {
@@ -72,7 +71,6 @@ async function getFamilyAccessEntriesByOwner(ownerUserId: string) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getFamilyAccessEntriesByUserId(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -147,7 +145,6 @@ async function updateFamilyAccessEntry(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function deleteFamilyAccessEntry(id: string, ownerUserId: string) {
   const client = await getClient(ownerUserId); // User-specific operation
   try {
@@ -155,7 +152,7 @@ async function deleteFamilyAccessEntry(id: string, ownerUserId: string) {
       'DELETE FROM family_access WHERE id = $1 AND owner_user_id = $2 RETURNING id',
       [id, ownerUserId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

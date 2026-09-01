@@ -41,7 +41,6 @@ import { clearApiKeySessionCache } from '../utils/apiKeySessionCache.js';
 const VALID_TOKEN_A = 'a'.repeat(64);
 const VALID_TOKEN_B = 'b'.repeat(64);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeReq(token: string): any {
   return {
     headers: { authorization: `Bearer ${token}` },
@@ -50,14 +49,12 @@ function makeReq(token: string): any {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeRes(): any {
   const res: Record<string, unknown> = {
     statusCode: null,
     headers: {},
     body: null,
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   res.set = function (k: string, v: any) {
     (res.headers as Record<string, unknown>)[k] = v;
     return res;
@@ -66,7 +63,6 @@ function makeRes(): any {
     res.statusCode = c;
     return res;
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   res.json = function (d: any) {
     res.body = d;
     return res;
@@ -120,13 +116,11 @@ describe('authenticate middleware: API-key session cache (issue #1302)', () => {
     mockGetSession.mockResolvedValue({ user: { id: 'u1', name: 'U' } });
     const next = vi.fn();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const req1: any = {
       headers: { 'x-api-key': VALID_TOKEN_A },
       cookies: {},
       path: '/api/x',
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const req2: any = {
       headers: { 'x-api-key': VALID_TOKEN_A },
       cookies: {},

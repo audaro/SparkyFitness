@@ -9,7 +9,6 @@ vi.mock('../config/logging', () => ({
   log: vi.fn(),
 }));
 describe('globalSettingsRepository', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   beforeEach(() => {
     mockClient = {

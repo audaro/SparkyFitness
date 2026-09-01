@@ -21,7 +21,6 @@ vi.mock('../models/exerciseRepository', () => ({
 }));
 
 describe('exercise source/source_id scoping', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {

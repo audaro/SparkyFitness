@@ -1,4 +1,4 @@
-/* eslint-disable n/no-process-exit, no-process-exit, quotes */
+/* eslint-disable n/no-process-exit, quotes */
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';

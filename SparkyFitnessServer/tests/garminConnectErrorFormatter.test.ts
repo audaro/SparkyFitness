@@ -19,7 +19,6 @@ function makeAxiosError(opts: {
           status: opts.status ?? 500,
           statusText: 'Error',
           headers: {},
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           config: { headers: new AxiosHeaders() } as any,
         }
       : undefined

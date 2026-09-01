@@ -8,7 +8,6 @@ vi.mock('../db/poolManager', () => ({
 }));
 
 describe('medicationRepository', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   const userId = uuidv4();
   const scheduleId = uuidv4();

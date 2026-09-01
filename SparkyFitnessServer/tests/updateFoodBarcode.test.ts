@@ -8,7 +8,6 @@ vi.mock('../db/poolManager', () => ({
 }));
 
 describe('updateFood barcode handling', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   const userId = uuidv4();
   const foodId = uuidv4();

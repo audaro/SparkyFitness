@@ -86,7 +86,6 @@ describe('Cycle Routes V2', () => {
 
   it('GET /overview returns the composite payload', async () => {
     const overview = { date: '2026-03-01', phase: 'menstrual', cycleDay: 1 };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(cycleService.getOverview).mockResolvedValue(overview as any);
     const res = await request(app).get('/api/v2/cycle/overview');
     expect(res.statusCode).toBe(200);

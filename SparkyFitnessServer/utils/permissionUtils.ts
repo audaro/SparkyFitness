@@ -104,7 +104,7 @@ async function canAccessUserData(
       `,
       [authenticatedUserId, targetUserId, permissionType]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

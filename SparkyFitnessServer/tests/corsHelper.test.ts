@@ -64,7 +64,6 @@ describe('corsHelper', () => {
       const checker = createCorsOriginChecker('http://localhost:8080', false);
       await new Promise((resolve) => {
         // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         checker('http://localhost:8080', (err: any, allowed: any) => {
           expect(err).toBeNull();
           expect(allowed).toBe(true);
@@ -78,7 +77,6 @@ describe('corsHelper', () => {
       const checker = createCorsOriginChecker('http://localhost:8080', false);
       await new Promise((resolve) => {
         // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         checker(undefined, (err: any, allowed: any) => {
           expect(err).toBeNull();
           expect(allowed).toBe(false);
@@ -92,7 +90,6 @@ describe('corsHelper', () => {
       const checker = createCorsOriginChecker('http://example.com', false);
       await new Promise((resolve) => {
         // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         checker('http://192.168.1.100:3000', (err: any, allowed: any) => {
           expect(err).toBeNull();
           expect(allowed).toBe(false);
@@ -106,7 +103,6 @@ describe('corsHelper', () => {
       const checker = createCorsOriginChecker('http://example.com', true);
       await new Promise((resolve) => {
         // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         checker('http://192.168.1.100:3000', (err: any, allowed: any) => {
           expect(err).toBeNull();
           expect(allowed).toBe(true);
@@ -120,7 +116,6 @@ describe('corsHelper', () => {
       const checker = createCorsOriginChecker('http://example.com', true);
       await new Promise((resolve) => {
         // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         checker('http://localhost:3000', (err: any, allowed: any) => {
           expect(err).toBeNull();
           expect(allowed).toBe(true);
@@ -134,7 +129,6 @@ describe('corsHelper', () => {
       const checker = createCorsOriginChecker('http://example.com', false);
       await new Promise((resolve) => {
         // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         checker('http://localhost:3000', (err: any, allowed: any) => {
           expect(err).toBeNull();
           expect(allowed).toBe(false);
@@ -148,7 +142,6 @@ describe('corsHelper', () => {
       const checker = createCorsOriginChecker('http://example.com', true);
       await new Promise((resolve) => {
         // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         checker('http://8.8.8.8:3000', (err: any, allowed: any) => {
           expect(err).toBeNull();
           expect(allowed).toBe(false);
@@ -162,7 +155,6 @@ describe('corsHelper', () => {
       const checker = createCorsOriginChecker('http://localhost:8080', false);
       await new Promise((resolve) => {
         // @ts-expect-error TS(2554): Expected 3 arguments, but got 2.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         checker('http://unwanted.com', (err: any, allowed: any) => {
           expect(err).toBeNull();
           expect(allowed).toBe(false);

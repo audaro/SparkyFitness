@@ -773,9 +773,8 @@ async function upsertCustomMeasurementLogic(
     entryTimestamp,
     frequency,
   } = customMeasurement;
-  let category = await measurementRepository.getCustomCategories(userId);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  category = category.find((cat: any) => cat.name === categoryName);
+  const categories = await measurementRepository.getCustomCategories(userId);
+  const category = categories.find((cat) => cat.name === categoryName);
   let categoryId;
   if (!category) {
     // Create new custom category if it doesn't exist

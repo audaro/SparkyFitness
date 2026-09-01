@@ -143,7 +143,6 @@ const presetSessionResponseSchema = z
     ),
   })
   .strict();
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getRouteHandlers(method: any, path: any) {
   const layer = exercisePresetEntryRoutes.stack.find(
     (entry) =>
@@ -160,9 +159,7 @@ function getRouteHandlers(method: any, path: any) {
 }
 
 async function invokeRoute(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   method: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   path: any,
   { body = {}, params = {} } = {}
 ) {
@@ -177,18 +174,15 @@ async function invokeRoute(
   let responseBody;
   let finished = false;
   const res = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status(code: any) {
       statusCode = code;
       return this;
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     json(payload: any) {
       responseBody = payload;
       finished = true;
       return this;
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     send(payload: any) {
       responseBody = payload;
       finished = true;
@@ -198,7 +192,6 @@ async function invokeRoute(
   for (const handler of handlers) {
     let nextCalled = false;
     await new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const next = (error: any) => {
         nextCalled = true;
         if (error) {

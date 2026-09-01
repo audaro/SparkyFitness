@@ -224,7 +224,6 @@ describe('sparky_analyze_food_image', () => {
 
   it('returns a validation error when image_url is missing', async () => {
     const result = await tools.sparky_analyze_food_image.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {} as any,
       opts
     );

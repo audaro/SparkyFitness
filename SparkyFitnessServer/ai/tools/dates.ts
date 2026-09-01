@@ -56,12 +56,12 @@ export function normalizeActionArgs(
   rawArgs: unknown,
   tz: string,
   validActions: string[],
-  inferAction?: (args: Record<string, any>) => string | undefined
+  inferAction?: (args: Record<string, unknown>) => string | undefined
 ): unknown {
   if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
     return rawArgs;
   }
-  const out = { ...(rawArgs as Record<string, any>) };
+  const out = { ...(rawArgs as Record<string, unknown>) };
 
   // 1. Un-nest actions (e.g. {"update_preferences": {"default_weight_unit": "lbs"}})
   for (const actionKey of validActions) {

@@ -43,11 +43,24 @@ vi.mock('../config/logging', () => ({
 
 const opts = { toolCallId: 'tc-1', messages: [] };
 
-const MED_ID = '11111111-1111-4111-8111-111111111111';
-const MED_ID_2 = '22222222-2222-4222-8222-222222222222';
+// Derived from the repository rather than restated, so a column added to the
+// table shows up here as a type error instead of a fixture that has quietly
+// stopped resembling a real row.
+type MedicationListRow = Awaited<
+  ReturnType<typeof medicationRepository.listMedications>
+>[number];
+type MedicationScheduleRow = MedicationListRow['schedules'][number];
+
+const MED_ID =
+  '11111111-1111-4111-8111-111111111111' as MedicationListRow['id'];
+const MED_ID_2 =
+  '22222222-2222-4222-8222-222222222222' as MedicationListRow['id'];
 const SCHED_ID = '33333333-3333-4333-8333-333333333333';
 
-// A stored medication the way the repository returns it.
+// A stored medication the way the repository returns it, narrowed to the columns
+// these tools actually read. The rest of the row - timestamps, lookup ids, the
+// custom-field bag - is filled by the database and never inspected here, so the
+// fixture states what is under test rather than two dozen nulls.
 const metformin = {
   id: MED_ID,
   user_id: 'user-1',
@@ -63,7 +76,7 @@ const metformin = {
   reason_text: null,
   notes: null,
   schedules: [],
-};
+} as unknown as MedicationListRow;
 
 const specificDaysSchedule = {
   id: SCHED_ID,
@@ -83,7 +96,7 @@ const specificDaysSchedule = {
   start_date: null,
   end_date: null,
   active: true,
-};
+} as unknown as MedicationScheduleRow;
 
 const SYMPTOM_ID = '44444444-4444-4444-8444-444444444444';
 

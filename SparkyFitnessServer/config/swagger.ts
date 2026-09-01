@@ -1702,6 +1702,11 @@ const specs = swaggerJsdoc(options);
 
 // Post-process OpenAPI spec to clean up UI:
 // Replace 'cookieAuth' with 'apiKeyAuth' in all route operations and clean up security definitions.
+// One entry of an OpenAPI `security` array: scheme name -> scopes. swagger-jsdoc
+// hands the assembled spec back untyped, so the few entries this rewrite reads
+// are described here rather than asserted at each callback.
+type SecurityRequirement = Record<string, unknown> | null | undefined;
+
 if (specs) {
   // 1. Rewrite path security requirements
   if (specs.paths) {
@@ -1716,16 +1721,16 @@ if (specs) {
             Array.isArray(operation.security)
           ) {
             const hasCookieAuth = operation.security.some(
-              (s: any) =>
+              (s: SecurityRequirement) =>
                 s && typeof s === 'object' && s.cookieAuth !== undefined
             );
             if (hasCookieAuth) {
               operation.security = operation.security.filter(
-                (s: any) =>
+                (s: SecurityRequirement) =>
                   !s || typeof s !== 'object' || s.cookieAuth === undefined
               );
               const hasApiKeyAuth = operation.security.some(
-                (s: any) =>
+                (s: SecurityRequirement) =>
                   s && typeof s === 'object' && s.apiKeyAuth !== undefined
               );
               if (!hasApiKeyAuth) {
@@ -1741,10 +1746,12 @@ if (specs) {
   // 2. Remove cookieAuth from global security defaults
   if (Array.isArray(specs.security)) {
     specs.security = specs.security.filter(
-      (s: any) => !s || typeof s !== 'object' || s.cookieAuth === undefined
+      (s: SecurityRequirement) =>
+        !s || typeof s !== 'object' || s.cookieAuth === undefined
     );
     const hasApiKeyAuth = specs.security.some(
-      (s: any) => s && typeof s === 'object' && s.apiKeyAuth !== undefined
+      (s: SecurityRequirement) =>
+        s && typeof s === 'object' && s.apiKeyAuth !== undefined
     );
     if (!hasApiKeyAuth) {
       specs.security.push({ apiKeyAuth: [] });

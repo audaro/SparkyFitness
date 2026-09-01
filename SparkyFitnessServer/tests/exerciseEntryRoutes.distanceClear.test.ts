@@ -8,7 +8,6 @@ import exerciseEntryRoutes from '../routes/exerciseEntryRoutes.js';
 import exerciseService from '../services/exerciseService.js';
 
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: vi.fn((req: any, _res: any, next: any) => {
     req.userId = 'user-123';
     req.originalUserId = 'actor-123';
@@ -16,10 +15,7 @@ vi.mock('../middleware/authMiddleware.js', () => ({
   }),
 }));
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  default: vi.fn(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (_req: any, _res: any, next: any) => next()
-  ),
+  default: vi.fn(() => (_req: any, _res: any, next: any) => next()),
 }));
 // Real multer (memory storage) so multipart fields land in req.body the way
 // the production upload middleware delivers them.
@@ -41,7 +37,6 @@ vi.mock('../config/logging.js', () => ({ log: vi.fn() }));
 const app = express();
 app.use(express.json());
 app.use('/exercise-entries', exerciseEntryRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, _req: any, res: any, _next: any) => {
   res.status(500).json({ error: err.message });
 });

@@ -32,7 +32,6 @@ vi.mock('../auth.js', () => ({
 // as authMiddleware does when the sparky_active_user_id cookie is honored.
 vi.mock('../middleware/authMiddleware.js', () => ({
   authenticate: (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     req: any,
     res: express.Response,
     next: express.NextFunction

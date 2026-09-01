@@ -54,7 +54,7 @@ Actions:
               return formatList(
                 habits,
                 'Available Habits',
-                (h: any) => `**${h.display_name || h.name}**\n  ID: ${h.id}`
+                (h) => `**${h.display_name || h.name}**\n  ID: ${h.id}`
               );
             }
 
@@ -77,7 +77,7 @@ Actions:
                 args.start_date,
                 args.end_date
               );
-              const history = rows.map((row: any) => ({
+              const history = rows.map((row) => ({
                 id: row.id,
                 completed: row.value === 'true',
                 entry_date: dayString(row.entry_date),
@@ -86,14 +86,14 @@ Actions:
               return formatList(
                 history,
                 'Habit History',
-                (h: any) =>
+                (h) =>
                   `${h.entry_date}: ${h.completed ? '✅ Completed' : '❌ Missed'}`
               );
             }
 
             default:
               return ERRORS.INVALID_ACTION(
-                String((args as any).action),
+                String((args as Record<string, unknown>).action),
                 VALID_ACTIONS
               );
           }

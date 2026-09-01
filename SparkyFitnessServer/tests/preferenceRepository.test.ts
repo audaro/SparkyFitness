@@ -5,7 +5,6 @@ vi.mock('../db/poolManager', () => ({
   getClient: vi.fn(),
 }));
 describe('preferenceRepository bootstrapUserTimezoneIfUnset', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   beforeEach(() => {
     mockClient = {
@@ -192,7 +191,6 @@ describe('preferenceRepository bootstrapUserTimezoneIfUnset', () => {
  * another with no error anywhere. These tests are the parity check for that.
  */
 describe('preferenceRepository parameter parity', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   beforeEach(() => {
     mockClient = { query: vi.fn(), release: vi.fn() };

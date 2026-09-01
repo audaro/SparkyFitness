@@ -99,6 +99,15 @@ interface ImportRowResult {
   [key: string]: unknown;
 }
 
+/**
+ * What importing one single-food row produced: either the created entry or the
+ * reason it was rejected. The two shapes are disjoint so the caller discriminates
+ * on the presence of `error` rather than on its truthiness.
+ */
+type ImportRowOutcome =
+  | { error: string; entry: FoodDiaryImportRow }
+  | { data: ImportRowResult };
+
 /** A row that failed to import, with the reason. */
 interface ImportRowError {
   index?: number;
@@ -448,7 +457,7 @@ async function importSingleFoodDiaryRow(
   scope: FoodDiaryImportScope,
   overrideNutrition: boolean,
   index: number
-): Promise<any> {
+): Promise<ImportRowOutcome> {
   const quantity = Number(row.quantity);
   if (!row.quantity || isNaN(quantity) || quantity <= 0) {
     return { error: 'Invalid or missing quantity.', entry: row };
@@ -633,7 +642,8 @@ async function importFoodDiaryEntriesInBulk(
       overrideNutrition,
       index
     );
-    if (result.error) errors.push({ error: result.error, entry: result.entry });
+    if ('error' in result)
+      errors.push({ error: result.error, entry: result.entry });
     else processed.push(result.data);
   }
 

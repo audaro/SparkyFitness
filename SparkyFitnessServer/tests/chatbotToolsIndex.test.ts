@@ -180,7 +180,6 @@ describe('buildChatbotTools', () => {
   // must strip nulls so those calls still reach the handler.
   it('strips null-valued optional fields from chat-tool input before validation', () => {
     const tools = buildChatbotTools('user-1', 'UTC');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const schema = tools.sparky_manage_food.inputSchema as any;
     const parsed = schema.safeParse({
       action: 'log_external_food',
@@ -200,7 +199,6 @@ describe('buildChatbotTools', () => {
   // chat-only preprocess wrapper must not leak into it.
   it('does not add the null-stripping wrapper to the MCP surface', () => {
     const tools = buildChatbotTools('mcp-user', 'UTC', 'full', false);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const schema = tools.sparky_manage_food.inputSchema as any;
     const parsed = schema.safeParse({
       action: 'log_external_food',
@@ -265,7 +263,6 @@ describe('buildChatbotTools', () => {
 
     it('ignores unknown slugs and falls back to the profile when none remain', () => {
       const bogusOnly = Object.keys(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         buildChatbotTools('cat-user', 'UTC', 'full', true, ['bogus'] as any)
       ).sort();
       const fullProfile = Object.keys(

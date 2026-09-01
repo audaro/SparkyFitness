@@ -513,7 +513,7 @@ async function deleteFood(id: string, userId: string) {
       'DELETE FROM foods WHERE id = $1 RETURNING id',
       [id]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -846,7 +846,7 @@ async function deleteFoodAndDependencies(foodId: string, userId: string) {
     );
     log('info', `Deleted food ${foodId} by user ${userId}`);
     await client.query('COMMIT');
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     await client.query('ROLLBACK');
     log(

@@ -7,7 +7,6 @@ vi.mock('../db/poolManager', () => ({
   getClient: vi.fn(),
 }));
 describe('mealRepository', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   beforeEach(() => {
     mockClient = {
@@ -104,7 +103,6 @@ describe('mealRepository', () => {
         name: 'Error Meal',
         foods: [{ food_id: uuidv4(), quantity: 1, unit: 'ea' }],
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient.query.mockImplementation((sql: any) => {
         if (sql.includes('INSERT INTO meals')) {
           throw new Error('Database error');
@@ -466,7 +464,6 @@ describe('mealRepository', () => {
       const mealId = uuidv4();
       const userId = uuidv4();
       const updateData = { name: 'Error Update' };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient.query.mockImplementation((sql: any) => {
         if (sql.includes('UPDATE meals')) {
           throw new Error('Database error during update');
@@ -506,7 +503,6 @@ describe('mealRepository', () => {
       expect(result).toBe(false);
     });
     it('should rollback transaction on error', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient.query.mockImplementation((sql: any) => {
         if (sql.includes('DELETE FROM meals')) {
           throw new Error('Database error during delete');

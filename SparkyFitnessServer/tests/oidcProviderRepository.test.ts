@@ -19,7 +19,6 @@ vi.mock('../auth.js', () => ({
 }));
 global.fetch = vi.fn();
 describe('oidcProviderRepository', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   beforeEach(() => {
     mockClient = {
@@ -56,7 +55,6 @@ describe('oidcProviderRepository', () => {
       await oidcProviderRepository.createOidcProvider(providerData);
       // Check the second call to query (the INSERT into sso_provider)
       const insertCall = mockClient.query.mock.calls.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (call: any) =>
           typeof call[0] === 'string' &&
           call[0].includes('INSERT INTO "sso_provider"')
@@ -93,7 +91,6 @@ describe('oidcProviderRepository', () => {
       });
       await oidcProviderRepository.updateOidcProvider(providerId, providerData);
       const updateCall = mockClient.query.mock.calls.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (call: any) =>
           typeof call[0] === 'string' &&
           call[0].includes('UPDATE "sso_provider"')

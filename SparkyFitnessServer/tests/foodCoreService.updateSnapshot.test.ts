@@ -293,7 +293,6 @@ describe('foodCoreService.updateFoodEntriesSnapshot', () => {
   // Snapshot update must succeed before clearing ignored updates, so a failure
   // doesn't also lose the user's ignore state.
   it('should call updateFoodEntriesSnapshot before clearUserIgnoredUpdate', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const callOrder: any = [];
     // @ts-expect-error TS(2339): Property 'mockResolvedValue' does not exist on typ... Remove this comment to see the full error message
     foodRepository.getFoodById.mockResolvedValue(makeFood());

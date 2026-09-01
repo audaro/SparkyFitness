@@ -17,7 +17,6 @@ vi.mock('../middleware/authMiddleware', () => ({
     req.userId = 'testUserId';
     next();
   }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authorizeAccess: vi.fn(() => (req: any, res: any, next: any) => {
     next();
   }),

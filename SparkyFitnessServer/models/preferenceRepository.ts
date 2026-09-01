@@ -114,7 +114,7 @@ async function deleteUserPreferences(userId: any) {
       'DELETE FROM user_preferences WHERE user_id = $1 RETURNING user_id',
       [userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

@@ -26,7 +26,9 @@ export default tseslint.config(
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
 
     linterOptions: {
-      reportUnusedDisableDirectives: 'off',
+      // On, so a disable comment that no longer suppresses anything is an
+      // error rather than decoration left behind by a later refactor.
+      reportUnusedDisableDirectives: 'error',
     },
 
     languageOptions: {
@@ -53,7 +55,12 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/ban-ts-comment': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
+      // AGENTS.md bans `any`. The rule was 'off' here - the one package holding
+      // almost every violation - which made all ~1,390 disable comments below
+      // decorative: deleting them changed nothing. It is now enforced, so a new
+      // `any` fails lint and adding a disable comment is a visible, reviewable
+      // act rather than the silent default.
+      '@typescript-eslint/no-explicit-any': 'error',
       // Node.js specific rules
       'n/no-missing-require': 'error',
       'n/no-unpublished-require': 'off',
@@ -92,6 +99,7 @@ export default tseslint.config(
   // Test files - more relaxed rules
   {
     files: [
+      'tests/**',
       '**/*.test.js',
       '**/__tests__/**/*.js',
       '**/*.test.ts',
@@ -100,6 +108,10 @@ export default tseslint.config(
     rules: {
       'n/no-unpublished-require': 'off',
       'security/detect-non-literal-fs-filename': 'off',
+      // Test doubles and fixtures legitimately model partial or malformed
+      // shapes; stating that once here is honest, where a few hundred
+      // per-line disable comments only looked like a rule being followed.
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 

@@ -356,10 +356,10 @@ async function getReportsData(
     }));
 
     // Fetch titration steps in a single query (avoid N+1 pattern)
-    const medIds = new Set(medications.map((m: any) => m.id));
+    const medIds = new Set(medications.map((m) => m.id));
     const allTitrationSteps =
       await titrationRepository.listStepsForUser(targetUserId);
-    const titrationSteps = allTitrationSteps.filter((step: any) =>
+    const titrationSteps = allTitrationSteps.filter((step) =>
       medIds.has(step.medication_id)
     );
 
@@ -479,7 +479,7 @@ async function getNutritionTrendsWithGoals(
       startDate,
       endDate,
       true // adjust = true
-    )) as Record<string, any>;
+    )) as Record<string, Record<string, unknown>>;
 
     // Create a map for quick lookup of nutrition data by date
     const nutritionMap = new Map(
@@ -490,22 +490,18 @@ async function getNutritionTrendsWithGoals(
     let currentDay = startDate;
     while (compareDays(currentDay, endDate) <= 0) {
       const dailyNutrition = nutritionMap.get(currentDay) || {};
-      const dailyGoal = rangeGoals[currentDay] || {};
+      const dailyGoal: Record<string, unknown> = rangeGoals[currentDay] || {};
 
       trendData.push({
         date: currentDay,
-        // @ts-expect-error TS(2571): Object is of type 'unknown'.
         calories: parseFloat(dailyNutrition.calories || 0),
-        // @ts-expect-error TS(2571): Object is of type 'unknown'.
         protein: parseFloat(dailyNutrition.protein || 0),
-        // @ts-expect-error TS(2571): Object is of type 'unknown'.
         carbs: parseFloat(dailyNutrition.carbs || 0),
-        // @ts-expect-error TS(2571): Object is of type 'unknown'.
         fat: parseFloat(dailyNutrition.fat || 0),
-        calorieGoal: parseFloat(dailyGoal.calories || 0),
-        proteinGoal: parseFloat(dailyGoal.protein || 0),
-        carbsGoal: parseFloat(dailyGoal.carbs || 0),
-        fatGoal: parseFloat(dailyGoal.fat || 0),
+        calorieGoal: parseFloat(String(dailyGoal.calories || 0)),
+        proteinGoal: parseFloat(String(dailyGoal.protein || 0)),
+        carbsGoal: parseFloat(String(dailyGoal.carbs || 0)),
+        fatGoal: parseFloat(String(dailyGoal.fat || 0)),
       });
       currentDay = addDays(currentDay, 1);
     }

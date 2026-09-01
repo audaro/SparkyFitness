@@ -19,7 +19,6 @@ vi.mock('../security/encryption.js', () => ({
 vi.mock('../config/logging.js', () => ({ log: vi.fn() }));
 
 describe('externalProviderRepository base_url clearing', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {

@@ -1,6 +1,7 @@
 import { vi, beforeEach, describe, expect, it } from 'vitest';
 import { getClient } from '../db/poolManager.js';
 import workoutPresetRepository from '../models/workoutPresetRepository.js';
+import { asPoolClient } from './helpers/mockDbClient.js';
 
 vi.mock('../db/poolManager', () => ({
   getClient: vi.fn(),
@@ -15,7 +16,6 @@ const EXERCISE_ID = '11111111-1111-4111-8111-111111111111';
 
 function makeClient() {
   const client = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     query: vi.fn(async (sql: string, _params?: any[]) => {
       if (/INSERT INTO workout_presets/.test(sql)) {
         return {
@@ -58,7 +58,7 @@ describe('workoutPresetRepository superset_group', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     client = makeClient();
-    vi.mocked(getClient).mockResolvedValue(client);
+    vi.mocked(getClient).mockResolvedValue(asPoolClient(client));
   });
 
   it('create inserts superset_group values and defaults absent to null', async () => {

@@ -8,7 +8,6 @@ vi.mock('../db/poolManager', () => ({
 }));
 
 describe('getFavoriteFoods query', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   const userId = uuidv4();
 

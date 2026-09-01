@@ -6,7 +6,6 @@ import foodService from '../services/foodService.js';
 import foodCrudRoutes from '../routes/foodCrudRoutes.js';
 
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: (req: any, _res: any, next: any) => {
     req.userId = 'user-123';
     req.authenticatedUserId = 'user-123';
@@ -14,7 +13,6 @@ vi.mock('../middleware/authMiddleware.js', () => ({
   },
 }));
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: vi.fn(() => (_req: any, _res: any, next: any) => next()),
 }));
 vi.mock('../config/logging.js', () => ({ log: vi.fn() }));

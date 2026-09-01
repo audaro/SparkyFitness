@@ -212,7 +212,6 @@ describe('getExternalDataProviders - runtime availability', () => {
 });
 
 describe('createExternalDataProvider - mutual exclusion', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const expectBadRequest = async (promise: any, pattern: any) => {
     await expect(promise).rejects.toThrow(pattern);
     await expect(promise).rejects.toMatchObject({ statusCode: 400 });
@@ -318,7 +317,6 @@ describe('createExternalDataProvider - mutual exclusion', () => {
 });
 
 describe('updateExternalDataProvider - mutual exclusion + invalidation', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const expectBadRequest = async (promise: any, pattern: any) => {
     await expect(promise).rejects.toThrow(pattern);
     await expect(promise).rejects.toMatchObject({ statusCode: 400 });

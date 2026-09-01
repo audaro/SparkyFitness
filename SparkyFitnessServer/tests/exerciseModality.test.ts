@@ -16,13 +16,11 @@ vi.mock('../config/logging', () => ({
 const CREATE_MODALITY_PARAM = 17;
 const UPDATE_MODALITY_PARAM = 15;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function lastQuery(mockClient: any): [string, unknown[]] {
   return mockClient.query.mock.calls[mockClient.query.mock.calls.length - 1];
 }
 
 describe('exercise modality writers', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {
@@ -36,7 +34,6 @@ describe('exercise modality writers', () => {
   });
 
   describe('createExercise', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async function captureCreateBind(exerciseData: any) {
       mockClient.query.mockResolvedValueOnce({ rows: [{ id: uuidv4() }] });
       await exerciseDb.createExercise({
@@ -85,7 +82,6 @@ describe('exercise modality writers', () => {
   });
 
   describe('updateExercise', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async function captureUpdateBind(updateData: any) {
       mockClient.query.mockResolvedValueOnce({ rows: [{ id: uuidv4() }] });
       await exerciseDb.updateExercise(uuidv4(), uuidv4(), updateData);

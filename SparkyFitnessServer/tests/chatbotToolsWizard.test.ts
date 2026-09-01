@@ -51,7 +51,6 @@ describe('sparky_daily_checkin_wizard', () => {
 
   it('rejects an unknown step', async () => {
     const result = await tools.sparky_daily_checkin_wizard.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { action: 'daily_checkin', step: 'nope' } as any,
       opts
     );

@@ -365,7 +365,6 @@ describe('processGoogleActivities — duration units', () => {
 
 describe('processGoogleActivities — exercise record null guard', () => {
   it('skips the entry when createExercise returns null', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (exerciseRepository.createExercise as any).mockResolvedValue(null);
 
     const point = {

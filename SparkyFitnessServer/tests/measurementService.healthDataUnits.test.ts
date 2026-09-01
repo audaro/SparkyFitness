@@ -421,7 +421,6 @@ describe('Aggregated health metric default units', () => {
     ).toHaveBeenCalledTimes(1);
     const rows = vi.mocked(measurementRepository.bulkUpsertCustomMeasurements)
       .mock.calls[0][2];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(rows.map((row: any) => row.value)).toEqual([3.1, 3.2, 3.3]);
   });
 });

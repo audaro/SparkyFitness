@@ -7,7 +7,6 @@ vi.mock('../db/poolManager.js', () => ({
 }));
 
 describe('measurementRepository.getLatestCheckInMeasurementsOnOrBeforeDate', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {
@@ -56,16 +55,11 @@ describe('measurementRepository.getLatestCheckInMeasurementsOnOrBeforeDate', () 
 });
 
 describe('measurementRepository.upsertStepData', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const findQuery = (fragment: string): { text: string; values: any[] } =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mock.calls
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((call: any[]) => ({ text: call[0], values: call[1] }))
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .find((call: any) => call.text.includes(fragment));
 
   beforeEach(() => {

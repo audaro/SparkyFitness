@@ -11,7 +11,6 @@ import { localDateToDay } from '@workspace/shared';
  * to verify the fix holds on non-UTC servers.
  */
 // Simulate how pg creates a Date from a DATE column value like '2024-06-15'
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function simulatePgDate(dateStr: any) {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d); // local midnight — this is what pg does
@@ -61,7 +60,6 @@ describe('reportService: exercise report date conversions (TO_CHAR strings)', ()
 // exerciseEntryHistoryService — _dateToString (line 17)
 // ---------------------------------------------------------------------------
 describe('exerciseEntryHistoryService: _dateToString', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function _dateToString(value: any) {
     if (value === null) return null;
     if (value instanceof Date) return localDateToDay(value);
@@ -82,7 +80,6 @@ describe('exerciseEntryHistoryService: _dateToString', () => {
 // sleepScienceService — entry.date conversion
 // ---------------------------------------------------------------------------
 describe('sleepScienceService: date conversion', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function sleepDateToString(entry: any) {
     return typeof entry.date === 'string'
       ? entry.date
@@ -100,7 +97,6 @@ describe('sleepScienceService: date conversion', () => {
 // foodTemplate / exerciseTemplate — start_date, end_date from pg
 // ---------------------------------------------------------------------------
 describe('template date conversions (foodTemplate/exerciseTemplate)', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function templateDateToString(dateValue: any) {
     return typeof dateValue === 'string'
       ? dateValue.slice(0, 10)

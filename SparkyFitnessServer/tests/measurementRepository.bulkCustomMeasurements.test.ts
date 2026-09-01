@@ -18,12 +18,9 @@ const baseRow = {
 };
 
 describe('measurementRepository.bulkUpsertCustomMeasurements', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const queryCalls = (): Array<{ text: string; values?: any[] }> =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mock.calls.map((call: any[]) => ({
       text: call[0],
       values: call[1],
@@ -46,7 +43,6 @@ describe('measurementRepository.bulkUpsertCustomMeasurements', () => {
 
   it('normalizes Daily rows (hour 0, midnight timestamp) and stamps audit columns on insert', async () => {
     const insertedRow = { id: 'cm-new', value: '42' };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('INSERT INTO custom_measurements')) {
         return { rows: [insertedRow] };
@@ -77,7 +73,6 @@ describe('measurementRepository.bulkUpsertCustomMeasurements', () => {
 
   it('dedupes same-key Daily rows with last-in-payload-wins', async () => {
     const insertedRow = { id: 'cm-new', value: '20' };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('INSERT INTO custom_measurements')) {
         return { rows: [insertedRow] };
@@ -108,7 +103,6 @@ describe('measurementRepository.bulkUpsertCustomMeasurements', () => {
       { id: 'cm-1', value: '10' },
       { id: 'cm-2', value: '20' },
     ];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('INSERT INTO custom_measurements')) {
         return { rows: insertedRows };
@@ -141,7 +135,6 @@ describe('measurementRepository.bulkUpsertCustomMeasurements', () => {
       entry_hour: 0,
     };
     const updatedRow = { id: 'cm-existing', value: '42' };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('SELECT id, category_id')) {
         return { rows: [existingRow] };
@@ -171,7 +164,6 @@ describe('measurementRepository.bulkUpsertCustomMeasurements', () => {
   });
 
   it('rolls back the transaction and rethrows when a write fails', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('INSERT INTO custom_measurements')) {
         throw new Error('insert failed');

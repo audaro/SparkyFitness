@@ -18,16 +18,13 @@ import { normalizeBarcode } from '../utils/foodUtils.js';
 // dump + units surfaced for the alias viewer (covered by
 // customNutrientMatching.test.ts). Drop them here so these exact-shape mapping
 // assertions stay focused on the standard fields.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function stripProviderNutrients<T>(food: any): T {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const strip = (v: any) => {
     if (!v) return;
     delete v.provider_nutrients;
     delete v.provider_nutrient_units;
   };
   strip(food?.default_variant);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (Array.isArray(food?.variants)) food.variants.forEach(strip);
   return food;
 }

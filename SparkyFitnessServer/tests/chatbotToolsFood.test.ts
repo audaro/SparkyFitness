@@ -5830,8 +5830,13 @@ describe('meal plans', () => {
 
   it('update_meal_plan rejects an ambiguous plan name', async () => {
     vi.mocked(mealPlanTemplateService.getMealPlanTemplates).mockResolvedValue([
-      { id: PLAN_ID, plan_name: 'Cut Week', is_active: true },
-      { id: PLAN_ID_2, plan_name: 'cut week', is_active: false },
+      { id: PLAN_ID, plan_name: 'Cut Week', is_active: true, assignments: [] },
+      {
+        id: PLAN_ID_2,
+        plan_name: 'cut week',
+        is_active: false,
+        assignments: [],
+      },
     ]);
     const result = await tools.sparky_manage_food.execute!(
       { action: 'update_meal_plan', plan_name: 'Cut Week', new_name: 'X' },
@@ -6023,7 +6028,7 @@ describe('meal plans', () => {
 
   it('create_meal_plan refuses to duplicate an existing plan name', async () => {
     vi.mocked(mealPlanTemplateService.getMealPlanTemplates).mockResolvedValue([
-      { id: PLAN_ID, plan_name: 'Cut Week', is_active: true },
+      { id: PLAN_ID, plan_name: 'Cut Week', is_active: true, assignments: [] },
     ]);
     const result = await tools.sparky_manage_food.execute!(
       {

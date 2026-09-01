@@ -83,7 +83,6 @@ const mockedLog = vi.mocked(log);
 function optIn(enabled = true) {
   mockedPreferences.getUserPreferences.mockResolvedValue({
     medication_catalog_lookup_enabled: enabled,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
 }
 
@@ -93,12 +92,10 @@ function medicationHasRxcui(rxcui: string | null = '2601723') {
     id: MEDICATION_ID,
     name: 'Mounjaro',
     rxnorm_rxcui: rxcui,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
 }
 
 function upstreamReturns(status: number, data: unknown) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (mockedAxios.get as any).mockResolvedValue({ status, data });
 }
 
@@ -143,7 +140,6 @@ describe('GET /api/v2/medications/:id/label', () => {
 
     await label().expect(200);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [url, config] = (mockedAxios.get as any).mock.calls[0];
     expect(url).toBe('https://api.fda.gov/drug/ndc.json');
     expect(config.params.search).toBe('openfda.rxcui:"2601723"');
@@ -265,7 +261,6 @@ describe('GET /api/v2/medications/:id/label', () => {
     });
 
     it('distinguishes an unreachable FDA from an unlisted drug', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockRejectedValue(
         Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT' })
       );
@@ -288,7 +283,6 @@ describe('GET /api/v2/medications/:id/label', () => {
     });
 
     it('never becomes an error the user has to dismiss', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockRejectedValue(new Error('boom'));
       optIn();
       medicationHasRxcui();
@@ -301,7 +295,6 @@ describe('GET /api/v2/medications/:id/label', () => {
     it('names the failure without naming the drug', async () => {
       // An axios error carries `config.params`, which here is the RxCUI. Logging the error
       // object would put a pointer to what this server's user takes into a log file.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockRejectedValue(
         Object.assign(new Error('connect ECONNREFUSED'), {
           code: 'ECONNREFUSED',
@@ -350,7 +343,6 @@ describe('GET /api/v2/medications/:id/label', () => {
     it('does not cache a failure, so a blip cannot freeze a drug as unlisted', async () => {
       optIn();
       medicationHasRxcui();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockRejectedValueOnce(new Error('blip'));
 
       const first = await label().expect(200);

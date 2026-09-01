@@ -79,12 +79,10 @@ const mockedPreferences = vi.mocked(preferenceRepository, true);
 function optIn(enabled = true) {
   mockedPreferences.getUserPreferences.mockResolvedValue({
     medication_catalog_lookup_enabled: enabled,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
 }
 
 function upstreamReturns(status: number, data: unknown) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (mockedAxios.get as any).mockResolvedValue({ status, data });
 }
 
@@ -154,10 +152,7 @@ describe('GET /api/v2/medications/catalog-search', () => {
     });
 
     it('treats a user with no preferences row as not opted in', async () => {
-      mockedPreferences.getUserPreferences.mockResolvedValue(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        undefined as any
-      );
+      mockedPreferences.getUserPreferences.mockResolvedValue(undefined as any);
 
       const res = await search('?q=testosterone').expect(200);
 
@@ -170,7 +165,6 @@ describe('GET /api/v2/medications/catalog-search', () => {
       // recorded" about sending health data to a third party has to read as no.
       mockedPreferences.getUserPreferences.mockResolvedValue({
         medication_catalog_lookup_enabled: null,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
 
       const res = await search('?q=testosterone').expect(200);
@@ -199,7 +193,6 @@ describe('GET /api/v2/medications/catalog-search', () => {
       const timeout = Object.assign(new Error('timeout of 3000ms exceeded'), {
         code: 'ECONNABORTED',
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockRejectedValue(timeout);
 
       const res = await search('?q=testosterone').expect(200);
@@ -231,7 +224,6 @@ describe('GET /api/v2/medications/catalog-search', () => {
           params: { terms: 'oxycodone' },
         },
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockRejectedValue(failure);
 
       await search('?q=oxycodone').expect(200);
@@ -341,7 +333,6 @@ describe('GET /api/v2/medications/catalog-search', () => {
 
     it('does not cache a failure as though it were an answer', async () => {
       optIn();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockRejectedValueOnce(new Error('boom'));
       await search('?q=testosterone').expect(200);
 
@@ -360,7 +351,6 @@ describe('GET /api/v2/medications/catalog-search', () => {
      * service asks in.
      */
     function upstreamRoutes(byTerm: Record<string, unknown>) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockImplementation(
         (url: string, config: { params: Record<string, string> }) => {
           const term = config.params['name'] ?? config.params['terms'] ?? '';
@@ -476,7 +466,6 @@ describe('GET /api/v2/medications/catalog-search', () => {
 
     it('answers without a correction when RxNav itself is unreachable', async () => {
       optIn();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockImplementation((url: string) =>
         url.includes('rxnav')
           ? Promise.reject(new Error('boom'))
@@ -493,7 +482,6 @@ describe('GET /api/v2/medications/catalog-search', () => {
 
     it('does not freeze an uncorrected miss into the cache when RxNav failed', async () => {
       optIn();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockImplementation((url: string) =>
         url.includes('rxnav')
           ? Promise.reject(new Error('boom'))
@@ -537,7 +525,6 @@ describe('GET /api/v2/medications/catalog-search', () => {
           params: { name: 'oxycodne' },
         },
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mockedAxios.get as any).mockImplementation((url: string) =>
         url.includes('rxnav')
           ? Promise.reject(failure)

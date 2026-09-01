@@ -135,7 +135,7 @@ async function getTabularFoodData(
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   endDate: any,
-  customNutrients = []
+  customNutrients: Array<{ name: string }> = []
 ) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -143,17 +143,14 @@ async function getTabularFoodData(
     const customNutrientsSelectCTE = customNutrients
       .map(
         (cn) =>
-          // @ts-expect-error TS(2339): Property 'name' does not exist on type 'never'.
           `(COALESCE(NULLIF(fe.custom_nutrients->>'${cn.name}', '')::numeric, 0) * fe.quantity / fe.serving_size) AS "${cn.name}"`
       )
       .join(',\n          ');
     const customNutrientsSelectOuter = customNutrients
-      // @ts-expect-error TS(2339): Property 'name' does not exist on type 'never'.
       .map((cn) => `cfe."${cn.name}"`)
       .join(',\n        ');
     // Note: cfe_meal values already include scaled quantity, so do NOT multiply by fem.quantity
     const customNutrientsSelectMealAgg = customNutrients
-      // @ts-expect-error TS(2339): Property 'name' does not exist on type 'never'.
       .map((cn) => `SUM(cfe_meal."${cn.name}") AS "${cn.name}"`)
       .join(',\n        ');
     const result = await client.query(
@@ -401,7 +398,7 @@ async function getMiniNutritionTrends(
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   endDate: any,
-  customNutrients = []
+  customNutrients: Array<{ name: string }> = []
 ) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -409,13 +406,11 @@ async function getMiniNutritionTrends(
     // Note: Standard nutrients use "total_" prefix in the outer select of the existing query.
     // For custom nutrients, I will use their name directly to match the service mapping.
     const customNutrientsSelectOuter = customNutrients
-      // @ts-expect-error TS(2339): Property 'name' does not exist on type 'never'.
       .map((cn) => `SUM("${cn.name}") AS "${cn.name}"`)
       .join(',\n         ');
     const customNutrientsSelectInner1 = customNutrients
       .map(
         (cn) =>
-          // @ts-expect-error TS(2339): Property 'name' does not exist on type 'never'.
           `(COALESCE(NULLIF(fe.custom_nutrients->>'${cn.name}', '')::numeric, 0) * fe.quantity / fe.serving_size) AS "${cn.name}"`
       )
       .join(',\n           ');
@@ -423,7 +418,6 @@ async function getMiniNutritionTrends(
     const customNutrientsSelectInner2 = customNutrients
       .map(
         (cn) =>
-          // @ts-expect-error TS(2339): Property 'name' does not exist on type 'never'.
           `SUM(COALESCE(NULLIF(fe_meal.custom_nutrients->>'${cn.name}', '')::numeric, 0) * fe_meal.quantity / fe_meal.serving_size) AS "${cn.name}"`
       )
       .join(',\n           ');

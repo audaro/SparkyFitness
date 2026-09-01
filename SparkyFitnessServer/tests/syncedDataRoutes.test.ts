@@ -13,7 +13,6 @@ vi.mock('../services/syncedDataService.js', () => ({
 }));
 
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: (req: any, _res: any, next: any) => {
     req.userId = 'test-user-id';
     req.authenticatedUserId = 'test-user-id';
@@ -28,7 +27,6 @@ vi.mock('../config/logging.js', () => ({
 const app = express();
 app.use(express.json());
 app.use('/api/synced-data', syncedDataRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, _req: any, res: any, _next: any) => {
   res.status(err.status || 500).json({ error: err.message });
 });

@@ -76,7 +76,7 @@ async function updatePen(userId: string, id: string, data: UpdatePenBody) {
   const client = await getClient(userId);
   try {
     const updates: string[] = [];
-    const values: any[] = [id, userId];
+    const values: unknown[] = [id, userId];
     let index = 3;
 
     const fields: (keyof UpdatePenBody)[] = [

@@ -28,7 +28,6 @@ function makeOffLoginResponse({ session = 'abc123', body = '' } = {}) {
         `session=${session}; Path=/; HttpOnly`,
         'other=foo; Path=/',
       ],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       get: (name: any) => {
         if (name.toLowerCase() === 'set-cookie') {
           return `session=${session}; Path=/; HttpOnly`;

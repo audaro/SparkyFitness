@@ -126,6 +126,11 @@ interface ProcessError {
 export async function processGarminHealthAndWellnessData(
   userId: string,
   actingUserId: string,
+  // Garmin's push payload is a bag of per-metric arrays whose row shapes differ
+  // by metric and gain fields as Garmin adds them. Modelling ~30 provider row
+  // types is its own piece of work, so this one boundary stays wide on purpose
+  // and every reader below states the fields it needs.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   healthData: Record<string, any>,
   startDate: string,
   endDate: string

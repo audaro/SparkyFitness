@@ -7,19 +7,14 @@ vi.mock('../db/poolManager.js', () => ({
 }));
 
 describe('waterContainerRepository single-primary enforcement', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   const queryTexts = (): string[] =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mock.calls.map((call: any[]) => call[0] as string);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const demoteQueries = (): Array<{ text: string; values: any[] }> =>
     mockClient.query.mock.calls
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((call: any[]) => ({ text: call[0] as string, values: call[1] }))
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .filter((call: any) => call.text.includes('SET is_primary = false'));
 
   beforeEach(() => {
@@ -83,7 +78,6 @@ describe('waterContainerRepository single-primary enforcement', () => {
     });
 
     it('rolls back when the insert fails', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient.query.mockImplementation(async (text: any) => {
         if (typeof text === 'string' && text.includes('INSERT INTO')) {
           throw new Error('insert failed');
@@ -135,7 +129,6 @@ describe('waterContainerRepository single-primary enforcement', () => {
     });
 
     it('does not demote anything when the target container is missing or foreign', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient.query.mockImplementation(async (text: any) => {
         if (typeof text === 'string' && text.includes('COALESCE')) {
           return { rows: [] };
@@ -165,7 +158,6 @@ describe('waterContainerRepository single-primary enforcement', () => {
     });
 
     it('does not demote anything when the target container is missing or foreign', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient.query.mockImplementation(async (text: any) => {
         if (typeof text === 'string' && text.includes('is_primary = true')) {
           return { rows: [] };

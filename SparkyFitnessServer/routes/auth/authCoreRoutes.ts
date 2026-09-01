@@ -361,7 +361,7 @@ router.get('/web-login/callback', async (req, res) => {
 
     const token = session.session.token;
     const email = session.user.email;
-    const role = (session.user as any).role || '';
+    const role = String((session.user as Record<string, unknown>).role ?? '');
 
     // Redirect to the mobile app scheme with session details in the URL
     // FRAGMENT (after #), not the query string. Fragments are never sent to a

@@ -141,19 +141,14 @@ function sampleWorkout(): HevyWorkout {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function callForExercise(name: string): any[] | undefined {
   return (
     exerciseEntryRepository.createExerciseEntry as unknown as {
       mock: { calls: unknown[][] };
     }
-  ).mock.calls.find(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (c) => (c[1] as any).exercise_id === `exercise-${name}`
-  );
+  ).mock.calls.find((c) => (c[1] as any).exercise_id === `exercise-${name}`);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function entryArgForExercise(name: string): any {
   return callForExercise(name)?.[1];
 }
@@ -289,11 +284,9 @@ describe('processHevyWorkouts — field mapping', () => {
   it('stores per-set duration in integer seconds (issue #1903)', async () => {
     await processHevyWorkouts(UID, CID, [sampleWorkout()], 'UTC');
     expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       entryArgForExercise('Plank').sets.map((s: any) => s.duration)
     ).toEqual([90, 90]);
     expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       entryArgForExercise('Pull Up').sets.every((s: any) => s.duration === null)
     ).toBe(true);
   });

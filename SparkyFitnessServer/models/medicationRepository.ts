@@ -1,10 +1,41 @@
 import { getClient } from '../db/poolManager.js';
+import type { Medications } from '@workspace/shared';
 import type {
   CreateMedicationBody,
   UpdateMedicationBody,
   CreateScheduleBody,
   UpdateScheduleBody,
 } from '../schemas/medicationSchemas.js';
+
+// The rows below are handed back to callers whole, so the row types have to
+// carry every column the SELECTs return. `Medications` is the shared schema for
+// that table and matches MED_COLS exactly; medication_schedules has no shared
+// schema, so its columns are spelled out here against SCHEDULE_COLS.
+type MedicationRow = Medications;
+
+interface MedicationScheduleRow {
+  id: string;
+  medication_id: string;
+  user_id: string;
+  schedule_type_id: string | null;
+  time_of_day: string | null;
+  dose_amount: number | null;
+  days_of_week: number[] | null;
+  interval_days: number | null;
+  day_of_month: number | null;
+  cycle_on_days: number | null;
+  cycle_off_days: number | null;
+  with_meal: string | null;
+  prn_reason: string | null;
+  prn_max_per_day: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  active: boolean | null;
+  source: string | null;
+  custom_fields: unknown;
+  created_at: Date;
+  updated_at: Date;
+}
 
 // Column lists kept in one place so SELECTs stay consistent.
 const MED_COLS = `id, user_id, name, display_name, type_id, route_id,
@@ -77,7 +108,7 @@ async function listMedications(
     const where: string[] = ['user_id = $1'];
     if (opts.glp1Only) where.push('is_glp1 = TRUE');
     if (opts.activeOnly) where.push('is_active = TRUE');
-    const medsResult = await client.query(
+    const medsResult = await client.query<MedicationRow>(
       `SELECT ${MED_COLS} FROM medications
        WHERE ${where.join(' AND ')}
        ORDER BY is_active DESC, name ASC`,
@@ -86,8 +117,8 @@ async function listMedications(
 
     if (medsResult.rows.length === 0) return [];
 
-    const medIds = medsResult.rows.map((m: any) => m.id);
-    const schedulesResult = await client.query(
+    const medIds = medsResult.rows.map((m) => m.id);
+    const schedulesResult = await client.query<MedicationScheduleRow>(
       `SELECT ${SCHEDULE_COLS} FROM medication_schedules
        WHERE medication_id = ANY($1) AND user_id = $2
        ORDER BY time_of_day NULLS LAST, created_at ASC`,
@@ -98,7 +129,10 @@ async function listMedications(
     // of use, so only 'taken' and 'prn_taken' count. This does not touch the ORDER BY above —
     // the medications page stays alphabetical; the field exists so the name search's tier 1 can
     // offer the drugs someone takes rather than the ones early in the alphabet.
-    const lastTakenResult = await client.query(
+    const lastTakenResult = await client.query<{
+      medication_id: string;
+      last_taken_at: Date;
+    }>(
       `SELECT medication_id, MAX(taken_at) AS last_taken_at
        FROM medication_entries
        WHERE medication_id = ANY($1) AND user_id = $2
@@ -107,12 +141,15 @@ async function listMedications(
       [medIds, userId]
     );
 
-    const lastTakenByMedId: Record<string, Date> = {};
+    // Deliberately partial: a medication with no qualifying dose has no row in
+    // the aggregate above, and the `?? null` below is what turns that absence
+    // into the null the callers read as "never taken".
+    const lastTakenByMedId: Record<string, Date | undefined> = {};
     for (const row of lastTakenResult.rows) {
       lastTakenByMedId[row.medication_id] = row.last_taken_at;
     }
 
-    const schedulesByMedId: Record<string, any[]> = {};
+    const schedulesByMedId: Record<string, MedicationScheduleRow[]> = {};
     for (const sched of schedulesResult.rows) {
       if (!schedulesByMedId[sched.medication_id]) {
         schedulesByMedId[sched.medication_id] = [];
@@ -120,7 +157,7 @@ async function listMedications(
       schedulesByMedId[sched.medication_id].push(sched);
     }
 
-    return medsResult.rows.map((med: any) => ({
+    return medsResult.rows.map((med) => ({
       ...med,
       last_taken_at: lastTakenByMedId[med.id] ?? null,
       schedules: schedulesByMedId[med.id] || [],
@@ -157,7 +194,7 @@ async function updateMedication(
   const client = await getClient(userId);
   try {
     const updates: string[] = [];
-    const values: any[] = [id, userId];
+    const values: unknown[] = [id, userId];
     let index = 3;
 
     const fields: (keyof UpdateMedicationBody)[] = [

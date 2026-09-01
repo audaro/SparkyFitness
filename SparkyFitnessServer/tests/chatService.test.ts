@@ -401,7 +401,6 @@ describe('chatService', () => {
 
     // The AI SDK passes tools to the model as an array of function-tool defs
     // (each with a `.name`); normalize to a name list for assertions.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const modelToolNames = (model: any): string[] => {
       const raw = model.doGenerateCalls[0]?.tools ?? [];
       return Array.isArray(raw)

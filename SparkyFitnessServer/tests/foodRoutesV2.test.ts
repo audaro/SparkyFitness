@@ -8,7 +8,6 @@ import { searchProviderFoods } from '../services/externalFoodSearchService.js';
 // @ts-expect-error TS(2691): An import path cannot end with a '.ts' extension. ... Remove this comment to see the full error message
 import foodRoutesV2 from '../routes/v2/foodRoutes.js';
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: vi.fn(() => (req: any, res: any, next: any) => next()),
 }));
 
@@ -94,7 +93,6 @@ app.use((req, res, next) => {
   next();
 });
 app.use('/v2/foods', foodRoutesV2);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, req: any, res: any, _next: any) => {
   res.status(err.status || 500).json({ error: err.message });
 });
@@ -252,7 +250,6 @@ describe('GET /v2/foods/search/:providerType', () => {
   it('matches provider_nutrients into custom_nutrients and surfaces provider_nutrients', async () => {
     vi.mocked(customNutrientService.getCustomNutrients).mockResolvedValueOnce([
       { name: 'Magnesium', aliases: ['Magnesium, Mg'] },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ] as any);
     vi.mocked(searchProviderFoods).mockResolvedValue({
       foods: [

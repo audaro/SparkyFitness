@@ -9,7 +9,6 @@ vi.mock('../db/poolManager', () => ({
 }));
 
 describe('preferred default variant queries', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   const userId = 'user-123';
 

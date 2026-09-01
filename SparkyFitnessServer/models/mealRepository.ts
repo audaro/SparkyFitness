@@ -365,7 +365,7 @@ async function deleteMeal(mealId: string, userId: string) {
       [mealId]
     );
     await client.query('COMMIT');
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     await client.query('ROLLBACK');
     log('error', `Error deleting meal ${mealId}:`, error);
@@ -520,7 +520,7 @@ async function deleteMealPlanEntry(planId: string, userId: string) {
       'DELETE FROM meal_plans WHERE id = $1 RETURNING id',
       [planId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     log('error', `Error deleting meal plan entry ${planId}:`, error);
     throw error;
@@ -820,7 +820,7 @@ async function mealContainsMeal(
        SELECT 1 FROM descendants WHERE child_meal_id = $2 LIMIT 1`,
       [ancestorMealId, descendantMealId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

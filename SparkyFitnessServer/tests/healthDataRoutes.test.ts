@@ -27,7 +27,6 @@ vi.mock('../models/sleepRepository.js', () => ({
 }));
 
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: vi.fn(
     () => (_req: any, res: any, next: any) =>
       permissionState.allow

@@ -133,7 +133,7 @@ export function buildDevTools(userId: string) {
             return ERRORS.NOT_FOUND('Table', table);
           }
 
-          const columns = result.rows.map((row: any) => ({
+          const columns = result.rows.map((row) => ({
             column: row.column_name,
             type: row.data_type,
             nullable: row.is_nullable === 'YES',

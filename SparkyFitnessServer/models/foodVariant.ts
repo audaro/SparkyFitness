@@ -190,7 +190,7 @@ async function deleteFoodVariant(id: any, userId: any) {
       'DELETE FROM food_variants WHERE id = $1 RETURNING id',
       [id]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

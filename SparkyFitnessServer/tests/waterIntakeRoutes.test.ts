@@ -20,15 +20,12 @@ vi.mock('../services/measurementService.js', () => ({
 }));
 
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: vi.fn(() => (req: any, res: any, next: any) => next()),
 }));
 
 vi.mock('../middleware/onBehalfOfMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: (req: any, res: any, next: any) => next(),
 }));
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const injectUser = (req: any, res: any, next: any) => {
   req.userId = 'test-user-id';
   next();

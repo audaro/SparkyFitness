@@ -14,10 +14,8 @@ types.setTypeParser(types.builtins.NUMERIC, (value) => parseFloat(value));
 // (e.g. TZ=Europe/Berlin). Returning the string keeps day values stable regardless of the
 // process timezone. timestamp/timestamptz columns use different oids and are unaffected.
 types.setTypeParser(types.builtins.DATE, (value) => value);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let ownerPoolInstance: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let appPoolInstance: any = null;
+let ownerPoolInstance: pg.Pool | null = null;
+let appPoolInstance: pg.Pool | null = null;
 function createOwnerPoolInstance() {
   const newPool = new Pool({
     user: process.env.SPARKY_FITNESS_DB_USER,
@@ -54,21 +52,24 @@ function createAppPoolInstance() {
   });
   return newPool;
 }
-function _getRawOwnerPool() {
+function _getRawOwnerPool(): pg.Pool {
   if (!ownerPoolInstance) {
     ownerPoolInstance = createOwnerPoolInstance();
   }
   return ownerPoolInstance;
 }
-function _getRawAppPool() {
+function _getRawAppPool(): pg.Pool {
   if (!appPoolInstance) {
     appPoolInstance = createAppPoolInstance();
   }
   return appPoolInstance;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// The id is validated here rather than typed as non-null: several callers read
+// it off a request where it is genuinely optional, and this throw is the single
+// place that turns a missing id into a clear error instead of a query that
+// silently runs without an RLS context.
 async function getClient(
-  userId: any,
+  userId: string | null | undefined,
   authenticatedUserId: string | null = null
 ) {
   if (!userId) {

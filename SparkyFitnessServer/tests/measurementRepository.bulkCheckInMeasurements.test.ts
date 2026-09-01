@@ -7,12 +7,9 @@ vi.mock('../db/poolManager.js', () => ({
 }));
 
 describe('measurementRepository.bulkUpsertCheckInMeasurements', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const queryCalls = (): Array<{ text: string; values?: any[] }> =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mock.calls.map((call: any[]) => ({
       text: call[0],
       values: call[1],
@@ -40,7 +37,6 @@ describe('measurementRepository.bulkUpsertCheckInMeasurements', () => {
       steps: 5000,
       weight: 70.5,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('INSERT INTO check_in_measurements')) {
         return { rows: [insertedRow] };
@@ -76,7 +72,6 @@ describe('measurementRepository.bulkUpsertCheckInMeasurements', () => {
 
   it('later record wins per column when the same date repeats a column', async () => {
     const insertedRow = { id: 'ci-1', entry_date: '2025-02-01', weight: 71 };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('INSERT INTO check_in_measurements')) {
         return { rows: [insertedRow] };
@@ -106,7 +101,6 @@ describe('measurementRepository.bulkUpsertCheckInMeasurements', () => {
       weight: 70.5,
     };
     const insertedRow = { id: 'ci-new', entry_date: '2025-02-02', steps: 900 };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('SELECT * FROM check_in_measurements')) {
         return { rows: [existingRow] };
@@ -149,7 +143,6 @@ describe('measurementRepository.bulkUpsertCheckInMeasurements', () => {
       entry_date: '2026-07-07',
       steps: 13441,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('SELECT * FROM check_in_measurements')) {
         return { rows: [existingRow] };
@@ -188,7 +181,6 @@ describe('measurementRepository.bulkUpsertCheckInMeasurements', () => {
   });
 
   it('rolls back the transaction and rethrows when a write fails', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mockImplementation(async (text: string) => {
       if (text.includes('INSERT INTO check_in_measurements')) {
         throw new Error('insert failed');

@@ -7,6 +7,7 @@ import measurementRepository from '../models/measurementRepository.js';
 import exerciseEntryRepository from '../models/exerciseEntry.js';
 import bmrService from './bmrService.js';
 import adaptiveTdeeService from './AdaptiveTdeeService.js';
+import type { AdaptiveTdeeResult } from './AdaptiveTdeeService.js';
 import { userAge } from '../utils/dateHelpers.js';
 import { log } from '../config/logging.js';
 import { addDays, format, getDay, isAfter, parseISO } from 'date-fns';
@@ -68,7 +69,7 @@ async function getUserGoalsForRange(
   );
   const activeWeeklyPlan =
     await weeklyGoalPlanRepository.getActiveWeeklyGoalPlan(userId, startDate);
-  const presetCache: Record<string, unknown> = {};
+  const presetCache: Record<string, Goals> = {};
   const getPreset = async (presetId: string) => {
     if (!presetCache[presetId]) {
       presetCache[presetId] = await goalPresetRepository.getGoalPresetById(
@@ -94,7 +95,9 @@ async function getUserGoalsForRange(
     'saturday_preset_id',
   ];
 
-  let currentFallback = (fallback ?? DEFAULT_GOALS) as Record<string, unknown>;
+  // DEFAULT_GOALS carries the nutrient targets but not the row's identity
+  // columns; it only ever stands in for a row the caller reads targets off.
+  let currentFallback = (fallback ?? DEFAULT_GOALS) as unknown as Goals;
   const result: Record<string, unknown> = {};
   let cursor = parseISO(startDate);
   const end = parseISO(endDate);
@@ -123,13 +126,13 @@ async function getUserGoalsForRange(
       ...(initialMeasurement ? [initialMeasurement] : []),
       ...(rangeMeasurements || []),
     ].sort(
-      (a: any, b: any) =>
+      (a, b) =>
         new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime()
     );
   }
 
   let waterEstimatedMap: Record<string, number> = {};
-  let adaptiveTdeeMap: Record<string, any> = {};
+  let adaptiveTdeeMap: Record<string, AdaptiveTdeeResult> = {};
   if (adjust && userPreferences) {
     const adjustmentMode =
       userPreferences.calorie_goal_adjustment_mode || 'dynamic';
@@ -163,7 +166,7 @@ async function getUserGoalsForRange(
   }
 
   const getMeasurementFieldForDate = (dateStr: string, field: string) => {
-    const found = allMeasurements.find((m: any) => {
+    const found = allMeasurements.find((m) => {
       const mDateStr =
         m.entry_date instanceof Date
           ? localDateToDay(m.entry_date)

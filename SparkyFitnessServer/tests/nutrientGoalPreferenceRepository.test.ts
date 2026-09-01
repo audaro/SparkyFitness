@@ -7,7 +7,6 @@ vi.mock('../db/poolManager', () => ({
 }));
 
 describe('nutrientGoalPreferenceRepository.renameNutrientGoalPreferenceKey', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   beforeEach(() => {
     mockClient = {
@@ -28,10 +27,7 @@ describe('nutrientGoalPreferenceRepository.renameNutrientGoalPreferenceKey', () 
       'Added Sugars'
     );
 
-    const calls = mockClient.query.mock.calls.map(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (call: any[]) => call[0]
-    );
+    const calls = mockClient.query.mock.calls.map((call: any[]) => call[0]);
     expect(calls[0]).toBe('BEGIN');
     expect(calls[1]).toContain('UPDATE');
     expect(calls[2]).toContain('DELETE');
@@ -55,10 +51,7 @@ describe('nutrientGoalPreferenceRepository.renameNutrientGoalPreferenceKey', () 
       )
     ).rejects.toThrow('delete failed');
 
-    const calls = mockClient.query.mock.calls.map(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (call: any[]) => call[0]
-    );
+    const calls = mockClient.query.mock.calls.map((call: any[]) => call[0]);
     expect(calls).toContain('ROLLBACK');
     expect(calls).not.toContain('COMMIT');
     expect(mockClient.release).toHaveBeenCalledTimes(1);

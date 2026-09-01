@@ -18,9 +18,7 @@ vi.mock('../services/customNutrientService.js', () => ({
   },
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const repo = nutrientGoalPreferenceRepository as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const customNutrients = customNutrientService as any;
 
 describe('nutrientGoalPreferenceService', () => {

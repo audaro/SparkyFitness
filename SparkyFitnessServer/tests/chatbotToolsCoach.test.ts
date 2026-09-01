@@ -242,7 +242,6 @@ describe('sparky_get_health_summary', () => {
     });
 
     const result = await tools.sparky_get_health_summary.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {} as any,
       opts
     );
@@ -337,11 +336,7 @@ describe('sparky_analyze_trends', () => {
     vi.mocked(coachRepository.getWeightSeries).mockResolvedValue([]);
     vi.mocked(coachRepository.getDailyCalorieSeries).mockResolvedValue([]);
 
-    const result = await tools.sparky_analyze_trends.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      {} as any,
-      opts
-    );
+    const result = await tools.sparky_analyze_trends.execute!({} as any, opts);
 
     expect(result).toBe(
       '# Trend Analysis\n\n' +
@@ -375,11 +370,7 @@ describe('sparky_analyze_trends', () => {
       new Error('boom')
     );
 
-    const result = await tools.sparky_analyze_trends.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      {} as any,
-      opts
-    );
+    const result = await tools.sparky_analyze_trends.execute!({} as any, opts);
 
     expect(result).toBe(DB_ERROR_TEXT);
   });
@@ -566,11 +557,7 @@ describe('sparky_detect_patterns', () => {
       makeCorrelationRow('2026-06-09', { sleep_score: null, mood_value: null }),
     ]);
 
-    const result = await tools.sparky_detect_patterns.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      {} as any,
-      opts
-    );
+    const result = await tools.sparky_detect_patterns.execute!({} as any, opts);
 
     expect(result).toBe(
       '# Pattern Detection\n\n' +
@@ -650,11 +637,7 @@ describe('sparky_detect_patterns', () => {
       new Error('boom')
     );
 
-    const result = await tools.sparky_detect_patterns.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      {} as any,
-      opts
-    );
+    const result = await tools.sparky_detect_patterns.execute!({} as any, opts);
 
     expect(result).toBe(DB_ERROR_TEXT);
   });
@@ -729,7 +712,6 @@ describe('sparky_generate_coaching_plan', () => {
     );
 
     const result = await tools.sparky_generate_coaching_plan.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {} as any,
       opts
     );
@@ -762,7 +744,6 @@ describe('sparky_generate_coaching_plan', () => {
     );
 
     const result = await tools.sparky_generate_coaching_plan.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {} as any,
       opts
     );

@@ -14,7 +14,6 @@ const { authState } = vi.hoisted(() => ({
 
 vi.mock('../middleware/authMiddleware.js', () => ({
   default: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     authenticate: (req: any, res: any, next: any) => {
       if (!authState.signedIn) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -25,7 +24,6 @@ vi.mock('../middleware/authMiddleware.js', () => ({
   },
 }));
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: () => (_req: any, _res: any, next: any) => next(),
 }));
 vi.mock('../config/logging.js', () => ({ log: vi.fn() }));

@@ -132,7 +132,7 @@ Actions:
 
             default:
               return ERRORS.INVALID_ACTION(
-                String((args as any).action),
+                String((args as Record<string, unknown>).action),
                 VALID_ACTIONS
               );
           }

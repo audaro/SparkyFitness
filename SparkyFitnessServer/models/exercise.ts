@@ -178,7 +178,7 @@ async function getExercisesWithPagination(
       nextParamIndex,
     } = buildSqlSearch('name', searchTerm, 1);
     whereClauses.push(...searchClauses);
-    const queryParams: any[] = [...searchParams];
+    const queryParams: unknown[] = [...searchParams];
     let paramIndex = nextParamIndex;
 
     if (categoryFilter && categoryFilter !== 'all') {
@@ -273,7 +273,7 @@ async function countExercises(
       nextParamIndex,
     } = buildSqlSearch('name', searchTerm, 1);
     whereClauses.push(...searchClauses);
-    const queryParams: any[] = [...searchParams];
+    const queryParams: unknown[] = [...searchParams];
     let paramIndex = nextParamIndex;
     if (categoryFilter && categoryFilter !== 'all') {
       whereClauses.push(`category = $${paramIndex}`);
@@ -417,7 +417,7 @@ async function searchExercises(
       nextParamIndex,
     } = buildSqlSearch('name', name, 1);
     whereClauses.push(...searchClauses);
-    const queryParams: any[] = [...searchParams];
+    const queryParams: unknown[] = [...searchParams];
     let paramIndex = nextParamIndex;
     if (equipmentFilter && equipmentFilter.length > 0) {
       whereClauses.push(
@@ -523,7 +523,7 @@ async function searchExercisesPaginated(
       nextParamIndex,
     } = buildSqlSearch('name', name, 1);
     whereClauses.push(...searchClauses);
-    const queryParams: any[] = [...searchParams];
+    const queryParams: unknown[] = [...searchParams];
     let paramIndex = nextParamIndex;
     if (equipmentFilter && equipmentFilter.length > 0) {
       whereClauses.push(
@@ -746,7 +746,7 @@ async function deleteExercise(id: any, userId: any) {
       'DELETE FROM exercises WHERE id = $1 RETURNING id',
       [id]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -1052,7 +1052,7 @@ async function deleteExerciseAndDependencies(exerciseId: any, userId: any) {
     );
     log('info', `Deleted exercise ${exerciseId} by user ${userId}`);
     await client.query('COMMIT');
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     await client.query('ROLLBACK');
     log(

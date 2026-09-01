@@ -132,9 +132,8 @@ async function analyzeTrends(userId: string, tz: string, days: number) {
   const avgCalories =
     calories.length > 0
       ? Number(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (
-            calories.reduce((sum: number, c: any) => sum + c.calories, 0) /
+            calories.reduce((sum: number, c) => sum + c.calories, 0) /
             calories.length
           ).toFixed(0)
         )

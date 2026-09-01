@@ -7,6 +7,7 @@ import activityDetailsRepository from '../models/activityDetailsRepository.js';
 import { getOrCreateGarminExercise } from '../services/garminService.js';
 import { loadUserTimezone } from '../utils/timezoneLoader.js';
 import { importFitFiles } from '../services/fitImportService.js';
+import { asPoolClient } from './helpers/mockDbClient.js';
 
 vi.mock('../db/poolManager.js', () => ({
   getClient: vi.fn(),
@@ -88,7 +89,7 @@ beforeEach(() => {
   // under test, so a query that isn't explicitly stubbed returns an empty set
   // rather than undefined.
   mockClient.query.mockResolvedValue({ rows: [] });
-  vi.mocked(getClient).mockResolvedValue(mockClient);
+  vi.mocked(getClient).mockResolvedValue(asPoolClient(mockClient));
   vi.mocked(
     exerciseEntryRepository._createExerciseEntryWithClient
   ).mockResolvedValue({ entry: { id: 'entry-1' }, operation: 'created' });

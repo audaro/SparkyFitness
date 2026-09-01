@@ -23,7 +23,6 @@ app.use((req: any, _res: any, next: any) => {
 app.use('/favorites', favoritesRoutes);
 app.use(errorHandler);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const svc = favoritesService as any;
 
 describe('Favorites Routes', () => {

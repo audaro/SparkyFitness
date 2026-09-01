@@ -8,7 +8,6 @@ vi.mock('../config/logging.js', () => ({ log: vi.fn() }));
 import { canAccessUserData } from '../utils/permissionUtils.js';
 import checkPermissionMiddleware from '../middleware/checkPermissionMiddleware.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildRes(): any {
   const res: any = {};
   res.status = vi.fn().mockReturnValue(res);
@@ -16,7 +15,6 @@ function buildRes(): any {
   return res;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function run(mw: any, req: any) {
   const res = buildRes();
   const next = vi.fn();

@@ -562,7 +562,7 @@ async function checkExternalDataProviderAccess(
        )`,
       [providerId, userId]
     );
-    return checkAccess.rowCount > 0;
+    return (checkAccess.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -580,7 +580,7 @@ async function checkExternalDataProviderOwnership(
        WHERE id = $1 AND user_id = $2`,
       [providerId, userId]
     );
-    return checkOwnership.rowCount > 0;
+    return (checkOwnership.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -594,7 +594,7 @@ async function deleteExternalDataProvider(id: any, userId: any) {
       'DELETE FROM external_data_providers WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -610,7 +610,7 @@ async function updateProviderLastSync(providerId: any, lastSyncAt: any) {
        RETURNING id`,
       [lastSyncAt, providerId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -679,10 +679,57 @@ async function getExternalProviderTypes() {
 }
 // ─── Admin global provider CRUD ───────────────────────────────────────────────
 
+/**
+ * The credential-bearing columns of `external_data_providers`, as the global
+ * (public) provider paths read and write them. Every field is optional because
+ * one shape serves both paths: create supplies the plaintext secrets, update may
+ * carry either those or the already-encrypted triples, and neither ever sends
+ * the whole row.
+ */
+interface GlobalProviderPayload {
+  user_id?: string;
+  provider_name?: string;
+  provider_type?: string;
+  app_id?: string | null;
+  app_key?: string | null;
+  base_url?: string | null;
+  external_user_id?: string | null;
+  is_active?: boolean;
+  is_public?: boolean;
+  sync_frequency?: string | null;
+  sort_order?: number | null;
+  token_expires_at?: Date | string | null;
+  encrypted_app_id?: string | null;
+  app_id_iv?: string | null;
+  app_id_tag?: string | null;
+  encrypted_app_key?: string | null;
+  app_key_iv?: string | null;
+  app_key_tag?: string | null;
+  encrypted_garth_dump?: string | null;
+  garth_dump_iv?: string | null;
+  garth_dump_tag?: string | null;
+}
+
+/**
+ * A global provider row joined with its provider type. Only the encrypted
+ * credential columns are read by name below; the rest of the wide join passes
+ * straight through to the caller, which is what the index signature states.
+ */
+interface GlobalProviderRow {
+  id: string;
+  encrypted_app_id: string | null;
+  app_id_iv: string | null;
+  app_id_tag: string | null;
+  encrypted_app_key: string | null;
+  app_key_iv: string | null;
+  app_key_tag: string | null;
+  [column: string]: unknown;
+}
+
 async function getGlobalExternalDataProviders() {
   const client = await getSystemClient();
   try {
-    const result = await client.query(
+    const result = await client.query<GlobalProviderRow>(
       `SELECT edp.id, edp.provider_name, edp.provider_type, edp.is_active, edp.base_url,
               edp.is_public, edp.sync_frequency, edp.sort_order,
               edp.encrypted_app_id, edp.app_id_iv, edp.app_id_tag,
@@ -694,7 +741,7 @@ async function getGlobalExternalDataProviders() {
        ORDER BY edp.sort_order ASC NULLS LAST, edp.created_at DESC`
     );
     const providers = await Promise.all(
-      result.rows.map(async (row: any) => {
+      result.rows.map(async (row) => {
         let decryptedAppId = null;
         let decryptedAppKey = null;
         if (row.encrypted_app_id && row.app_id_iv && row.app_id_tag) {
@@ -745,7 +792,9 @@ async function getGlobalExternalDataProviders() {
   }
 }
 
-async function createGlobalExternalDataProvider(providerData: any) {
+async function createGlobalExternalDataProvider(
+  providerData: GlobalProviderPayload
+) {
   if (!providerData.user_id) {
     throw new Error(
       'user_id is required to create a global external data provider.'
@@ -799,7 +848,10 @@ async function createGlobalExternalDataProvider(providerData: any) {
   }
 }
 
-async function updateGlobalExternalDataProvider(id: any, updateData: any) {
+async function updateGlobalExternalDataProvider(
+  id: string,
+  updateData: GlobalProviderPayload
+) {
   const client = await getSystemClient();
   try {
     let encryptedAppId = null,
@@ -867,14 +919,14 @@ async function updateGlobalExternalDataProvider(id: any, updateData: any) {
   }
 }
 
-async function deleteGlobalExternalDataProvider(id: any) {
+async function deleteGlobalExternalDataProvider(id: string) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
       'DELETE FROM external_data_providers WHERE id = $1 AND is_public = TRUE RETURNING id',
       [id]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

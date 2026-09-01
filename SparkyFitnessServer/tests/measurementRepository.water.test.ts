@@ -7,18 +7,13 @@ vi.mock('../db/poolManager.js', () => ({
 }));
 
 describe('measurementRepository.upsertWaterIntakeSamples', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const findQueries = (
     fragment: string
   ): Array<{ text: string; values: any[] }> =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockClient.query.mock.calls
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((call: any[]) => ({ text: call[0], values: call[1] }))
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .filter((call: any) => call.text.includes(fragment));
 
   beforeEach(() => {
@@ -268,7 +263,6 @@ describe('measurementRepository.upsertWaterIntakeSamples', () => {
 });
 
 describe('measurementRepository.incrementWaterData', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {

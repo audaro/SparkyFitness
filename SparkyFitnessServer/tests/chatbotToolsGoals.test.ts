@@ -163,7 +163,6 @@ describe('sparky_manage_goals', () => {
     });
 
     const result = await tools.sparky_manage_goals.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { action: 'set_goals', calories: 2200 } as any,
       opts
     );
@@ -178,7 +177,6 @@ describe('sparky_manage_goals', () => {
 
   it('rejects unknown actions', async () => {
     const result = await tools.sparky_manage_goals.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { action: 'bogus_action' } as any,
       opts
     );
@@ -188,7 +186,6 @@ describe('sparky_manage_goals', () => {
 
   it('rejects stray keys (strict per-action schema)', async () => {
     const result = await tools.sparky_manage_goals.execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { action: 'get_goals', foo: 1 } as any,
       opts
     );

@@ -293,7 +293,7 @@ async function replaceDerivedCycles(
 
 async function bulkUpsertFlowLogs(
   userId: string,
-  entries: Array<{ date: string; flow_level: any }>
+  entries: Array<{ date: string; flow_level: string | null }>
 ) {
   const client = await getClient(userId);
   try {
@@ -765,7 +765,7 @@ async function getDisplayPreferences(
 async function upsertDisplayPreferences(
   userId: string,
   viewGroup: string,
-  visibleItems: any,
+  visibleItems: unknown,
   platform = 'web'
 ) {
   const client = await getClient(userId);

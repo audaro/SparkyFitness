@@ -131,13 +131,24 @@ const IMPLAUSIBLE_SERVING_UNITS = new Set(['mg', 'mcg', 'µg', 'ug']);
 // "28 mg" serving on a branded item — so prefer a variant with a plausible
 // serving unit and positive size, keeping the provider's default only as a
 // tiebreak within the sane set.
+// A serving variant as it arrives from a provider or from the food service: a
+// bag of nutrient columns whose presence varies by provider, so the shape names
+// only the fields every path reads and leaves the rest keyed.
+interface FoodVariantLike {
+  id?: string;
+  serving_size?: number | null;
+  serving_unit?: string | null;
+  is_default?: boolean;
+  [column: string]: unknown;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function pickBestVariant(food: any) {
-  const variants: any[] = (
+  const variants: FoodVariantLike[] = (
     food?.variants?.length ? food.variants : [food?.default_variant]
   ).filter(Boolean);
   if (variants.length === 0) return food?.default_variant ?? null;
-  const isPlausible = (v: any) =>
+  const isPlausible = (v: FoodVariantLike) =>
     Number(v.serving_size) > 0 &&
     !IMPLAUSIBLE_SERVING_UNITS.has(String(v.serving_unit || '').toLowerCase());
   const pool = variants.filter(isPlausible);
@@ -489,7 +500,7 @@ async function resolveFoodLogVariantAndQuantity(args: {
   );
 
   const requestedUnit = args.unit;
-  let matchingVariant: any | undefined;
+  let matchingVariant: FoodVariantLike | undefined;
   if (requestedUnit) {
     // Exact-unit variants win over convertible ones: a food with both a gram
     // default and an "oz" variant must log an oz request against the oz
@@ -566,8 +577,8 @@ function foodDateRange(
 
 // The variant column set MCP's food search exposed; the server's
 // default_variant JSON is projected down to it.
-function projectVariant(foodId: string, v: any) {
-  const result: Record<string, any> = {
+function projectVariant(foodId: string, v: FoodVariantLike) {
+  const result: Record<string, unknown> = {
     id: v.id,
     food_id: foodId,
     serving_size: v.serving_size,
@@ -1519,7 +1530,7 @@ Actions:
               (args.meal_type || args.meal_type_id)
             ) {
               if (
-                args.food_name?.toLowerCase() === 'water' ||
+                String(args.food_name ?? '').toLowerCase() === 'water' ||
                 args.unit === 'ml'
               ) {
                 return 'log_water';
@@ -1598,7 +1609,7 @@ Actions:
             }
             return 'list_diary'; // fallback
           }
-        ) as Record<string, any>;
+        ) as Record<string, unknown>;
 
         // Models routinely paste a lookup result's provider "External ID"
         // into food_id, which must be an internal UUID. When the food_name is
@@ -1667,7 +1678,10 @@ Actions:
         // logging action (source_date/target_date belong to
         // copy_from_yesterday) becomes entry_date instead of an
         // unrecognized-key failure.
-        if (loggingActions.includes(normalized.action)) {
+        if (
+          typeof normalized.action === 'string' &&
+          loggingActions.includes(normalized.action)
+        ) {
           const misfiled = normalized.source_date || normalized.target_date;
           if (misfiled && !normalized.entry_date) {
             normalized.entry_date = misfiled;
@@ -1725,6 +1739,7 @@ Actions:
         // Default missing entry_date to today's date string for logging actions
         if (
           normalized.entry_date === undefined &&
+          typeof normalized.action === 'string' &&
           loggingActions.includes(normalized.action)
         ) {
           normalized.entry_date = todayInZone(tz);
@@ -1917,7 +1932,7 @@ Actions:
                 }
 
                 const plausibleVariants = (f.variants || []).filter(
-                  (vOpt: any) =>
+                  (vOpt: FoodVariantLike) =>
                     vOpt &&
                     Number(vOpt.serving_size) > 0 &&
                     !IMPLAUSIBLE_SERVING_UNITS.has(
@@ -1927,7 +1942,8 @@ Actions:
                 if (plausibleVariants.length > 0) {
                   const units = plausibleVariants
                     .map(
-                      (vOpt: any) => `${vOpt.serving_size} ${vOpt.serving_unit}`
+                      (vOpt: FoodVariantLike) =>
+                        `${vOpt.serving_size} ${vOpt.serving_unit}`
                     )
                     .join(', ');
                   text += `\n  Available Serving Units: ${units}`;
@@ -2144,14 +2160,14 @@ Actions:
                   match.id,
                   userId
                 );
-                let chosenVariant: any =
+                let chosenVariant: FoodVariantLike | undefined =
                   match.default_variant ||
                   match.variants?.[0] ||
                   (Array.isArray(variants) ? variants[0] : undefined);
                 if (args.unit && Array.isArray(variants)) {
                   const normalizedReqUnit = normalizeServingUnit(args.unit);
                   const matchedVariant = variants.find(
-                    (v: any) =>
+                    (v) =>
                       normalizeServingUnit(v.serving_unit) === normalizedReqUnit
                   );
                   if (matchedVariant) {
@@ -2259,50 +2275,52 @@ Actions:
 
               // Create the other variants returned by the provider
               const otherVariants = (match.variants || []).filter(
-                (varOpt: any) =>
+                (varOpt: FoodVariantLike) =>
                   varOpt !== v &&
                   (varOpt.serving_size !== v.serving_size ||
                     varOpt.serving_unit !== v.serving_unit)
               );
-              let createdVariants: any[] = [];
+              let createdVariants: FoodVariantLike[] = [];
               if (otherVariants.length > 0) {
-                const variantsToSave = otherVariants.map((varOpt: any) => ({
-                  food_id: food.id,
-                  serving_size: toNutrientNumber(varOpt.serving_size) ?? 100,
-                  serving_unit: varOpt.serving_unit || 'g',
-                  calories:
-                    toNutrientNumber(varOpt.calories ?? varOpt.energy) ?? 0,
-                  protein: toNutrientNumber(varOpt.protein) ?? 0,
-                  carbs: toNutrientNumber(varOpt.carbs) ?? 0,
-                  fat: toNutrientNumber(varOpt.fat) ?? 0,
-                  saturated_fat: toNutrientNumber(varOpt.saturated_fat),
-                  polyunsaturated_fat: toNutrientNumber(
-                    varOpt.polyunsaturated_fat
-                  ),
-                  monounsaturated_fat: toNutrientNumber(
-                    varOpt.monounsaturated_fat
-                  ),
-                  trans_fat: toNutrientNumber(varOpt.trans_fat),
-                  cholesterol: toNutrientNumber(varOpt.cholesterol),
-                  sodium: toNutrientNumber(varOpt.sodium),
-                  potassium: toNutrientNumber(varOpt.potassium),
-                  dietary_fiber: toNutrientNumber(varOpt.dietary_fiber),
-                  sugars: toNutrientNumber(varOpt.sugars),
-                  vitamin_a: toNutrientNumber(varOpt.vitamin_a),
-                  vitamin_c: toNutrientNumber(varOpt.vitamin_c),
-                  calcium: toNutrientNumber(varOpt.calcium),
-                  iron: toNutrientNumber(varOpt.iron),
-                  glycemic_index: varOpt.glycemic_index || null,
-                  is_default: false,
-                  // Same CHECK constraint as the default variant above: the
-                  // provider name is not a valid source. This insert is
-                  // best-effort (failures are only warned about), so the bad
-                  // value silently cost the food every alternative serving unit
-                  // the provider returned — including the count units ("1
-                  // fruit", "1 slice") whose absence forces a gram
-                  // clarification at log time.
-                  source: 'imported',
-                }));
+                const variantsToSave = otherVariants.map(
+                  (varOpt: FoodVariantLike) => ({
+                    food_id: food.id,
+                    serving_size: toNutrientNumber(varOpt.serving_size) ?? 100,
+                    serving_unit: varOpt.serving_unit || 'g',
+                    calories:
+                      toNutrientNumber(varOpt.calories ?? varOpt.energy) ?? 0,
+                    protein: toNutrientNumber(varOpt.protein) ?? 0,
+                    carbs: toNutrientNumber(varOpt.carbs) ?? 0,
+                    fat: toNutrientNumber(varOpt.fat) ?? 0,
+                    saturated_fat: toNutrientNumber(varOpt.saturated_fat),
+                    polyunsaturated_fat: toNutrientNumber(
+                      varOpt.polyunsaturated_fat
+                    ),
+                    monounsaturated_fat: toNutrientNumber(
+                      varOpt.monounsaturated_fat
+                    ),
+                    trans_fat: toNutrientNumber(varOpt.trans_fat),
+                    cholesterol: toNutrientNumber(varOpt.cholesterol),
+                    sodium: toNutrientNumber(varOpt.sodium),
+                    potassium: toNutrientNumber(varOpt.potassium),
+                    dietary_fiber: toNutrientNumber(varOpt.dietary_fiber),
+                    sugars: toNutrientNumber(varOpt.sugars),
+                    vitamin_a: toNutrientNumber(varOpt.vitamin_a),
+                    vitamin_c: toNutrientNumber(varOpt.vitamin_c),
+                    calcium: toNutrientNumber(varOpt.calcium),
+                    iron: toNutrientNumber(varOpt.iron),
+                    glycemic_index: varOpt.glycemic_index || null,
+                    is_default: false,
+                    // Same CHECK constraint as the default variant above: the
+                    // provider name is not a valid source. This insert is
+                    // best-effort (failures are only warned about), so the bad
+                    // value silently cost the food every alternative serving unit
+                    // the provider returned — including the count units ("1
+                    // fruit", "1 slice") whose absence forces a gram
+                    // clarification at log time.
+                    source: 'imported',
+                  })
+                );
                 try {
                   createdVariants =
                     await foodCoreService.bulkCreateFoodVariants(
@@ -2320,12 +2338,12 @@ Actions:
 
               const dv = food.default_variant;
               let variantId = dv?.id;
-              let chosenVariant: any = dv;
+              let chosenVariant: FoodVariantLike | undefined = dv;
 
               if (args.unit) {
                 const normalizedReqUnit = normalizeServingUnit(args.unit);
                 const matchedAlt = createdVariants.find(
-                  (cv: any) =>
+                  (cv) =>
                     normalizeServingUnit(cv.serving_unit) === normalizedReqUnit
                 );
                 if (matchedAlt) {

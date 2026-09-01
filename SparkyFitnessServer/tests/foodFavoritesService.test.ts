@@ -8,7 +8,6 @@ vi.mock('../config/logging', () => ({ log: vi.fn() }));
 const TEST_USER_ID = 'user-123';
 const TEST_FOOD_ID = 'food-456';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const repo = foodRepository as any;
 
 describe('foodCoreService favorites', () => {

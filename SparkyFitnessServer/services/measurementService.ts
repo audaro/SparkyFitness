@@ -229,9 +229,9 @@ async function processHealthData(
   // (source, source_id) in its handler, so it needs no range-delete and can be
   // chunked freely by the client.
   await preCleanEntriesBySourceAndDate(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     healthDataArray.filter(
-      (d: any) => d.type === 'ExerciseSession' || d.type === 'Workout'
+      (d: { type?: string }) =>
+        d.type === 'ExerciseSession' || d.type === 'Workout'
     ),
     tz,
     userId,

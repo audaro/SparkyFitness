@@ -7,7 +7,6 @@ import gymEquipmentProfileRepository from '../models/gymEquipmentProfileReposito
 import exerciseRoutes from '../routes/exerciseRoutes.js';
 
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: (req: any, _res: any, next: any) => {
     req.userId = 'test-user-id';
     req.authenticatedUserId = 'test-user-id';
@@ -33,14 +32,11 @@ vi.mock('../config/logging.js', () => ({ log: vi.fn() }));
 
 const app = express();
 app.use('/exercises', exerciseRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, _req: any, res: any, _next: any) => {
   res.status(err.status || 500).json({ error: err.message });
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const service = exerciseService as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const repo = gymEquipmentProfileRepository as any;
 
 /** The browse-filter equipment array the route handed to the search. */

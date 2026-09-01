@@ -1,6 +1,7 @@
-import { vi, beforeEach, describe, expect, it } from 'vitest';
+import { vi, beforeEach, describe, expect, it, type Mock } from 'vitest';
 import { moveFoodEntryMealToMealType } from '../models/foodEntryMealRepository.js';
 import { getClient } from '../db/poolManager.js';
+import { asPoolClient } from './helpers/mockDbClient.js';
 
 vi.mock('../db/poolManager', () => ({
   getClient: vi.fn(),
@@ -11,8 +12,8 @@ vi.mock('../config/logging', () => ({
 }));
 
 interface MockDbClient {
-  query: ReturnType<typeof vi.fn>;
-  release: ReturnType<typeof vi.fn>;
+  query: Mock;
+  release: Mock;
 }
 
 describe('foodEntryMealRepository.moveFoodEntryMealToMealType', () => {
@@ -28,7 +29,7 @@ describe('foodEntryMealRepository.moveFoodEntryMealToMealType', () => {
       release: vi.fn(),
     };
     vi.clearAllMocks();
-    vi.mocked(getClient).mockResolvedValue(mockClient);
+    vi.mocked(getClient).mockResolvedValue(asPoolClient(mockClient));
   });
 
   const updateCalls = () =>

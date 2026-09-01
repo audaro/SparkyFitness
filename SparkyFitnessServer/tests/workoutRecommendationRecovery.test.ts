@@ -18,7 +18,6 @@ vi.mock('../utils/timezoneLoader.js', () => ({
 }));
 
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: (req: any, _res: any, next: any) => {
     req.userId = 'test-user-id';
     req.authenticatedUserId = 'test-user-id';
@@ -27,19 +26,16 @@ vi.mock('../middleware/authMiddleware.js', () => ({
 }));
 
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: () => (_req: any, _res: any, next: any) => next(),
 }));
 
 const app = express();
 app.use(express.json());
 app.use('/api/workout-recommendations', workoutRecommendationRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, _req: any, res: any, _next: any) => {
   res.status(err.status || 500).json({ error: err.message });
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const repo = workoutRecommendationRepository as any;
 
 describe('workoutRecommendationService.getMuscleRecovery', () => {

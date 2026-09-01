@@ -44,7 +44,6 @@ describe('resolveTemplateStartDay', () => {
       '2026-07-14T00:00:00Z',
       '',
     ]) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(await resolveTemplateStartDay(USER, bad as any)).toBe(today);
     }
   });

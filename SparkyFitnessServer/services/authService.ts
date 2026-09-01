@@ -206,10 +206,9 @@ async function updateUserPassword(authenticatedUserId: any, newPassword: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function updateUserEmail(
-  authenticatedUserId: any,
-  newEmail: any,
+  authenticatedUserId: string,
+  newEmail: string,
   currentPassword?: string
 ) {
   try {

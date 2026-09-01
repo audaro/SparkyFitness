@@ -208,7 +208,7 @@ async function deleteExercisePresetEntry(id: any, userId: any) {
       [id, userId]
     );
     await client.query('COMMIT');
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     await client.query('ROLLBACK');
     log('error', `Error deleting exercise preset entry ${id}:`, error);

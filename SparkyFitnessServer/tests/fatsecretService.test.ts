@@ -83,9 +83,7 @@ describe('FatSecret Service Mapping', () => {
       expect(thrown).toBeInstanceOf(Error);
       expect((thrown as Error).message).toContain('code 21');
       expect((thrown as Error).message).toContain('Invalid IP address');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((thrown as any).status).toBe(502);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((thrown as any).fatSecretErrorCode).toBe(21);
     });
     it('does not throw for a successful response', () => {

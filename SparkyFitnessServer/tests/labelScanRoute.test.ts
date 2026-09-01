@@ -25,7 +25,6 @@ vi.mock('../middleware/authMiddleware.js', () => ({
 }));
 
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: vi.fn(() => (req: any, res: any, next: any) => next()),
 }));
 
@@ -39,7 +38,6 @@ vi.mock('../config/logging.js', () => ({
 const app = express();
 app.use(express.json());
 app.use('/food-crud', foodCrudRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, req: any, res: any, _next: any) => {
   res.status(500).json({ error: err.message });
 });

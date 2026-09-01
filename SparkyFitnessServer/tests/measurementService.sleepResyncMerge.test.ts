@@ -33,7 +33,6 @@ describe('processHealthData sleep re-sync merge (issue #1180)', () => {
   // Stable storage simulating sleep_entry_stages with the new (entry_id, start_time, end_time)
   // unique key. Stages keyed by start_time alone is sufficient here since the test data has
   // distinct starts.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let storedStages: any[];
 
   beforeEach(() => {
@@ -50,7 +49,6 @@ describe('processHealthData sleep re-sync merge (issue #1180)', () => {
       .mockResolvedValue({ id: 'entry-night-1' });
     sleepRepository.mergeSleepStageEvents = vi
       .fn()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .mockImplementation(async (_uid: any, _eid: any, stages: any[]) => {
         const normalizedStages = stages.map((stage) => {
           const start_time = new Date(stage.start_time).toISOString();

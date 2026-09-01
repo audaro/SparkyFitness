@@ -64,7 +64,6 @@ vi.mock('../utils/timezoneLoader.js', () => ({
 }));
 
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: (req: any, _res: any, next: any) => {
     req.userId = USER_ID;
     req.authenticatedUserId = USER_ID;
@@ -73,7 +72,6 @@ vi.mock('../middleware/authMiddleware.js', () => ({
 }));
 
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: () => (_req: any, _res: any, next: any) => next(),
 }));
 
@@ -92,22 +90,15 @@ const ATLAS_STONE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const app = express();
 app.use(express.json());
 app.use('/api/workout-recommendations', workoutRecommendationRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, _req: any, res: any, _next: any) => {
   res.status(err.status || 500).json({ error: err.message });
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const repo = workoutRecommendationRepository as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const coachRepo = coachProfileRepository as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const gymRepo = gymEquipmentProfileRepository as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const entries = exerciseEntryModel as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const exercises = exerciseService as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fedb = freeExerciseDBService as any;
 
 function candidate(
@@ -207,7 +198,6 @@ const ATLAS_STONE = candidate({
 });
 
 /** Echo the payload back the way the real upsert would. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function echoUpsert(_userId: string, input: any) {
   return Promise.resolve({
     id: REC_ID,
@@ -223,7 +213,6 @@ function echoUpsert(_userId: string, input: any) {
 }
 
 /** The row `repo.getWorkoutRecommendation` is currently configured to return. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let currentRow: any = null;
 
 /**
@@ -235,7 +224,6 @@ let currentRow: any = null;
  */
 function echoPayloadUpdate(
   _userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload: any,
   expectedPayload: unknown
 ) {
@@ -255,10 +243,7 @@ function echoPayloadUpdate(
  * Generate a workout and make it the stored row, so a replace has something to
  * act on. Returns the payload that was persisted.
  */
-async function storeGenerated(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  overrides: Record<string, any> = {}
-) {
+async function storeGenerated(overrides: Record<string, any> = {}) {
   const generated =
     await workoutRecommendationService.generateRecommendation(USER_ID);
   currentRow = {
@@ -1405,10 +1390,8 @@ describe('getAlternatives', () => {
 
 describe('replaceRecommendationExercise', () => {
   /** Where the named exercise sits in the stored workout. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function indexOf(payload: any, exerciseId: string): number {
     const index = payload.exercises.findIndex(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (exercise: any) => exercise.exercise_id === exerciseId
     );
     expect(index).toBeGreaterThanOrEqual(0);
@@ -1859,7 +1842,6 @@ describe('workout recommendation routes', () => {
 
     expect(res.status).toBe(200);
     expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       res.body.payload.exercises.map((exercise: any) => exercise.exercise_id)
     ).toContain(DIP_ID);
   });

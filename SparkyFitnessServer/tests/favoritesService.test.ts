@@ -13,11 +13,8 @@ const USER = 'user-123';
 const FOOD_ID = 'food-456';
 const MEAL_ID = 'meal-789';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const foodSvc = foodCoreService as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const foodRepo = foodRepository as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mealRepo = mealRepository as any;
 
 describe('favoritesService', () => {

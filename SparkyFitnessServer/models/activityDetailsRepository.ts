@@ -147,6 +147,22 @@ const RAW_PROVIDER_DUMP_DETAIL_TYPES = [
 ];
 
 /**
+ * The columns the batched summary selects. `detail_data` is deliberately loose:
+ * it is whatever JSON the provider or the user stored, and this layer only
+ * unwraps double-encoded strings rather than interpreting it.
+ */
+interface ActivityDetailSummaryRow {
+  id: string;
+  exercise_entry_id: string | null;
+  exercise_preset_entry_id: string | null;
+  provider_name: string | null;
+  detail_type: string;
+  created_by_user_id: string;
+  created_at: Date;
+  detail_data: unknown;
+}
+
+/**
  * Batched lookup of activity details for many exercise entries/preset entries at once
  * (e.g. one diary day), instead of one query per entry. Small user-authored detail rows
  * (added via ExerciseActivityDetailsEditor) come back with their data intact; rows
@@ -154,24 +170,22 @@ const RAW_PROVIDER_DUMP_DETAIL_TYPES = [
  * enough to know a raw dump exists (to show a "view raw synced data" reference) without
  * the diary response ever carrying the full payload.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getActivityDetailsSummaryForEntriesAndPresets(
-  userId: any,
+  userId: string,
   entryIds: string[],
   presetEntryIds: string[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{
-  byEntryId: Map<string, any[]>;
-  byPresetEntryId: Map<string, any[]>;
+  byEntryId: Map<string, ActivityDetailSummaryRow[]>;
+  byPresetEntryId: Map<string, ActivityDetailSummaryRow[]>;
 }> {
-  const byEntryId = new Map<string, any[]>();
-  const byPresetEntryId = new Map<string, any[]>();
+  const byEntryId = new Map<string, ActivityDetailSummaryRow[]>();
+  const byPresetEntryId = new Map<string, ActivityDetailSummaryRow[]>();
   if (entryIds.length === 0 && presetEntryIds.length === 0) {
     return { byEntryId, byPresetEntryId };
   }
   const client = await getClient(userId);
   try {
-    const result = await client.query(
+    const result = await client.query<ActivityDetailSummaryRow>(
       `SELECT id, exercise_entry_id, exercise_preset_entry_id, provider_name, detail_type,
               created_by_user_id, created_at,
               CASE WHEN detail_type = ANY($3::text[]) THEN NULL ELSE detail_data END AS detail_data
@@ -180,8 +194,7 @@ async function getActivityDetailsSummaryForEntriesAndPresets(
          AND (exercise_entry_id = ANY($1::uuid[]) OR exercise_preset_entry_id = ANY($2::uuid[]))`,
       [entryIds, presetEntryIds, RAW_PROVIDER_DUMP_DETAIL_TYPES, userId]
     );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const row of result.rows as any[]) {
+    for (const row of result.rows) {
       while (typeof row.detail_data === 'string') {
         try {
           row.detail_data = JSON.parse(row.detail_data);

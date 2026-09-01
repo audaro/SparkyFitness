@@ -26,7 +26,6 @@ vi.mock('../models/activityDetailsRepository', () => ({
 // and the bug where the source column was never written (left NULL, so clients
 // displayed synced entries as manual "Sparky" entries).
 describe('upsertExerciseEntryData active-calories notes and source', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {

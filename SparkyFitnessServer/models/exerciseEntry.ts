@@ -1068,7 +1068,7 @@ async function deleteExerciseEntry(id: any, userId: any) {
       'DELETE FROM exercise_entries WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -1226,7 +1226,11 @@ async function getExerciseEntriesByDate(userId: any, selectedDate: any) {
     }
     const finalEntries = Array.from(finalEntriesMap.values()); // Convert map values to an array
 
-    const getEntryTime = (entry: any) => {
+    const getEntryTime = (entry: {
+      type?: string;
+      entry_time?: string | null;
+      exercises?: Array<{ entry_time?: string | null }>;
+    }) => {
       if (entry.type === 'individual') {
         return entry.entry_time || null;
       }

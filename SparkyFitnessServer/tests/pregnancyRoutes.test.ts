@@ -61,7 +61,6 @@ describe('Pregnancy Routes V2', () => {
 
   it('GET /overview returns composite payload', async () => {
     const overview = { pregnancy: { id: 'p1' }, gestation: { week: 24 } };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(pregnancyService.getOverview).mockResolvedValue(overview as any);
     const res = await request(app).get('/api/v2/pregnancy/overview');
     expect(res.statusCode).toBe(200);
@@ -90,7 +89,6 @@ describe('Pregnancy Routes V2', () => {
   it('GET /contractions returns analysis with 5-1-1 flag', async () => {
     vi.mocked(pregnancyService.getContractionAnalysis).mockResolvedValue({
       contractions: [],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       stats: {
         count: 0,
         avgDurationSec: null,

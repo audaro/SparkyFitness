@@ -323,7 +323,7 @@ async function deleteWaterIntake(id: any, userId: any) {
       'DELETE FROM water_intake WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -725,7 +725,7 @@ async function deleteCheckInMeasurements(id: any, userId: any) {
       'DELETE FROM check_in_measurements WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -813,7 +813,7 @@ async function deleteCustomCategory(id: any, userId: any) {
       'DELETE FROM custom_categories WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -1357,7 +1357,7 @@ async function deleteCustomMeasurement(id: any, userId: any) {
       'DELETE FROM custom_measurements WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

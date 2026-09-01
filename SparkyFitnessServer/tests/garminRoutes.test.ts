@@ -14,7 +14,6 @@ const { permissionState } = vi.hoisted(() => ({
 }));
 
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: vi.fn((req: any, _res: any, next: any) => {
     req.userId = 'user-123';
     next();
@@ -22,7 +21,6 @@ vi.mock('../middleware/authMiddleware.js', () => ({
 }));
 
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: vi.fn(
     () => (_req: any, res: any, next: any) =>
       permissionState.allow
@@ -73,7 +71,6 @@ vi.mock('../config/logging.js', () => ({ log: vi.fn() }));
 const app = express();
 app.use(express.json());
 app.use('/integrations/garmin', garminRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, _req: any, res: any, _next: any) => {
   res.status(500).json({ error: err.message });
 });

@@ -421,7 +421,17 @@ function projectExerciseEntry(row: any) {
 
 // The column set MCP's exercise search exposed; richer server rows are
 // projected down to it so the chat-visible output stays identical.
-function projectExercise(row: any) {
+function projectExercise(row: {
+  id: string;
+  name: string;
+  category?: string | null;
+  primary_muscles?: string[] | null;
+  equipment?: string[] | null;
+  level?: string | null;
+  calories_per_hour?: number | null;
+  description?: string | null;
+  is_custom?: boolean;
+}) {
   return {
     id: row.id,
     name: row.name,
@@ -446,9 +456,7 @@ async function findExerciseByExactName(userId: string, name: string) {
     undefined,
     undefined
   );
-  return rows.find(
-    (e: any) => String(e.name).toLowerCase() === name.toLowerCase()
-  );
+  return rows.find((e) => String(e.name).toLowerCase() === name.toLowerCase());
 }
 
 // Full details for one exercise by id or name, projected to MCP's shape.
@@ -457,7 +465,7 @@ async function getExerciseDetails(
   userId: string,
   params: { exercise_id?: string; exercise_name?: string }
 ) {
-  let row: any;
+  let row;
   if (params.exercise_id) {
     row = await exerciseService.getExerciseById(userId, params.exercise_id);
   } else if (params.exercise_name) {
@@ -773,12 +781,13 @@ Actions:
             }
             return 'list_exercise_diary'; // fallback
           }
-        ) as any;
+        ) as Record<string, unknown>;
 
         // Default missing entry_date to today's date string for logging actions
         const loggingActions = ['log_exercise', 'log_workout_preset'];
         if (
           normalized.entry_date === undefined &&
+          typeof normalized.action === 'string' &&
           loggingActions.includes(normalized.action)
         ) {
           normalized.entry_date = todayInZone(tz);
@@ -814,7 +823,7 @@ Actions:
               return formatList(
                 result.data,
                 `Exercise Search: "${args.searchTerm}"`,
-                (e: any) =>
+                (e) =>
                   `**${e.name}** (${e.category || 'Uncategorized'})\n  Muscles: ${e.muscle_groups?.join(', ') || 'N/A'} | Equipment: ${e.equipment?.join(', ') || 'None'}\n  ID: ${e.id}`,
                 {
                   total_count: result.total_count,
@@ -899,18 +908,18 @@ Actions:
               // Flatten preset sessions into their member entries and render
               // the flat per-entry list MCP produced (created_at ASC).
               const entries = grouped
-                .flatMap((item: any) =>
+                .flatMap((item) =>
                   item.type === 'preset' ? item.exercises : [item]
                 )
                 .sort(
-                  (a: any, b: any) =>
+                  (a, b) =>
                     new Date(a.created_at).getTime() -
                     new Date(b.created_at).getTime()
                 );
               return formatList(
                 entries,
                 `Exercise Diary: ${args.entry_date}`,
-                (e: any) => {
+                (e) => {
                   let text = `**${e.name}**`;
                   const sets: ExerciseSetInput[] = e.sets ?? [];
                   if (sets.length > 0) text += ` — ${sets.length} sets`;
@@ -956,7 +965,7 @@ Actions:
               return formatList(
                 presets,
                 'Workout Presets',
-                (p: any) =>
+                (p) =>
                   `**${p.name}** — ${p.exercises.length} exercises\n  ID: ${p.id}`
               );
             }
@@ -1203,7 +1212,7 @@ Actions:
               return formatList(
                 progress.data,
                 `Exercise Progress: ${args.exercise_name || args.exercise_id}`,
-                (p: any) =>
+                (p) =>
                   `**${p.entry_date}**: Max Weight: ${p.max_weight}kg | Max Reps: ${p.max_reps} | Volume: ${p.total_volume}kg`,
                 {
                   total_count: progress.total_count,
@@ -1428,7 +1437,7 @@ Actions:
 
             default:
               return ERRORS.INVALID_ACTION(
-                String((args as any).action),
+                String((args as Record<string, unknown>).action),
                 VALID_ACTIONS
               );
           }

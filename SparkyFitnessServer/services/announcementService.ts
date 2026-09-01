@@ -22,7 +22,7 @@ export interface AnnouncementResponse {
 }
 
 export function parseFrontmatter(markdownContent: string): {
-  frontmatter: Record<string, any>;
+  frontmatter: Record<string, string | boolean>;
   body: string;
 } {
   const matches = [
@@ -54,13 +54,13 @@ export function parseFrontmatter(markdownContent: string): {
     }
   }
 
-  const frontmatter: Record<string, any> = {};
+  const frontmatter: Record<string, string | boolean> = {};
   if (yamlText) {
     for (const line of yamlText.split(/\r?\n/)) {
       const colonIndex = line.indexOf(':');
       if (colonIndex > 0) {
         const key = line.slice(0, colonIndex).trim();
-        let value: any = line.slice(colonIndex + 1).trim();
+        let value: string | boolean = line.slice(colonIndex + 1).trim();
         if (value === 'true') value = true;
         else if (value === 'false') value = false;
         else if (value.startsWith('"') && value.endsWith('"'))

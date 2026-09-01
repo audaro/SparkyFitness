@@ -54,7 +54,7 @@ export function buildEngagementTools(userId: string, tz: string) {
           const recentWeights =
             await engagementRepository.getRecentWeights(userId);
           if (recentWeights.length >= 2) {
-            const weights = recentWeights.map((r: any) => Number(r.weight));
+            const weights = recentWeights.map((r) => Number(r.weight));
             const min = Math.min(...weights);
             const max = Math.max(...weights);
             if (max - min < 0.3) {

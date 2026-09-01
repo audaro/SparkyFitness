@@ -18,16 +18,12 @@ vi.mock('../services/exerciseService.js', () => ({
 // swappable handler — tests then mutate `permissionHandler` per-case.
 const { permissionHandlerRef } = vi.hoisted(() => ({
   permissionHandlerRef: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     current: (_req: any, _res: any, next: any) => next(),
   },
 }));
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  default:
-    () =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (req: any, res: any, next: any) =>
-      permissionHandlerRef.current(req, res, next),
+  default: () => (req: any, res: any, next: any) =>
+    permissionHandlerRef.current(req, res, next),
 }));
 
 vi.mock('../config/logging.js', () => ({
@@ -36,16 +32,12 @@ vi.mock('../config/logging.js', () => ({
 
 // Mock authenticate to inject userId. Tests can override the implementation
 // per-case (e.g. to return 401).
-const authenticateMock = vi.fn(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (req: any, _res: any, next: any) => {
-    req.userId = 'user-123';
-    req.authenticatedUserId = 'user-123';
-    next();
-  }
-);
+const authenticateMock = vi.fn((req: any, _res: any, next: any) => {
+  req.userId = 'user-123';
+  req.authenticatedUserId = 'user-123';
+  next();
+});
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: (req: any, res: any, next: any) =>
     authenticateMock(req, res, next),
 }));
@@ -53,7 +45,6 @@ vi.mock('../middleware/authMiddleware.js', () => ({
 const app = express();
 app.use(express.json());
 app.use('/v2/exercises', exerciseRoutesV2);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, _req: any, res: any, _next: any) => {
   res.status(err.status || 500).json({ error: err.message });
 });
@@ -84,22 +75,12 @@ const SAMPLE_EXERCISE = {
 describe('GET /v2/exercises/search', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    authenticateMock.mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (req: any, _res: any, next: any) => {
-        req.userId = 'user-123';
-        req.authenticatedUserId = 'user-123';
-        next();
-      }
-    );
-    permissionHandlerRef.current = (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _req: any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _res: any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      next: any
-    ) => next();
+    authenticateMock.mockImplementation((req: any, _res: any, next: any) => {
+      req.userId = 'user-123';
+      req.authenticatedUserId = 'user-123';
+      next();
+    });
+    permissionHandlerRef.current = (_req: any, _res: any, next: any) => next();
   });
 
   it('returns 200 with default pagination shape', async () => {
@@ -284,12 +265,9 @@ describe('GET /v2/exercises/search', () => {
   });
 
   it('returns 401 when authenticate rejects', async () => {
-    authenticateMock.mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (_req: any, res: any, _next: any) => {
-        res.status(401).json({ error: 'Unauthenticated' });
-      }
-    );
+    authenticateMock.mockImplementation((_req: any, res: any, _next: any) => {
+      res.status(401).json({ error: 'Unauthenticated' });
+    });
 
     const res = await request(app).get('/v2/exercises/search');
 
@@ -303,22 +281,12 @@ describe('GET /v2/exercises/:exerciseId/stats', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    authenticateMock.mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (req: any, _res: any, next: any) => {
-        req.userId = 'user-123';
-        req.authenticatedUserId = 'user-123';
-        next();
-      }
-    );
-    permissionHandlerRef.current = (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _req: any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _res: any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      next: any
-    ) => next();
+    authenticateMock.mockImplementation((req: any, _res: any, next: any) => {
+      req.userId = 'user-123';
+      req.authenticatedUserId = 'user-123';
+      next();
+    });
+    permissionHandlerRef.current = (_req: any, _res: any, next: any) => next();
   });
 
   it('returns 200 with a full payload when both sets are present', async () => {
@@ -505,12 +473,9 @@ describe('GET /v2/exercises/:exerciseId/stats', () => {
   });
 
   it('returns 401 when authenticate rejects', async () => {
-    authenticateMock.mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (_req: any, res: any, _next: any) => {
-        res.status(401).json({ error: 'Unauthenticated' });
-      }
-    );
+    authenticateMock.mockImplementation((_req: any, res: any, _next: any) => {
+      res.status(401).json({ error: 'Unauthenticated' });
+    });
 
     const res = await request(app).get(`/v2/exercises/${EXERCISE_UUID}/stats`);
 
@@ -519,14 +484,7 @@ describe('GET /v2/exercises/:exerciseId/stats', () => {
   });
 
   it('returns 403 when diary permission is denied', async () => {
-    permissionHandlerRef.current = (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _req: any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      res: any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _next: any
-    ) => {
+    permissionHandlerRef.current = (_req: any, res: any, _next: any) => {
       res.status(403).json({ error: 'Forbidden' });
     };
 

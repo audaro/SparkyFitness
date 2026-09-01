@@ -8,7 +8,6 @@ import exerciseEntryRoutes from '../routes/exerciseEntryRoutes.js';
 import fitImportService from '../services/fitImportService.js';
 
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: vi.fn((req: any, _res: any, next: any) => {
     req.userId = 'user-123';
     req.originalUserId = 'actor-123';
@@ -16,14 +15,10 @@ vi.mock('../middleware/authMiddleware.js', () => ({
   }),
 }));
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  default: vi.fn(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (_req: any, _res: any, next: any) => next()
-  ),
+  default: vi.fn(() => (_req: any, _res: any, next: any) => next()),
 }));
 vi.mock('../middleware/uploadMiddleware.js', () => ({
   createUploadMiddleware: vi.fn(() => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     single: vi.fn(() => (_req: any, _res: any, next: any) => next()),
   })),
 }));
@@ -40,7 +35,6 @@ vi.mock('../config/logging.js', () => ({ log: vi.fn() }));
 const app = express();
 app.use(express.json());
 app.use('/exercise-entries', exerciseEntryRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, _req: any, res: any, _next: any) => {
   res.status(500).json({ error: err.message });
 });
@@ -144,7 +138,6 @@ describe('POST /exercise-entries/import-fit', () => {
   it('rejects a service result that violates the shared contract', async () => {
     vi.mocked(fitImportService.importFitFiles).mockResolvedValue({
       message: 'oops',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
 
     const res = await request(app)

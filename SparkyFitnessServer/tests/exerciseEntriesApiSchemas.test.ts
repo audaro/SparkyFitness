@@ -9,7 +9,6 @@ const __dirname = path.dirname(__filename);
 const SHARED_SCHEMA_FILE =
   '../../shared/src/schemas/api/ExerciseEntries.api.zod.ts';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function runSchema(schemaName: any, payload: any) {
   // ÄNDERUNG: import * as schemaModule verwenden
   const script = `

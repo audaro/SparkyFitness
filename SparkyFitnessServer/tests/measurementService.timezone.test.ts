@@ -300,7 +300,6 @@ describe('resolveHealthEntryDate', () => {
 describe('processHealthData timezone resolution', () => {
   const userId = 'user-tz';
   const actingUserId = 'user-tz';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function setAccountTimezone(tz: any) {
     // @ts-expect-error TS(2339): Property 'mockResolvedValue' does not exist on typ... Remove this comment to see the full error message
     preferenceRepository.getUserPreferences.mockResolvedValue({ timezone: tz });

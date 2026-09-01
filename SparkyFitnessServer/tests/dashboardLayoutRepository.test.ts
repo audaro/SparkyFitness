@@ -7,7 +7,6 @@ vi.mock('../db/poolManager', () => ({
 }));
 
 describe('dashboardLayoutRepository', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
   beforeEach(() => {
     mockClient = {

@@ -77,7 +77,6 @@ const okDispatch = { ok: true as const, text: 'OK', json: null };
 const app = express();
 app.use(express.json());
 app.use('/chat', chatRoutes);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 app.use((err: any, _req: any, res: any, _next: any) => {
   res.status(err.statusCode || 500).json({ error: err.message });
 });

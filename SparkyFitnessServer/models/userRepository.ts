@@ -21,7 +21,7 @@ async function createUser(
       [email, 'credential', userId, hashedPassword]
     );
     // Initialize profile and goals safely
-    await ensureUserInitialization(userId, full_name, client);
+    await ensureUserInitialization(userId, full_name, null, client);
     await client.query('COMMIT'); // Commit transaction
     return userId;
   } catch (error) {
@@ -203,7 +203,7 @@ async function updateUserPassword(userId: string, hashedPassword: string) {
       'UPDATE "account" SET password = $1, updated_at = now() WHERE user_id = $2 AND provider_id = \'credential\' RETURNING user_id',
       [hashedPassword, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -262,7 +262,7 @@ async function updateUserRole(userId: string, role: string) {
       'UPDATE "user" SET role = $1, updated_at = now() WHERE id = $2 RETURNING id',
       [role, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -286,7 +286,7 @@ async function createOidcUser(
     );
     const newUserId = userResult.rows[0].id;
     // Initialize profile and goals safely
-    await ensureUserInitialization(newUserId, fullName, client);
+    await ensureUserInitialization(newUserId, fullName, null, client);
     // Link the new user to the OIDC provider (account table)
     await client.query(
       'INSERT INTO "account" (id, account_id, provider_id, user_id, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, now(), now())',
@@ -432,7 +432,7 @@ async function deleteUser(userId: string) {
       [userId]
     );
     await client.query('COMMIT');
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -448,7 +448,7 @@ async function updateUserStatus(userId: string, isActive: boolean) {
       'UPDATE "user" SET banned = $1, updated_at = now() WHERE id = $2 RETURNING id',
       [banned, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -460,7 +460,7 @@ async function updateUserFullName(userId: string, fullName: string) {
       'UPDATE profiles SET full_name = $1, updated_at = now() WHERE id = $2 RETURNING id',
       [fullName, userId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -503,7 +503,7 @@ async function updateUserMfaSettings(
       `;
       await client.query(twoFactorQuery, [userId, mfaSecret, mfaRecoveryCodes]);
     }
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

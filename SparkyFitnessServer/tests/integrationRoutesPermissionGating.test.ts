@@ -15,7 +15,6 @@ const { permissionState } = vi.hoisted(() => ({
 
 vi.mock('../middleware/authMiddleware.js', () => ({
   default: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     authenticate: (req: any, _res: any, next: any) => {
       req.userId = 'active-user';
       req.originalUserId = 'delegate';
@@ -26,7 +25,6 @@ vi.mock('../middleware/authMiddleware.js', () => ({
 }));
 
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: vi.fn(
     () => (_req: any, res: any, next: any) =>
       permissionState.allow

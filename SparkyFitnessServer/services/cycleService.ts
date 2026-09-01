@@ -24,6 +24,7 @@ import {
   type DayEvidence,
   type DerivedCycle,
   type SharedCycleSettings,
+  type SharedCycleDailyLog,
   type MetricPoint,
 } from '@workspace/shared';
 
@@ -33,9 +34,13 @@ interface EvidenceRow {
   product_usage: Record<string, number> | null;
 }
 
-interface LogRow {
-  entry_date: string;
-  bbt: number | string | null;
+/**
+ * A cycle daily-log row as the repository returns it. `bbt` is not a column on
+ * the table - hydrateBbt fills it from the basal-body-temperature measurement
+ * map before these rows reach the shared analytics - so the shape is the shared
+ * log plus whatever other columns the select carries.
+ */
+interface LogRow extends SharedCycleDailyLog {
   [key: string]: unknown;
 }
 
@@ -133,9 +138,9 @@ async function getOverview(userId: string, today: string, date?: string) {
     hydrateBbt(logs, await cycleRepository.getBbtMap(userId));
     const est = estimateOvulation(
       lastCycle,
-      logs as any,
-      tests as any,
-      settingsForPredict as any
+      logs,
+      tests,
+      settingsForPredict as SharedCycleSettings
     );
     prediction.cycles[0].ovulation = est.date;
     prediction.cycles[0].fertileStart = addDays(est.date, -5);
@@ -198,7 +203,7 @@ async function getInsights(userId: string) {
     ? predictNextCycles(
         stats,
         lastCycle.start_date,
-        settingsForPredict as any,
+        settingsForPredict as SharedCycleSettings,
         3
       )
     : { cycles: [], basis: 'settings' as const, confidence: 'low' as const };
@@ -207,9 +212,9 @@ async function getInsights(userId: string) {
     const tests = await cycleRepository.listAllTestEntries(userId);
     const est = estimateOvulation(
       lastCycle,
-      logs as any,
-      tests as any,
-      settingsForPredict as any
+      logs,
+      tests,
+      settingsForPredict as SharedCycleSettings
     );
     prediction.cycles[0].ovulation = est.date;
     prediction.cycles[0].fertileStart = addDays(est.date, -5);
@@ -218,14 +223,14 @@ async function getInsights(userId: string) {
 
   const accuracy = predictionAccuracy(cycles);
   const symptoms = await cycleRepository.listAllCycleSymptoms(userId);
-  const matrix = symptomPhaseMatrix(symptoms as any, cycles);
+  const matrix = symptomPhaseMatrix(symptoms, cycles);
   const forecast = forecastSymptoms(matrix, prediction);
   const anomalies = detectAnomalies(
     cycles,
-    logs as any,
-    settingsForPredict as any
+    logs,
+    settingsForPredict as SharedCycleSettings
   );
-  const prodStats = productStats(cycles, logs as any);
+  const prodStats = productStats(cycles, logs);
 
   const bbtSeries = seriesFromBbtMap(bbtMap);
 
@@ -295,12 +300,7 @@ async function getFertility(userId: string, targetDate: string) {
     mode: 'standard' as const,
   };
 
-  const est = estimateOvulation(
-    lastCycle,
-    logs as any,
-    tests as any,
-    settingsForEstimate as any
-  );
+  const est = estimateOvulation(lastCycle, logs, tests, settingsForEstimate);
 
   const offset = daysBetween(est.date, targetDate);
   const prob = CONCEPTION_PROBABILITY_BY_OFFSET[offset] ?? {

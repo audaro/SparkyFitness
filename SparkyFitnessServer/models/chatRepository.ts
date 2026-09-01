@@ -176,7 +176,7 @@ async function deleteAiServiceSetting(id: string, userId: string) {
       'DELETE FROM ai_service_settings WHERE id = $1 RETURNING id',
       [id]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -195,11 +195,11 @@ async function getAiServiceSettingsByUserId(userId: string) {
       []
     );
     // Combine results: user settings first, then global settings
-    const userSettings = userResult.rows.map((row: any) => ({
+    const userSettings = userResult.rows.map((row) => ({
       ...row,
       is_public: false,
     }));
-    const publicSettings = globalResult.rows.map((row: any) => ({
+    const publicSettings = globalResult.rows.map((row) => ({
       ...row,
       is_public: true,
     }));
@@ -448,7 +448,7 @@ async function deleteChatHistoryEntry(id: string, userId: string) {
       'DELETE FROM sparky_chat_history WHERE id = $1 RETURNING id',
       [id]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -586,7 +586,7 @@ async function deleteGlobalAiServiceSetting(id: string) {
       'DELETE FROM ai_service_settings WHERE id = $1 AND is_public = TRUE RETURNING id',
       [id]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

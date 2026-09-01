@@ -21,6 +21,7 @@ import {
 } from './schemas/goals.js';
 import { optionalDateSchema } from './schemas/common.js';
 import { normalizeActionArgs, normalizeDayKeywords } from './dates.js';
+import type { Goals } from '../../types/goals.js';
 
 const VALID_ACTIONS = [
   'get_goals',
@@ -441,11 +442,12 @@ Actions:
                   text += `- **${label}:** ${roundGoalValue(goals[field])}${unit}\n`;
                 }
               }
+              const goalRecord = goals as Record<string, unknown>;
               if (
-                (goals as any).custom_nutrients &&
-                typeof (goals as any).custom_nutrients === 'object'
+                goalRecord.custom_nutrients &&
+                typeof goalRecord.custom_nutrients === 'object'
               ) {
-                const custom = (goals as any).custom_nutrients as Record<
+                const custom = goalRecord.custom_nutrients as Record<
                   string,
                   number
                 >;
@@ -459,12 +461,15 @@ Actions:
             case 'set_goals': {
               const startDate = args.start_date || todayInZone(tz);
               // Fetch existing goals for the start date to preserve unchanged nutrients
-              const existingGoals: any = await goalService.getUserGoals(
+              // The single-date form returns one goal row; the range form's
+              // keyed map widens the declared union, so the row shape is
+              // stated here rather than read off `{}`.
+              const existingGoals = (await goalService.getUserGoals(
                 userId,
                 startDate
-              );
+              )) as Goals;
               // Build base payload with required fields, using existing goals as defaults
-              const payload: any = {
+              const payload: Record<string, unknown> = {
                 p_start_date: startDate,
                 p_cascade: true,
                 p_calories: args.calories ?? existingGoals.calories,
@@ -845,14 +850,14 @@ Actions:
               return formatList(
                 timeline,
                 'Goal Timeline',
-                (g: any) =>
+                (g) =>
                   `**${dayString(g.goal_date)}**: ${g.calories} kcal | P: ${g.protein}g | C: ${g.carbs}g | F: ${g.fat}g | W: ${g.water_goal_ml}ml`
               );
             }
 
             default:
               return ERRORS.INVALID_ACTION(
-                String((args as any).action),
+                String((args as Record<string, unknown>).action),
                 VALID_ACTIONS
               );
           }

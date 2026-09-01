@@ -35,7 +35,6 @@ describe('sparky_enable_tools', () => {
 
   it('returns a validation error for an unknown category slug', async () => {
     const result = await tools[ENABLE_TOOLS_TOOL_NAME].execute!(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { categories: ['bogus'] as any },
       opts
     );

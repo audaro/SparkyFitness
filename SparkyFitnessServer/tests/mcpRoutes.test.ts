@@ -99,7 +99,6 @@ let testUserRole = 'admin';
 // Stands in for authMiddleware: valid creds set the user IDs, missing creds
 // 401. The route reads authenticatedUserId; set userId too to match production.
 // req.user carries the role so resolveIsAdmin resolves without the DB fallback.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function fakeAuthenticate(req: any, res: any, next: any) {
   if (req.headers.authorization === 'Bearer valid') {
     req.authenticatedUserId = TEST_USER;
@@ -529,7 +528,6 @@ describe('GET /mcp and DELETE /mcp', () => {
 
 describe('buildDevTools call-time guard', () => {
   // Registry handlers read only rawArgs; a stub satisfies the execute() signature.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const EXEC_STUB = { toolCallId: 'test', messages: [] } as any;
 
   it('returns FORBIDDEN when DEV_TOOLS_ENABLED is not true', async () => {

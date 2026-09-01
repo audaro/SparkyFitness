@@ -33,13 +33,10 @@ vi.mock('../utils/bearerAuthBridge.js', () => ({
 const mintMock = vi.fn();
 const redeemMock = vi.fn();
 vi.mock('../services/passkeyTicketService.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mintRegistrationTicket: (...args: any[]) => mintMock(...args),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   redeemRegistrationTicket: (...args: any[]) => redeemMock(...args),
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let router: any;
 
 beforeAll(async () => {
@@ -54,17 +51,13 @@ beforeEach(() => {
 });
 
 function getHandler(routePath: string) {
-  const layer = router.stack.find(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (l: any) => l.route?.path === routePath
-  );
+  const layer = router.stack.find((l: any) => l.route?.path === routePath);
   if (!layer) throw new Error(`Route not found: ${routePath}`);
   const stack = layer.route.stack;
   return stack[stack.length - 1].handle;
 }
 
 function makeRes() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const res: any = {
     sendFileArg: null,
     typeArg: null,

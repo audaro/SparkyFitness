@@ -7,7 +7,6 @@ vi.mock('../db/poolManager', () => ({
 }));
 
 describe('exercise model search query builder', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {

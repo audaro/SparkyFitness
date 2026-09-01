@@ -80,7 +80,6 @@ describe('mealService validation', () => {
         name: 'ValidationError',
         message: expect.stringContaining('total_servings'),
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((mealRepository as any).createMeal).not.toHaveBeenCalled();
     });
 
@@ -120,7 +119,6 @@ describe('mealService validation', () => {
     });
 
     it('defaults serving_size and total_servings to 1 when missing on create', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mealRepository as any).createMeal.mockResolvedValue({
         id: 'new-id',
         serving_size: 1,
@@ -128,7 +126,6 @@ describe('mealService validation', () => {
         total_servings: 1,
       });
       await mealService.createMeal('user-1', { name: 'OK', foods: [] });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload = (mealRepository as any).createMeal.mock.calls[0][0];
       expect(payload.serving_size).toBe(1.0);
       expect(payload.total_servings).toBe(1.0);
@@ -136,7 +133,6 @@ describe('mealService validation', () => {
     });
 
     it('forces serving_size to 1 when serving_unit is "serving" (defensive normalize)', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mealRepository as any).createMeal.mockResolvedValue({
         id: 'new-id',
         serving_size: 1,
@@ -152,7 +148,6 @@ describe('mealService validation', () => {
         total_servings: 8,
         foods: [],
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload = (mealRepository as any).createMeal.mock.calls[0][0];
       expect(payload.serving_size).toBe(1);
       expect(payload.total_servings).toBe(8);
@@ -163,7 +158,6 @@ describe('mealService validation', () => {
     // and don't include total_servings. The shim detects this shape and
     // rewrites to the new model (total_servings = 4, serving_size = 1).
     it('rewrites legacy-client payload (serving_unit=serving + serving_size>1 + no total_servings)', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mealRepository as any).createMeal.mockResolvedValue({
         id: 'new-id',
         serving_size: 1,
@@ -177,14 +171,12 @@ describe('mealService validation', () => {
         // total_servings intentionally omitted
         foods: [],
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload = (mealRepository as any).createMeal.mock.calls[0][0];
       expect(payload.serving_size).toBe(1);
       expect(payload.total_servings).toBe(4);
     });
 
     it('does not trigger legacy shim when total_servings is explicit (new client)', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mealRepository as any).createMeal.mockResolvedValue({
         id: 'new-id',
         serving_size: 1,
@@ -200,14 +192,12 @@ describe('mealService validation', () => {
         total_servings: 4,
         foods: [],
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload = (mealRepository as any).createMeal.mock.calls[0][0];
       expect(payload.serving_size).toBe(1);
       expect(payload.total_servings).toBe(4);
     });
 
     it('does not trigger legacy shim for non-serving units', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mealRepository as any).createMeal.mockResolvedValue({
         id: 'new-id',
         serving_size: 1000,
@@ -222,7 +212,6 @@ describe('mealService validation', () => {
         serving_size: 1000,
         foods: [],
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload = (mealRepository as any).createMeal.mock.calls[0][0];
       expect(payload.serving_size).toBe(1000);
       expect(payload.total_servings).toBe(1);
@@ -231,13 +220,11 @@ describe('mealService validation', () => {
 
   describe('updateMeal', () => {
     beforeEach(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mealRepository as any).getMealById.mockResolvedValue({
         id: 'meal-1',
         user_id: 'user-1',
         foods: [],
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mealRepository as any).updateMeal.mockResolvedValue({ id: 'meal-1' });
     });
 
@@ -245,7 +232,6 @@ describe('mealService validation', () => {
       await expect(
         mealService.updateMeal('user-1', 'meal-1', { total_servings: 0 })
       ).rejects.toMatchObject({ name: 'ValidationError' });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((mealRepository as any).updateMeal).not.toHaveBeenCalled();
     });
 
@@ -253,7 +239,6 @@ describe('mealService validation', () => {
       await mealService.updateMeal('user-1', 'meal-1', {
         serving_unit: 'serving',
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload = (mealRepository as any).updateMeal.mock.calls[0][2];
       expect(payload.serving_size).toBe(1);
     });

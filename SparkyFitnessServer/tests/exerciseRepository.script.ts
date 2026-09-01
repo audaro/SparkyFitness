@@ -10,7 +10,6 @@ const __dirname = path.dirname(__filename);
 
 async function testRepository() {
   let output = '';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const log = (msg: any) => {
     console.log(msg);
     output += msg + '\n';

@@ -154,7 +154,6 @@ describe('Symptom Pattern Hints Shared Logic', () => {
 });
 
 describe('Symptom Repository', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {

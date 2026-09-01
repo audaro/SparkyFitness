@@ -8,7 +8,6 @@ import goalPresetRoutes from '../routes/v2/goalPresetRoutes.js';
 // Mock middleware and service
 vi.mock('../services/goalPresetService');
 vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: vi.fn(() => (req: any, res: any, next: any) => next()),
 }));
 const app = express();

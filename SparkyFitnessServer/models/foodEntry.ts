@@ -413,7 +413,7 @@ async function deleteFoodEntry(entryId: string, userId: string) {
       'DELETE FROM food_entries WHERE id = $1 RETURNING id',
       [entryId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }
@@ -907,7 +907,7 @@ async function deleteFoodEntryComponentsByFoodEntryMealId(
       'DELETE FROM food_entries WHERE food_entry_meal_id = $1 RETURNING id',
       [foodEntryMealId]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } finally {
     client.release();
   }

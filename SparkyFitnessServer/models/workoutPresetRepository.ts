@@ -304,7 +304,7 @@ async function deleteWorkoutPreset(presetId: any, userId: any) {
       [presetId]
     );
     await client.query('COMMIT');
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     await client.query('ROLLBACK');
     log('error', `Error deleting workout preset ${presetId}:`, error);
@@ -420,7 +420,7 @@ async function searchWorkoutPresets(
       nextParamIndex,
     } = buildSqlSearch('wp.name', searchTerm, 1);
     const whereClauses: string[] = [...searchClauses];
-    const queryParams: any[] = [...searchParams];
+    const queryParams: unknown[] = [...searchParams];
     const paramIndex = nextParamIndex;
 
     const whereSql =

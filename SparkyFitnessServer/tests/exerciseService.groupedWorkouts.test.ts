@@ -1249,12 +1249,7 @@ describe('exerciseService grouped workouts', () => {
       ],
     };
 
-    const setupPlanSession = (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      first: any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      second: any
-    ) => {
+    const setupPlanSession = (first: any, second: any) => {
       (getGroupedExerciseSessionByIdWithClient as unknown as Mock)
         .mockReset()
         .mockResolvedValueOnce(first)
@@ -1890,7 +1885,6 @@ describe('_updateExerciseEntryWithClient snapshot round-trip', () => {
 });
 
 describe('_createExerciseEntryWithClient id threading', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let create: (...args: any[]) => Promise<unknown>;
 
   beforeAll(async () => {

@@ -13,7 +13,6 @@ vi.mock('../services/authService.js', () => ({
 }));
 
 vi.mock('../middleware/authMiddleware.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   authenticate: (req: any, _res: any, next: any) => {
     req.authenticatedUserId = 'test-user-id';
     next();
@@ -22,7 +21,6 @@ vi.mock('../middleware/authMiddleware.js', () => ({
 
 vi.mock('multer', () => {
   const multer = () => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     single: () => (_req: any, _res: any, next: any) => next(),
   });
   multer.diskStorage = () => ({});

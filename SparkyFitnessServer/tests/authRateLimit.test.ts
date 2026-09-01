@@ -26,7 +26,6 @@ const RATE_LIMIT_CONFIG = {
   storage: 'memory',
 };
 const BASE_URL = 'https://example.com/api/auth';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeRequest(endpoint: any, ip = '127.0.0.1') {
   return {
     url: `${BASE_URL}${endpoint}`,
@@ -47,9 +46,7 @@ function makeContext() {
   };
 }
 describe('Auth rate limit integration', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let onRequestRateLimit: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let onResponseRateLimit: any;
   beforeAll(async () => {
     const mod = await import(
@@ -66,7 +63,6 @@ describe('Auth rate limit integration', () => {
    * A return of undefined means the request was allowed (no rate limit hit).
    * A Response with status 429 means rate-limited.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function sendRequests(endpoint: any, count: any, ip: any) {
     const ctx = makeContext();
     const results = [];
@@ -143,7 +139,6 @@ describe('Auth rate limit integration', () => {
 describe('/mfa-factors inline rate limiter', () => {
   // Re-require to get a fresh module with a clean hits Map per describe block.
   // Jest's module cache is reset by vi.isolateModules.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let router: any;
   beforeAll(async () => {
     vi.resetModules();
@@ -156,13 +151,11 @@ describe('/mfa-factors inline rate limiter', () => {
   // Extract the rate limit middleware from the router stack
   function getRateLimitMiddleware() {
     const mfaLayer = router.stack.find(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (layer: any) => layer.route?.path === '/mfa-factors'
     );
     // The rate limiter is the first middleware in the route's stack
     return mfaLayer.route.stack[0].handle;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function makeMockReq(ip: any) {
     return { ip };
   }
@@ -171,18 +164,15 @@ describe('/mfa-factors inline rate limiter', () => {
       statusCode: null,
       headers: {},
       body: null,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       set(key: any, value: any) {
         // @ts-expect-error TS(7053): Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
         res.headers[key] = value;
         return res;
       },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       status(code: any) {
         res.statusCode = code;
         return res;
       },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       json(data: any) {
         res.body = data;
         return res;
@@ -190,7 +180,6 @@ describe('/mfa-factors inline rate limiter', () => {
     };
     return res;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function sendMfaRequests(middleware: any, count: any, ip: any) {
     const results = [];
     for (let i = 0; i < count; i++) {

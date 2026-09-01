@@ -83,7 +83,13 @@ describe('Medication Routes V2', () => {
 
   describe('GET /api/v2/medications', () => {
     it('lists medications for the user', async () => {
-      const meds = [{ id: UID, name: 'Wegovy', is_glp1: true }];
+      // Only the columns this route echoes back; the rest of the row is
+      // irrelevant to the serialisation under test.
+      const meds = [
+        { id: UID, name: 'Wegovy', is_glp1: true },
+      ] as unknown as Awaited<
+        ReturnType<typeof medicationRepository.listMedications>
+      >;
       vi.mocked(medicationRepository.listMedications).mockResolvedValue(meds);
       const res = await request(app)
         .get('/api/v2/medications')

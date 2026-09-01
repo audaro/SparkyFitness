@@ -17,7 +17,6 @@ const ROW = {
 };
 
 describe('gymEquipmentProfileRepository', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockClient: any;
 
   beforeEach(() => {
@@ -30,7 +29,6 @@ describe('gymEquipmentProfileRepository', () => {
     vi.clearAllMocks();
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const queryTexts = (): string[] =>
     mockClient.query.mock.calls.map((call: any[]) => call[0]);
 
@@ -447,7 +445,6 @@ describe('gymEquipmentProfileRepository', () => {
      * transaction, or the same interleaving is still reachable.
      */
     const lockCall = (): [string, unknown[]] | undefined =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient.query.mock.calls.find((call: any[]) =>
         String(call[0]).includes('pg_advisory_xact_lock')
       ) as [string, unknown[]] | undefined;

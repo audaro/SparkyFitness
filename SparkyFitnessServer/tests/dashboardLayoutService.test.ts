@@ -124,7 +124,6 @@ describe('dashboardLayoutService', () => {
       await expect(
         dashboardLayoutService.saveDashboardLayout('user-1', 'diary', {
           layout: { lg: [] },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           hidden: 'not-an-array' as any,
         })
       ).rejects.toThrow('hidden must be an array of widget keys');
