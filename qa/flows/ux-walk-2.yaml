@@ -1,0 +1,197 @@
+appId: ${APP_ID}
+---
+# Second screenshot walk for the UX audit: what the Exercise experience looks
+# like AFTER a workout has been generated and finished, plus the configuration
+# screens. Asserts nothing; app-logs.mjs is the only oracle. Shots: qa/run/shots2/.
+- runFlow: lib/boot.yaml
+- runFlow: lib/grant-notifications.yaml
+
+# === generate + run a Push workout quickly ==================================
+- tapOn: "Exercise"
+- scrollUntilVisible:
+    element:
+      id: "up-next-card"
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "up-next-card"
+- extendedWaitUntil:
+    visible: "New workout options"
+    timeout: 30000
+- tapOn: "New workout options"
+- waitForAnimationToEnd
+- tapOn:
+    id: "action-sheet-item-pick-muscles"
+- extendedWaitUntil:
+    visible:
+      id: "pick-muscles-splits"
+    timeout: 30000
+- tapOn:
+    id: "pick-muscles-split-push"
+- extendedWaitUntil:
+    visible:
+      id: "up-next-start"
+    timeout: 90000
+- tapOn:
+    id: "up-next-start"
+- extendedWaitUntil:
+    visible:
+      id: "header-segment"
+    timeout: 60000
+- waitForAnimationToEnd
+- tapOn: "Complete Set"
+- waitForAnimationToEnd
+- tapOn: "Complete Set"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/40-active-two-sets-done
+- scrollUntilVisible:
+    element: "End Workout"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "End Workout"
+- extendedWaitUntil:
+    visible: "Keep going"
+    timeout: 20000
+- tapOn:
+    text: "End Workout"
+    rightOf: "Keep going"
+- extendedWaitUntil:
+    visible: "Workout Complete"
+    timeout: 60000
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/41-workout-complete
+- tapOn: "Save as Preset"
+- extendedWaitUntil:
+    visible: "New Preset"
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/42-save-as-preset-form
+- tapOn: "Save"
+- extendedWaitUntil:
+    visible: "Start Workout"
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/43-preset-detail
+- tapOn: "Back"
+- tapOn: "View Workout"
+- extendedWaitUntil:
+    visible: "Back"
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/44-workout-detail
+- tapOn: "Back"
+- tapOn: "Done"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/45-after-done
+
+# === Exercise tab after a workout ==========================================
+- tapOn: "Exercise"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/50-exercise-home-after-top
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-week-card"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/51-exercise-home-after-mid
+- tapOn:
+    id: "exercise-home-week-card"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/52-weekly-set-targets
+- tapOn: "Back"
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-workout-presets"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-workout-presets"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/53-presets-library
+- tapOn: "Back"
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-exercises-library"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-exercises-library"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/54-exercises-library
+- tapOn: ".*QA Catalog chest 1.*"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/55-exercise-detail-top
+- scrollUntilVisible:
+    element: "Log Exercise"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/56-exercise-detail-bottom
+- tapOn: "Back"
+- tapOn: "Back"
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-gym-profiles"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-gym-profiles"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/57-gym-profiles
+- tapOn: "QA Gym"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/58-gym-profile-editor
+- tapOn: "Back"
+- tapOn: "Back"
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-exercise-packs"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-exercise-packs"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/59-exercise-packs
+- tapOn: "Back"
+- scrollUntilVisible:
+    element:
+      id: "exercise-home-create-exercise"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "exercise-home-create-exercise"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/60-create-exercise-form
+- tapOn: "Close"
+
+# === Settings → Workout ======================================================
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: "Workout"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "Workout"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/61-workout-settings
+- tapOn: "Back"
+
+# === Chat ===================================================================
+- tapOn: "Home"
+- scrollUntilVisible:
+    element: ".*Ask Sparky.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: ".*Ask Sparky.*"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/62-chat
+- tapOn: "Back"

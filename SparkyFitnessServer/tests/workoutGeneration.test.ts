@@ -6,6 +6,7 @@ import {
   deriveExperienceLevel,
   estimateDurationMinutes,
   fitToDuration,
+  fitToDurationDetailed,
   isEquipmentAvailable,
   isExcludedByLimitations,
   isMobilityExercise,
@@ -1405,6 +1406,20 @@ describe('prescribeSets', () => {
     );
   });
 
+  it('caps a cold start against the equipment the load came from', () => {
+    // `["body only", "dumbbell"]` cold-starts at the dumbbell load; the cap
+    // has to be the dumbbell cap, not a bodyweight limit that does not exist.
+    const result = prescribeSets(
+      candidate({ id: 'a', equipment: ['body only', 'dumbbell'] }),
+      null,
+      options({ loadLimits: { dumbbell: { max_kg: 4 } } })
+    );
+
+    expect(result.progression).toBe('cold-start');
+    expect(result.workingWeightKg).toBe(4);
+    expect(result.capped).toBe(true);
+  });
+
   it('cold-starts with no load at all when the equipment suggests none', () => {
     const result = prescribeSets(
       candidate({ id: 'a', equipment: ['body only'] }),
@@ -1664,8 +1679,8 @@ describe('prescribeSets', () => {
     const result = prescribeSets(
       candidate({ id: 'a' }),
       history(
-        session('2026-08-20', [{ reps: 5, weight: 80 }]),
-        session('2026-08-17', [{ reps: 6, weight: 80 }])
+        session('2026-08-20', [{ reps: 7, weight: 80 }]),
+        session('2026-08-17', [{ reps: 7, weight: 80 }])
       ),
       options()
     );
@@ -1673,6 +1688,121 @@ describe('prescribeSets', () => {
     expect(result.progression).toBe('decrease');
     // 80 × 0.95 = 76, snapped to the barbell's 2.5 kg step.
     expect(result.workingWeightKg).toBe(75);
+  });
+
+  it('rebases a strength history onto a hypertrophy target instead of deloading it', () => {
+    // Every recent session was 5s: the rep range changed, the lifter did not
+    // fail. Read rep-for-rep against 10 this is two failed sessions and a
+    // -5% off a weight that was never missed; Epley says 80 × 5 is about
+    // 70 × 10.
+    const result = prescribeSets(
+      candidate({ id: 'a' }),
+      history(
+        session('2026-08-20', [
+          { reps: 5, weight: 80 },
+          { reps: 5, weight: 80 },
+        ]),
+        session('2026-08-17', [{ reps: 5, weight: 80 }])
+      ),
+      options({ goal: 'general' })
+    );
+
+    expect(result.progression).toBe('rebased');
+    expect(result.workingWeightKg).toBe(70);
+    expect(result.appliedMultiplier).toBe(1);
+    expect(result.sets.every((s) => s.reps === 10 && s.weight === 70)).toBe(
+      true
+    );
+    expect(rationaleFor('chest', result)).toBe(
+      "fresh chest · load adjusted to today's rep target"
+    );
+  });
+
+  it('rebases upward when the history was all high-rep work', () => {
+    // 3x15 at 40 read against a 10-rep target is not an easy +2.5%: Epley
+    // puts 15 reps at 40 around 45 for 10.
+    const result = prescribeSets(
+      candidate({ id: 'a' }),
+      history(
+        session('2026-08-20', [{ reps: 15, weight: 40 }]),
+        session('2026-08-17', [{ reps: 15, weight: 40 }])
+      ),
+      options()
+    );
+
+    expect(result.progression).toBe('rebased');
+    expect(result.workingWeightKg).toBe(45);
+  });
+
+  it('does not rebase off one off-range session among on-range ones', () => {
+    // The last session was 5s but the one before was 10s at the same load:
+    // a bad day, not a new rep range. The single-miss rule holds.
+    const result = prescribeSets(
+      candidate({ id: 'a' }),
+      history(
+        session('2026-08-20', [{ reps: 5, weight: 80 }]),
+        session('2026-08-17', [{ reps: 10, weight: 80 }])
+      ),
+      options()
+    );
+
+    expect(result.progression).toBe('hold');
+    expect(result.workingWeightKg).toBe(80);
+  });
+
+  it('steps a real increment when rounding would erase the progression', () => {
+    // 2.5% of a 30 kg dumbbell is 0.75 kg and the pair comes in 2 kg steps,
+    // so nearest-step rounding hands back 30 forever while the card promises
+    // "+2.5%". The prescription takes the next pair up and says so.
+    const result = prescribeSets(
+      candidate({ id: 'a', equipment: ['dumbbell'] }),
+      history(
+        session('2026-08-20', [
+          { reps: 10, weight: 30 },
+          { reps: 10, weight: 30 },
+          { reps: 10, weight: 30 },
+        ])
+      ),
+      options()
+    );
+
+    expect(result.progression).toBe('increase');
+    expect(result.workingWeightKg).toBe(32);
+    expect(result.appliedMultiplier).toBeCloseTo(32 / 30, 6);
+    expect(rationaleFor('chest', result)).toBe(
+      'fresh chest · +6.7% from last session'
+    );
+  });
+
+  it('steps a real increment down when rounding would erase the deload', () => {
+    const result = prescribeSets(
+      candidate({ id: 'a', equipment: ['dumbbell'] }),
+      history(
+        session('2026-08-20', [{ reps: 7, weight: 10 }]),
+        session('2026-08-17', [{ reps: 7, weight: 10 }])
+      ),
+      options()
+    );
+
+    expect(result.progression).toBe('decrease');
+    expect(result.workingWeightKg).toBe(8);
+  });
+
+  it('holds at the lightest pair rather than deloading to nothing', () => {
+    const result = prescribeSets(
+      candidate({ id: 'a', equipment: ['dumbbell'] }),
+      history(
+        session('2026-08-20', [{ reps: 7, weight: 2 }]),
+        session('2026-08-17', [{ reps: 7, weight: 2 }])
+      ),
+      options()
+    );
+
+    // The description follows the load: nothing came off, so nothing is
+    // claimed to have.
+    expect(result.workingWeightKg).toBe(2);
+    expect(result.progression).toBe('hold');
+    expect(result.appliedMultiplier).toBe(1);
   });
 
   it('ignores warm-up sets when reading the last session', () => {
@@ -2290,15 +2420,43 @@ describe('fitToDuration', () => {
     expect(result.map((e) => e.exercise_id)).toContain('c2');
   });
 
-  it('never drops a compound, even when it cannot reach the budget', () => {
-    const result = fitToDuration(
+  it('drops the last-requested muscle whole once nothing inside the budget can give', () => {
+    // Two compounds, one minute: no isolation to remove, no fourth set to
+    // trim. A "1-minute" workout that runs twenty is not what was asked for;
+    // the muscle asked for last goes, and the header follows.
+    const result = fitToDurationDetailed(
       [chestCompound, latCompound],
       1,
       [],
       ['chest', 'lats']
     );
 
-    expect(result.map((e) => e.exercise_id).sort()).toEqual(['c1', 'l1']);
+    expect(result.exercises.map((e) => e.exercise_id)).toEqual(['c1']);
+    expect(result.targetMuscles).toEqual(['chest']);
+  });
+
+  it('never drops the first muscle, however far over budget it runs', () => {
+    const result = fitToDurationDetailed(
+      [chestCompound, chestIsolation],
+      1,
+      [],
+      ['chest']
+    );
+
+    // One muscle over budget is a long workout; none is not a workout.
+    expect(result.exercises.map((e) => e.exercise_id)).toEqual(['c1']);
+    expect(result.targetMuscles).toEqual(['chest']);
+  });
+
+  it('reports every requested muscle when the fit kept them all', () => {
+    const result = fitToDurationDetailed(
+      [chestCompound, latCompound],
+      60,
+      [],
+      ['chest', 'lats']
+    );
+
+    expect(result.targetMuscles).toEqual(['chest', 'lats']);
   });
 
   it('trims fourth sets once there is no isolation work left to drop', () => {

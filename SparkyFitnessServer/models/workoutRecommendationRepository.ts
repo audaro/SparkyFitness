@@ -109,6 +109,12 @@ async function getMuscleFatigueInputs(
                    OR regexp_replace(LOWER(ees.set_type), '[^a-z0-9]', '', 'g') NOT LIKE 'warmup%')
                   AND (ee.workout_plan_assignment_id IS NULL
                    OR ees.completed_at IS NOT NULL)
+                  -- A set nothing was recorded for was not performed. A live
+                  -- workout lays its sets out empty the moment it starts, so
+                  -- without this a workout abandoned at the first exercise
+                  -- fatigues every muscle it was going to train.
+                  AND (ees.weight IS NOT NULL OR ees.reps IS NOT NULL
+                    OR ees.duration IS NOT NULL OR ees.distance IS NOT NULL)
               ) AS working_set_count
          FROM exercise_entries ee
          LEFT JOIN exercise_entry_sets ees ON ees.exercise_entry_id = ee.id
@@ -163,7 +169,9 @@ async function getStrengthSessionDayCount(
           AND (ees.set_type IS NULL
            OR regexp_replace(LOWER(ees.set_type), '[^a-z0-9]', '', 'g') NOT LIKE 'warmup%')
           AND (ee.workout_plan_assignment_id IS NULL
-           OR ees.completed_at IS NOT NULL)`,
+           OR ees.completed_at IS NOT NULL)
+          AND (ees.weight IS NOT NULL OR ees.reps IS NOT NULL
+            OR ees.duration IS NOT NULL OR ees.distance IS NOT NULL)`,
       [userId, sinceDate, untilDate]
     );
     // COUNT is bigint, which node-postgres hands back as a string.
@@ -245,11 +253,28 @@ const CANDIDATE_COLS = `e.id,
               e.images,
               COALESCE(h.times_performed, 0) AS times_performed`;
 
+// An entry counts as a performance when it has no sets at all (a cardio or
+// imported entry) or when at least one set recorded something. A live workout
+// that was started and abandoned leaves an entry whose sets are all empty,
+// and "times performed" feeds the familiarity terms — it must not be earned
+// by pressing Start.
 const CANDIDATE_HISTORY_JOIN = `LEFT JOIN (
-                SELECT exercise_id, COUNT(*) AS times_performed
-                  FROM exercise_entries
-                 WHERE user_id = $1
-                 GROUP BY exercise_id
+                SELECT ee.exercise_id, COUNT(*) AS times_performed
+                  FROM exercise_entries ee
+                 WHERE ee.user_id = $1
+                   AND (
+                     NOT EXISTS (
+                       SELECT 1 FROM exercise_entry_sets s
+                        WHERE s.exercise_entry_id = ee.id
+                     )
+                     OR EXISTS (
+                       SELECT 1 FROM exercise_entry_sets s
+                        WHERE s.exercise_entry_id = ee.id
+                          AND (s.weight IS NOT NULL OR s.reps IS NOT NULL
+                            OR s.duration IS NOT NULL OR s.distance IS NOT NULL)
+                     )
+                   )
+                 GROUP BY ee.exercise_id
               ) h ON h.exercise_id = e.id`;
 
 /**

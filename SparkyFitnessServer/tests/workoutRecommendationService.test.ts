@@ -1440,7 +1440,7 @@ describe('replaceRecommendationExercise', () => {
     );
   });
 
-  it('does not derive a level for a single-exercise replace', async () => {
+  it('derives the level for a replace the same way generate did', async () => {
     await storeGenerated();
     repo.getStrengthSessionDayCount.mockClear();
     repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
@@ -1451,10 +1451,31 @@ describe('replaceRecommendationExercise', () => {
       DIP_ID
     );
 
-    // Replace re-prescribes one exercise inside a workout already built under
-    // some level; deriving a fresh one mid-workout could program the incoming
-    // row under a different level than its neighbours. Null level scoring is
-    // the deliberate choice, so the count query must not run here.
+    // The workout was built under a derived level (no stated one in these
+    // fixtures). A null level at replace time is not neutral — only beginners
+    // are capped to three working sets — so the incoming exercise has to be
+    // programmed under the same derivation or it arrives with a set count
+    // its neighbours never got.
+    expect(repo.getStrengthSessionDayCount).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not run the derivation when a level is stated, on replace either', async () => {
+    await storeGenerated();
+    coachRepo.getCoachProfile.mockResolvedValue({
+      goals: null,
+      session_minutes: 45,
+      limitations: [],
+      experience_level: 'intermediate',
+    });
+    repo.getStrengthSessionDayCount.mockClear();
+    repo.getCandidateExerciseById.mockResolvedValue(CHEST_DIP);
+
+    await workoutRecommendationService.replaceRecommendationExercise(
+      USER_ID,
+      BENCH_ID,
+      DIP_ID
+    );
+
     expect(repo.getStrengthSessionDayCount).not.toHaveBeenCalled();
   });
 
@@ -1476,11 +1497,15 @@ describe('replaceRecommendationExercise', () => {
     // Carrying the outgoing exercise's programming forward is the whole failure
     // mode this endpoint exists to avoid.
     expect(swapped?.rest_seconds).toBe(GENERATION_TUNABLES.restIsolation);
+    // Bounded at the user's today, like generate: a plan session prescribed
+    // for later this week is not last session.
     expect(entries.getRecentSessionsForExercise).toHaveBeenCalledWith(
       USER_ID,
       DIP_ID,
       null,
-      2
+      2,
+      null,
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)
     );
   });
 

@@ -28,7 +28,13 @@ import {
 } from "../constants/exercise.ts";
 import { DEFAULT_SET_TYPE, isWarmupSetType } from "../constants/setTypes.ts";
 import type { ExperienceLevel } from "../constants/experience.ts";
-import { capLoadKg, quantizeLoadKg, type LoadLimits } from "./strengthMath.ts";
+import {
+  capLoadKg,
+  estimateRepMaxKg,
+  incrementForEquipmentKg,
+  quantizeLoadKg,
+  type LoadLimits,
+} from "./strengthMath.ts";
 import type { MuscleFreshness } from "./muscleRecovery.ts";
 import type {
   RecommendationSet,
@@ -193,6 +199,17 @@ export const GENERATION_TUNABLES = {
   deloadMultiplier: 0.95,
   /** Reps this far under target, twice running, means the load is too heavy. */
   deloadRepShortfall: 2,
+  /**
+   * When every recent session's modal working reps sit further than this
+   * from today's rep target, the load is rebased through Epley before
+   * progressing rather than compared rep-for-rep — a 5-rep strength history
+   * read against a 10-rep hypertrophy target would otherwise register as two
+   * missed sessions and deload a weight the user never failed. Wider than
+   * `deloadRepShortfall` on purpose: a session that fell just short of the
+   * range is a miss and reads as one; a session done for a different range
+   * is not.
+   */
+  rebaseRepTolerance: 3,
 
   /** Rest between sets, seconds. */
   restCompoundStrength: 180,
@@ -459,6 +476,7 @@ export type ProgressionDecision =
   | "increase"
   | "decrease"
   | "hold"
+  | "rebased"
   | "cold-start";
 
 export interface Prescription {
@@ -1261,12 +1279,60 @@ function progressionMultiplier(
     : GENERATION_TUNABLES.progressionUpperBody;
 }
 
-function coldStartLoadKg(equipment: readonly string[]): number | null {
+/**
+ * The conservative first-session load, with the equipment value it was read
+ * from — the cap has to be applied against that same equipment, not the row's
+ * first tag, or a `["body only", "dumbbell"]` row gets a dumbbell load capped
+ * against a bodyweight limit that does not exist.
+ */
+function coldStartLoadKg(
+  equipment: readonly string[],
+): { loadKg: number; equipment: string } | null {
   for (const item of equipment) {
     const load = COLD_START_LOAD_KG[normalizeEquipmentName(item)];
-    if (load != null) return load;
+    if (load != null) return { loadKg: load, equipment: item };
   }
   return null;
+}
+
+/**
+ * True when every recent session was done for reps on the same far side of
+ * today's target — beyond {@link GENERATION_TUNABLES.rebaseRepTolerance} —
+ * which is the signature of a rep range having changed under the history
+ * rather than of a session having gone badly.
+ */
+function isConsistentRepMismatch(
+  history: ExerciseHistoryInput,
+  repTarget: number,
+): boolean {
+  const reps = history.lastSessions.map(modalWorkingReps);
+  if (reps.length === 0 || reps.some((value) => value == null)) return false;
+  const tolerance = GENERATION_TUNABLES.rebaseRepTolerance;
+  const allBelow = reps.every((value) => value! < repTarget - tolerance);
+  const allAbove = reps.every((value) => value! > repTarget + tolerance);
+  return allBelow || allAbove;
+}
+
+/**
+ * The rep count the last session was actually done for: the most common
+ * working-set rep count, ties to the higher. Null when nothing was counted.
+ */
+export function modalWorkingReps(session: HistorySession): number | null {
+  const reps = workingSetsOf(session)
+    .map((set) => set.reps)
+    .filter((value): value is number => value != null && value > 0);
+  if (reps.length === 0) return null;
+  const counts = new Map<number, number>();
+  for (const value of reps) counts.set(value, (counts.get(value) ?? 0) + 1);
+  let best = reps[0]!;
+  let bestCount = 0;
+  for (const [value, count] of counts) {
+    if (count > bestCount || (count === bestCount && value > best)) {
+      best = value;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 function lastDurationSeconds(history: ExerciseHistoryInput | null) {
@@ -1419,37 +1485,93 @@ export function prescribeSets(
       if (coldStart != null) {
         // A tiny home setup can stock less than the cold start assumes.
         const clamped = capLoadKg(
-          coldStart,
-          exercise.equipment[0],
+          coldStart.loadKg,
+          coldStart.equipment,
           options.loadLimits,
         );
         workingWeightKg = clamped;
-        capped = clamped < coldStart;
+        capped = clamped < coldStart.loadKg;
       }
     } else {
+      const incrementEquipment = exercise.equipment[0];
+      const quantize = (kg: number) =>
+        quantizeLoadKg(kg, incrementEquipment, options.loadLimits);
+
+      // History logged at a different rep range says nothing rep-for-rep
+      // about today's target: 4x5 at 100 kg read against a 10-rep target
+      // looks like two failed sessions and deloads a weight the user never
+      // failed, while 3x15 at 40 kg read against 10 looks like an easy
+      // "+2.5%". When every recent session sits on the same far side of the
+      // target — a goal change, not a bad day — rebase the load through
+      // Epley to today's reps and hold there; progression resumes next
+      // session. One off-range session among on-range ones is still noise,
+      // and `decideProgression` keeps its hold-once-deload-twice reading.
+      let workingBaseline = baseline;
+      const lastReps = latest ? modalWorkingReps(latest) : null;
+      if (lastReps != null && isConsistentRepMismatch(history!, repTarget)) {
+        const rebased = quantize(
+          estimateRepMaxKg(baseline, lastReps, repTarget),
+        );
+        if (rebased > 0) {
+          workingBaseline = rebased;
+          decision = "rebased";
+        }
+      }
+
       appliedMultiplier = progressionMultiplier(
         decision,
         exercise.primaryMuscles,
       );
-      workingWeightKg = quantizeLoadKg(
-        baseline * appliedMultiplier,
-        exercise.equipment[0],
+      workingWeightKg = quantize(workingBaseline * appliedMultiplier);
+
+      // Rounding to the nearest plate erases any step smaller than half an
+      // increment — 2.5% of a 30 kg dumbbell press is 0.75 kg, and the pair
+      // only comes in 2 kg steps — so below ~50 kg a progression would snap
+      // straight back to last session's load and stay there forever, while
+      // the card kept promising "+2.5%". When the rounding swallowed the
+      // step, take one real increment in the decided direction instead.
+      const step = incrementForEquipmentKg(
+        incrementEquipment,
         options.loadLimits,
       );
+      if (step > 0) {
+        if (decision === "increase" && workingWeightKg <= workingBaseline) {
+          workingWeightKg = quantize(workingBaseline + step);
+        } else if (
+          decision === "decrease" &&
+          workingWeightKg >= workingBaseline
+        ) {
+          const stepped = quantize(workingBaseline - step);
+          // The lightest load on the floor cannot deload any further.
+          workingWeightKg = stepped > 0 ? stepped : workingBaseline;
+        }
+      }
+
       const clamped = capLoadKg(
         workingWeightKg,
-        exercise.equipment[0],
+        incrementEquipment,
         options.loadLimits,
       );
       if (clamped < workingWeightKg) {
         // The gym stops where the progression wanted to go. Prescribe what
-        // is actually on the rack, and keep the description honest: the
-        // multiplier becomes the one that was really applied, and the
-        // decision is remapped from it so `rationaleFor` never claims a step
-        // the sets were not built with.
+        // is actually on the rack.
         workingWeightKg = clamped;
         capped = true;
-        appliedMultiplier = baseline > 0 ? workingWeightKg / baseline : 1;
+      }
+
+      // Keep the description honest whenever the load that came out is not
+      // the one the nominal multiplier would have produced: the multiplier
+      // becomes the one that was really applied, and the decision is
+      // remapped from it so `rationaleFor` never claims a step the sets
+      // were not built with. A rebase is its own sentence and keeps its
+      // decision; the nominal multiplier is kept when quantising merely
+      // nudged a real step (80 -> 82.5 still reads as the 2.5% it was).
+      const nominal = quantize(workingBaseline * appliedMultiplier);
+      const unmoved =
+        decision !== "hold" && workingWeightKg === workingBaseline;
+      if (decision !== "rebased" && (workingWeightKg !== nominal || unmoved)) {
+        appliedMultiplier =
+          workingBaseline > 0 ? workingWeightKg / workingBaseline : 1;
         decision =
           appliedMultiplier > 1
             ? "increase"
@@ -1517,6 +1639,8 @@ export function rationaleFor(
       return `${fresh} · +${percent(prescription.appliedMultiplier)} from last session`;
     case "decrease":
       return `${fresh} · -${percent(prescription.appliedMultiplier)} after two short sessions`;
+    case "rebased":
+      return `${fresh} · load adjusted to today's rep target`;
     default:
       return `${fresh} · holding last session's load`;
   }
@@ -1688,6 +1812,21 @@ export function fitToDuration(
   alternates: readonly FittableExercise[] = [],
   targetMuscles: readonly string[] = [],
 ): RecommendedExercise[] {
+  return fitToDurationDetailed(items, targetMinutes, alternates, targetMuscles)
+    .exercises;
+}
+
+/**
+ * {@link fitToDuration} plus the target muscles that survived the fit, in the
+ * order they were asked for — the header's `muscle_groups` has to name what
+ * the workout actually trains once a tail muscle has been dropped for time.
+ */
+export function fitToDurationDetailed(
+  items: readonly FittableExercise[],
+  targetMinutes: number,
+  alternates: readonly FittableExercise[] = [],
+  targetMuscles: readonly string[] = [],
+): { exercises: RecommendedExercise[]; targetMuscles: string[] } {
   let current = [...items];
 
   const muscleOrder = new Map(
@@ -1736,6 +1875,22 @@ export function fitToDuration(
       };
       continue;
     }
+
+    // Nothing left to spare inside the muscles asked for: every remaining
+    // exercise is a compound or the last one covering its muscle. Rather
+    // than hand back a "30-minute" full-body workout that runs two and a half
+    // hours, drop the last-requested muscle whole — a request for seventeen
+    // muscles in thirty minutes was always going to be the ones that fit, in
+    // the order they were asked for. The head muscle is never dropped: one
+    // muscle over budget is a long workout, none is not a workout.
+    const remaining = [...new Set(current.map((item) => item.targetMuscle))];
+    if (remaining.length > 1) {
+      const tail = remaining.reduce((a, b) =>
+        (muscleOrder.get(b) ?? 0) > (muscleOrder.get(a) ?? 0) ? b : a,
+      );
+      current = current.filter((item) => item.targetMuscle !== tail);
+      continue;
+    }
     break;
   }
 
@@ -1754,8 +1909,17 @@ export function fitToDuration(
     usedIds.add(alternate.exercise.exercise_id);
   }
 
-  return current.map((item, index) => ({
-    ...item.exercise,
-    sort_order: index,
-  }));
+  const kept = new Set(current.map((item) => item.targetMuscle));
+  const keptInOrder = targetMuscles.filter((muscle) => kept.has(muscle));
+  for (const muscle of kept) {
+    if (!keptInOrder.includes(muscle)) keptInOrder.push(muscle);
+  }
+
+  return {
+    exercises: current.map((item, index) => ({
+      ...item.exercise,
+      sort_order: index,
+    })),
+    targetMuscles: keptInOrder,
+  };
 }

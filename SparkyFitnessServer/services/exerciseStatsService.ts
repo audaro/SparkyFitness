@@ -846,13 +846,20 @@ async function getPersonalRecordMatrix(
       WITH best_set AS (
         SELECT DISTINCT ON (e.exercise_name)
           e.exercise_name,
-          s.weight * (1 + s.reps / 30.0) as estimated_one_rm,
+          -- Epley, with the single a lifted single: the same formula the
+          -- shared engine uses in epley1RmKg, so the PR screen and the
+          -- generator agree on what the record is.
+          CASE WHEN s.reps = 1 THEN s.weight
+               ELSE s.weight * (1 + s.reps / 30.0) END as estimated_one_rm,
           s.weight as weight_kg,
           s.reps as reps,
           e.entry_date as achieved_on
         FROM public.exercise_entry_sets s
         JOIN public.exercise_entries e ON s.exercise_entry_id = e.id
         WHERE e.user_id = $1 AND s.weight > 0 AND s.reps > 0
+          -- A warm-up is not an attempt at a record.
+          AND (s.set_type IS NULL
+           OR regexp_replace(LOWER(s.set_type), '[^a-z0-9]', '', 'g') NOT LIKE 'warmup%')
         -- Ties broken by the earliest date: that is when the record was first
         -- reached, not the last time it was equalled.
         ORDER BY e.exercise_name, estimated_one_rm DESC, e.entry_date ASC

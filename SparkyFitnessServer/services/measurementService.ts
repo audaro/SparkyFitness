@@ -173,15 +173,33 @@ async function preCleanEntriesBySourceAndDate(
 ) {
   if (entries.length === 0) return;
   const daysBySource: Record<string, Set<string>> = {};
+  const keyedBySource: Record<string, boolean> = {};
   for (const entry of entries) {
     const source = entry.source || 'manual';
     const resolved = resolveHealthEntryDate(entry, fallbackTimezone);
     if (!resolved) continue;
     (daysBySource[source] ??= new Set()).add(resolved.parsedDate);
+    keyedBySource[source] =
+      (keyedBySource[source] ?? true) &&
+      entry.source_id !== undefined &&
+      entry.source_id !== null &&
+      String(entry.source_id) !== '';
   }
   for (const source of Object.keys(daysBySource)) {
     const days = [...daysBySource[source]].sort();
     if (days.length === 0) continue;
+    if (keyedBySource[source]) {
+      // Every record carries the provider's own id, so each one upserts in
+      // place by (source, source_id) and the range delete has nothing to
+      // dedupe. It would only destroy: a client syncing what changed since
+      // its last run sends a partial day, and the range delete would remove
+      // the morning's workout because the afternoon's arrived alone.
+      log(
+        'info',
+        `[processHealthData] Pre-cleanup: Skipping range delete of ${label} for source '${source}' (${days[0]} to ${days[days.length - 1]}); every record carries a source_id and upserts in place.`
+      );
+      continue;
+    }
     const startDate = days[0];
     const endDate = days[days.length - 1];
     log(

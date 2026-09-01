@@ -10,6 +10,8 @@ import {
 } from '@workspace/shared';
 import { log } from '../../config/logging.js';
 import exerciseService from '../../services/exerciseService.js';
+import preferenceService from '../../services/preferenceService.js';
+import { convertWeight, MILES_TO_KM } from './unitConversion.js';
 import workoutPresetService from '../../services/workoutPresetService.js';
 import workoutPlanTemplateService from '../../services/workoutPlanTemplateService.js';
 import workoutPlanTemplateRepository from '../../models/workoutPlanTemplateRepository.js';
@@ -67,10 +69,110 @@ export const VALID_ACTIONS = [
   'generate_workout',
 ];
 
-// Every key generate_workout accepts. Used only to tell a bare
-// `{duration_minutes: 45}` — a generation request — apart from a partial
-// log_exercise that happens to carry a duration.
-const GENERATION_ONLY_KEYS = new Set(['action', 'duration_minutes', 'swap']);
+// The fields that say a call is about an exercise that happened: what was
+// done, what was measured, or which entry it is. A `duration_minutes` with
+// none of them is a generation request ("I've got 45 minutes"), whatever else
+// rides along — a note, a date, a unit. A log with no exercise, no sets and
+// no measurement is not a log anyone meant to write.
+const LOG_SIGNAL_KEYS = [
+  'exercise_id',
+  'exercise_name',
+  'sets',
+  'calories_burned',
+  'distance',
+  'avg_heart_rate',
+  'steps',
+  'preset_id',
+  'preset_name',
+  'entry_id',
+  'entry_time',
+] as const;
+
+// Every key generate_workout accepts; an inferred generation request is
+// trimmed to these before the strict schema sees it.
+const GENERATION_KEYS = new Set(['action', 'duration_minutes', 'swap']);
+
+/** kg and km are what the columns hold; anything else is converted on the way in. */
+type WeightUnit = 'kg' | 'lbs';
+type DistanceUnit = 'km' | 'miles';
+
+function normalizeWeightUnit(value: unknown): WeightUnit | null {
+  const unit = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  if (
+    unit === 'kg' ||
+    unit === 'kgs' ||
+    unit === 'kilogram' ||
+    unit === 'kilograms'
+  ) {
+    return 'kg';
+  }
+  if (
+    unit === 'lb' ||
+    unit === 'lbs' ||
+    unit === 'pound' ||
+    unit === 'pounds'
+  ) {
+    return 'lbs';
+  }
+  return null;
+}
+
+function normalizeDistanceUnit(value: unknown): DistanceUnit | null {
+  const unit = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  if (
+    unit === 'km' ||
+    unit === 'kilometer' ||
+    unit === 'kilometers' ||
+    unit === 'kilometre' ||
+    unit === 'kilometres'
+  ) {
+    return 'km';
+  }
+  if (unit === 'mi' || unit === 'mile' || unit === 'miles') return 'miles';
+  return null;
+}
+
+/**
+ * The units a log/update call's numbers are in: what the call states, else
+ * what the user has set as their default, else metric. The model reads
+ * "benched 185" from a user whose app shows pounds and passes 185; without
+ * this the column stores 185 kg and every progression reads off it.
+ */
+async function resolveLogUnits(
+  userId: string,
+  args: { weight_unit?: unknown; distance_unit?: unknown }
+): Promise<{ weight: WeightUnit; distance: DistanceUnit }> {
+  let weight = normalizeWeightUnit(args.weight_unit);
+  let distance = normalizeDistanceUnit(args.distance_unit);
+  if (weight === null || distance === null) {
+    const prefs = await preferenceService.getUserPreferences(userId, userId);
+    weight ??= normalizeWeightUnit(prefs?.default_weight_unit) ?? 'kg';
+    distance ??= normalizeDistanceUnit(prefs?.default_distance_unit) ?? 'km';
+  }
+  return { weight, distance };
+}
+
+// Absent stays absent and null stays null: the service reads `undefined` as
+// "not part of this edit" and `null` as "clear it".
+function weightToKg<T extends number | null | undefined>(
+  value: T,
+  unit: WeightUnit
+): T | number {
+  if (value === null || value === undefined) return value;
+  return unit === 'kg' ? value : convertWeight(value, 'lbs', 'kg');
+}
+
+function distanceToKm<T extends number | null | undefined>(
+  value: T,
+  unit: DistanceUnit
+): T | number {
+  if (value === null || value === undefined) return value;
+  return unit === 'km' ? value : value * MILES_TO_KM;
+}
 
 // Optional inputs and nullable DB columns are treated alike: absent.
 function isSet<T>(value: T | null | undefined): value is T {
@@ -342,16 +444,22 @@ function projectWorkoutPlan(p: WorkoutPlanRow) {
 
 // The set rows the exercise-entry repository expects: 1-based set_number plus
 // explicit nulls for absent fields (mirrors MCP's per-set INSERT defaults).
-function toRepoSets(sets: ExerciseSetInput[]) {
+function toRepoSets(
+  sets: ExerciseSetInput[],
+  units: { weight: WeightUnit; distance: DistanceUnit } = {
+    weight: 'kg',
+    distance: 'km',
+  }
+) {
   return sets.map((s, i) => ({
     set_number: i + 1,
     set_type: s.set_type || 'Working Set',
     reps: s.reps ?? null,
-    weight: s.weight ?? null,
+    weight: weightToKg(s.weight, units.weight) ?? null,
     // Sets may arrive as a JSON string that bypasses schema validation, so
     // round here to keep the integer-seconds duration column safe.
     duration: typeof s.duration === 'number' ? Math.round(s.duration) : null,
-    distance: s.distance ?? null,
+    distance: distanceToKm(s.distance, units.distance) ?? null,
     rest_time: s.rest_time ?? null,
     rpe: s.rpe ?? null,
     notes: s.notes ?? null,
@@ -757,10 +865,7 @@ Actions:
             }
             if (
               args.duration_minutes !== undefined &&
-              Object.keys(args).every(
-                (key) =>
-                  GENERATION_ONLY_KEYS.has(key) || args[key] === undefined
-              )
+              LOG_SIGNAL_KEYS.every((key) => args[key] === undefined)
             ) {
               return 'generate_workout';
             }
@@ -793,6 +898,24 @@ Actions:
           normalized.entry_date = todayInZone(tz);
         }
 
+        // An inferred generation request may carry a note or a date the model
+        // attached to "I've got 45 minutes, upper body". They mean nothing to
+        // the engine, and the strict schema would reject the whole call over
+        // them — the same call that, read as a log, writes a diary entry for
+        // a workout that never happened.
+        const normalizedArgs =
+          normalized && typeof normalized === 'object'
+            ? (normalized as Record<string, unknown>)
+            : null;
+        if (
+          normalizedArgs &&
+          normalizedArgs.action === 'generate_workout' &&
+          !(rawArgs as { action?: unknown } | null)?.action
+        ) {
+          for (const key of Object.keys(normalizedArgs)) {
+            if (!GENERATION_KEYS.has(key)) delete normalizedArgs[key];
+          }
+        }
         const parsed = manageExerciseSchema.safeParse(normalized);
         if (!parsed.success) {
           return formatZodError(parsed.error);
@@ -874,6 +997,7 @@ Actions:
                   args.exercise_name
                 );
               }
+              const units = await resolveLogUnits(userId, args);
               // skipDuplicateCheck: logging the same exercise twice in a day
               // must create two entries (MCP always inserted), not merge into
               // the server's manual same-exercise/same-date upsert.
@@ -887,10 +1011,10 @@ Actions:
                   duration_minutes: args.duration_minutes,
                   calories_burned: args.calories_burned,
                   notes: args.notes,
-                  distance: args.distance,
+                  distance: distanceToKm(args.distance, units.distance),
                   avg_heart_rate: args.avg_heart_rate,
                   steps: args.steps,
-                  sets: parsedSets ? toRepoSets(parsedSets) : undefined,
+                  sets: parsedSets ? toRepoSets(parsedSets, units) : undefined,
                 },
                 { skipDuplicateCheck: true }
               );
@@ -1016,6 +1140,10 @@ Actions:
               } else {
                 parsedSets = args.sets;
               }
+              const units =
+                parsedSets || args.distance !== undefined
+                  ? await resolveLogUnits(userId, args)
+                  : null;
               try {
                 await exerciseService.updateExerciseEntry(
                   userId,
@@ -1027,10 +1155,15 @@ Actions:
                     duration_minutes: args.duration_minutes,
                     calories_burned: args.calories_burned,
                     notes: args.notes,
-                    distance: args.distance,
+                    distance: units
+                      ? distanceToKm(args.distance, units.distance)
+                      : args.distance,
                     avg_heart_rate: args.avg_heart_rate,
                     steps: args.steps,
-                    sets: parsedSets ? toRepoSets(parsedSets) : undefined,
+                    sets:
+                      parsedSets && units
+                        ? toRepoSets(parsedSets, units)
+                        : undefined,
                   }
                 );
               } catch (error) {

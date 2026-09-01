@@ -577,15 +577,28 @@ async function updateExerciseEntry(
         log('info', `Deleted old exercise entry image: ${oldImagePath}`);
       }
     }
-    // If calories_burned is not provided, calculate it using the calorieCalculationService
+    // If calories_burned is not provided, calculate it using the
+    // calorieCalculationService. The entry's own exercise is the fallback:
+    // an edit that only changes the duration used to keep the old calorie
+    // figure, so a 20-minute run stretched to 40 still showed 20 minutes of
+    // burn. Recompute only when something the estimate depends on changed,
+    // so a live workout's autosave does not re-estimate every few seconds.
+    const durationChanged =
+      updateData.duration_minutes !== null &&
+      updateData.duration_minutes !== undefined &&
+      Number(updateData.duration_minutes) !==
+        Number(existingEntry.duration_minutes ?? NaN);
+    const calorieExerciseId =
+      updateData.exercise_id ?? existingEntry.exercise_id ?? null;
     if (
-      updateData.exercise_id &&
+      calorieExerciseId &&
+      (updateData.exercise_id || durationChanged) &&
       updateData.duration_minutes !== null &&
       updateData.duration_minutes !== undefined &&
       updateData.calories_burned === undefined
     ) {
       const exercise = await exerciseDb.getExerciseById(
-        updateData.exercise_id,
+        calorieExerciseId,
         authenticatedUserId
       );
       if (exercise) {
@@ -600,7 +613,7 @@ async function updateExerciseEntry(
       } else {
         log(
           'warn',
-          `Exercise ${updateData.exercise_id} not found. Cannot auto-calculate calories_burned.`
+          `Exercise ${calorieExerciseId} not found. Cannot auto-calculate calories_burned.`
         );
         updateData.calories_burned = 0;
       }

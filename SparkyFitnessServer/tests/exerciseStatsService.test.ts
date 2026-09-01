@@ -322,6 +322,12 @@ describe('exerciseStatsService', () => {
       expect(res.strength1RMs[0].exerciseName).toBe('Bench Press');
       expect(res.strength1RMs[0].estimatedOneRMKg).toBe(120.5);
       expect(mockClient.release).toHaveBeenCalled();
+
+      // The 1RM query has to agree with the shared engine's Epley (a single
+      // is its own 1RM) and must not let a warm-up set become a record.
+      const strengthSql = String(mockClient.query.mock.calls[1][0]);
+      expect(strengthSql).toContain('CASE WHEN s.reps = 1 THEN s.weight');
+      expect(strengthSql).toContain("NOT LIKE 'warmup%'");
     });
 
     // Regression for #2137: the PR query has no sport filter, so a walk or a

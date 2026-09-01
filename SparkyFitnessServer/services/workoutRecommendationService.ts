@@ -3,7 +3,7 @@ import {
   computeMuscleFreshness,
   deriveExperienceLevel,
   estimateDurationMinutes,
-  fitToDuration,
+  fitToDurationDetailed,
   isCompound,
   isExcludedByLimitations,
   isMobilityExercise,
@@ -354,13 +354,18 @@ function unservedMuscles(
 async function programExercise(
   userId: string,
   planned: PlannedExercise,
-  options: GenerationOptions
+  options: GenerationOptions,
+  today: string
 ): Promise<RecommendedExercise> {
+  // Bounded at the user's today: a plan session prescribed for Thursday is
+  // not "the last time you did this" on Tuesday.
   const sessions = await exerciseEntryModel.getRecentSessionsForExercise(
     userId,
     planned.candidate.id,
     null,
-    2
+    2,
+    null,
+    today
   );
   const history: ExerciseHistoryInput = {
     lastSessions: sessions.map((session) => ({
@@ -413,6 +418,31 @@ async function programExercise(
 }
 
 /**
+ * The level the engine programs under. Stated beats derived: the profile is
+ * the user's own claim about themselves, and the fallback only fills silence.
+ * The derived level is recomputed per call and never written back to the
+ * profile, so it tracks the training log instead of freezing a guess the user
+ * then has to find and correct. Generate and Replace both go through here so
+ * an exercise swapped into a workout is programmed under the same level as
+ * its neighbours — a null here is not "neutral", it is "not a beginner", and
+ * gives a derived beginner a four-set replacement inside a three-set workout.
+ */
+async function resolveExperienceLevel(
+  userId: string,
+  stated: string | null,
+  today: string
+): Promise<string | null> {
+  if (stated !== null) return stated;
+  const sessionDays =
+    await workoutRecommendationRepository.getStrengthSessionDayCount(
+      userId,
+      addDays(today, -DERIVED_EXPERIENCE_WINDOW_DAYS),
+      today
+    );
+  return deriveExperienceLevel(sessionDays);
+}
+
+/**
  * Build the user's next workout and store it as the one "Up Next" row.
  *
  * Order matters: freshness picks the muscles, the muscles bound the catalog
@@ -456,21 +486,11 @@ async function generateRecommendation(
     : null;
   const excludeIds = opts.swap ? previousExerciseIds(previous?.payload) : [];
 
-  // Stated beats derived: the profile is the user's own claim about
-  // themselves, and the fallback only fills silence. The derived level is
-  // recomputed here per generation and never written back to the profile, so
-  // it tracks the training log instead of freezing a guess the user then has
-  // to find and correct.
-  let experienceLevel: string | null = coachProfile?.experience_level ?? null;
-  if (experienceLevel === null) {
-    const sessionDays =
-      await workoutRecommendationRepository.getStrengthSessionDayCount(
-        userId,
-        addDays(today, -DERIVED_EXPERIENCE_WINDOW_DAYS),
-        today
-      );
-    experienceLevel = deriveExperienceLevel(sessionDays);
-  }
+  const experienceLevel = await resolveExperienceLevel(
+    userId,
+    coachProfile?.experience_level ?? null,
+    today
+  );
 
   const options: GenerationOptions = {
     targetDurationMinutes,
@@ -530,7 +550,7 @@ async function generateRecommendation(
   const programmed = [];
   for (const planned of plan.exercises) {
     programmed.push({
-      exercise: await programExercise(userId, planned, options),
+      exercise: await programExercise(userId, planned, options, today),
       slot: planned.slot,
       targetMuscle: planned.targetMuscle,
     });
@@ -541,18 +561,19 @@ async function generateRecommendation(
     GENERATION_TUNABLES.maxAlternatesPrescribed
   )) {
     alternates.push({
-      exercise: await programExercise(userId, planned, options),
+      exercise: await programExercise(userId, planned, options, today),
       slot: planned.slot,
       targetMuscle: planned.targetMuscle,
     });
   }
 
-  const exercises = fitToDuration(
+  const fitted = fitToDurationDetailed(
     programmed,
     targetDurationMinutes,
     alternates,
     plan.targetMuscles
   );
+  const exercises = fitted.exercises;
 
   if (exercises.length === 0) {
     // The payload schema requires at least one exercise, and an empty workout
@@ -564,7 +585,11 @@ async function generateRecommendation(
   }
 
   const payload: WorkoutRecommendationPayload = {
-    muscle_groups: plan.targetMuscles,
+    // What the workout trains after the fit, not what was asked for: the
+    // fitter drops a tail muscle whole when the requested list cannot fit
+    // the time budget, and a header naming a muscle no exercise covers is a
+    // lie the card would repeat.
+    muscle_groups: fitted.targetMuscles,
     estimated_duration_minutes: estimateDurationMinutes(exercises),
     exercises,
   };
@@ -727,7 +752,7 @@ async function replaceRecommendationExercise(
     );
   }
 
-  const [candidate, coachProfile, gymProfile] = await Promise.all([
+  const [candidate, coachProfile, gymProfile, tz] = await Promise.all([
     workoutRecommendationRepository.getCandidateExerciseById(
       userId,
       exerciseIdIn
@@ -736,7 +761,9 @@ async function replaceRecommendationExercise(
     row.gym_profile_id
       ? gymEquipmentProfileRepository.getGymProfile(userId, row.gym_profile_id)
       : Promise.resolve(null),
+    loadUserTimezone(userId),
   ]);
+  const today = todayInZone(tz);
   if (!candidate) {
     // An external suggestion has to be imported before it can be swapped in;
     // until then it has no local uuid and nothing to prescribe against.
@@ -763,12 +790,15 @@ async function replaceRecommendationExercise(
       String(value).toLowerCase()
     ),
     goal: deriveGoal(coachProfile?.goals),
-    // Deliberately no derived-level fallback here, unlike generate: Replace
-    // re-prescribes one exercise inside a workout that was already built
-    // under some level, and deriving a fresh one mid-workout could prescribe
-    // the swapped-in exercise under a different level than its neighbours.
-    // Null is level-neutral scoring, which is the conservative choice.
-    experienceLevel: coachProfile?.experience_level ?? null,
+    // The same stated-or-derived level generate used, so the swapped-in
+    // exercise gets the set count its neighbours got. The old "level-neutral
+    // null" was not neutral: `workingSetCountFor` caps only beginners, so a
+    // derived beginner's three-set workout took a four-set replacement.
+    experienceLevel: await resolveExperienceLevel(
+      userId,
+      coachProfile?.experience_level ?? null,
+      today
+    ),
     excludeIds: [],
   };
 
@@ -783,7 +813,8 @@ async function replaceRecommendationExercise(
       ),
       slot: isCompound(candidate) ? 'compound' : 'isolation',
     },
-    options
+    options,
+    today
   );
 
   const exercises = [...payload.exercises];

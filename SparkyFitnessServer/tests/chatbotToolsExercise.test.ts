@@ -12,6 +12,7 @@ import workoutRecommendationService, {
   WorkoutGenerationError,
 } from '../services/workoutRecommendationService.js';
 import exerciseService from '../services/exerciseService.js';
+import preferenceService from '../services/preferenceService.js';
 import workoutPresetService from '../services/workoutPresetService.js';
 import exerciseDb from '../models/exercise.js';
 import exerciseEntryDb from '../models/exerciseEntry.js';
@@ -33,6 +34,9 @@ vi.mock('../services/exerciseService', () => ({
     getExerciseProgressData: vi.fn(),
     logWorkoutPresetGrouped: vi.fn(),
   },
+}));
+vi.mock('../services/preferenceService', () => ({
+  default: { getUserPreferences: vi.fn() },
 }));
 vi.mock('../services/workoutPresetService', () => ({
   default: {
@@ -118,6 +122,12 @@ beforeEach(() => {
   // projection goldens below stay meaningful. Resolution itself is covered separately.
   vi.mocked(getResolvedExerciseCaloriesRange).mockResolvedValue(new Map());
   vi.clearAllMocks();
+  // A metric user unless a test says otherwise, so the logging goldens below
+  // store the numbers they were given.
+  vi.mocked(preferenceService.getUserPreferences).mockResolvedValue({
+    default_weight_unit: 'kg',
+    default_distance_unit: 'km',
+  } as never);
   tools = buildExerciseTools('user-1', 'UTC');
 });
 
@@ -706,6 +716,108 @@ describe('log_exercise', () => {
       expect.objectContaining({ sets: undefined }),
       { skipDuplicateCheck: true }
     );
+  });
+});
+
+describe('log_exercise units', () => {
+  // The columns hold kg and km. A user whose app shows pounds says "benched
+  // 185" and the model passes 185; stored as-is that is a 185 kg bench that
+  // every progression then reads off.
+  it('converts stated pounds and miles into the kg and km the columns hold', async () => {
+    vi.mocked(exerciseService.createExerciseEntry).mockResolvedValue({
+      id: ENTRY_ID,
+    });
+
+    await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'log_exercise',
+        exercise_id: EXERCISE_ID,
+        entry_date: '2026-06-10',
+        weight_unit: 'lbs',
+        distance_unit: 'miles',
+        distance: 3,
+        sets: [{ reps: 5, weight: 185, distance: 1 }],
+      },
+      opts
+    );
+
+    const payload = vi.mocked(exerciseService.createExerciseEntry).mock
+      .calls[0][2] as {
+      distance: number;
+      sets: { weight: number; distance: number }[];
+    };
+    expect(payload.distance).toBeCloseTo(4.828, 3);
+    expect(payload.sets[0].weight).toBeCloseTo(83.915, 3);
+    expect(payload.sets[0].distance).toBeCloseTo(1.609, 3);
+    // Stated units settle it without a preferences read.
+    expect(preferenceService.getUserPreferences).not.toHaveBeenCalled();
+  });
+
+  it("reads unstated units from the user's preferences", async () => {
+    vi.mocked(preferenceService.getUserPreferences).mockResolvedValue({
+      default_weight_unit: 'lbs',
+      default_distance_unit: 'miles',
+    } as never);
+    vi.mocked(exerciseService.createExerciseEntry).mockResolvedValue({
+      id: ENTRY_ID,
+    });
+
+    await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'log_exercise',
+        exercise_id: EXERCISE_ID,
+        entry_date: '2026-06-10',
+        distance: 1,
+        sets: [{ reps: 10, weight: 100 }],
+      },
+      opts
+    );
+
+    const payload = vi.mocked(exerciseService.createExerciseEntry).mock
+      .calls[0][2] as { distance: number; sets: { weight: number }[] };
+    expect(payload.distance).toBeCloseTo(1.609, 3);
+    expect(payload.sets[0].weight).toBeCloseTo(45.359, 3);
+  });
+
+  it('accepts the spellings a model actually produces', async () => {
+    vi.mocked(exerciseService.createExerciseEntry).mockResolvedValue({
+      id: ENTRY_ID,
+    });
+
+    await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'log_exercise',
+        exercise_id: EXERCISE_ID,
+        entry_date: '2026-06-10',
+        weight_unit: 'Pounds',
+        sets: [{ reps: 10, weight: 100 }],
+      },
+      opts
+    );
+
+    const payload = vi.mocked(exerciseService.createExerciseEntry).mock
+      .calls[0][2] as { sets: { weight: number }[] };
+    expect(payload.sets[0].weight).toBeCloseTo(45.359, 3);
+  });
+
+  it('converts an update the same way', async () => {
+    vi.mocked(exerciseService.updateExerciseEntry).mockResolvedValue({
+      id: ENTRY_ID,
+    } as never);
+
+    await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'update_exercise_entry',
+        entry_id: ENTRY_ID,
+        weight_unit: 'lbs',
+        sets: [{ reps: 10, weight: 100 }],
+      },
+      opts
+    );
+
+    const payload = vi.mocked(exerciseService.updateExerciseEntry).mock
+      .calls[0][3] as { sets: { weight: number }[] };
+    expect(payload.sets[0].weight).toBeCloseTo(45.359, 3);
   });
 });
 
@@ -2732,6 +2844,26 @@ describe('generate_workout', () => {
     ).mockResolvedValue(RECOMMENDATION);
 
     await tools.sparky_manage_exercise.execute!({ duration_minutes: 45 }, opts);
+
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).toHaveBeenCalledWith('user-1', { durationMinutes: 45, swap: undefined });
+    expect(exerciseService.createExerciseEntry).not.toHaveBeenCalled();
+  });
+
+  it('infers generation from a duration that carries only a note', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockResolvedValue(RECOMMENDATION);
+
+    // "I've got 45 minutes, upper body" — the model tends to put the second
+    // half in `notes`. Nothing here names an exercise or a measurement, so
+    // there is nothing to log; reading it as a log would have written a
+    // "General Exercise" entry.
+    await tools.sparky_manage_exercise.execute!(
+      { duration_minutes: 45, notes: 'upper body', entry_date: '2026-06-10' },
+      opts
+    );
 
     expect(
       workoutRecommendationService.generateRecommendation

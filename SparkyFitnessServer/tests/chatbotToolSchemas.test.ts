@@ -180,6 +180,8 @@ describe('published (flat) chatbot tool schemas', () => {
         'calories_burned',
         'notes',
         'distance',
+        'weight_unit',
+        'distance_unit',
         'avg_heart_rate',
         'steps',
         'sets',

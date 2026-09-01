@@ -1407,12 +1407,19 @@ export interface RecentSessionRow {
       }[]
     | null;
 }
+// `untilDate` (YYYY-MM-DD, inclusive) bounds the read at a day: the
+// recommendation engine passes the user's today so a plan session prescribed
+// for later this week cannot be read as "the last time you did this". Plan
+// sessions (`workout_plan_assignment_id` set) count only once a set in them
+// carries `completed_at`, for the same reason — their sets are written with
+// the prescribed weight and reps before anyone lifts them.
 async function getRecentSessionsForExercise(
   userId: string,
   exerciseId: string,
   excludePresetEntryId: string | null = null,
   limit = 3,
-  presetId: number | null = null
+  presetId: number | null = null,
+  untilDate: string | null = null
 ): Promise<RecentSessionRow[]> {
   const client = await getClient(userId);
   try {
@@ -1439,6 +1446,15 @@ async function getRecentSessionsForExercise(
                 AND epe.workout_preset_id = $5
            )
          )
+         AND ($6::date IS NULL OR ee.entry_date <= $6::date)
+         AND (
+           ee.workout_plan_assignment_id IS NULL
+           OR EXISTS (
+             SELECT 1 FROM exercise_entry_sets done
+              WHERE done.exercise_entry_id = ee.id
+                AND done.completed_at IS NOT NULL
+           )
+         )
          AND EXISTS (
            SELECT 1 FROM exercise_entry_sets ees
             WHERE ees.exercise_entry_id = ee.id
@@ -1446,7 +1462,7 @@ async function getRecentSessionsForExercise(
          )
        ORDER BY ee.entry_date DESC, ee.created_at DESC, ee.id DESC
        LIMIT $4`,
-      [userId, exerciseId, excludePresetEntryId, limit, presetId]
+      [userId, exerciseId, excludePresetEntryId, limit, presetId, untilDate]
     );
     return result.rows;
   } finally {

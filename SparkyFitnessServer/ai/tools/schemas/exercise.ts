@@ -12,6 +12,24 @@ import {
 // the uuid-keyed exercise catalog and diary entries.
 const numericIdSchema = z.coerce.number().int().positive();
 
+// Units for the numbers a log/update call carries. The columns hold kg and km;
+// a call that states neither is read in the user's preferred units, then
+// metric. Free-form so "lb"/"pounds" survive; the handler normalizes.
+const weightUnitSchema = z
+  .string()
+  .max(20)
+  .optional()
+  .describe(
+    "Unit the weights in this call are in: 'kg' or 'lbs'. Defaults to the user's preferred weight unit."
+  );
+const distanceUnitSchema = z
+  .string()
+  .max(20)
+  .optional()
+  .describe(
+    "Unit the distances in this call are in: 'km' or 'miles'. Defaults to the user's preferred distance unit."
+  );
+
 const exerciseSetSchema = z
   .object({
     reps: z.coerce
@@ -20,7 +38,13 @@ const exerciseSetSchema = z
       .min(0)
       .optional()
       .describe('Number of repetitions'),
-    weight: z.coerce.number().min(0).optional().describe('Weight in kg'),
+    weight: z.coerce
+      .number()
+      .min(0)
+      .optional()
+      .describe(
+        'Weight, in weight_unit (kg unless stated or set in preferences)'
+      ),
     duration: z.coerce
       .number()
       .int()
@@ -126,9 +150,9 @@ const logExerciseSchema = z
       .number()
       .min(0)
       .optional()
-      .describe(
-        "Distance covered, in the user's distance unit (e.g. km) — for cardio"
-      ),
+      .describe('Distance covered, in distance_unit — for cardio'),
+    weight_unit: weightUnitSchema,
+    distance_unit: distanceUnitSchema,
     avg_heart_rate: z.coerce
       .number()
       .int()
@@ -201,9 +225,9 @@ const updateExerciseEntrySchema = z
       .number()
       .min(0)
       .optional()
-      .describe(
-        "Distance covered, in the user's distance unit (e.g. km) — for cardio"
-      ),
+      .describe('Distance covered, in distance_unit — for cardio'),
+    weight_unit: weightUnitSchema,
+    distance_unit: distanceUnitSchema,
     avg_heart_rate: z.coerce
       .number()
       .int()
@@ -737,9 +761,9 @@ export const manageExerciseInput = z.object({
     .number()
     .min(0)
     .optional()
-    .describe(
-      "Distance covered, in the user's distance unit (e.g. km) — cardio, for log/update"
-    ),
+    .describe('Distance covered, in distance_unit — cardio, for log/update'),
+  weight_unit: weightUnitSchema,
+  distance_unit: distanceUnitSchema,
   avg_heart_rate: z.coerce
     .number()
     .int()
