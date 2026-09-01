@@ -11,8 +11,7 @@ import { log } from '../config/logging.js';
 async function syncUserGroups(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   deps: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adminGroup: any,
   providerId = null

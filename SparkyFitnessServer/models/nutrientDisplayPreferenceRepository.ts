@@ -2,8 +2,7 @@ import { getClient } from '../db/poolManager.js';
 // @ts-expect-error TS(7016): Could not find a declaration file for module 'pg-f... Remove this comment to see the full error message
 import format from 'pg-format';
 const TABLE_NAME = 'user_nutrient_display_preferences';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getNutrientDisplayPreferences(userId: any) {
+async function getNutrientDisplayPreferences(userId: string) {
   const query = `SELECT * FROM ${TABLE_NAME} WHERE user_id = $1`;
   const client = await getClient(userId);
   try {
@@ -14,8 +13,7 @@ async function getNutrientDisplayPreferences(userId: any) {
   }
 }
 async function upsertNutrientDisplayPreference(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   viewGroup: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,8 +43,7 @@ async function upsertNutrientDisplayPreference(
 }
 
 async function deleteNutrientDisplayPreference(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   viewGroup: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,8 +59,7 @@ async function deleteNutrientDisplayPreference(
 }
 
 async function createDefaultNutrientPreferences(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   defaultPreferences: any
 ) {

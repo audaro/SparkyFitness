@@ -5,7 +5,7 @@ import { calculateSleepScore } from './measurementService.js';
 import { loadUserTimezone } from '../utils/timezoneLoader.js';
 import { userAge } from '../utils/dateHelpers.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getSleepAnalytics(userId: any, startDate: any, endDate: any) {
+async function getSleepAnalytics(userId: string, startDate: any, endDate: any) {
   log(
     'info',
     `Fetching sleep analytics for user ${userId} from ${startDate} to ${endDate}`

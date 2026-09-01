@@ -6,7 +6,7 @@ import { log } from '../config/logging.js';
  * @param {string} userId - The UUID of the authenticated user
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createMealType(data: any, userId: any) {
+async function createMealType(data: any, userId: string) {
   log(
     'info',
     `createMealType in mealType.js: data: ${JSON.stringify(data)}, userId: ${userId}`
@@ -33,8 +33,7 @@ async function createMealType(data: any, userId: any) {
  * This includes System Defaults (user_id is NULL) AND User Custom types.
  * Ordered by sort_order.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getAllMealTypes(userId: any) {
+async function getAllMealTypes(userId: string) {
   log('debug', `getAllMealTypes in mealType.js for userId: ${userId}`);
   const client = await getClient(userId);
   try {
@@ -65,7 +64,7 @@ async function getAllMealTypes(userId: any) {
  * Ensures the user has access to it (it's either theirs or a system default).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMealTypeById(mealTypeId: any, userId: any) {
+async function getMealTypeById(mealTypeId: any, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -87,7 +86,7 @@ async function getMealTypeById(mealTypeId: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateMealType(mealTypeId: any, data: any, userId: any) {
+async function updateMealType(mealTypeId: any, data: any, userId: string) {
   log(
     'info',
     `updateMealType in mealType.js: id: ${mealTypeId}, data: ${JSON.stringify(data)}`
@@ -156,7 +155,7 @@ async function updateMealType(mealTypeId: any, data: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteMealType(mealTypeId: any, userId: any) {
+async function deleteMealType(mealTypeId: any, userId: string) {
   log('info', `deleteMealType in mealType.js: id: ${mealTypeId}`);
   const client = await getClient(userId);
   try {

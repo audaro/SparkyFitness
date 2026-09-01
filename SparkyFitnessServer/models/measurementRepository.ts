@@ -82,10 +82,8 @@ const CHECK_IN_COLUMN_TYPES: Record<string, string> = {
 const WATER_ADOPTION_TOLERANCE_ML = 5;
 
 async function upsertStepData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,10 +121,8 @@ async function upsertStepData(
   }
 }
 async function upsertWaterData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   waterMl: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -214,7 +210,7 @@ async function incrementWaterData(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterIntakeByDate(userId: any, date: any, source = null) {
+async function getWaterIntakeByDate(userId: string, date: any, source = null) {
   const client = await getClient(userId);
   try {
     let query;
@@ -254,7 +250,7 @@ async function getWaterIntakesByDates(userId: string, dates: string[]) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterIntakeEntryById(id: any, userId: any) {
+async function getWaterIntakeEntryById(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -267,7 +263,7 @@ async function getWaterIntakeEntryById(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterIntakeEntryOwnerId(id: any, userId: any) {
+async function getWaterIntakeEntryOwnerId(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const entryResult = await client.query(
@@ -283,10 +279,8 @@ async function getWaterIntakeEntryOwnerId(id: any, userId: any) {
 async function updateWaterIntake(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -316,7 +310,7 @@ async function updateWaterIntake(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWaterIntake(id: any, userId: any) {
+async function deleteWaterIntake(id: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -329,10 +323,8 @@ async function deleteWaterIntake(id: any, userId: any) {
   }
 }
 async function upsertCheckInMeasurements(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -420,10 +412,8 @@ async function upsertCheckInMeasurements(
  * upsertCheckInMeasurements).
  */
 async function bulkUpsertCheckInMeasurements(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entries: Array<{ entryDate: string; measurements: any }>
 ) {
@@ -558,7 +548,7 @@ async function bulkUpsertCheckInMeasurements(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCheckInMeasurementsByDate(userId: any, date: any) {
+async function getCheckInMeasurementsByDate(userId: string, date: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -572,8 +562,7 @@ async function getCheckInMeasurementsByDate(userId: any, date: any) {
 }
 
 async function getLatestCheckInMeasurementsOnOrBeforeDate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   date: any
 ) {
@@ -630,8 +619,7 @@ async function getLatestCheckInMeasurementsOnOrBeforeDate(
  * key is user+category+date+source), so we apply a deterministic "latest write wins" rule.
  */
 async function getExternalBmrForDate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   date: any
 ): Promise<number | null> {
@@ -658,10 +646,8 @@ async function getExternalBmrForDate(
   }
 }
 async function updateCheckInMeasurements(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -718,7 +704,7 @@ async function updateCheckInMeasurements(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteCheckInMeasurements(id: any, userId: any) {
+async function deleteCheckInMeasurements(id: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -730,8 +716,7 @@ async function deleteCheckInMeasurements(id: any, userId: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCustomCategories(userId: any) {
+async function getCustomCategories(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -769,10 +754,8 @@ async function createCustomCategory(categoryData: any) {
 async function updateCustomCategory(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -806,7 +789,7 @@ async function updateCustomCategory(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteCustomCategory(id: any, userId: any) {
+async function deleteCustomCategory(id: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -819,7 +802,7 @@ async function deleteCustomCategory(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCustomCategoryOwnerId(id: any, userId: any) {
+async function getCustomCategoryOwnerId(id: any, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -833,8 +816,7 @@ async function getCustomCategoryOwnerId(id: any, userId: any) {
 }
 
 async function getCustomMeasurementEntries(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   limit: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -858,7 +840,7 @@ async function getCustomMeasurementEntries(
       JOIN custom_categories cc ON cm.category_id = cc.id
       WHERE cm.user_id = $1 AND cm.value IS NOT NULL
     `;
-    const queryParams = [userId];
+    const queryParams: unknown[] = [userId];
     let paramIndex = 2;
     // RLS will handle filtering by user_id, but we keep it here for explicit filtering
     // in case RLS is disabled or for clarity.
@@ -906,7 +888,7 @@ async function getCustomMeasurementEntries(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCustomMeasurementEntriesByDate(userId: any, date: any) {
+async function getCustomMeasurementEntriesByDate(userId: string, date: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -931,8 +913,7 @@ async function getCustomMeasurementEntriesByDate(userId: any, date: any) {
 }
 
 async function getCheckInMeasurementsByDateRange(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -958,15 +939,16 @@ async function getCheckInMeasurementsByDateRange(
   }
 }
 async function getCustomMeasurementsByDateRange(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   categoryId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   endDate: any,
-  source = null
+  // Restricts the read to one ingest source (e.g. 'withings'); null reads every
+  // source, which is what the diary and report callers want.
+  source: string | null = null
 ) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -1350,7 +1332,7 @@ async function bulkUpsertCustomMeasurements(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteCustomMeasurement(id: any, userId: any) {
+async function deleteCustomMeasurement(id: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -1478,8 +1460,7 @@ async function getExternalBmrByDateRange(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getLatestMeasurement(userId: any) {
+async function getLatestMeasurement(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -1508,7 +1489,7 @@ async function getLatestMeasurement(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCustomMeasurementOwnerId(id: any, userId: any) {
+async function getCustomMeasurementOwnerId(id: any, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -1521,7 +1502,7 @@ async function getCustomMeasurementOwnerId(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMostRecentMeasurement(userId: any, measurementType: any) {
+async function getMostRecentMeasurement(userId: string, measurementType: any) {
   // SECURITY: Whitelist allowed measurement columns to prevent SQL injection via dynamic column names
   if (!ALLOWED_CHECK_IN_COLUMNS.includes(measurementType)) {
     throw new Error(`Invalid measurement type requested: ${measurementType}`);

@@ -12,8 +12,7 @@ async function getExercisePresetEntryByIdWithClient(
   client: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any
+  userId: string
 ) {
   const result = await client.query(
     `${PRESET_ENTRY_SELECT}
@@ -25,12 +24,10 @@ async function getExercisePresetEntryByIdWithClient(
 async function createExercisePresetEntryWithClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryData: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any
+  createdByUserId: string
 ) {
   const result = await client.query(
     `INSERT INTO exercise_preset_entries (user_id, workout_preset_id, name, description, entry_date, created_by_user_id, notes, source)
@@ -54,12 +51,10 @@ async function createExercisePresetEntryWithClient(
 }
 
 async function createExercisePresetEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryData: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any
+  createdByUserId: string
 ) {
   const client = await getClient(userId);
   try {
@@ -81,7 +76,7 @@ async function createExercisePresetEntry(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExercisePresetEntryById(id: any, userId: any) {
+async function getExercisePresetEntryById(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     return getExercisePresetEntryByIdWithClient(client, id, userId);
@@ -90,7 +85,7 @@ async function getExercisePresetEntryById(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExercisePresetEntriesByDate(userId: any, entryDate: any) {
+async function getExercisePresetEntriesByDate(userId: string, entryDate: any) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -109,8 +104,7 @@ async function updateExercisePresetEntryWithClient(
   client: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -174,8 +168,7 @@ async function updateExercisePresetEntryWithClient(
 async function updateExercisePresetEntry(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -199,7 +192,7 @@ async function updateExercisePresetEntry(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExercisePresetEntry(id: any, userId: any) {
+async function deleteExercisePresetEntry(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     await client.query('BEGIN');

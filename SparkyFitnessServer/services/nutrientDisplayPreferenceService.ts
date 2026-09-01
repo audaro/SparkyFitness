@@ -118,7 +118,7 @@ async function addNutrientToSpecificViews(
  * Removes a nutrient from all display preferences for a user.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function removeNutrientFromAllViews(userId: any, nutrientName: any) {
+async function removeNutrientFromAllViews(userId: string, nutrientName: any) {
   log(
     'info',
     `removeNutrientFromAllViews: Removing nutrient ${nutrientName} for user ${userId}`
@@ -150,8 +150,7 @@ async function removeNutrientFromAllViews(userId: any, nutrientName: any) {
     }
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getAllNutrients(userId: any) {
+async function getAllNutrients(userId: string) {
   const customNutrients =
     await customNutrientService.getCustomNutrients(userId);
   const customNutrientNames = customNutrients
@@ -233,8 +232,7 @@ const defaultPreferences = [
     visible_nutrients: predefinedNutrients,
   },
 ];
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getNutrientDisplayPreferences(userId: any) {
+async function getNutrientDisplayPreferences(userId: string) {
   const userPreferencesRaw =
     await nutrientDisplayPreferenceRepository.getNutrientDisplayPreferences(
       userId
@@ -305,8 +303,7 @@ async function getNutrientDisplayPreferences(userId: any) {
   return completePreferences;
 }
 async function upsertNutrientDisplayPreference(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   viewGroup: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -323,8 +320,7 @@ async function upsertNutrientDisplayPreference(
 }
 
 async function resetNutrientDisplayPreference(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   viewGroup: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -351,8 +347,7 @@ async function resetNutrientDisplayPreference(
     );
   return newDefaultPreference;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createDefaultNutrientPreferencesForUser(userId: any) {
+async function createDefaultNutrientPreferencesForUser(userId: string) {
   const allNutrientsDynamic = await getAllNutrients(userId);
   const dynamicDefaultPreferences = JSON.parse(
     JSON.stringify(defaultPreferences)

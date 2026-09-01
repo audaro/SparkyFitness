@@ -98,8 +98,7 @@ async function requestWithingsToken(params: Record<string, string>) {
   );
 }
 // Function to construct the Withings authorization URL
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getAuthorizationUrl(userId: any) {
+async function getAuthorizationUrl(userId: string) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
@@ -136,8 +135,7 @@ async function getAuthorizationUrl(userId: any) {
 }
 // Function to exchange authorization code for access and refresh tokens
 async function exchangeCodeForTokens(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   code: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -277,8 +275,7 @@ async function exchangeCodeForTokens(
   }
 }
 // Function to refresh an expired access token
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function refreshAccessToken(userId: any) {
+async function refreshAccessToken(userId: string) {
   const client = await getClient(userId);
   try {
     const providerResult = await client.query(
@@ -386,8 +383,7 @@ async function refreshAccessToken(userId: any) {
   }
 }
 // Helper function to get a valid access token (refreshes if expired)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getValidAccessToken(userId: any) {
+async function getValidAccessToken(userId: string) {
   const client = await getClient(userId);
   try {
     const providerResult = await client.query(
@@ -425,7 +421,7 @@ async function getValidAccessToken(userId: any) {
 }
 // Function to fetch measures data (weight, blood pressure, etc.)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchMeasuresData(userId: any, startDate: any, endDate: any) {
+async function fetchMeasuresData(userId: string, startDate: any, endDate: any) {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -481,10 +477,8 @@ async function fetchMeasuresData(userId: any, startDate: any, endDate: any) {
   }
 }
 async function fetchAndProcessMeasuresData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -502,7 +496,7 @@ async function fetchAndProcessMeasuresData(
 }
 // Function to fetch heart data
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchHeartData(userId: any, startDate: any, endDate: any) {
+async function fetchHeartData(userId: string, startDate: any, endDate: any) {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -561,10 +555,8 @@ async function fetchHeartData(userId: any, startDate: any, endDate: any) {
   }
 }
 async function fetchAndProcessHeartData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -582,7 +574,7 @@ async function fetchAndProcessHeartData(
 }
 // Function to fetch sleep data (high-frequency stages)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchSleepData(userId: any, startDate: any, endDate: any) {
+async function fetchSleepData(userId: string, startDate: any, endDate: any) {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -638,10 +630,8 @@ async function fetchSleepData(userId: any, startDate: any, endDate: any) {
   }
 }
 async function fetchAndProcessSleepData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -660,8 +650,7 @@ async function fetchAndProcessSleepData(
 // Function to fetch sleep summary data (action=getsummary)
 
 async function fetchSleepSummaryData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDateYMD: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -729,8 +718,7 @@ async function fetchSleepSummaryData(
 // Function to fetch daily activity data (steps, total calories, etc.)
 
 async function fetchActivityData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDateYMD: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -795,8 +783,7 @@ async function fetchActivityData(
 // Function to fetch workout data
 
 async function fetchWorkoutsData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDateYMD: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -862,10 +849,8 @@ async function fetchWorkoutsData(
   }
 }
 async function fetchAndProcessWorkoutsData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDateYMD: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -882,8 +867,7 @@ async function fetchAndProcessWorkoutsData(
   return workouts;
 }
 // Function to disconnect Withings account
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function disconnectWithings(userId: any) {
+async function disconnectWithings(userId: string) {
   const client = await getClient(userId);
   try {
     const providerResult = await client.query(
@@ -951,8 +935,7 @@ async function disconnectWithings(userId: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getStatus(userId: any) {
+async function getStatus(userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(

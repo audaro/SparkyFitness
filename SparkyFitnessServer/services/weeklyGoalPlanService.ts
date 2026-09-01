@@ -1,7 +1,7 @@
 import weeklyGoalPlanRepository from '../models/weeklyGoalPlanRepository.js';
 import { log } from '../config/logging.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createWeeklyGoalPlan(userId: any, planData: any) {
+async function createWeeklyGoalPlan(userId: string, planData: any) {
   try {
     // Deactivate all other active plans for this user if the new plan is active
     if (planData.is_active) {
@@ -17,8 +17,7 @@ async function createWeeklyGoalPlan(userId: any, planData: any) {
     throw new Error('Failed to create weekly goal plan.', { cause: error });
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWeeklyGoalPlans(userId: any) {
+async function getWeeklyGoalPlans(userId: string) {
   try {
     const plans =
       await weeklyGoalPlanRepository.getWeeklyGoalPlansByUserId(userId);
@@ -29,7 +28,7 @@ async function getWeeklyGoalPlans(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getActiveWeeklyGoalPlan(userId: any, date: any) {
+async function getActiveWeeklyGoalPlan(userId: string, date: any) {
   try {
     const plan = await weeklyGoalPlanRepository.getActiveWeeklyGoalPlan(
       userId,
@@ -47,8 +46,13 @@ async function getActiveWeeklyGoalPlan(userId: any, date: any) {
     });
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateWeeklyGoalPlan(planId: any, userId: any, planData: any) {
+async function updateWeeklyGoalPlan(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  planId: any,
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  planData: any
+) {
   try {
     // Deactivate all other active plans for this user if this plan is being set to active
     if (planData.is_active) {
@@ -69,7 +73,7 @@ async function updateWeeklyGoalPlan(planId: any, userId: any, planData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWeeklyGoalPlan(planId: any, userId: any) {
+async function deleteWeeklyGoalPlan(planId: any, userId: string) {
   try {
     const deletedPlan = await weeklyGoalPlanRepository.deleteWeeklyGoalPlan(
       planId,

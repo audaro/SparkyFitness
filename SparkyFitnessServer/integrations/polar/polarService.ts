@@ -15,8 +15,7 @@ const POLAR_API_BASE_URL = 'https://www.polaraccesslink.com/v3';
  */
 
 async function getAuthorizationUrl(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   redirectUri: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,8 +65,7 @@ async function getAuthorizationUrl(
  * Exchange authorization code for tokens.
  */
 async function exchangeCodeForTokens(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   code: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -248,7 +246,7 @@ async function exchangeCodeForTokens(
  * Lists users who have new data available.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function checkNotifications(userId: any, providerId: any) {
+async function checkNotifications(userId: string, providerId: any) {
   const client = await getSystemClient();
   try {
     const query = providerId
@@ -342,7 +340,7 @@ async function checkNotifications(userId: any, providerId: any) {
  * Get a valid access token and external user ID.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getValidAccessToken(userId: any, providerId: any) {
+async function getValidAccessToken(userId: string, providerId: any) {
   const client = await getClient(userId);
   try {
     const query = providerId
@@ -385,8 +383,7 @@ async function getValidAccessToken(userId: any, providerId: any) {
  */
 
 async function createTransaction(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   externalUserId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -426,8 +423,7 @@ async function createTransaction(
  * Commit a transaction.
  */
 async function commitTransaction(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   externalUserId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -460,8 +456,7 @@ async function commitTransaction(
  */
 
 async function fetchPhysicalInfo(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   externalUserId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -531,7 +526,7 @@ async function fetchPhysicalInfo(
  * Fetch recent Polar Physical Info using List API.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchRecentPhysicalInfo(userId: any, accessToken: any) {
+async function fetchRecentPhysicalInfo(userId: string, accessToken: any) {
   try {
     log(
       'info',
@@ -583,8 +578,7 @@ async function fetchRecentPhysicalInfo(userId: any, accessToken: any) {
  */
 
 async function fetchExercises(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   externalUserId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -597,7 +591,7 @@ async function fetchExercises(
  * Use this for initial sync or manual sync to get data even if no new notification exists.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchRecentExercises(userId: any, accessToken: any) {
+async function fetchRecentExercises(userId: string, accessToken: any) {
   try {
     log(
       'info',
@@ -637,8 +631,7 @@ async function fetchRecentExercises(userId: any, accessToken: any) {
  */
 
 async function fetchDailyActivity(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   externalUserId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -650,7 +643,7 @@ async function fetchDailyActivity(
  * Fetch recent Daily Activity data using List API (last 28 days).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchRecentDailyActivity(userId: any, accessToken: any) {
+async function fetchRecentDailyActivity(userId: string, accessToken: any) {
   try {
     log(
       'info',
@@ -694,8 +687,7 @@ async function fetchRecentDailyActivity(userId: any, accessToken: any) {
  */
 
 async function fetchUserProfile(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   externalUserId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -730,7 +722,7 @@ async function fetchUserProfile(
  * Fetch recent Sleep data using List API (last 28 days).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchRecentSleepData(userId: any, accessToken: any) {
+async function fetchRecentSleepData(userId: string, accessToken: any) {
   try {
     log(
       'info',
@@ -762,7 +754,7 @@ async function fetchRecentSleepData(userId: any, accessToken: any) {
  * Fetch recent Nightly Recharge data using List API (last 28 days).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchRecentNightlyRecharge(userId: any, accessToken: any) {
+async function fetchRecentNightlyRecharge(userId: string, accessToken: any) {
   try {
     log(
       'info',
@@ -797,8 +789,10 @@ async function fetchRecentNightlyRecharge(userId: any, accessToken: any) {
  * Fetch and process Polar data.
  * @deprecated Use services/polarService.js for orchestration and mock data support.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchAndProcessPolarData(userId: any, createdByUserId: any) {
+async function fetchAndProcessPolarData(
+  userId: string,
+  createdByUserId: string
+) {
   log(
     'warn',
     '[polarIntegrationService] fetchAndProcessPolarData is deprecated. Use services/polarService.js instead.'
@@ -830,7 +824,7 @@ async function fetchAndProcessPolarData(userId: any, createdByUserId: any) {
  * Disconnect Polar account.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function disconnectPolar(userId: any, providerId: any) {
+async function disconnectPolar(userId: string, providerId: any) {
   const client = await getClient(userId);
   try {
     const query = providerId
@@ -866,7 +860,7 @@ async function disconnectPolar(userId: any, providerId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getStatus(userId: any, providerId: any) {
+async function getStatus(userId: string, providerId: any) {
   const client = await getClient(userId);
   try {
     const query = providerId

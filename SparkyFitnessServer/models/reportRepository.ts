@@ -7,8 +7,7 @@ import {
   supplementFixedSubquery,
 } from './supplementSql.js';
 async function getNutritionData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,8 +128,7 @@ async function getNutritionData(
   }
 }
 async function getTabularFoodData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -340,8 +338,13 @@ async function getTabularFoodData(
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMeasurementData(userId: any, startDate: any, endDate: any) {
+async function getMeasurementData(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  startDate: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  endDate: any
+) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -354,8 +357,7 @@ async function getMeasurementData(userId: any, startDate: any, endDate: any) {
   }
 }
 async function getCustomMeasurementsData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   categoryId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -392,8 +394,7 @@ async function getCustomMeasurementsData(
   }
 }
 async function getMiniNutritionTrends(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -512,8 +513,7 @@ async function getMiniNutritionTrends(
   }
 }
 async function getExerciseEntries(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -584,7 +584,7 @@ async function getExerciseEntries(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseNames(userId: any, muscle: any, equipment: any) {
+async function getExerciseNames(userId: string, muscle: any, equipment: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     // Exclude synced device calorie summaries (e.g. Apple Health "Active

@@ -303,10 +303,8 @@ const WITHINGS_METRIC_MAPPING = {
   },
 };
 async function processWithingsMeasures(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   measuregrps: any,
   timezone = 'UTC'
@@ -395,10 +393,8 @@ async function processWithingsMeasures(
   }
 }
 async function processWithingsHeartData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   heartSeries = [],
   timezone = 'UTC'
 ) {
@@ -518,10 +514,8 @@ async function processWithingsHeartData(
   }
 }
 async function processWithingsSleepData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   sleepSeries = [],
   sleepSummary = [],
   timezone = 'UTC'
@@ -757,10 +751,8 @@ async function processWithingsSleepData(
   }
 }
 async function upsertCustomMeasurementLogic(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customMeasurement: any,
   source = 'manual'
@@ -811,10 +803,8 @@ async function upsertCustomMeasurementLogic(
   );
 }
 async function processWithingsActivity(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   activities = []
 ) {
   if (!Array.isArray(activities) || activities.length === 0) {
@@ -882,10 +872,8 @@ async function processWithingsActivity(
 }
 
 async function processWithingsWorkouts(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   workouts = []
 ) {
   if (!Array.isArray(workouts) || workouts.length === 0) {

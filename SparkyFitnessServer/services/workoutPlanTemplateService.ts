@@ -4,7 +4,7 @@ import exerciseRepository from '../models/exerciseRepository.js';
 import { log } from '../config/logging.js';
 import { resolveTemplateStartDay } from '../utils/timezoneLoader.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createWorkoutPlanTemplate(userId: any, planData: any) {
+async function createWorkoutPlanTemplate(userId: string, planData: any) {
   log(
     'info',
     'createWorkoutPlanTemplate service - received planData:',
@@ -81,12 +81,11 @@ async function createWorkoutPlanTemplate(userId: any, planData: any) {
     });
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPlanTemplatesByUserId(userId: any) {
+async function getWorkoutPlanTemplatesByUserId(userId: string) {
   return workoutPlanTemplateRepository.getWorkoutPlanTemplatesByUserId(userId);
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPlanTemplateById(userId: any, templateId: any) {
+async function getWorkoutPlanTemplateById(userId: string, templateId: any) {
   const template =
     await workoutPlanTemplateRepository.getWorkoutPlanTemplateById(
       templateId,
@@ -109,8 +108,7 @@ async function getWorkoutPlanTemplateById(userId: any, templateId: any) {
 }
 
 async function updateWorkoutPlanTemplate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   templateId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -214,7 +212,7 @@ async function updateWorkoutPlanTemplate(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWorkoutPlanTemplate(userId: any, templateId: any) {
+async function deleteWorkoutPlanTemplate(userId: string, templateId: any) {
   log(
     'info',
     `deleteWorkoutPlanTemplate service - received templateId: ${templateId} for user: ${userId}`
@@ -266,7 +264,7 @@ async function deleteWorkoutPlanTemplate(userId: any, templateId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getActiveWorkoutPlanForDate(userId: any, date: any) {
+async function getActiveWorkoutPlanForDate(userId: string, date: any) {
   return workoutPlanTemplateRepository.getActiveWorkoutPlanForDate(
     userId,
     date

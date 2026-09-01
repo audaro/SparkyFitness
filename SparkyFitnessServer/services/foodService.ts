@@ -4,16 +4,13 @@ import foodEntryService from './foodEntryService.js';
 import externalProviderService from './externalProviderService.js';
 // This file now acts as a barrel, exporting all the functions from the new service modules.
 // This maintains the existing API for other parts of the application while allowing for a more modular internal structure.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFoodDataProviders(userId: any) {
+async function getFoodDataProviders(userId: string) {
   return externalProviderService.getExternalDataProviders(userId);
 }
 
 async function getFoodDataProvidersForUser(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any
+  authenticatedUserId: string,
+  targetUserId: string
 ) {
   return externalProviderService.getExternalDataProvidersForUser(
     authenticatedUserId,
@@ -22,8 +19,7 @@ async function getFoodDataProvidersForUser(
 }
 
 async function createFoodDataProvider(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerData: any
 ) {
@@ -33,8 +29,7 @@ async function createFoodDataProvider(
   );
 }
 async function updateFoodDataProvider(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,8 +43,7 @@ async function updateFoodDataProvider(
 }
 
 async function getFoodDataProviderDetails(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any
 ) {
@@ -60,8 +54,7 @@ async function getFoodDataProviderDetails(
 }
 
 async function deleteFoodDataProvider(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any
 ) {

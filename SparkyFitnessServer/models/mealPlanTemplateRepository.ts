@@ -132,8 +132,7 @@ async function createMealPlanTemplate(planData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMealPlanTemplatesByUserId(userId: any) {
+async function getMealPlanTemplatesByUserId(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const query = `
@@ -150,7 +149,7 @@ async function getMealPlanTemplatesByUserId(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMealPlanTemplateAssignments(templateId: any, userId: any) {
+async function getMealPlanTemplateAssignments(templateId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const query = `
@@ -303,7 +302,7 @@ async function updateMealPlanTemplate(planId: any, planData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteMealPlanTemplate(planId: any, userId: any) {
+async function deleteMealPlanTemplate(planId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     // The assignments table will be cascade deleted due to the foreign key constraint
@@ -324,8 +323,7 @@ async function deleteMealPlanTemplate(planId: any, userId: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deactivateAllMealPlanTemplates(userId: any) {
+async function deactivateAllMealPlanTemplates(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query('UPDATE meal_plan_templates SET is_active = FALSE', []);

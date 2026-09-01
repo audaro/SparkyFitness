@@ -5,6 +5,7 @@ import measurementService from '../services/measurementService.js';
 import sleepAnalyticsService from '../services/sleepAnalyticsService.js';
 import { log } from '../config/logging.js';
 import permissionUtils from '../utils/permissionUtils.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 /**
  * @swagger
@@ -52,7 +53,9 @@ router.get(
   checkPermissionMiddleware('reports'),
   async (req, res, next) => {
     try {
-      const { startDate, endDate, userId } = req.query;
+      const startDate = queryString(req.query.startDate);
+      const endDate = queryString(req.query.endDate);
+      const userId = queryString(req.query.userId);
       if (!startDate || !endDate) {
         return res.status(400).json({
           error: 'Missing required query parameters: startDate and endDate.',
@@ -201,7 +204,9 @@ router.get(
   checkPermissionMiddleware('checkin'),
   async (req, res, next) => {
     try {
-      const { startDate, endDate, userId } = req.query;
+      const startDate = queryString(req.query.startDate);
+      const endDate = queryString(req.query.endDate);
+      const userId = queryString(req.query.userId);
       if (!startDate || !endDate) {
         return res.status(400).json({
           error: 'Missing required query parameters: startDate and endDate.',
@@ -269,7 +274,9 @@ router.get(
   checkPermissionMiddleware('checkin'),
   async (req, res, next) => {
     try {
-      const { startDate, endDate, userId } = req.query;
+      const startDate = queryString(req.query.startDate);
+      const endDate = queryString(req.query.endDate);
+      const userId = queryString(req.query.userId);
       if (!startDate || !endDate) {
         return res.status(400).json({
           error: 'Missing required query parameters: startDate and endDate.',

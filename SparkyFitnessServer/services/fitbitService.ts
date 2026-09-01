@@ -20,8 +20,7 @@ log(
  * @param {string} [customEndDate] - Optional end date (YYYY-MM-DD)
  */
 async function syncFitbitData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   syncType = 'manual',
   customStartDate = null,
   customEndDate = null
@@ -519,10 +518,9 @@ async function syncFitbitData(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getStatus = (userId: any) => fitbitIntegrationService.getStatus(userId);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const disconnectFitbit = (userId: any) =>
+const getStatus = (userId: string) =>
+  fitbitIntegrationService.getStatus(userId);
+const disconnectFitbit = (userId: string) =>
   fitbitIntegrationService.disconnectFitbit(userId);
 export { syncFitbitData };
 export { getStatus };

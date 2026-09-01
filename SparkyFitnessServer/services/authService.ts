@@ -13,8 +13,7 @@ const compareAsync = promisify(bcrypt.compare);
  * Gets consistent user data by ID.
  * Used internally by various app services.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getUser(authenticatedUserId: any) {
+async function getUser(authenticatedUserId: string) {
   try {
     const user = await userRepository.findUserById(authenticatedUserId);
     if (!user) {
@@ -44,7 +43,7 @@ async function findUserIdByEmail(email: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function generateUserApiKey(targetUserId: any, description: any) {
+async function generateUserApiKey(targetUserId: string, description: any) {
   try {
     const newApiKey = uuidv4();
     // @ts-expect-error TS(2339): Property 'generateApiKey' does not exist on type '... Remove this comment to see the full error message
@@ -64,7 +63,7 @@ async function generateUserApiKey(targetUserId: any, description: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteUserApiKey(targetUserId: any, apiKeyId: any) {
+async function deleteUserApiKey(targetUserId: string, apiKeyId: any) {
   try {
     // @ts-expect-error TS(2339): Property 'deleteApiKey' does not exist on type '{ ... Remove this comment to see the full error message
     const success = await userRepository.deleteApiKey(apiKeyId, targetUserId);
@@ -81,8 +80,7 @@ async function deleteUserApiKey(targetUserId: any, apiKeyId: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getAccessibleUsers(authenticatedUserId: any) {
+async function getAccessibleUsers(authenticatedUserId: string) {
   try {
     const users = await userRepository.getAccessibleUsers(authenticatedUserId);
     return users;
@@ -91,8 +89,7 @@ async function getAccessibleUsers(authenticatedUserId: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getUserProfile(targetUserId: any) {
+async function getUserProfile(targetUserId: string) {
   try {
     const profile = await userRepository.getUserProfile(targetUserId);
     return profile;
@@ -106,7 +103,7 @@ async function getUserProfile(targetUserId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateUserProfile(targetUserId: any, profileData: any) {
+async function updateUserProfile(targetUserId: string, profileData: any) {
   try {
     const { full_name, phone_number, date_of_birth, bio, avatar_url, gender } =
       profileData;
@@ -132,8 +129,7 @@ async function updateUserProfile(targetUserId: any, profileData: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getUserApiKeys(targetUserId: any) {
+async function getUserApiKeys(targetUserId: string) {
   try {
     // @ts-expect-error TS(2339): Property 'getUserApiKeys' does not exist on type '... Remove this comment to see the full error message
     const apiKeys = await userRepository.getUserApiKeys(targetUserId);
@@ -147,8 +143,10 @@ async function getUserApiKeys(targetUserId: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function switchUserContext(authenticatedUserId: any, targetUserId: any) {
+async function switchUserContext(
+  authenticatedUserId: string,
+  targetUserId: string
+) {
   try {
     log(
       'info',
@@ -188,8 +186,11 @@ async function switchUserContext(authenticatedUserId: any, targetUserId: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateUserPassword(authenticatedUserId: any, newPassword: any) {
+async function updateUserPassword(
+  authenticatedUserId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  newPassword: any
+) {
   try {
     const saltRounds = 10;
     const hashedPassword = await hashAsync(newPassword, saltRounds);
@@ -258,8 +259,7 @@ async function updateUserEmail(
 }
 
 async function checkFamilyAccess(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ownerUserId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -277,8 +277,7 @@ async function checkFamilyAccess(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFamilyAccessEntries(authenticatedUserId: any) {
+async function getFamilyAccessEntries(authenticatedUserId: string) {
   try {
     const entries =
       await familyAccessRepository.getFamilyAccessEntriesByUserId(
@@ -292,8 +291,7 @@ async function getFamilyAccessEntries(authenticatedUserId: any) {
 }
 
 async function createFamilyAccessEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryData: any
 ) {
@@ -313,8 +311,7 @@ async function createFamilyAccessEntry(
 }
 
 async function updateFamilyAccessEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -337,7 +334,7 @@ async function updateFamilyAccessEntry(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteFamilyAccessEntry(authenticatedUserId: any, id: any) {
+async function deleteFamilyAccessEntry(authenticatedUserId: string, id: any) {
   try {
     const success = await familyAccessRepository.deleteFamilyAccessEntry(
       id,
@@ -351,7 +348,7 @@ async function deleteFamilyAccessEntry(authenticatedUserId: any, id: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateUserFullName(userId: any, fullName: any) {
+async function updateUserFullName(userId: string, fullName: any) {
   try {
     const success = await userRepository.updateUserFullName(userId, fullName);
     return success;
@@ -365,8 +362,7 @@ async function updateUserFullName(userId: any, fullName: any) {
   }
 }
 async function updateUserMfaSettings(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mfaSecret: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -398,7 +394,7 @@ async function updateUserMfaSettings(
  * Used by administrators.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function resetUserMfa(adminUserId: any, targetUserId: any) {
+async function resetUserMfa(adminUserId: any, targetUserId: string) {
   try {
     await userRepository.updateUserMfaSettings(
       targetUserId,
@@ -423,8 +419,9 @@ async function resetUserMfa(adminUserId: any, targetUserId: any) {
 async function logAdminAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adminUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  // Null for a global action with no target user (a server-wide setting
+  // change), which is most of what this records.
+  targetUserId: string | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   actionType: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

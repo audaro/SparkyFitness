@@ -4,7 +4,7 @@ import { log } from '../config/logging.js';
 import format from 'pg-format';
 import { sanitizeGlycemicIndex } from './food.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createFoodVariant(variantData: any, userId: any) {
+async function createFoodVariant(variantData: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -51,7 +51,7 @@ async function createFoodVariant(variantData: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFoodVariantById(id: any, userId: any) {
+async function getFoodVariantById(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -64,7 +64,7 @@ async function getFoodVariantById(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFoodVariantOwnerId(variantId: any, userId: any) {
+async function getFoodVariantOwnerId(variantId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -85,7 +85,7 @@ async function getFoodVariantOwnerId(variantId: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFoodVariantsByFoodId(foodId: any, userId: any) {
+async function getFoodVariantsByFoodId(foodId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -98,7 +98,7 @@ async function getFoodVariantsByFoodId(foodId: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateFoodVariant(id: any, variantData: any, userId: any) {
+async function updateFoodVariant(id: any, variantData: any, userId: string) {
   // For update operations, we need the user_id of the food owner to ensure RLS is applied correctly.
   const client = await getClient(userId); // User-specific operation
   try {
@@ -182,7 +182,7 @@ async function updateFoodVariant(id: any, variantData: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteFoodVariant(id: any, userId: any) {
+async function deleteFoodVariant(id: any, userId: string) {
   // For delete operations, we need the user_id of the food owner to ensure RLS is applied correctly.
   const client = await getClient(userId); // User-specific operation
   try {
@@ -196,7 +196,7 @@ async function deleteFoodVariant(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function bulkCreateFoodVariants(variantsData: any, userId: any) {
+async function bulkCreateFoodVariants(variantsData: any, userId: string) {
   // For bulk create, we need the user_id of the food owner. Assuming all variants belong to the same food.
   const client = await getClient(userId); // User-specific operation
   try {

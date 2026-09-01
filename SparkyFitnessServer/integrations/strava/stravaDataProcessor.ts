@@ -88,8 +88,8 @@ function mapSportTypeToCategory(sportType: string) {
  * @param {string} startDate - Start date of sync range (YYYY-MM-DD) for filtering
  */
 async function processStravaActivities(
-  userId: number,
-  createdByUserId: number,
+  userId: string,
+  createdByUserId: string,
   activities: StravaActivity[] = [],
   detailedActivities: Record<string | number, unknown> = {},
   startDate: string | null = null,
@@ -243,10 +243,8 @@ async function processStravaActivities(
  * @param {Object} athlete - Strava athlete profile object
  */
 async function processStravaAthleteWeight(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   athlete: any,
   timezone = 'UTC'

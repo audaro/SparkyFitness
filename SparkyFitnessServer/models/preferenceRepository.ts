@@ -1,6 +1,6 @@
 import { getClient } from '../db/poolManager.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateUserPreferences(userId: any, preferenceData: any) {
+async function updateUserPreferences(userId: string, preferenceData: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -106,8 +106,7 @@ async function updateUserPreferences(userId: any, preferenceData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteUserPreferences(userId: any) {
+async function deleteUserPreferences(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -119,8 +118,7 @@ async function deleteUserPreferences(userId: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getUserPreferences(userId: any) {
+async function getUserPreferences(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -133,7 +131,7 @@ async function getUserPreferences(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function bootstrapUserTimezoneIfUnset(userId: any, timezone: any) {
+async function bootstrapUserTimezoneIfUnset(userId: string, timezone: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(

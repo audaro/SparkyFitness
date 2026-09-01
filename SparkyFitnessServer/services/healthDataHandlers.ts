@@ -321,10 +321,8 @@ function resolveProvider(source: string | undefined): {
 async function ingestNutritionFoodEntry(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   dataEntry: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   parsedDate: string
 ) {
   const { providerType, fallbackName } = resolveProvider(dataEntry.source);
@@ -411,17 +409,13 @@ async function ingestNutritionFoodEntry(
  * swap in a request-scoped category resolver without touching handlers).
  */
 export interface HealthBatchContext {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any;
+  userId: string;
+  actingUserId: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getSleepContext: () => Promise<{ tz: string; userProfile: any }>;
   processSleepEntry: (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    userId: any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    actingUserId: any,
+    userId: string,
+    actingUserId: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sleepEntryData: any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -429,10 +423,8 @@ export interface HealthBatchContext {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ) => Promise<any>;
   resolveCategory: (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    userId: any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    actingUserId: any,
+    userId: string,
+    actingUserId: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categoryName: any,
     dataType?: string,
@@ -506,8 +498,7 @@ export const HEALTH_TYPE_DISPLAY_NAMES: Record<string, string> = {
 export function createCategoryResolver(): HealthBatchContext['resolveCategory'] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let categoriesByName: Map<string, any> | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const loadCategories = async (userId: any) => {
+  const loadCategories = async (userId: string) => {
     if (!categoriesByName) {
       const existingCategories =
         await measurementRepository.getCustomCategories(userId);
@@ -1121,8 +1112,7 @@ const BUILT_IN_MOOD_NAMES = new Set(
 // existing mood's icon/color with null, so it must only be called for names
 // confirmed to be genuinely new.
 async function ensureCustomMoodsExist(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   tags: string[]
 ): Promise<void> {
   const unknownTags = tags.filter(

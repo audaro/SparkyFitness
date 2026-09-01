@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticate } from '../middleware/authMiddleware.js';
 import reportService from '../services/reportService.js';
 import { canAccessUserData } from '../utils/permissionUtils.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 /**
  * @swagger
@@ -29,7 +30,9 @@ const router = express.Router();
  *         description: Reports data.
  */
 router.get('/', authenticate, async (req, res, next) => {
-  const { userId, startDate, endDate } = req.query;
+  const userId = queryString(req.query.userId);
+  const startDate = queryString(req.query.startDate);
+  const endDate = queryString(req.query.endDate);
 
   const targetUserId = userId || req.userId;
   if (!targetUserId || !startDate || !endDate) {
@@ -97,7 +100,9 @@ router.get('/', authenticate, async (req, res, next) => {
  *         description: Mini nutrition trends.
  */
 router.get('/mini-nutrition-trends', authenticate, async (req, res, next) => {
-  const { userId, startDate, endDate } = req.query;
+  const userId = queryString(req.query.userId);
+  const startDate = queryString(req.query.startDate);
+  const endDate = queryString(req.query.endDate);
 
   const targetUserId = userId || req.userId;
   if (!targetUserId || !startDate || !endDate) {
@@ -167,7 +172,9 @@ router.get(
   '/nutrition-trends-with-goals',
   authenticate,
   async (req, res, next) => {
-    const { userId, startDate, endDate } = req.query;
+    const userId = queryString(req.query.userId);
+    const startDate = queryString(req.query.startDate);
+    const endDate = queryString(req.query.endDate);
 
     const targetUserId = userId || req.userId;
     if (!targetUserId || !startDate || !endDate) {
@@ -244,7 +251,12 @@ router.get(
  *         description: Exercise dashboard data.
  */
 router.get('/exercise-dashboard', authenticate, async (req, res, next) => {
-  const { userId, startDate, endDate, equipment, muscle, exercise } = req.query;
+  const userId = queryString(req.query.userId);
+  const startDate = queryString(req.query.startDate);
+  const endDate = queryString(req.query.endDate);
+  const equipment = queryString(req.query.equipment);
+  const muscle = queryString(req.query.muscle);
+  const exercise = queryString(req.query.exercise);
 
   const targetUserId = userId || req.userId;
   if (!targetUserId || !startDate || !endDate) {

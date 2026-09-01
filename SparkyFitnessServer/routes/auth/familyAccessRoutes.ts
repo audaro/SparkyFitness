@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticate } from '../../middleware/authMiddleware.js';
 import authService from '../../services/authService.js';
 import { log } from '../../config/logging.js';
+import { queryString } from '../../utils/queryParams.js';
 const router = express.Router();
 /**
  * @swagger
@@ -55,7 +56,8 @@ router.get(
   '/access/can-access-user-data',
   authenticate,
   async (req, res, next) => {
-    const { targetUserId, permissionType } = req.query;
+    const targetUserId = queryString(req.query.targetUserId);
+    const permissionType = queryString(req.query.permissionType);
     if (!targetUserId || !permissionType) {
       return res
         .status(400)
@@ -102,7 +104,8 @@ router.get(
   '/access/check-family-access',
   authenticate,
   async (req, res, next) => {
-    const { ownerUserId, permission } = req.query;
+    const ownerUserId = queryString(req.query.ownerUserId);
+    const permission = queryString(req.query.permission);
     if (!ownerUserId || !permission) {
       return res
         .status(400)

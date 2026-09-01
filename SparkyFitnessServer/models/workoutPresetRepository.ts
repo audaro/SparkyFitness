@@ -69,7 +69,7 @@ async function createWorkoutPreset(presetData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPresetByName(userId: any, name: any) {
+async function getWorkoutPresetByName(userId: string, name: any) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -114,8 +114,7 @@ async function getWorkoutPresetByName(userId: any, name: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPresets(userId: any, page = 1, limit = 10) {
+async function getWorkoutPresets(userId: string, page = 1, limit = 10) {
   const client = await getClient(userId); // User-specific operation
   try {
     const offset = (page - 1) * limit;
@@ -174,7 +173,7 @@ async function getWorkoutPresets(userId: any, page = 1, limit = 10) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPresetById(presetId: any, userId: any) {
+async function getWorkoutPresetById(presetId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -222,8 +221,7 @@ async function getWorkoutPresetById(presetId: any, userId: any) {
 async function updateWorkoutPreset(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   presetId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -295,7 +293,7 @@ async function updateWorkoutPreset(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWorkoutPreset(presetId: any, userId: any) {
+async function deleteWorkoutPreset(presetId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query('BEGIN');
@@ -314,7 +312,7 @@ async function deleteWorkoutPreset(presetId: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPresetOwnerId(userId: any, presetId: any) {
+async function getWorkoutPresetOwnerId(userId: string, presetId: any) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -327,8 +325,7 @@ async function getWorkoutPresetOwnerId(userId: any, presetId: any) {
   }
 }
 async function addExerciseToWorkoutPreset(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   workoutPresetId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

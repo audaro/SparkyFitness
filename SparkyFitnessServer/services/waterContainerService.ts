@@ -18,7 +18,7 @@ function convertToMl(volume: any, unit: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createWaterContainer(userId: any, containerData: any) {
+async function createWaterContainer(userId: string, containerData: any) {
   if (!VALID_UNITS.includes(containerData.unit)) {
     throw new Error('Invalid unit provided.');
   }
@@ -34,8 +34,7 @@ async function createWaterContainer(userId: any, containerData: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterContainersByUserId(userId: any) {
+async function getWaterContainersByUserId(userId: string) {
   try {
     return await waterContainerRepository.getWaterContainersByUserId(userId);
   } catch (error) {
@@ -44,7 +43,7 @@ async function getWaterContainersByUserId(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateWaterContainer(id: any, userId: any, updateData: any) {
+async function updateWaterContainer(id: any, userId: string, updateData: any) {
   if (updateData.unit && !VALID_UNITS.includes(updateData.unit)) {
     throw new Error('Invalid unit provided.');
   }
@@ -80,7 +79,7 @@ async function updateWaterContainer(id: any, userId: any, updateData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWaterContainer(id: any, userId: any) {
+async function deleteWaterContainer(id: any, userId: string) {
   try {
     // Add authorization check if needed
     const success = await waterContainerRepository.deleteWaterContainer(
@@ -101,7 +100,7 @@ async function deleteWaterContainer(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function setPrimaryWaterContainer(id: any, userId: any) {
+async function setPrimaryWaterContainer(id: any, userId: string) {
   try {
     // Add authorization check if needed
     return await waterContainerRepository.setPrimaryWaterContainer(id, userId);
@@ -114,8 +113,7 @@ async function setPrimaryWaterContainer(id: any, userId: any) {
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getPrimaryWaterContainerByUserId(userId: any) {
+async function getPrimaryWaterContainerByUserId(userId: string) {
   try {
     return await waterContainerRepository.getPrimaryWaterContainerByUserId(
       userId

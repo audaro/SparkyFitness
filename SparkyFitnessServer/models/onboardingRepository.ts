@@ -8,7 +8,7 @@ import { log } from '../config/logging.js';
  * @returns {Promise<void>}
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function saveOnboardingData(userId: any, data: any) {
+async function saveOnboardingData(userId: string, data: any) {
   const {
     sex,
     primaryGoal,
@@ -71,8 +71,7 @@ async function saveOnboardingData(userId: any, data: any) {
  * @param {string} userId - The UUID of the user.
  * @returns {Promise<object|null>} The database row or null if not found.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getOnboardingStatus(userId: any) {
+async function getOnboardingStatus(userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -92,8 +91,7 @@ async function getOnboardingStatus(userId: any) {
  * @param {string} userId - The UUID of the user.
  * @returns {Promise<void>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function resetOnboardingStatus(userId: any) {
+async function resetOnboardingStatus(userId: string) {
   const client = await getClient(userId);
   try {
     const query = `
@@ -114,8 +112,7 @@ async function resetOnboardingStatus(userId: any) {
  * @param {string} userId - The UUID of the user.
  * @returns {Promise<void>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function setOnboardingSkipped(userId: any) {
+async function setOnboardingSkipped(userId: string) {
   const client = await getClient(userId);
   try {
     const query = `

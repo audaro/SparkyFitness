@@ -7,10 +7,8 @@ import { log } from '../config/logging.js';
 import exerciseRepository from './exercise.js';
 import activityDetailsRepository from './activityDetailsRepository.js';
 async function upsertExerciseEntryData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -348,8 +346,7 @@ async function _updateExerciseEntryWithClient(
   client: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -586,12 +583,10 @@ async function _updateExerciseEntryWithClient(
 async function _createExerciseEntryWithClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryData: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  createdByUserId: string,
   entrySource = 'Manual',
   exercisePresetEntryId: string | null = null,
   options: { skipDuplicateCheck?: boolean } = {}
@@ -770,12 +765,10 @@ async function _createExerciseEntryWithClient(
   }
 }
 async function createExerciseEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryData: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  createdByUserId: string,
   entrySource = 'Manual',
   exercisePresetEntryId: string | null = null,
   options: { skipDuplicateCheck?: boolean } = {}
@@ -807,7 +800,7 @@ async function createExerciseEntry(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseEntryById(id: any, userId: any) {
+async function getExerciseEntryById(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     return _getExerciseEntryByIdWithClient(client, id);
@@ -816,7 +809,7 @@ async function getExerciseEntryById(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseEntryOwnerId(id: any, userId: any) {
+async function getExerciseEntryOwnerId(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const entryResult = await client.query(
@@ -832,10 +825,8 @@ async function getExerciseEntryOwnerId(id: any, userId: any) {
 async function updateExerciseEntry(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -867,8 +858,7 @@ async function updateExerciseEntry(
 async function updateExerciseEntriesDateByPresetEntryIdWithClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   presetEntryId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -919,8 +909,7 @@ async function getWorkoutPlanAssignmentIdByPresetEntryIdWithClient(
 async function deleteExerciseEntriesByPresetEntryIdWithClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   presetEntryId: any
 ) {
@@ -933,8 +922,7 @@ async function deleteExerciseEntriesByPresetEntryIdWithClient(
 async function _deleteExerciseEntryWithClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any
 ) {
@@ -1061,7 +1049,7 @@ async function _reconcileExerciseEntrySetsWithClient(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExerciseEntry(id: any, userId: any) {
+async function deleteExerciseEntry(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -1074,7 +1062,7 @@ async function deleteExerciseEntry(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseEntriesByDate(userId: any, selectedDate: any) {
+async function getExerciseEntriesByDate(userId: string, selectedDate: any) {
   const client = await getClient(userId);
   try {
     // 1. Fetch all exercise preset entries for the given date and user
@@ -1268,8 +1256,7 @@ async function getExerciseEntriesByDate(userId: any, selectedDate: any) {
  * GPS/lap rows while every summary column on the entry itself stays null.
  */
 async function getExerciseProgressData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1332,7 +1319,7 @@ async function getExerciseProgressData(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseHistory(userId: any, exerciseId: any, limit = 5) {
+async function getExerciseHistory(userId: string, exerciseId: any, limit = 5) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -1366,8 +1353,7 @@ async function getExerciseHistory(userId: any, exerciseId: any, limit = 5) {
   }
 }
 async function getBestSetForExercise(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   excludePresetEntryId: string | null = null
@@ -1398,8 +1384,7 @@ async function getBestSetForExercise(
   }
 }
 async function getLastSetForExercise(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   excludePresetEntryId: string | null = null

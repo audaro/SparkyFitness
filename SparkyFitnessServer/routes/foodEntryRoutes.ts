@@ -14,6 +14,7 @@ import {
   removeOrphanedImages,
   stagedFilesFrom,
 } from '../middleware/imageUpload.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 
 router.use(express.json());
@@ -777,7 +778,8 @@ router.get(
   authenticate,
   checkPermissionMiddleware('diary'), // Add permission check
   async (req, res, next) => {
-    const { selectedDate, userId } = req.query; // accepted userId from query
+    const selectedDate = queryString(req.query.selectedDate); // accepted userId from query
+    const userId = queryString(req.query.userId);
     if (!selectedDate) {
       return res.status(400).json({ error: 'Selected date is required.' });
     }
@@ -847,7 +849,7 @@ router.get(
   checkPermissionMiddleware('diary'), // Add permission check
   async (req, res, next) => {
     const { date } = req.params;
-    const { userId } = req.query; // check query param
+    const userId = queryString(req.query.userId); // check query param
     if (!date) {
       return res.status(400).json({ error: 'Date is required.' });
     }
@@ -982,7 +984,7 @@ router.get(
   authenticate,
   checkPermissionMiddleware('diary'), // Add permission check
   async (req, res, next) => {
-    const { date } = req.query;
+    const date = queryString(req.query.date);
     if (!date) {
       return res.status(400).json({ error: 'Date is required.' });
     }

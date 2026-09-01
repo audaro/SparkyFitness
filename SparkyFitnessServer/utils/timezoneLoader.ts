@@ -5,8 +5,7 @@ import {
   compareDays,
   todayInZone,
 } from '@workspace/shared';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loadUserTimezone(userId: any) {
+async function loadUserTimezone(userId: string) {
   try {
     const prefs = await getUserPreferences(userId);
     const tz = prefs?.timezone;
@@ -26,8 +25,7 @@ async function loadUserTimezone(userId: any) {
  * entries.
  */
 async function resolveTemplateStartDay(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   clientDate?: string | null
 ) {
   const tz = await loadUserTimezone(userId);

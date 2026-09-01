@@ -6,8 +6,7 @@ import { todayInZone, addDays } from '@workspace/shared';
  * @param {number} days - Number of days to look back
  * @returns {Promise<Array>} Sleep entries with timestamps and durations
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getSleepHistory(userId: any, days = 90, timezone = 'UTC') {
+async function getSleepHistory(userId: string, days = 90, timezone = 'UTC') {
   const client = await getClient(userId);
   try {
     const cutoffDate = addDays(todayInZone(timezone), -days);
@@ -53,8 +52,7 @@ async function getSleepHistory(userId: any, days = 90, timezone = 'UTC') {
  * @param {string} userId
  * @returns {Promise<Object|null>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getSleepProfile(userId: any) {
+async function getSleepProfile(userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -82,7 +80,7 @@ async function getSleepProfile(userId: any) {
  * @param {Object} params
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateBaselineSleepNeed(userId: any, params: any) {
+async function updateBaselineSleepNeed(userId: string, params: any) {
   const client = await getClient(userId);
   try {
     await client.query(
@@ -116,7 +114,7 @@ async function updateBaselineSleepNeed(userId: any, params: any) {
  * @param {Object} data
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function saveCalculation(userId: any, data: any) {
+async function saveCalculation(userId: string, data: any) {
   const client = await getClient(userId);
   try {
     await client.query(
@@ -155,8 +153,13 @@ async function saveCalculation(userId: any, data: any) {
  * @param {number} dayOfWeek - 0-6 (Sun-Sat)
  * @param {Object} data
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function upsertDayClassification(userId: any, dayOfWeek: any, data: any) {
+async function upsertDayClassification(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dayOfWeek: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any
+) {
   const client = await getClient(userId);
   try {
     await client.query(
@@ -187,8 +190,7 @@ async function upsertDayClassification(userId: any, dayOfWeek: any, data: any) {
  * @param {string} userId
  * @returns {Promise<Array>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getDayClassifications(userId: any) {
+async function getDayClassifications(userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -208,8 +210,7 @@ async function getDayClassifications(userId: any) {
  * @param {string} userId
  * @returns {Promise<Object|null>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMCTQStats(userId: any) {
+async function getMCTQStats(userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -226,8 +227,7 @@ async function getMCTQStats(userId: any) {
  * @param {string} userId
  * @returns {Promise<Object|null>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getLatestCalculation(userId: any) {
+async function getLatestCalculation(userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -248,8 +248,13 @@ async function getLatestCalculation(userId: any) {
  * @param {string} targetDate
  * @param {Object} breakdown
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function upsertDailyNeed(userId: any, targetDate: any, breakdown: any) {
+async function upsertDailyNeed(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  targetDate: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  breakdown: any
+) {
   const client = await getClient(userId);
   try {
     await client.query(
@@ -294,7 +299,7 @@ async function upsertDailyNeed(userId: any, targetDate: any, breakdown: any) {
  * @returns {Promise<Object|null>}
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getDailyNeed(userId: any, targetDate: any) {
+async function getDailyNeed(userId: string, targetDate: any) {
   const client = await getClient(userId);
   try {
     const result = await client.query(

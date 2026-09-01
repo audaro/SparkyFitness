@@ -1,8 +1,7 @@
 import { getClient, getSystemClient } from '../db/poolManager.js';
 import { encrypt, decrypt, ENCRYPTION_KEY } from '../security/encryption.js';
 import { log } from '../config/logging.js';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExternalDataProviders(userId: any) {
+async function getExternalDataProviders(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -67,8 +66,7 @@ async function getExternalDataProviders(userId: any) {
 async function getExternalDataProvidersByUserId(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   viewerUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any
+  targetUserId: string
 ) {
   // Use a user-scoped client so RLS policies (based on app.user_id) are applied for the viewer
   const client = await getClient(viewerUserId);
@@ -257,8 +255,7 @@ async function createExternalDataProvider(providerData: any) {
 async function updateExternalDataProvider(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -440,8 +437,7 @@ async function getExternalDataProviderById(providerId: any) {
   }
 }
 async function getExternalDataProviderByUserIdAndProviderName(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerName: any
 ) {
@@ -547,8 +543,7 @@ async function getExternalDataProviderByUserIdAndProviderName(
 async function checkExternalDataProviderAccess(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any
+  userId: string
 ) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -570,8 +565,7 @@ async function checkExternalDataProviderAccess(
 async function checkExternalDataProviderOwnership(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any
+  userId: string
 ) {
   const client = await getClient(userId); // User-specific operation
   try {
@@ -586,7 +580,7 @@ async function checkExternalDataProviderOwnership(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExternalDataProvider(id: any, userId: any) {
+async function deleteExternalDataProvider(id: any, userId: string) {
   // Use a user-scoped client so RLS will prevent unauthorized deletions
   const client = await getClient(userId);
   try {

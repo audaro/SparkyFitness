@@ -1,6 +1,6 @@
 import { getClient } from '../db/poolManager.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createWaterContainer(userId: any, containerData: any) {
+async function createWaterContainer(userId: string, containerData: any) {
   const { name, volume, unit, is_primary, servings_per_container } =
     containerData;
   const client = await getClient(userId); // User-specific operation
@@ -27,8 +27,7 @@ async function createWaterContainer(userId: any, containerData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterContainersByUserId(userId: any) {
+async function getWaterContainersByUserId(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -41,7 +40,7 @@ async function getWaterContainersByUserId(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateWaterContainer(id: any, userId: any, updateData: any) {
+async function updateWaterContainer(id: any, userId: string, updateData: any) {
   const { name, volume, unit, is_primary, servings_per_container } = updateData;
   const client = await getClient(userId); // User-specific operation
   try {
@@ -77,7 +76,7 @@ async function updateWaterContainer(id: any, userId: any, updateData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWaterContainer(id: any, userId: any) {
+async function deleteWaterContainer(id: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -90,7 +89,7 @@ async function deleteWaterContainer(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function setPrimaryWaterContainer(id: any, userId: any) {
+async function setPrimaryWaterContainer(id: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query('BEGIN');
@@ -115,8 +114,7 @@ async function setPrimaryWaterContainer(id: any, userId: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getPrimaryWaterContainerByUserId(userId: any) {
+async function getPrimaryWaterContainerByUserId(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -129,7 +127,7 @@ async function getPrimaryWaterContainerByUserId(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterContainerById(id: any, userId: any) {
+async function getWaterContainerById(id: any, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(

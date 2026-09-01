@@ -17,6 +17,7 @@ import gymEquipmentProfileRepository from '../models/gymEquipmentProfileReposito
 import { log } from '../config/logging.js';
 
 import { fileURLToPath } from 'url';
+import { queryString } from '../utils/queryParams.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -630,10 +631,6 @@ router.get('/search', authenticate, async (req, res, next) => {
  *       500:
  *         description: Server error.
  */
-function queryString(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
 router.get('/search-external', authenticate, async (req, res, next) => {
   const query = queryString(req.query.query);
   const providerId = queryString(req.query.providerId);

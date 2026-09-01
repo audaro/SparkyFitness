@@ -31,8 +31,7 @@ async function createWeeklyGoalPlan(planData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWeeklyGoalPlansByUserId(userId: any) {
+async function getWeeklyGoalPlansByUserId(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -45,7 +44,7 @@ async function getWeeklyGoalPlansByUserId(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getActiveWeeklyGoalPlan(userId: any, date: any) {
+async function getActiveWeeklyGoalPlan(userId: string, date: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -95,8 +94,7 @@ async function updateWeeklyGoalPlan(planId: any, planData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deactivateAllWeeklyGoalPlans(userId: any) {
+async function deactivateAllWeeklyGoalPlans(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query(
@@ -109,7 +107,7 @@ async function deactivateAllWeeklyGoalPlans(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWeeklyGoalPlan(planId: any, userId: any) {
+async function deleteWeeklyGoalPlan(planId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(

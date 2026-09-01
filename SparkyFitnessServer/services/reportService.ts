@@ -112,10 +112,8 @@ interface ExercisePerformance {
 }
 
 async function getReportsData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -387,10 +385,8 @@ async function getReportsData(
   }
 }
 async function getMiniNutritionTrends(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -457,10 +453,8 @@ async function getMiniNutritionTrends(
   }
 }
 async function getNutritionTrendsWithGoals(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -741,10 +735,8 @@ function calculateSetPerformance(exerciseEntries: WorkoutEntry[]) {
   return setPerformance;
 }
 async function getExerciseDashboardData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

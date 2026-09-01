@@ -5,8 +5,7 @@ import mealRepository from '../models/mealRepository.js';
 // Unified favorites across foods and meals. Foods and meals are returned as two
 // arrays (each item carries a `favorited_at`) so the client can render them with
 // their existing row components and interleave them into one recency-ordered list.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFavorites(authenticatedUserId: any) {
+async function getFavorites(authenticatedUserId: string) {
   const [favoriteFoods, favoriteMeals] = await Promise.all([
     foodRepository.getFavoriteFoods(authenticatedUserId),
     mealRepository.getFavoriteMeals(authenticatedUserId),
@@ -15,8 +14,7 @@ async function getFavorites(authenticatedUserId: any) {
 }
 
 async function addFavorite(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,8 +39,7 @@ async function addFavorite(
 }
 
 async function removeFavorite(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

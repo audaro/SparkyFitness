@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/authMiddleware.js';
 import checkPermissionMiddleware from '../middleware/checkPermissionMiddleware.js';
 import { loadUserTimezone } from '../utils/timezoneLoader.js';
 import { todayInZone } from '@workspace/shared';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 /**
  * @swagger
@@ -36,9 +37,10 @@ router.get(
   checkPermissionMiddleware('reports'),
   async (req, res, next) => {
     try {
+      const requestedUserId = queryString(req.query.targetUserId);
       const targetUserId =
-        req.query.targetUserId && req.query.targetUserId !== 'undefined'
-          ? req.query.targetUserId
+        requestedUserId && requestedUserId !== 'undefined'
+          ? requestedUserId
           : req.userId;
       const data = await sleepScienceService.calculateSleepDebt(targetUserId);
       res.status(200).json(data);
@@ -113,9 +115,10 @@ router.get(
   checkPermissionMiddleware('reports'),
   async (req, res, next) => {
     try {
+      const requestedUserId = queryString(req.query.targetUserId);
       const targetUserId =
-        req.query.targetUserId && req.query.targetUserId !== 'undefined'
-          ? req.query.targetUserId
+        requestedUserId && requestedUserId !== 'undefined'
+          ? requestedUserId
           : req.userId;
       const data = await sleepScienceService.getMCTQStats(targetUserId);
       res.status(200).json(data);
@@ -154,12 +157,13 @@ router.get(
   checkPermissionMiddleware('reports'),
   async (req, res, next) => {
     try {
+      const requestedUserId = queryString(req.query.targetUserId);
       const targetUserId =
-        req.query.targetUserId && req.query.targetUserId !== 'undefined'
-          ? req.query.targetUserId
+        requestedUserId && requestedUserId !== 'undefined'
+          ? requestedUserId
           : req.userId;
       const tz = await loadUserTimezone(targetUserId);
-      const date = req.query.date || todayInZone(tz);
+      const date = queryString(req.query.date) || todayInZone(tz);
       const data = await sleepScienceService.getDailyNeed(targetUserId, date);
       res.status(200).json(data);
     } catch (error) {
@@ -191,9 +195,10 @@ router.get(
   checkPermissionMiddleware('reports'),
   async (req, res, next) => {
     try {
+      const requestedUserId = queryString(req.query.targetUserId);
       const targetUserId =
-        req.query.targetUserId && req.query.targetUserId !== 'undefined'
-          ? req.query.targetUserId
+        requestedUserId && requestedUserId !== 'undefined'
+          ? requestedUserId
           : req.userId;
       const data = await sleepScienceService.getEnergyCurve(targetUserId);
       res.status(200).json(data);
@@ -226,9 +231,10 @@ router.get(
   checkPermissionMiddleware('reports'),
   async (req, res, next) => {
     try {
+      const requestedUserId = queryString(req.query.targetUserId);
       const targetUserId =
-        req.query.targetUserId && req.query.targetUserId !== 'undefined'
-          ? req.query.targetUserId
+        requestedUserId && requestedUserId !== 'undefined'
+          ? requestedUserId
           : req.userId;
       const data = await sleepScienceService.getChronotype(targetUserId);
       res.status(200).json(data);
@@ -261,9 +267,10 @@ router.get(
   checkPermissionMiddleware('reports'),
   async (req, res, next) => {
     try {
+      const requestedUserId = queryString(req.query.targetUserId);
       const targetUserId =
-        req.query.targetUserId && req.query.targetUserId !== 'undefined'
-          ? req.query.targetUserId
+        requestedUserId && requestedUserId !== 'undefined'
+          ? requestedUserId
           : req.userId;
       const data = await sleepScienceService.checkDataSufficiency(targetUserId);
       res.status(200).json(data);

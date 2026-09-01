@@ -1,11 +1,9 @@
 import { getClient, getSystemClient } from '../db/poolManager.js';
 async function canAccessUserData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   permissionType: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any
+  authenticatedUserId: string
 ) {
   // If accessing own data, always allow
   if (targetUserId === authenticatedUserId) {

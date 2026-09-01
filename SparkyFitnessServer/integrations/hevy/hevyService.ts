@@ -21,7 +21,7 @@ log(
  * @returns {Promise<string>} - The decrypted API key.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getHevyApiKey(userId: any, providerId: any) {
+async function getHevyApiKey(userId: string, providerId: any) {
   const client = await getSystemClient();
   try {
     let query = `SELECT encrypted_app_key, app_key_iv, app_key_tag
@@ -58,8 +58,7 @@ async function getHevyApiKey(userId: any, providerId: any) {
  * @param {string} userId
  * @returns {Promise<string>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getHevyProviderId(userId: any) {
+async function getHevyProviderId(userId: string) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
@@ -82,7 +81,7 @@ async function getHevyProviderId(userId: any) {
  * @returns {Promise<Object>} - The Hevy user info.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getUserInfo(userId: any, providerId: any) {
+async function getUserInfo(userId: string, providerId: any) {
   const apiKey = await getHevyApiKey(userId, providerId);
   try {
     const response = await axios.get(`${HEVY_API_BASE_URL}/v1/user/info`, {
@@ -108,8 +107,7 @@ async function getUserInfo(userId: any, providerId: any) {
  */
 
 async function getWorkouts(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   page = 1,
   pageSize = 10,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -140,8 +138,7 @@ async function getWorkouts(
  * @returns {Promise<Object>} - The paginated exercise templates.
  */
 async function getExerciseTemplates(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   page = 1,
   pageSize = 10,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -178,10 +175,8 @@ async function getExerciseTemplates(
  * @returns {Promise<Object>} - The result of the synchronization.
  */
 async function syncHevyData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   fullSync = false,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any,
@@ -382,8 +377,7 @@ async function syncHevyData(
  * @param {string} userId - The Sparky Fitness user ID.
  * @returns {Promise<Object>} - The status info.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getStatus(userId: any) {
+async function getStatus(userId: string) {
   const client = await getSystemClient();
   try {
     const result = await client.query(

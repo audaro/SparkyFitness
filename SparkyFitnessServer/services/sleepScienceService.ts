@@ -127,8 +127,7 @@ function getTST(entry: any) {
 // ==========================================
 // SLEEP DEBT CALCULATION
 // ==========================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function calculateSleepDebt(userId: any) {
+async function calculateSleepDebt(userId: string) {
   log('info', `Calculating sleep debt for user ${userId}`);
   const tz = await loadUserTimezone(userId);
   const profile = await sleepScienceRepository.getSleepProfile(userId);
@@ -239,8 +238,7 @@ function classifyDaysAutomatically(history: any, timezone = 'UTC') {
 }
 
 async function calculateBaseline(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   windowDays = 90,
   timezone = 'UTC'
 ) {
@@ -481,8 +479,7 @@ function getDayOfWeekStats(
 // ==========================================
 // MCTQ STATS
 // ==========================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMCTQStats(userId: any) {
+async function getMCTQStats(userId: string) {
   log('info', `Getting MCTQ stats for user ${userId}`);
   const profile = await sleepScienceRepository.getSleepProfile(userId);
   const latestCalc = await sleepScienceRepository.getLatestCalculation(userId);
@@ -523,7 +520,7 @@ async function getMCTQStats(userId: any) {
 // DAILY NEED (WHOOP-style decomposition)
 // ==========================================
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getDailyNeed(userId: any, targetDate: any) {
+async function getDailyNeed(userId: string, targetDate: any) {
   log(
     'info',
     `Getting daily sleep need for user ${userId}, date=${targetDate}`
@@ -574,8 +571,7 @@ async function getDailyNeed(userId: any, targetDate: any) {
 // ==========================================
 // ENERGY CURVE (Two-Process Model)
 // ==========================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getEnergyCurve(userId: any) {
+async function getEnergyCurve(userId: string) {
   log('info', `Generating energy curve for user ${userId}`);
   const tz = await loadUserTimezone(userId);
   const history = await sleepScienceRepository.getSleepHistory(userId, 14, tz);
@@ -735,8 +731,7 @@ async function getEnergyCurve(userId: any) {
 // ==========================================
 // CHRONOTYPE
 // ==========================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getChronotype(userId: any) {
+async function getChronotype(userId: string) {
   log('info', `Getting chronotype for user ${userId}`);
   const tz = await loadUserTimezone(userId);
   const history = await sleepScienceRepository.getSleepHistory(userId, 30, tz);
@@ -812,8 +807,7 @@ async function getChronotype(userId: any) {
 // ==========================================
 // DATA SUFFICIENCY CHECK
 // ==========================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function checkDataSufficiency(userId: any) {
+async function checkDataSufficiency(userId: string) {
   log('info', `Checking data sufficiency for user ${userId}`);
   const tz = await loadUserTimezone(userId);
   const history = await sleepScienceRepository.getSleepHistory(userId, 90, tz);

@@ -10,8 +10,7 @@ const isValidUuid = (uuid: any) => {
 async function resolveExerciseIdToUuid(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any
+  userId: string
 ) {
   if (isValidUuid(exerciseId)) {
     return exerciseId;

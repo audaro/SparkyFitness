@@ -19,6 +19,7 @@ import {
 } from '../schemas/measurementSchemas.js';
 import { canAccessUserData } from '../utils/permissionUtils.js';
 import { clearUserTdeeCache } from '../services/AdaptiveTdeeService.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 /**
  * @swagger
@@ -289,7 +290,7 @@ router.get(
       });
     }
     const { date } = paramResult.data;
-    const { userId } = req.query;
+    const userId = queryString(req.query.userId);
 
     const targetUserId = userId || req.userId;
     // Permission check if explicit userId is provided
@@ -769,7 +770,7 @@ router.get(
       });
     }
     const { date } = paramResult.data;
-    const { userId } = req.query; // Check query param
+    const userId = queryString(req.query.userId); // Check query param
 
     const targetUserId = userId || req.userId;
     // Permission check if explicit userId is provided
@@ -1435,7 +1436,10 @@ router.get(
   authenticate,
   checkPermissionMiddleware('checkin'),
   async (req, res, next) => {
-    const { limit, orderBy, filter, category_id } = req.query; // Extract category_id
+    const limit = queryString(req.query.limit); // Extract category_id
+    const orderBy = queryString(req.query.orderBy);
+    const filter = queryString(req.query.filter);
+    const category_id = queryString(req.query.category_id);
     try {
       const entries = await measurementService.getCustomMeasurementEntries(
         req.userId,

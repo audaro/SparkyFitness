@@ -36,10 +36,8 @@ function parseFitbitTime(localTimeStr: any, offsetMs = 0) {
  * Process Fitbit profile data (for height)
  */
 async function processFitbitProfile(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any,
   date = null,
@@ -66,10 +64,8 @@ async function processFitbitProfile(
  */
 
 async function processFitbitHeartRate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -106,10 +102,8 @@ async function processFitbitHeartRate(
  */
 
 async function processFitbitSteps(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -140,10 +134,8 @@ async function processFitbitSteps(
  */
 
 async function processFitbitWeight(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -171,10 +163,8 @@ async function processFitbitWeight(
  */
 
 async function processFitbitBodyFat(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -196,8 +186,12 @@ async function processFitbitBodyFat(
     }
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function processFitbitSpO2(userId: any, createdByUserId: any, data: any) {
+async function processFitbitSpO2(
+  userId: string,
+  createdByUserId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any
+) {
   if (!data) return;
   // Range responses return data in "spo2" array
   const entries = data.spo2 || (Array.isArray(data) ? data : [data]);
@@ -224,10 +218,8 @@ async function processFitbitSpO2(userId: any, createdByUserId: any, data: any) {
  */
 
 async function processFitbitTemperature(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -258,8 +250,12 @@ async function processFitbitTemperature(
 /**
  * Process Fitbit HRV data
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function processFitbitHRV(userId: any, createdByUserId: any, data: any) {
+async function processFitbitHRV(
+  userId: string,
+  createdByUserId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any
+) {
   if (!data) return;
   // Range responses return data in "hrv" array
   const entries = data.hrv || (Array.isArray(data) ? data : []);
@@ -287,10 +283,8 @@ async function processFitbitHRV(userId: any, createdByUserId: any, data: any) {
  */
 
 async function processFitbitRespiratoryRate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -327,10 +321,8 @@ async function processFitbitRespiratoryRate(
  */
 
 async function processFitbitActiveZoneMinutes(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -364,10 +356,8 @@ async function processFitbitActiveZoneMinutes(
  */
 
 async function processFitbitCardioFitness(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -397,10 +387,8 @@ async function processFitbitCardioFitness(
  */
 
 async function processFitbitCoreTemperature(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -426,10 +414,8 @@ async function processFitbitCoreTemperature(
  */
 
 async function processFitbitActivityMinutes(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 ) {
@@ -460,10 +446,8 @@ async function processFitbitActivityMinutes(
  * Process Fitbit Sleep data
  */
 async function processFitbitSleep(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any,
   timezoneOffset = 0,
@@ -536,10 +520,8 @@ async function processFitbitSleep(
  * Process Fitbit Water data
  */
 async function processFitbitWater(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any,
   timezone = 'UTC'
@@ -582,10 +564,8 @@ async function processFitbitWater(
  * Process Fitbit Activity/Exercise data
  */
 async function processFitbitActivities(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any,
   startDate = null
@@ -722,10 +702,8 @@ async function processFitbitActivities(
  * Helper logic for upserting custom measurements
  */
 async function upsertCustomMeasurementLogic(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customMeasurement: any
 ) {

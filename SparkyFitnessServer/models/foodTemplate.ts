@@ -10,7 +10,7 @@ import {
   localDateToDay,
 } from '@workspace/shared';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteFoodEntriesByMealPlanId(mealPlanId: any, userId: any) {
+async function deleteFoodEntriesByMealPlanId(mealPlanId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -33,8 +33,7 @@ async function deleteFoodEntriesByMealPlanId(mealPlanId: any, userId: any) {
 async function deleteFoodEntriesByTemplateId(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   templateId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   today: any
 ) {
@@ -85,8 +84,7 @@ async function deleteFoodEntriesByTemplateId(
 async function createFoodEntriesFromTemplate(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   templateId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   today: any
 ) {

@@ -103,8 +103,7 @@ async function createWorkoutPlanTemplate(planData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPlanTemplatesByUserId(userId: any) {
+async function getWorkoutPlanTemplatesByUserId(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const query = `
@@ -145,7 +144,7 @@ async function getWorkoutPlanTemplatesByUserId(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPlanTemplateById(templateId: any, userId: any) {
+async function getWorkoutPlanTemplateById(templateId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const query = `
@@ -188,8 +187,7 @@ async function getWorkoutPlanTemplateById(templateId: any, userId: any) {
 async function updateWorkoutPlanTemplate(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   templateId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -373,7 +371,7 @@ async function updateWorkoutPlanTemplate(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWorkoutPlanTemplate(templateId: any, userId: any) {
+async function deleteWorkoutPlanTemplate(templateId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -394,7 +392,7 @@ async function deleteWorkoutPlanTemplate(templateId: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPlanTemplateOwnerId(templateId: any, userId: any) {
+async function getWorkoutPlanTemplateOwnerId(templateId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const result = await client.query(
@@ -407,7 +405,7 @@ async function getWorkoutPlanTemplateOwnerId(templateId: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getActiveWorkoutPlanForDate(userId: any, date: any) {
+async function getActiveWorkoutPlanForDate(userId: string, date: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     const query = `

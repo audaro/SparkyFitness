@@ -57,10 +57,8 @@ import { ExternalProviderType } from 'types/externalProvider.ts';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 async function getExercisesWithPagination(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchTerm: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,12 +126,10 @@ async function getExercisesWithPagination(
   }
 }
 async function searchExercises(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   name: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   equipmentFilter: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -181,12 +177,10 @@ async function searchExercises(
   }
 }
 async function searchExercisesPaginated(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   name: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   equipmentFilter: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -268,8 +262,7 @@ function mapRecentSessionRow(row: RecentSessionRow) {
   };
 }
 async function getExerciseStats(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   excludePresetEntryId: string | null = null,
@@ -370,7 +363,7 @@ async function findStockImagesForExerciseName(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createExercise(authenticatedUserId: any, exerciseData: any) {
+async function createExercise(authenticatedUserId: string, exerciseData: any) {
   try {
     // Ensure the exercise is created for the authenticated user
     exerciseData.user_id = authenticatedUserId;
@@ -432,8 +425,7 @@ async function createExercise(authenticatedUserId: any, exerciseData: any) {
 }
 
 async function prepareExerciseEntryForCreate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryData: any
 ) {
@@ -482,10 +474,8 @@ async function prepareExerciseEntryForCreate(
   };
 }
 async function createExerciseEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  authenticatedUserId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryData: any,
   options: { skipDuplicateCheck?: boolean } = {}
@@ -531,7 +521,7 @@ async function createExerciseEntry(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseEntryById(authenticatedUserId: any, id: any) {
+async function getExerciseEntryById(authenticatedUserId: string, id: any) {
   try {
     const entryOwnerId = await exerciseEntryDb.getExerciseEntryOwnerId(
       id,
@@ -561,10 +551,8 @@ async function getExerciseEntryById(authenticatedUserId: any, id: any) {
   }
 }
 async function updateExerciseEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  authenticatedUserId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -764,7 +752,7 @@ async function updateExerciseEntry(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExerciseEntry(authenticatedUserId: any, id: any) {
+async function deleteExerciseEntry(authenticatedUserId: string, id: any) {
   try {
     const entryOwnerId = await exerciseEntryDb.getExerciseEntryOwnerId(
       id,
@@ -800,7 +788,7 @@ async function deleteExerciseEntry(authenticatedUserId: any, id: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseById(authenticatedUserId: any, id: any) {
+async function getExerciseById(authenticatedUserId: string, id: any) {
   try {
     const exerciseOwnerId = await exerciseDb.getExerciseOwnerId(
       id,
@@ -829,8 +817,7 @@ async function getExerciseById(authenticatedUserId: any, id: any) {
 }
 
 async function updateExercise(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -867,8 +854,7 @@ async function updateExercise(
   }
 }
 async function deleteExercise(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   forceDelete = false
@@ -986,10 +972,8 @@ async function deleteExercise(
   }
 }
 async function getExerciseEntriesByDate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   selectedDate: any
 ) {
@@ -1027,8 +1011,7 @@ async function getExerciseEntriesByDate(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getOrCreateActiveCaloriesExercise(userId: any) {
+async function getOrCreateActiveCaloriesExercise(userId: string) {
   try {
     const exerciseId =
       await exerciseDb.getOrCreateActiveCaloriesExercise(userId);
@@ -1043,8 +1026,7 @@ async function getOrCreateActiveCaloriesExercise(userId: any) {
   }
 }
 async function upsertExerciseEntryData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1402,8 +1384,7 @@ async function addExternalExerciseToUserExercises(
   }
 }
 async function addNutritionixExerciseToUserExercises(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   nutritionixExerciseData: any
 ) {
@@ -1924,7 +1905,7 @@ async function importExerciseCatalogPack(
   };
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getSuggestedExercises(authenticatedUserId: any, limit: any) {
+async function getSuggestedExercises(authenticatedUserId: string, limit: any) {
   try {
     const preferences =
       await preferenceRepository.getUserPreferences(authenticatedUserId);
@@ -1948,7 +1929,7 @@ async function getSuggestedExercises(authenticatedUserId: any, limit: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getRecentExercises(authenticatedUserId: any, limit: any) {
+async function getRecentExercises(authenticatedUserId: string, limit: any) {
   try {
     const preferences =
       await preferenceRepository.getUserPreferences(authenticatedUserId);
@@ -1985,7 +1966,7 @@ async function getRecentExercises(authenticatedUserId: any, limit: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getTopExercises(authenticatedUserId: any, limit: any) {
+async function getTopExercises(authenticatedUserId: string, limit: any) {
   try {
     const preferences =
       await preferenceRepository.getUserPreferences(authenticatedUserId);
@@ -2022,8 +2003,7 @@ async function getTopExercises(authenticatedUserId: any, limit: any) {
   }
 }
 async function getExerciseProgressData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2051,8 +2031,7 @@ async function getExerciseProgressData(
 }
 
 async function getExerciseHistory(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2079,8 +2058,11 @@ async function getExerciseHistory(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function importExercisesFromCSV(authenticatedUserId: any, filePath: any) {
+async function importExercisesFromCSV(
+  authenticatedUserId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  filePath: any
+) {
   let createdCount = 0;
   let updatedCount = 0;
   let failedCount = 0;
@@ -2248,8 +2230,7 @@ async function importExercisesFromCSV(authenticatedUserId: any, filePath: any) {
 }
 
 async function getExerciseDeletionImpact(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any
 ) {
@@ -2307,10 +2288,8 @@ function deriveDurationMinutes(
 async function createGroupedExerciseEntriesWithClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   presetEntryId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2370,16 +2349,17 @@ async function createGroupedExerciseEntriesWithClient(
   }
   return createdEntries;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getGroupedWorkoutSessionById(userId: any, presetEntryId: any) {
+async function getGroupedWorkoutSessionById(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  presetEntryId: any
+) {
   return getGroupedExerciseSessionById(userId, presetEntryId);
 }
 
 async function createGroupedWorkoutSession(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sessionData: any
 ) {
@@ -2484,10 +2464,8 @@ async function createGroupedWorkoutSession(
   }
 }
 async function updateGroupedWorkoutSession(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   presetEntryId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2696,10 +2674,8 @@ async function updateGroupedWorkoutSession(
   }
 }
 async function logWorkoutPresetGrouped(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   workoutPresetId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2713,8 +2689,7 @@ async function logWorkoutPresetGrouped(
   });
 }
 async function getActivityDetailsByExerciseEntryIdAndProvider(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2794,8 +2769,7 @@ async function getActivityDetailsByExerciseEntryIdAndProvider(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExercisesNeedingReview(authenticatedUserId: any) {
+async function getExercisesNeedingReview(authenticatedUserId: string) {
   try {
     const exercisesNeedingReview =
       await exerciseRepository.getExercisesNeedingReview(authenticatedUserId);
@@ -2811,8 +2785,7 @@ async function getExercisesNeedingReview(authenticatedUserId: any) {
 }
 
 async function updateExerciseEntriesSnapshot(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any
 ) {
@@ -2854,8 +2827,7 @@ async function updateExerciseEntriesSnapshot(
 }
 
 async function importExercisesFromJson(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exercisesArray: any
 ) {

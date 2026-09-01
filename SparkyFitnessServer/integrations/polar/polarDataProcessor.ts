@@ -45,10 +45,8 @@ const parsePolarToUTC = (timeStr: any) => {
  */
 
 async function processPolarExercises(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   exercises = []
 ) {
   // Normalize input: could be a direct array or a response object containing 'exercises'
@@ -194,10 +192,8 @@ async function processPolarExercises(
  * Processes Polar physical info (e.g., weight, height, RHR, VO2 Max).
  */
 async function processPolarPhysicalInfo(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   physicalInfo = []
 ) {
   // Normalize input
@@ -280,10 +276,8 @@ async function processPolarPhysicalInfo(
  */
 
 async function processPolarActivity(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   activities = []
 ) {
   // Normalize input
@@ -345,10 +339,8 @@ async function processPolarActivity(
  * Helper to upsert custom measurements.
  */
 async function upsertCustomMeasurementLogic(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customMeasurement: any
 ) {
@@ -391,10 +383,8 @@ async function upsertCustomMeasurementLogic(
  */
 
 async function processPolarSleep(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   sleepData = []
 ) {
   // Normalize input
@@ -540,10 +530,8 @@ async function processPolarSleep(
  * Processes Polar nightly recharge data.
  */
 async function processPolarNightlyRecharge(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  createdByUserId: any,
+  userId: string,
+  createdByUserId: string,
   rechargeData = []
 ) {
   // Normalize input

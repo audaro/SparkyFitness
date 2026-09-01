@@ -162,8 +162,7 @@ async function preCleanEntriesBySourceAndDate(
   entries: any[],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fallbackTimezone: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   label: string,
   deleteFn: (
     userId: string,
@@ -196,10 +195,8 @@ async function preCleanEntriesBySourceAndDate(
 async function processHealthData(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   healthDataArray: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   options?: { legacyWorkoutSetMinutes?: boolean }
 ) {
   const tz = await loadUserTimezone(userId);
@@ -425,10 +422,8 @@ async function processHealthData(
 }
 // Helper function to get or create a custom category
 async function getOrCreateCustomCategory(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   categoryName: any,
   dataType = 'numeric',
@@ -645,7 +640,7 @@ async function logWaterIntakeAmount(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWaterIntakeEntryById(authenticatedUserId: any, id: any) {
+async function getWaterIntakeEntryById(authenticatedUserId: string, id: any) {
   try {
     const entryOwnerId = await measurementRepository.getWaterIntakeEntryOwnerId(
       id,
@@ -669,10 +664,8 @@ async function getWaterIntakeEntryById(authenticatedUserId: any, id: any) {
   }
 }
 async function updateWaterIntake(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  authenticatedUserId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -713,10 +706,8 @@ async function updateWaterIntake(
   }
 }
 async function deleteWaterIntake(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  authenticatedUserId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any
 ) {
@@ -751,10 +742,8 @@ async function deleteWaterIntake(
   }
 }
 async function upsertCheckInMeasurements(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  authenticatedUserId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -778,10 +767,8 @@ async function upsertCheckInMeasurements(
   }
 }
 async function getCheckInMeasurements(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   date: any
 ) {
@@ -802,10 +789,8 @@ async function getCheckInMeasurements(
   }
 }
 async function getLatestCheckInMeasurementsOnOrBeforeDate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   date: any
 ) {
@@ -826,10 +811,8 @@ async function getLatestCheckInMeasurementsOnOrBeforeDate(
   }
 }
 async function updateCheckInMeasurements(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  authenticatedUserId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -885,7 +868,7 @@ async function updateCheckInMeasurements(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteCheckInMeasurements(authenticatedUserId: any, id: any) {
+async function deleteCheckInMeasurements(authenticatedUserId: string, id: any) {
   try {
     // deleteCheckInMeasurements is scoped by user_id, so it already enforces
     // both existence and ownership; no separate owner pre-check is needed.
@@ -907,10 +890,8 @@ async function deleteCheckInMeasurements(authenticatedUserId: any, id: any) {
   }
 }
 async function getCustomCategories(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any
+  authenticatedUserId: string,
+  targetUserId: string
 ) {
   try {
     let finalUserId = authenticatedUserId;
@@ -930,10 +911,8 @@ async function getCustomCategories(
   }
 }
 async function createCustomCategory(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  authenticatedUserId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   categoryData: any
 ) {
@@ -953,8 +932,7 @@ async function createCustomCategory(
   }
 }
 async function updateCustomCategory(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -995,7 +973,7 @@ async function updateCustomCategory(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteCustomCategory(authenticatedUserId: any, id: any) {
+async function deleteCustomCategory(authenticatedUserId: string, id: any) {
   try {
     const categoryOwnerId =
       await measurementRepository.getCustomCategoryOwnerId(
@@ -1028,8 +1006,7 @@ async function deleteCustomCategory(authenticatedUserId: any, id: any) {
   }
 }
 async function getCustomMeasurementEntries(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   limit: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1057,10 +1034,8 @@ async function getCustomMeasurementEntries(
   }
 }
 async function getCustomMeasurementEntriesByDate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   date: any
 ) {
@@ -1081,10 +1056,8 @@ async function getCustomMeasurementEntriesByDate(
   }
 }
 async function getCheckInMeasurementsByDateRange(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  authenticatedUserId: string,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1108,10 +1081,8 @@ async function getCheckInMeasurementsByDateRange(
   }
 }
 async function getCustomMeasurementsByDateRange(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  authenticatedUserId: string,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   categoryId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1300,10 +1271,8 @@ function sumAsleepSeconds(stages: any[]): number {
   }, 0);
 }
 async function processSleepEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  userId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sleepEntryData: any,
   // Batch callers pass an already-loaded profile + timezone to skip a per-session
@@ -1539,12 +1508,10 @@ function recomputeSleepAggregatesFromStages(stages: any[]) {
   };
 }
 async function updateSleepEntry(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateData: any
 ) {
@@ -1684,8 +1651,11 @@ async function upsertCustomMeasurementEntry(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteCustomMeasurementEntry(authenticatedUserId: any, id: any) {
+async function deleteCustomMeasurementEntry(
+  authenticatedUserId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  id: any
+) {
   try {
     const entryOwnerId =
       await measurementRepository.getCustomMeasurementOwnerId(
@@ -1718,7 +1688,7 @@ async function deleteCustomMeasurementEntry(authenticatedUserId: any, id: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMostRecentMeasurement(userId: any, measurementType: any) {
+async function getMostRecentMeasurement(userId: string, measurementType: any) {
   try {
     const measurement = await measurementRepository.getMostRecentMeasurement(
       userId,

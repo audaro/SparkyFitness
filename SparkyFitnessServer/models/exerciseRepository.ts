@@ -3,8 +3,7 @@ import exerciseDb from './exercise.js';
 import exerciseEntryDb from './exerciseEntry.js';
 const templateDbPath = './exerciseTemplate.js';
 const { default: exerciseTemplateDb } = await import(templateDbPath);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExercisesNeedingReview(userId: any) {
+async function getExercisesNeedingReview(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -34,8 +33,7 @@ async function getExercisesNeedingReview(userId: any) {
   }
 }
 async function updateExerciseEntriesSnapshot(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,7 +63,7 @@ async function updateExerciseEntriesSnapshot(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function clearUserIgnoredUpdate(userId: any, variantId: any) {
+async function clearUserIgnoredUpdate(userId: string, variantId: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query(

@@ -50,8 +50,11 @@ function validateYazioProviderCredentials(appId: any, appKey: any) {
 // Strip decrypted credentials and their encrypted backing columns from any
 // provider row the viewer does not own. Prevents family / public sharing from
 // leaking OFF passwords (or any other per-row `app_id`/`app_key`).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function redactCredentialsForNonOwner(provider: any, authenticatedUserId: any) {
+function redactCredentialsForNonOwner(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  provider: any,
+  authenticatedUserId: string
+) {
   if (provider.user_id === authenticatedUserId) {
     return provider;
   }
@@ -144,8 +147,7 @@ function stripCredentialSecret(provider: any) {
   return rest;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExternalDataProviders(userId: any) {
+async function getExternalDataProviders(userId: string) {
   try {
     const providers =
       await externalProviderRepository.getExternalDataProviders(userId);
@@ -184,10 +186,8 @@ async function getExternalDataProviders(userId: any) {
   }
 }
 async function getExternalDataProvidersForUser(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any
+  authenticatedUserId: string,
+  targetUserId: string
 ) {
   try {
     // RLS will enforce visibility (owner/family/public). Use the viewer-scoped repository call
@@ -232,8 +232,7 @@ async function getExternalDataProvidersForUser(
 }
 
 async function createExternalDataProvider(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerData: any
 ) {
@@ -277,8 +276,7 @@ async function createExternalDataProvider(
   }
 }
 async function updateExternalDataProvider(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -429,8 +427,7 @@ async function updateExternalDataProvider(
 }
 
 async function getExternalDataProviderDetails(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any
 ) {
@@ -459,8 +456,7 @@ async function getExternalDataProviderDetails(
 }
 
 async function deleteExternalDataProvider(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any
 ) {
@@ -503,8 +499,7 @@ async function deleteExternalDataProvider(
 // default row, or a self-hosted row configured with only a custom base_url
 // and no login) so a self-hosted-only setup is still selected: base_url
 // must be resolved for every OFF call now, not just credentialed ones.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getActiveOpenFoodFactsProviderId(userId: any) {
+async function getActiveOpenFoodFactsProviderId(userId: string) {
   try {
     const providers =
       await externalProviderRepository.getExternalDataProvidersByUserId(

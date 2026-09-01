@@ -20,8 +20,7 @@ log(
  * @param {string} [customEndDate] - Optional end date (YYYY-MM-DD)
  */
 async function syncWithingsData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   syncType = 'manual',
   customStartDate: string | null = null,
   customEndDate: string | null = null

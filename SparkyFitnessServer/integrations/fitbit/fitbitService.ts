@@ -9,7 +9,7 @@ const FITBIT_ACCOUNT_BASE_URL = 'https://www.fitbit.com';
  * Function to construct the Fitbit authorization URL
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getAuthorizationUrl(userId: any, redirectUri: any) {
+async function getAuthorizationUrl(userId: string, redirectUri: any) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
@@ -40,8 +40,13 @@ async function getAuthorizationUrl(userId: any, redirectUri: any) {
 /**
  * Function to exchange authorization code for access and refresh tokens
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function exchangeCodeForTokens(userId: any, code: any, redirectUri: any) {
+async function exchangeCodeForTokens(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  code: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  redirectUri: any
+) {
   const client = await getSystemClient();
   try {
     const providerResult = await client.query(
@@ -136,8 +141,7 @@ async function exchangeCodeForTokens(userId: any, code: any, redirectUri: any) {
 /**
  * Function to refresh an expired access token
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function refreshAccessToken(userId: any) {
+async function refreshAccessToken(userId: string) {
   const client = await getSystemClient();
   try {
     const providerResult = await client.query(
@@ -238,8 +242,7 @@ async function refreshAccessToken(userId: any) {
 /**
  * Function to ensure a valid access token is available
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getValidAccessToken(userId: any) {
+async function getValidAccessToken(userId: string) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
@@ -281,8 +284,7 @@ async function getValidAccessToken(userId: any) {
 /**
  * Function to get connection status
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getStatus(userId: any) {
+async function getStatus(userId: string) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
@@ -310,8 +312,7 @@ async function getStatus(userId: any) {
 /**
  * Function to disconnect Fitbit
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function disconnectFitbit(userId: any) {
+async function disconnectFitbit(userId: string) {
   const client = await getSystemClient();
   try {
     await client.query(
@@ -331,8 +332,7 @@ async function disconnectFitbit(userId: any) {
  * API Fetching Functions
  */
 async function fetchHeartRate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -363,8 +363,7 @@ async function fetchHeartRate(
 }
 
 async function fetchSteps(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -395,8 +394,7 @@ async function fetchSteps(
 }
 
 async function fetchWeight(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -427,8 +425,7 @@ async function fetchWeight(
 }
 
 async function fetchSpO2(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -458,8 +455,7 @@ async function fetchSpO2(
   }
 }
 async function fetchTemperature(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -488,8 +484,7 @@ async function fetchTemperature(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchProfile(userId: any, providedToken = null) {
+async function fetchProfile(userId: string, providedToken = null) {
   const accessToken = providedToken || (await getValidAccessToken(userId));
   try {
     const response = await axios.get(
@@ -514,8 +509,7 @@ async function fetchProfile(userId: any, providedToken = null) {
 }
 
 async function fetchBodyFat(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -537,8 +531,7 @@ async function fetchBodyFat(
 }
 
 async function fetchActivities(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   date = 'today',
   providedToken = null
 ) {
@@ -567,8 +560,7 @@ async function fetchActivities(
 }
 
 async function fetchSleep(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -598,8 +590,7 @@ async function fetchSleep(
   }
 }
 async function fetchRespiratoryRate(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -621,8 +612,7 @@ async function fetchRespiratoryRate(
 }
 
 async function fetchHRV(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -643,8 +633,7 @@ async function fetchHRV(
   return response.data;
 }
 async function fetchActiveZoneMinutes(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -666,8 +655,7 @@ async function fetchActiveZoneMinutes(
 }
 
 async function fetchWater(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -697,8 +685,7 @@ async function fetchWater(
   }
 }
 async function fetchActivityMinutes(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -732,8 +719,7 @@ async function fetchActivityMinutes(
   return results;
 }
 async function fetchCardioFitnessScore(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -763,8 +749,7 @@ async function fetchCardioFitnessScore(
   }
 }
 async function fetchCoreTemperature(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

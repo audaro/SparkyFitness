@@ -1,6 +1,6 @@
 import { getClient } from '../db/poolManager.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getGoalByDate(userId: any, selectedDate: any) {
+async function getGoalByDate(userId: string, selectedDate: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -80,7 +80,7 @@ async function getGoalsInRange(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMostRecentGoalBeforeDate(userId: any, selectedDate: any) {
+async function getMostRecentGoalBeforeDate(userId: string, selectedDate: any) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -193,8 +193,13 @@ async function upsertGoal(goalData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteGoalsInRange(userId: any, startDate: any, endDate: any) {
+async function deleteGoalsInRange(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  startDate: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  endDate: any
+) {
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query(
@@ -210,8 +215,7 @@ async function deleteGoalsInRange(userId: any, startDate: any, endDate: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteDefaultGoal(userId: any) {
+async function deleteDefaultGoal(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query(

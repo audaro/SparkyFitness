@@ -144,10 +144,8 @@ function getDefaultPreferences() {
   };
 }
 async function updateUserPreferences(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   preferenceData: any
 ) {
@@ -177,10 +175,8 @@ async function updateUserPreferences(
 }
 
 async function deleteUserPreferences(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any
+  authenticatedUserId: string,
+  targetUserId: string
 ) {
   try {
     const success =
@@ -198,8 +194,10 @@ async function deleteUserPreferences(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getUserPreferences(authenticatedUserId: any, targetUserId: any) {
+async function getUserPreferences(
+  authenticatedUserId: string,
+  targetUserId: string
+) {
   try {
     const preferences =
       await preferenceRepository.getUserPreferences(targetUserId);
@@ -220,10 +218,8 @@ async function getUserPreferences(authenticatedUserId: any, targetUserId: any) {
   }
 }
 async function bootstrapUserTimezone(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  targetUserId: any,
+  authenticatedUserId: string,
+  targetUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   timezone: any
 ) {
@@ -250,8 +246,7 @@ async function bootstrapUserTimezone(
 }
 
 async function upsertUserPreferences(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
+  authenticatedUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   preferenceData: any
 ) {

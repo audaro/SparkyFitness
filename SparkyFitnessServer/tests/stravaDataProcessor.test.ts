@@ -24,8 +24,8 @@ vi.mock('../models/activityDetailsRepository.js', () => ({
   default: { createActivityDetail: vi.fn() },
 }));
 
-const UID = 1;
-const CID = 1;
+const UID = 'user-1';
+const CID = 'user-1';
 
 describe('processStravaActivities duration units', () => {
   beforeEach(() => {

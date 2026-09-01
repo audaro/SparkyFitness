@@ -64,8 +64,7 @@ async function createGoalPreset(presetData: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getGoalPresetsByUserId(userId: any) {
+async function getGoalPresetsByUserId(userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -78,7 +77,7 @@ async function getGoalPresetsByUserId(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getGoalPresetById(presetId: any, userId: any) {
+async function getGoalPresetById(presetId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(
@@ -156,7 +155,7 @@ async function updateGoalPreset(presetId: any, presetData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteGoalPreset(presetId: any, userId: any) {
+async function deleteGoalPreset(presetId: any, userId: string) {
   const client = await getClient(userId); // User-specific operation
   try {
     const result = await client.query(

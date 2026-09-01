@@ -8,6 +8,7 @@ import {
   CreateWaterContainerBodySchema,
   UpdateWaterContainerBodySchema,
 } from '../schemas/waterContainerSchemas.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 
 // Small helper to send a uniform 400 for Zod failures.
@@ -68,7 +69,7 @@ router.post('/', authenticate, async (req, res, next) => {
  */
 router.get('/', authenticate, async (req, res, next) => {
   try {
-    const { userId } = req.query;
+    const userId = queryString(req.query.userId);
 
     const targetUserId = userId || req.userId;
 
@@ -218,7 +219,7 @@ router.put('/:id/set-primary', authenticate, async (req, res, next) => {
  */
 router.get('/primary', authenticate, async (req, res, next) => {
   try {
-    const { userId } = req.query;
+    const userId = queryString(req.query.userId);
 
     const targetUserId = userId || req.userId;
 

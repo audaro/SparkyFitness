@@ -12,8 +12,7 @@ import {
 async function createExerciseEntriesFromTemplate(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   templateId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   today: any
 ) {
@@ -170,8 +169,7 @@ async function createExerciseEntriesFromTemplate(
 async function deleteExerciseEntriesByTemplateId(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   templateId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   today: any
 ) {

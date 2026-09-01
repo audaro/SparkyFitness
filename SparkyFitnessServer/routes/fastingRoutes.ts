@@ -5,6 +5,7 @@ import { log } from '../config/logging.js';
 import { loadUserTimezone } from '../utils/timezoneLoader.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import checkPermissionMiddleware from '../middleware/checkPermissionMiddleware.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 /**
  * @swagger
@@ -40,7 +41,7 @@ router.use(checkPermissionMiddleware('checkin'));
  *         description: Internal server error.
  */
 router.get('/current', async (req, res) => {
-  const { userId } = req.query;
+  const userId = queryString(req.query.userId);
 
   const targetUserId = userId || req.userId;
   log('debug', `GET /current: Fetching fast for userId: ${targetUserId}`);
@@ -391,7 +392,8 @@ router.get('/history', async (req, res) => {
     `GET /history: Fetching history for userId: ${userId} with params:`,
     req.query
   );
-  const { limit, offset } = req.query;
+  const limit = queryString(req.query.limit);
+  const offset = queryString(req.query.offset);
   try {
     const history = await fastingRepository.getFastingHistory(
       userId,

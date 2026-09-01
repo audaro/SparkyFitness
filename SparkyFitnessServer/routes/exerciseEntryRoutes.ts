@@ -14,6 +14,7 @@ import { createUploadMiddleware } from '../middleware/uploadMiddleware.js';
 import { canAccessUserData } from '../utils/permissionUtils.js';
 import { fileURLToPath } from 'url';
 import { isEntryTimeString } from '@workspace/shared';
+import { queryString } from '../utils/queryParams.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -173,12 +174,12 @@ router.use(checkPermissionMiddleware('diary'));
  *         description: Failed to fetch exercise entries.
  */
 router.get('/by-date', authenticate, async (req, res, next) => {
-  const { selectedDate } = req.query;
+  const selectedDate = queryString(req.query.selectedDate);
   if (!selectedDate) {
     return res.status(400).json({ error: 'Selected date is required.' });
   }
   try {
-    const { userId } = req.query; // Check for userId param
+    const userId = queryString(req.query.userId); // Check for userId param
 
     const targetUserId = userId || req.userId;
 
@@ -549,7 +550,7 @@ router.post('/from-plan', authenticate, async (req, res, next) => {
 router.get('/history/:exerciseId', authenticate, async (req, res, next) => {
   try {
     const { exerciseId } = req.params;
-    const { limit } = req.query;
+    const limit = queryString(req.query.limit);
     const uuidRegex =
       /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     if (!exerciseId || !uuidRegex.test(exerciseId)) {
@@ -856,7 +857,8 @@ router.put(
  */
 router.get('/progress/:exerciseId', authenticate, async (req, res, next) => {
   const { exerciseId } = req.params;
-  const { startDate, endDate } = req.query;
+  const startDate = queryString(req.query.startDate);
+  const endDate = queryString(req.query.endDate);
   if (!exerciseId) {
     return res.status(400).json({ error: 'Exercise ID is required.' });
   }

@@ -255,8 +255,7 @@ async function searchMealieFoods(
   baseUrl: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   apiKey: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any,
   page = 1
@@ -304,8 +303,7 @@ async function getMealieFoodDetails(
   baseUrl: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   apiKey: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any
 ) {
@@ -338,8 +336,7 @@ async function searchTandoorFoods(
   baseUrl: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   apiKey: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any
 ) {
@@ -381,8 +378,7 @@ async function getTandoorFoodDetails(
   baseUrl: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   apiKey: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any
 ) {

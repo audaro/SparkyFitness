@@ -3,7 +3,7 @@ import exerciseRepository from '../models/exerciseRepository.js';
 import preferenceRepository from '../models/preferenceRepository.js';
 import { resolveExerciseIdToUuid } from '../utils/uuidUtils.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createWorkoutPreset(userId: any, presetData: any) {
+async function createWorkoutPreset(userId: string, presetData: any) {
   // Validate and resolve exercise_ids
   for (const ex of presetData.exercises) {
     ex.exercise_id = await resolveExerciseIdToUuid(ex.exercise_id, userId); // Resolve to UUID
@@ -32,11 +32,11 @@ async function createWorkoutPreset(userId: any, presetData: any) {
   });
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPresets(userId: any, page: any, limit: any) {
+async function getWorkoutPresets(userId: string, page: any, limit: any) {
   return workoutPresetRepository.getWorkoutPresets(userId, page, limit);
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getWorkoutPresetById(userId: any, presetId: any) {
+async function getWorkoutPresetById(userId: string, presetId: any) {
   // RLS already gates read access (owner, public, or family-shared via
   // can_view_exercise_library). If the row comes back, the caller is allowed to
   // see it; an extra owner/public check here would wrongly 403 shared presets.
@@ -51,8 +51,7 @@ async function getWorkoutPresetById(userId: any, presetId: any) {
 }
 
 async function updateWorkoutPreset(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   presetId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,7 +97,7 @@ async function updateWorkoutPreset(
   );
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteWorkoutPreset(userId: any, presetId: any) {
+async function deleteWorkoutPreset(userId: string, presetId: any) {
   const ownerId = await workoutPresetRepository.getWorkoutPresetOwnerId(
     userId,
     presetId
@@ -117,8 +116,13 @@ async function deleteWorkoutPreset(userId: any, presetId: any) {
   }
   return { message: 'Workout preset deleted successfully.' };
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function searchWorkoutPresets(searchTerm: any, userId: any, limit: any) {
+async function searchWorkoutPresets(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  searchTerm: any,
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  limit: any
+) {
   if (limit === null || limit === undefined) {
     const preferences = await preferenceRepository.getUserPreferences(userId);
     limit = preferences ? preferences.item_display_limit : 10;

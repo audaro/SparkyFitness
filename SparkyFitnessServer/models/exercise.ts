@@ -59,7 +59,7 @@ function buildEquipmentSubsetClause(paramIndex: number): string {
   )`;
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseById(id: any, userId: any) {
+async function getExerciseById(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -85,7 +85,7 @@ async function getExerciseById(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getExerciseOwnerId(id: any, userId: any) {
+async function getExerciseOwnerId(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const exerciseResult = await client.query(
@@ -98,8 +98,7 @@ async function getExerciseOwnerId(id: any, userId: any) {
   }
 }
 async function getOrCreateActiveCaloriesExercise(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   source = 'Health Data'
 ) {
   const exerciseName = 'Active Calories';
@@ -673,7 +672,7 @@ async function createExercise(exerciseData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateExercise(id: any, userId: any, updateData: any) {
+async function updateExercise(id: any, userId: string, updateData: any) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -739,7 +738,7 @@ async function updateExercise(id: any, userId: any, updateData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExercise(id: any, userId: any) {
+async function deleteExercise(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -752,7 +751,7 @@ async function deleteExercise(id: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getRecentExercises(userId: any, limit: any) {
+async function getRecentExercises(userId: string, limit: any) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -802,7 +801,7 @@ async function getRecentExercises(userId: any, limit: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getTopExercises(userId: any, limit: any) {
+async function getTopExercises(userId: string, limit: any) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -857,8 +856,7 @@ async function getExerciseBySourceAndSourceId(
   source: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sourceId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any
+  userId: string
 ) {
   const client = await getSystemClient();
   try {
@@ -888,8 +886,7 @@ async function getExerciseBySourceAndSourceId(
 async function getExerciseDeletionImpact(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any
+  authenticatedUserId: string
 ) {
   const client = await getClient(authenticatedUserId);
   const systemClient = await getSystemClient();
@@ -1006,7 +1003,7 @@ async function getExerciseDeletionImpact(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteExerciseAndDependencies(exerciseId: any, userId: any) {
+async function deleteExerciseAndDependencies(exerciseId: any, userId: string) {
   const client = await getClient(userId);
   try {
     await client.query('BEGIN');
@@ -1066,7 +1063,7 @@ async function deleteExerciseAndDependencies(exerciseId: any, userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function findExerciseByNameAndUserId(name: any, userId: any) {
+async function findExerciseByNameAndUserId(name: any, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(

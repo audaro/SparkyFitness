@@ -9,7 +9,7 @@ const STRAVA_AUTH_BASE_URL = 'https://www.strava.com/oauth';
  * Construct the Strava authorization URL
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getAuthorizationUrl(userId: any, redirectUri: any) {
+async function getAuthorizationUrl(userId: string, redirectUri: any) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
@@ -39,7 +39,7 @@ async function getAuthorizationUrl(userId: any, redirectUri: any) {
  * Exchange authorization code for access and refresh tokens
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function exchangeCodeForTokens(userId: any, code: any) {
+async function exchangeCodeForTokens(userId: string, code: any) {
   const client = await getSystemClient();
   try {
     const providerResult = await client.query(
@@ -125,8 +125,7 @@ async function exchangeCodeForTokens(userId: any, code: any) {
 /**
  * Refresh an expired access token
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function refreshAccessToken(userId: any) {
+async function refreshAccessToken(userId: string) {
   const client = await getSystemClient();
   try {
     const providerResult = await client.query(
@@ -216,8 +215,7 @@ async function refreshAccessToken(userId: any) {
 /**
  * Ensure a valid access token is available
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getValidAccessToken(userId: any) {
+async function getValidAccessToken(userId: string) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
@@ -258,8 +256,7 @@ async function getValidAccessToken(userId: any) {
 /**
  * Get connection status
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getStatus(userId: any) {
+async function getStatus(userId: string) {
   const client = await getSystemClient();
   try {
     const result = await client.query(
@@ -287,8 +284,7 @@ async function getStatus(userId: any) {
 /**
  * Disconnect Strava
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function disconnectStrava(userId: any) {
+async function disconnectStrava(userId: string) {
   const client = await getSystemClient();
   try {
     await client.query(

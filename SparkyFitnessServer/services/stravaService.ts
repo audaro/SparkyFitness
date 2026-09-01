@@ -20,8 +20,7 @@ log(
  * @param {string} [customEndDate] - Optional end date (YYYY-MM-DD)
  */
 async function syncStravaData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   syncType = 'manual',
   customStartDate = null,
   customEndDate = null
@@ -227,10 +226,9 @@ async function syncStravaData(
     throw error;
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getStatus = (userId: any) => stravaIntegrationService.getStatus(userId);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const disconnectStrava = (userId: any) =>
+const getStatus = (userId: string) =>
+  stravaIntegrationService.getStatus(userId);
+const disconnectStrava = (userId: string) =>
   stravaIntegrationService.disconnectStrava(userId);
 export { syncStravaData };
 export { getStatus };

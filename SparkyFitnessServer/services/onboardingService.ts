@@ -7,7 +7,7 @@ import { log } from '../config/logging.js';
  * @returns {Promise<void>}
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function processOnboardingData(userId: any, data: any) {
+async function processOnboardingData(userId: string, data: any) {
   try {
     await onboardingRepository.saveOnboardingData(userId, data);
     log('info', `Successfully processed onboarding for user: ${userId}`);
@@ -21,8 +21,7 @@ async function processOnboardingData(userId: any, data: any) {
  * @param {string} userId - The UUID of the user.
  * @returns {Promise<boolean>} True if onboarding is complete, false otherwise.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function checkOnboardingStatus(userId: any) {
+async function checkOnboardingStatus(userId: string) {
   try {
     const statusRecord = await onboardingRepository.getOnboardingStatus(userId);
     if (!statusRecord) {
@@ -42,8 +41,7 @@ async function checkOnboardingStatus(userId: any) {
  * @param {string} userId - The UUID of the user.
  * @returns {Promise<void>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function resetOnboardingStatus(userId: any) {
+async function resetOnboardingStatus(userId: string) {
   try {
     await onboardingRepository.resetOnboardingStatus(userId);
     log('info', `Successfully reset onboarding status for user: ${userId}`);
@@ -61,8 +59,7 @@ async function resetOnboardingStatus(userId: any) {
  * @param {string} userId - The UUID of the user.
  * @returns {Promise<void>}
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function skipOnboarding(userId: any) {
+async function skipOnboarding(userId: string) {
   try {
     await onboardingRepository.setOnboardingSkipped(userId);
     log('info', `Successfully set onboarding skipped for user: ${userId}`);

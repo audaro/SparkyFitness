@@ -64,7 +64,7 @@ async function _createActivityDetailWithClient(client: any, detail: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createActivityDetail(userId: any, detail: any) {
+async function createActivityDetail(userId: string, detail: any) {
   const client = await getClient(userId);
   try {
     return await _createActivityDetailWithClient(client, detail);
@@ -73,8 +73,7 @@ async function createActivityDetail(userId: any, detail: any) {
   }
 }
 async function getActivityDetailsByEntryOrPresetId(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   entryId = null,
   presetEntryId = null
 ) {
@@ -220,7 +219,7 @@ async function getActivityDetailsSummaryForEntriesAndPresets(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateActivityDetail(userId: any, id: any, detail: any) {
+async function updateActivityDetail(userId: string, id: any, detail: any) {
   const client = await getClient(userId);
   const { provider_name, detail_type, detail_data, updated_by_user_id } =
     detail;
@@ -279,7 +278,7 @@ async function updateActivityDetail(userId: any, id: any, detail: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteActivityDetail(userId: any, id: any) {
+async function deleteActivityDetail(userId: string, id: any) {
   const client = await getClient(userId);
   const query = `
         DELETE FROM exercise_entry_activity_details
@@ -312,8 +311,7 @@ async function deleteActivityDetail(userId: any, id: any) {
 async function _deleteActivityDetailsByEntryIdAndProviderWithClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -349,8 +347,7 @@ async function _deleteActivityDetailsByEntryIdAndProviderWithClient(
   }
 }
 async function deleteActivityDetailsByEntryIdAndProvider(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entryId: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

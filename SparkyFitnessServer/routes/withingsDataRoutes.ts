@@ -2,6 +2,7 @@ import express from 'express';
 import { log } from '../config/logging.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import measurementRepository from '../models/measurementRepository.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 /**
  * @swagger
@@ -30,8 +31,10 @@ const router = express.Router();
  */
 router.get('/withings/data', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { startDate, endDate } = req.query; // Expecting YYYY-MM-DD format
+    const userId = req.authenticatedUserId;
+    // Expecting YYYY-MM-DD format
+    const startDate = queryString(req.query.startDate);
+    const endDate = queryString(req.query.endDate);
     if (!startDate || !endDate) {
       return res.status(400).json({
         message: 'startDate and endDate are required query parameters.',
@@ -69,7 +72,6 @@ router.get('/withings/data', authenticate, async (req, res) => {
             category.id,
             startDate,
             endDate,
-            // @ts-expect-error TS(2345): Argument of type '"withings"' is not assignable to... Remove this comment to see the full error message
             'withings'
           );
         if (category.name.includes('Blood Pressure')) {

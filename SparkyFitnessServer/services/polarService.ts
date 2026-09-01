@@ -19,8 +19,7 @@ log(
  * @param {string} [endDate] - Optional custom end date (YYYY-MM-DD)
  */
 async function syncPolarData(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   syncType = 'manual',
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   providerId: any,
@@ -344,7 +343,7 @@ async function syncPolarData(
  * @param {number} userId
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getStatus(userId: any, providerId: any) {
+async function getStatus(userId: string, providerId: any) {
   return await polarIntegrationService.getStatus(userId, providerId);
 }
 /**
@@ -353,7 +352,7 @@ async function getStatus(userId: any, providerId: any) {
  * @param {string} providerId
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function disconnectPolar(userId: any, providerId: any) {
+async function disconnectPolar(userId: string, providerId: any) {
   return await polarIntegrationService.disconnectPolar(userId, providerId);
 }
 export { syncPolarData };

@@ -1,7 +1,6 @@
 import foodRepository from '../models/foodRepository.js';
 import exerciseRepository from '../models/exerciseRepository.js';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getNeedsReviewItems(userId: any) {
+async function getNeedsReviewItems(userId: string) {
   const foodsNeedingReview = await foodRepository.getFoodsNeedingReview(userId);
   const exercisesNeedingReview =
     await exerciseRepository.getExercisesNeedingReview(userId);
@@ -33,8 +32,7 @@ async function getNeedsReviewItems(userId: any) {
  * @param {number} userId The ID of the user for whom to count items needing review.
  * @returns {Promise<number>} The total count of items needing review.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getNeedsReviewCount(userId: any) {
+async function getNeedsReviewCount(userId: string) {
   const foodsNeedingReview = await foodRepository.getFoodsNeedingReview(userId);
   const exercisesNeedingReview =
     await exerciseRepository.getExercisesNeedingReview(userId);

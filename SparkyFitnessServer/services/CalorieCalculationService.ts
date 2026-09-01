@@ -57,8 +57,7 @@ const MET_VALUES = {
 async function estimateCaloriesBurnedPerHour(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exercise: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sets: any
 ) {

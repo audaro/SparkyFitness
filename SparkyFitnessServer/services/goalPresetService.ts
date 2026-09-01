@@ -40,7 +40,7 @@ function calculateGramsFromPercentages(
   return { protein_grams, carbs_grams, fat_grams };
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createGoalPreset(userId: any, presetData: any) {
+async function createGoalPreset(userId: string, presetData: any) {
   try {
     // If percentages are provided, calculate grams.
     // Also guard calories — without it the multiplication produces NaN.
@@ -80,8 +80,7 @@ async function createGoalPreset(userId: any, presetData: any) {
     throw new Error('Failed to create goal preset.', { cause: error });
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getGoalPresets(userId: any) {
+async function getGoalPresets(userId: string) {
   try {
     const presets = await goalPresetRepository.getGoalPresetsByUserId(userId);
     return presets.map(mapDbToWaterGoalMl);
@@ -91,7 +90,7 @@ async function getGoalPresets(userId: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getGoalPreset(presetId: any, userId: any) {
+async function getGoalPreset(presetId: any, userId: string) {
   try {
     const preset = await goalPresetRepository.getGoalPresetById(
       presetId,
@@ -107,8 +106,13 @@ async function getGoalPreset(presetId: any, userId: any) {
     throw new Error('Failed to fetch goal preset.', { cause: error });
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateGoalPreset(presetId: any, userId: any, presetData: any) {
+async function updateGoalPreset(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  presetId: any,
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  presetData: any
+) {
   try {
     // If percentages are provided, calculate grams.
     // Also guard calories — without it the multiplication produces NaN.
@@ -156,7 +160,7 @@ async function updateGoalPreset(presetId: any, userId: any, presetData: any) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteGoalPreset(presetId: any, userId: any) {
+async function deleteGoalPreset(presetId: any, userId: string) {
   try {
     const deletedPreset = await goalPresetRepository.deleteGoalPreset(
       presetId,

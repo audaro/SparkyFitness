@@ -2,8 +2,7 @@ import { getClient } from '../db/poolManager.js';
 import { dayRangeToUtcRange } from '@workspace/shared';
 
 async function createFastingLog(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startTime: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,8 +27,7 @@ async function createFastingLog(
 async function endFast(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   endTime: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,7 +63,7 @@ async function endFast(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFastingById(id: any, userId: any) {
+async function getFastingById(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -77,8 +75,7 @@ async function getFastingById(id: any, userId: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCurrentFast(userId: any) {
+async function getCurrentFast(userId: string) {
   const client = await getClient(userId);
   try {
     console.log(`[Repo] getCurrentFast checking for userId: ${userId}`);
@@ -98,8 +95,7 @@ async function getCurrentFast(userId: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFastingHistory(userId: any, limit = 50, offset = 0) {
+async function getFastingHistory(userId: string, limit = 50, offset = 0) {
   const client = await getClient(userId);
   try {
     console.log(`[Repo] getFastingHistory checking for userId: ${userId}`);
@@ -118,7 +114,7 @@ async function getFastingHistory(userId: any, limit = 50, offset = 0) {
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateFast(id: any, userId: any, updates: any) {
+async function updateFast(id: any, userId: string, updates: any) {
   const client = await getClient(userId);
   try {
     const {
@@ -165,8 +161,7 @@ async function updateFast(id: any, userId: any, updates: any) {
     client.release();
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFastingStats(userId: any) {
+async function getFastingStats(userId: string) {
   const client = await getClient(userId);
   try {
     // Example stats: Total completed fasts, total hours fasted, current streak (simplified)
@@ -188,8 +183,7 @@ async function getFastingStats(userId: any) {
 }
 // Get fasting logs within a date range (inclusive). Returns completed fasts only.
 async function getFastingLogsByDateRange(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startDate: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -239,7 +233,7 @@ async function getFastingLogsOverlappingDay(
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteFastingLog(id: any, userId: any) {
+async function deleteFastingLog(id: any, userId: string) {
   const client = await getClient(userId);
   try {
     const result = await client.query(

@@ -2,6 +2,7 @@ import express from 'express';
 import moodRepository from '../models/moodRepository.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import checkPermissionMiddleware from '../middleware/checkPermissionMiddleware.js';
+import { queryString } from '../utils/queryParams.js';
 const router = express.Router();
 router.use(authenticate);
 // Mood entries are check-in data (RLS uses the check-in policy). Guard every
@@ -184,7 +185,9 @@ router.post('/', async (req, res, next) => {
  */
 router.get('/', async (req, res, next) => {
   try {
-    const { userId, startDate, endDate } = req.query;
+    const userId = queryString(req.query.userId);
+    const startDate = queryString(req.query.startDate);
+    const endDate = queryString(req.query.endDate);
 
     const targetUserId = userId || req.userId;
     if (!startDate || !endDate) {
@@ -262,7 +265,7 @@ router.get('/:id', async (req, res, next) => {
 router.get('/date/:entryDate', async (req, res, next) => {
   try {
     const { entryDate } = req.params;
-    const { userId } = req.query;
+    const userId = queryString(req.query.userId);
 
     const targetUserId = userId || req.userId;
     const moodEntry = await moodRepository.getMoodEntryByDate(

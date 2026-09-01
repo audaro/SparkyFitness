@@ -7,10 +7,8 @@ import preferenceRepository from '../models/preferenceRepository.js';
 import { parseISO, isValid } from 'date-fns';
 import { setsDurationMinutes } from '@workspace/shared';
 async function importExerciseEntriesFromCsv(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  authenticatedUserId: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actingUserId: any,
+  authenticatedUserId: string,
+  actingUserId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   entries: any
 ) {

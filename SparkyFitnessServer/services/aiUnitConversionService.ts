@@ -125,8 +125,7 @@ const DISPATCH_ERROR_TO_THROW = {
 } satisfies Record<DispatchErrorCategory, (detail: string) => Error>;
 
 export async function estimateUnitConversion(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userId: any,
+  userId: string,
   params: AiUnitConversionRequest,
   actorIsAdmin = false
 ): Promise<AiUnitConversionResponse> {
