@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SvgXml } from 'react-native-svg';
@@ -217,7 +217,7 @@ interface EditorState {
   makeActive: boolean;
 }
 
-const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
+const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
@@ -295,6 +295,25 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = () => {
   );
 
   const closeEditor = useCallback(() => setEditor(null), []);
+
+  /**
+   * Android's hardware back does not go through the header, so without this it
+   * would pop the whole screen out from under a half-made profile instead of
+   * doing what Cancel does. iOS's swipe-back is turned off while the editor is
+   * open through `gestureEnabled` below — native-stack does not route that
+   * gesture through this event, which is why both guards are needed.
+   *
+   * Nothing on this screen navigates away on its own, so unlike
+   * PickMusclesScreen there is no "we are the ones leaving" escape hatch: while
+   * the editor is open, leaving always means closing the editor.
+   */
+  useEffect(() => {
+    if (!editor) return;
+    return navigation.addListener('beforeRemove', (event) => {
+      event.preventDefault();
+      closeEditor();
+    });
+  }, [navigation, editor, closeEditor]);
 
   const toggleEquipment = useCallback((value: Equipment) => {
     setEditor((current) => {

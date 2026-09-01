@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import GymProfilesScreen from '../../src/screens/GymProfilesScreen';
 import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';
 
@@ -33,7 +33,23 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-const mockNavigation = { goBack: jest.fn(), setOptions: jest.fn(), navigate: jest.fn() } as any;
+const mockRemoveListener = jest.fn();
+const mockAddListener = jest.fn(() => mockRemoveListener);
+
+const mockNavigation = {
+  goBack: jest.fn(),
+  setOptions: jest.fn(),
+  navigate: jest.fn(),
+  addListener: mockAddListener,
+} as any;
+
+/** The `beforeRemove` handler the screen registered, if it registered one. */
+function beforeRemoveListener(): ((event: { preventDefault: () => void }) => void) | null {
+  const call = mockAddListener.mock.calls.find(
+    ([event]: unknown[]) => event === 'beforeRemove',
+  ) as unknown as [string, (event: { preventDefault: () => void }) => void] | undefined;
+  return call ? call[1] : null;
+}
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => mockNavigation,
@@ -454,5 +470,50 @@ describe('GymProfilesScreen', () => {
 
     await waitFor(() => expect(mockCreateGymProfile).toHaveBeenCalled());
     expect(getByTestId('gym-profile-editor')).toBeTruthy();
+  });
+
+  describe('backing out of the screen', () => {
+    it('leaves the back button alone while the list is showing', async () => {
+      mockFetchGymProfiles.mockResolvedValue([makeProfile()]);
+      const { findByTestId } = renderScreen();
+
+      await findByTestId('gym-profile-list');
+
+      expect(beforeRemoveListener()).toBeNull();
+    });
+
+    // Android's hardware back does not go through the header, so it has to be
+    // intercepted or it pops the screen out from under a half-made profile.
+    it('does what Cancel does when the screen is backed out of mid-edit', async () => {
+      mockFetchGymProfiles.mockResolvedValue([makeProfile()]);
+      const { findByTestId, getByTestId, queryByTestId } = renderScreen();
+
+      fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
+      fireEvent.changeText(getByTestId('gym-profile-name-input'), 'Half typed');
+
+      const event = { preventDefault: jest.fn() };
+      const listener = beforeRemoveListener();
+      expect(listener).not.toBeNull();
+      act(() => listener?.(event));
+
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(queryByTestId('gym-profile-editor')).toBeNull();
+      expect(getByTestId('gym-profile-list')).toBeTruthy();
+      expect(mockUpdateGymProfile).not.toHaveBeenCalled();
+    });
+
+    // ...and once the editor is closed the guard has to be gone, or the second
+    // back press would be swallowed too and the screen could never be left.
+    it('lets the screen go once the editor is closed', async () => {
+      mockFetchGymProfiles.mockResolvedValue([makeProfile()]);
+      const { findByTestId } = renderScreen();
+
+      fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
+      act(() => beforeRemoveListener()?.({ preventDefault: jest.fn() }));
+      await waitFor(() => expect(mockRemoveListener).toHaveBeenCalled());
+
+      mockAddListener.mockClear();
+      expect(beforeRemoveListener()).toBeNull();
+    });
   });
 });
