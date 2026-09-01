@@ -63,20 +63,27 @@ jobs:
             # change confined to it can break any of them and must fan out to
             # all three. Garmin is a standalone Python service outside the pnpm
             # workspace and does not consume it.
+            # Every filter carries this workflow: a job's own definition is
+            # part of what can break it, and a change that breaks a job while
+            # gating that job out merges green.
             frontend:
               - 'SparkyFitnessFrontend/**'
               - 'shared/**'
+              - '.github/workflows/ci-tests.yml'
               - *root-workspace-config
             mobile:
               - 'SparkyFitnessMobile/**'
               - 'shared/**'
+              - '.github/workflows/ci-tests.yml'
               - *root-workspace-config
             server:
               - 'SparkyFitnessServer/**'
               - 'shared/**'
+              - '.github/workflows/ci-tests.yml'
               - *root-workspace-config
             garmin:
               - 'SparkyFitnessGarmin/**'
+              - '.github/workflows/ci-tests.yml'
             # Files whose change can break a fresh-install migration run.
             # Includes the jobs' own execution path (workflow + script) so a
             # change there can't break migration CI while the jobs gate out.
@@ -180,6 +187,7 @@ jobs:
     name: Server Tests
     runs-on: ubuntu-latest
     needs: changes
+    if: needs.changes.outputs.server == 'true'
 
     defaults:
       run:

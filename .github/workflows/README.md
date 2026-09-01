@@ -17,12 +17,14 @@ This directory contains all GitHub Actions workflows for the SparkyFitness proje
 - Detects which components changed using path filters
 - Runs component-specific test suites:
   - **Frontend**: `pnpm run validate` + `pnpm run test:ci` (type check, lint, format, tests)
-  - **Backend**: Format check, lint, tests (currently disabled)
+  - **Backend**: `pnpm run validate` + `pnpm run test:ci` (type check, lint, format, tests)
   - **Mobile**: Lint + `pnpm run test:ci`
   - **Garmin**: Python pytest with coverage
 - Uploads coverage reports as artifacts
 
-**Note**: Backend tests are currently disabled (`if: false`) per maintainer request.
+**Note**: Every job is gated on its path filter, so a job only runs when the
+files it covers changed. Each filter includes `ci-tests.yml` itself, so editing
+this workflow runs the jobs it defines.
 
 ---
 
