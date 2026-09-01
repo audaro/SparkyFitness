@@ -4,6 +4,39 @@
 (`sparkyfitness-audit-2026-08-31.html`, one directory above the repo), tiers 2
 and 3, re-verified against source before this file was written.*
 
+## Status — worked 2026-09-01
+
+Items 1 and 4-10 are done, one commit each (item 1 has no commit — it is a
+`.git/info/exclude` change, which is not a tracked file). Item 2 is left open
+deliberately: it needs a decision, not an implementation. Item 3 was out of
+scope by instruction.
+
+Two things turned up that this handoff did not predict, both in item 9. The
+security-tier doc's errors were not only omissions: cross-checking every
+classified table against `db/rls_policies.sql` found four tables documented as
+Tier 2 **owner-only write** that actually carry `create_diary_policy`, so a
+delegate with `can_manage_diary` can write them (`user_goals`,
+`user_nutrient_goal_preferences`, `weekly_goal_plans`, `user_water_containers`);
+one documented as delegate-readable that is owner-only both ways
+(`user_medication_display_preferences`); and three exercise telemetry tables
+filed under the check-in heading while their own cells said `can_manage_diary`.
+Understating who can write is the direction that matters, so those were fixed in
+the same commit.
+
+Both database docs now round-trip against source: every `CREATE TABLE public.*`
+in `db_schema_backup.sql` appears in each file, and every classified table's
+tier matches the policy actually applied to it. That check is a dozen lines of
+Python and is worth re-running whenever either file is touched.
+
+Gate: every item here was Markdown-only — no package `validate` or test script
+is sensitive to it. The `docs` package build (`pnpm run generate`) was run to
+confirm the two Nuxt content pages still parse. Note that `docs`'s own `lint`
+script is broken independently of this work: it invokes ESLint 9 and the package
+has no `eslint.config.*`, so it exits 2 on any input. Not fixed here; it is
+upstream's Docus starter config, and fixing it is its own change.
+
+---
+
 Follows `tier0-tier1-fixes.md`, which is complete. This tier is the unenforced
 rules and the documentation that states things that are false. Nothing here is
 running-code breakage; the cost is that an agent or a person reads one of these
