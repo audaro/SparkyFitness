@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-08-28_
+_Last updated: 2026-09-01_
 
 SparkyFitness Frontend is the React web app for the SparkyFitness monorepo. Use this file as the primary guide for work inside `SparkyFitnessFrontend/`.
 
@@ -43,7 +43,7 @@ pnpm run build
 Features are organized by domain, and the same domain folder name appears in `src/pages/`, `src/api/`, and `src/hooks/`. A feature change usually touches the matching folder in all three:
 
 - Page domains: `Admin`, `Auth`, `Chat`, `CheckIn`, `Cycle`, `Diary`, `Errors`, `Exercises`, `Fasting`, `Foods`, `Goals`, `Integrations`, `Medications`, `Reports`, `Settings`.
-- API domains add a few more: `AiConversions`, `Chatbot`, `Onboarding`, `Pregnancy`, `SleepScience`.
+- API domains add a few more: `AiConversions`, `Chatbot`, `Health`, `Onboarding`, `Pregnancy`, `SleepScience`.
 - Example: a Medications bug lives in `src/pages/Medications/` + `src/api/Medications/` + `src/hooks/` medication hooks. Start there, not with a repo-wide search.
 
 ## Source Map
@@ -211,7 +211,7 @@ for component; the server half is `SparkyFitnessServer/AGENTS.md`.
 
 - Only ever edit `public/locales/en/translation.json`. The other 27 locales are machine-synced through the `sync-translations.yml` workflow and a separate SparkyFitnessTranslations repo; hand-editing them creates conflicts with that pipeline.
 - UI strings go through `useTranslation()` / `t('...')` keys, not hardcoded literals.
-- `en/translation.json` is ~120 KB - grep for the key or section you need instead of reading the whole file.
+- `en/translation.json` is ~237 KB - grep for the key or section you need instead of reading the whole file.
 - Developer docs: `../docs/content/8.developer/9.translations.md`.
 
 ## Conventions
