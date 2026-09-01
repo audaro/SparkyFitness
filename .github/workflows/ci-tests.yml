@@ -411,8 +411,11 @@ jobs:
           fi
           pip install pytest pytest-cov
 
+      # No continue-on-error: SparkyFitnessGarmin/tests exists and pytest runs
+      # it, so a discarded result was a suite that could never fail CI. The
+      # directory guard stays — it is what makes the step a no-op if the tests
+      # are ever removed, rather than a failure.
       - name: Run tests with coverage
-        continue-on-error: true
         run: |
           if [ -d tests ] || [ -f test_*.py ]; then
             pytest --cov=. --cov-report=xml --cov-report=html
