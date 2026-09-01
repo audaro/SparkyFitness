@@ -6,10 +6,33 @@ and 3, re-verified against source before this file was written.*
 
 ## Status — worked 2026-09-01
 
-Items 1 and 4-10 are done, one commit each (item 1 has no commit — it is a
-`.git/info/exclude` change, which is not a tracked file). Item 2 is left open
-deliberately: it needs a decision, not an implementation. Item 3 was out of
+Items 1, 2 and 4-10 are done, one commit each (item 1 has no commit — it is a
+`.git/info/exclude` change, which is not a tracked file). Item 3 was out of
 scope by instruction.
+
+Item 2 was held back at first because it needs a decision rather than an
+implementation; the decision came back "do it" and it shipped in `c3c0c30e6`
+(173 files). `no-explicit-any` is now `'error'` on the server and
+`reportUnusedDisableDirectives` is `'error'` alongside it, so a suppression that
+stops suppressing anything fails the build. The lever that made the rest
+possible was typing `db/poolManager.ts`: with `getClient` returning a real
+`PoolClient`, `client.query<Row>()` works and roughly 180 downstream sites had
+to say what they read. 359 dead disable comments went; `tests/**` states its
+exemption once in the config instead of through ~350 per-line comments; the 112
+unsuppressed `any` sites are typed. 1,375 suppressions remain in server `src` —
+they are now genuine, visible suppressions rather than decoration, and reducing
+them is a separate, mechanical follow-up (`userId: any` alone is ~380 of them).
+
+The typing surfaced three latent bugs that `any` had been hiding, all fixed in
+the same commit: `ensureUserInitialization` was called with three arguments
+against a four-parameter signature, so a `PoolClient` landed in `avatarUrl` and
+new-user profile/goal/onboarding inserts escaped the caller's transaction;
+`externalProviderService` recomputed `has_token` from a column the repository
+never exposes, forcing every provider to `has_token: false`; and
+`withingsDataProcessor` reused one `let category` for both the list and the
+`.find` result. One boundary keeps a documented suppression on purpose — the
+Garmin push payload in `services/garmin/garminHealthProcessor.ts`, whose ~30
+per-metric row shapes are their own piece of work.
 
 Two things turned up that this handoff did not predict, both in item 9. The
 security-tier doc's errors were not only omissions: cross-checking every
