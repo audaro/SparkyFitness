@@ -2,6 +2,37 @@
 
 *Written 2026-08-31. Source: six-agent audit at HEAD `60129351a`, main clean and green.*
 
+## Status — all eight complete, 2026-09-01
+
+Landed as eight commits on `main` (`def66c0f0` … `b92585604`), each gated with
+the package `validate` + test script before its commit. Two deviations from the
+plan as written, both deliberate:
+
+- **Item 2** cherry-picked only two of the four upstream commits. `a501b8f47`
+  and `e27cc9d64` landed as `86879aea7` and `def66c0f0`. `b243da939` (discard
+  Postgres clients after a failed rollback) does not apply — this fork's
+  transaction helper already releases with `client.release(err)` on the rollback
+  path, so the pool-poisoning window it closes does not exist here.
+  `7a2703653` targets a `draft-release` workflow this fork does not have.
+- **Item 5** was a repository setting, so it has no commit. Actions may now open
+  pull requests, which unblocks the schema-backup sync PR.
+
+Item 4's filter additions were also applied to the `migrations` filter, not only
+the ones named below — the same hole, one path further along.
+
+Item 8 removed `__tests__` from the mobile tsconfig `exclude` and surfaced 769
+errors across ~170 files. All are fixed. Five *src* types were widened rather
+than the fixtures narrowed (`brand_name`, `serving_description`, draft
+`distance`, goal macro percentages, `CustomMeasurementEntry.source`) — in each
+case the column is nullable and the response passes it straight through, so the
+local type was the thing that was wrong. Each carries a comment saying so.
+Mobile now runs 388 suites / 6321 tests green with the suite type-checked.
+
+No independent second-opinion review ran over any of this — the reviewer was
+still down (see Open risks). Self-review and the gate were the only checks.
+
+---
+
 Fix the eight items below. Everything here was verified against source or a live
 command during the audit; nothing is a lead to re-investigate.
 
