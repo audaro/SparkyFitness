@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-08-28_
+_Last updated: 2026-09-01_
 
 SparkyFitness Server is the backend API package for the SparkyFitness monorepo. Use this file as the primary guide for work inside `SparkyFitnessServer/`.
 
@@ -170,7 +170,8 @@ When searching, ignore noisy/generated directories unless you explicitly need th
   - `req.user`
 - `req.userId` is the active RLS target; `req.authenticatedUserId` is the logged-in actor
 - Family and delegated access flow through `middleware/checkPermissionMiddleware.ts`, `middleware/onBehalfOfMiddleware.ts`, and the auth middleware’s active-user switching
-- `checkPermissionMiddleware(permissionType)` guards routes; permission types are `'diary'`, `'reports'`, and `'checkin'`
+- `checkPermissionMiddleware(permissionType)` guards routes; the permission types in use are `'diary'`, `'checkin'`, `'reports'` and `'medications'`
+- Three of them narrow on the request: `'diary'` and `'medications'` resolve to `diary_read` / `medications_read` on GET, and `'checkin'` resolves to `water` on a `/water-intake` URL or `checkin_read` on a GET that is not a photo route. `'reports'` passes through unchanged.
 - If you change auth behavior, check both cookie-backed sessions and API key flows
 
 ### Dates, Day Strings, and Timezones
