@@ -1,0 +1,104 @@
+appId: ${APP_ID}
+---
+# Sparky proposes a workout routine in chat and the user saves it.
+#
+# The model is qa/bin/qa-ai-stub.mjs, playing three turns: it searches the
+# library, proposes what it found as a sparky_propose_workout_preset card, and
+# acknowledges the acceptance. Everything between is real — the server's tool
+# loop and stop condition, the streamed tool part, the card, the POST that
+# creates the preset, the persisted history — and the oracle reads the preset
+# out of the database and the three turns out of the stub's request log.
+#
+# The message typed below is USER_MESSAGE in qa/fixtures/workout-proposal.mjs
+# verbatim; the oracle checks the stub received exactly that text, so the two
+# cannot drift apart silently.
+- runFlow: lib/boot.yaml
+- runFlow: lib/grant-notifications.yaml
+
+# === ask ====================================================================
+# Granting notifications leaves the app in Settings, and Settings has rows
+# whose text would match below, so go to the Home tab by position first.
+- tapOn:
+    point: "10%,93%"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element: ".*Ask Sparky.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: ".*Ask Sparky.*"
+- extendedWaitUntil:
+    visible: ".*Message Sparky.*"
+    timeout: 30000
+- tapOn: ".*Message Sparky.*"
+- inputText: "Build me a chest workout routine I can save"
+- tapOn:
+    id: "chat-send"
+
+# Two model turns and a database search sit between Send and the card.
+- extendedWaitUntil:
+    visible: "Proposed routine"
+    timeout: 90000
+- assertVisible: "QA Chest Day"
+- assertVisible: "2 exercises · 5 sets"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots-proposal/01-proposal-card
+
+# === accept =================================================================
+# The card's buttons stay disabled while the reply is still streaming, and a
+# tap on a disabled Pressable is simply dropped — so wait for the button to be
+# enabled, not merely drawn. The keyboard is deliberately left up: the first
+# tap after typing used to only dismiss it (keyboardShouldPersistTaps), and
+# this is the regression check for that.
+- extendedWaitUntil:
+    visible:
+      id: "workout-proposal-accept"
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: "workout-proposal-accept"
+# Accepting appends a user message, so the model gets another turn. The reply
+# itself cannot be asserted here: assistant text is drawn by the native
+# markdown view, which exposes nothing to XCUITest (see qa/README.md), so the
+# oracle reads the reply out of the persisted history instead. What the flow
+# can see is the appended user bubble, and then the Send button, which the
+# composer only draws once the thread has stopped running.
+- extendedWaitUntil:
+    visible: 'I accepted the proposed routine "QA Chest Day".'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "chat-send"
+    timeout: 60000
+# The thread scrolled down to the reply — the card's badge is above the fold.
+- scrollUntilVisible:
+    element: "Saved ✓"
+    direction: UP
+    timeout: 20000
+- assertNotVisible:
+    id: "workout-proposal-accept"
+- waitForAnimationToEnd
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots-proposal/02-accepted
+
+# === reload =================================================================
+# Leave and come back: the card must come out of the persisted history too,
+# which is what the seeded part types exist for.
+- tapOn: "Back"
+- scrollUntilVisible:
+    element: ".*Ask Sparky.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: ".*Ask Sparky.*"
+# The card comes back out of the persisted tool part (its name is a plain
+# Text) and the acceptance bubble out of the user row; the assistant's reply is
+# markdown and invisible to the driver, so the oracle vouches for it.
+- extendedWaitUntil:
+    visible: 'I accepted the proposed routine "QA Chest Day".'
+    timeout: 30000
+- scrollUntilVisible:
+    element: "QA Chest Day"
+    direction: UP
+    timeout: 20000
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots-proposal/03-history-reload
+- tapOn: "Back"

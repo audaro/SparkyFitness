@@ -3419,6 +3419,7 @@
     "errorRetry": "Something went wrong. Tap retry to try again.",
     "retry": "Retry",
     "placeholder": "Message Sparky…",
+    "send": "Send message",
     "emptyPrompt": "Ask Sparky anything about your nutrition, exercise, or goals.",
     "clearTitle": "Clear chat",
     "clearMessage": "This permanently deletes your Sparky chat history. This cannot be undone.",

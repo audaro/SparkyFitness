@@ -23,11 +23,26 @@
  * carry: it is the only place that shows the photograph was actually uploaded,
  * at its real dimensions, with the description and total weight the flow typed
  * into the Improve screen embedded in the prompt.
+ *
+ * It also plays the model behind Sparky chat for qa/flows/workout-proposal.yaml.
+ * Chat arrives through the same OpenAI shape (the server's AI SDK client posts
+ * to `<custom_url>/chat/completions`, so the path is longer) but with `tools`
+ * and usually `stream: true`. The stub then acts out the three turns a real
+ * model takes to propose a routine — search the library, propose what it
+ * found, acknowledge the acceptance — driven entirely by what the server sends
+ * back, so the tool loop, the stop condition, the streamed card and the
+ * history reload are all the real ones. See `chatTurn` below.
  */
 import { createServer } from 'node:http';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ESTIMATE } from '../fixtures/food-photo.mjs';
+import {
+  ACCEPT_REPLY,
+  SEARCH_QUERY,
+  buildProposal,
+  pickExercises,
+} from '../fixtures/workout-proposal.mjs';
 
 const port = Number(process.env.QA_AI_STUB_PORT);
 const runDir = process.env.QA_RUN_DIR;
@@ -118,7 +133,11 @@ const server = createServer((req, res) => {
     return;
   }
 
-  if (req.method !== 'POST' || req.url !== '/v1/chat/completions') {
+  // The photo estimate posts to /v1/chat/completions verbatim; the chat client
+  // appends /chat/completions to the same URL. Both are this endpoint.
+  const isCompletions =
+    req.method === 'POST' && (req.url ?? '').split('?')[0].endsWith('/chat/completions');
+  if (!isCompletions) {
     // Loudly, and in the log: a provider row pointing at the wrong path would
     // otherwise surface as a generic UPSTREAM_ERROR three layers up.
     record({ unexpected: `${req.method} ${req.url}` });
@@ -154,6 +173,13 @@ const server = createServer((req, res) => {
       return;
     }
 
+    if (Array.isArray(body?.tools) || Array.isArray(body?.messages) && body.messages.length > 1) {
+      const turn = chatTurn(body);
+      const toolCallIds = respond(res, body, turn);
+      record({ chat: describeChat(body), reply: summarizeTurn(turn), toolCallIds });
+      return;
+    }
+
     record(describeRequest(body));
 
     // The OpenAI-family extractor reads choices[0].message.content and hands
@@ -175,6 +201,185 @@ const server = createServer((req, res) => {
     );
   });
 });
+
+// --- chat -------------------------------------------------------------------
+
+function messageText(message) {
+  const content = message?.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => (typeof part?.text === 'string' ? part.text : '')).join('');
+  }
+  return '';
+}
+
+/**
+ * A tool result as the AI SDK sends it back: `{role:'tool', content}` where
+ * content is the tool's string output, JSON-encoded once more by the client.
+ * Unwrap however many layers there are and hand back the exercise records.
+ */
+function exerciseHits(toolMessage) {
+  let value = toolMessage?.content;
+  for (let i = 0; i < 3 && typeof value === 'string'; i += 1) {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      break;
+    }
+  }
+  const rows = Array.isArray(value?.data) ? value.data : Array.isArray(value) ? value : [];
+  if (rows.length > 0) return rows;
+  // Last resort: the ids and names are still in the text somewhere.
+  const text = typeof toolMessage?.content === 'string' ? toolMessage.content : JSON.stringify(toolMessage?.content ?? '');
+  const found = [];
+  const re = /"id"\s*:\s*"([0-9a-f-]{36})"[^{}]*?"name"\s*:\s*"([^"]+)"/g;
+  for (const m of text.matchAll(re)) found.push({ id: m[1], name: m[2] });
+  return found;
+}
+
+/**
+ * Decides the assistant's move from the conversation so far. Returns either
+ * `{ text }` or `{ toolCalls: [{ name, args }] }`.
+ *
+ *   classifier prompt        -> "exercise"            (keyword miss fallback)
+ *   last message is a tool   -> propose from its hits (the search came back)
+ *   user accepted the card   -> ACCEPT_REPLY
+ *   anything else            -> sparky_search_exercises(SEARCH_QUERY)
+ */
+function isClassifierPrompt(messages) {
+  const system = messages.filter((m) => m?.role === 'system').map(messageText).join('\n');
+  return /determine which of the following health tracking domains/i.test(system);
+}
+
+function chatTurn(body) {
+  const messages = Array.isArray(body?.messages) ? body.messages : [];
+  if (isClassifierPrompt(messages)) {
+    return { text: 'exercise' };
+  }
+  const last = messages[messages.length - 1];
+  if (last?.role === 'tool') {
+    const picked = pickExercises(exerciseHits(last));
+    if (picked.length === 0) {
+      return { text: `The search for "${SEARCH_QUERY}" returned nothing I could program.` };
+    }
+    return { toolCalls: [{ name: 'sparky_propose_workout_preset', args: buildProposal(picked) }] };
+  }
+  const lastUser = [...messages].reverse().find((m) => m?.role === 'user');
+  if (/I accepted the proposed routine/i.test(messageText(lastUser))) {
+    return { text: ACCEPT_REPLY };
+  }
+  return { toolCalls: [{ name: 'sparky_search_exercises', args: { query: SEARCH_QUERY } }] };
+}
+
+function describeChat(body) {
+  const messages = Array.isArray(body?.messages) ? body.messages : [];
+  const lastUser = [...messages].reverse().find((m) => m?.role === 'user');
+  return {
+    model: body?.model ?? null,
+    stream: Boolean(body?.stream),
+    toolsOffered: Array.isArray(body?.tools) ? body.tools.map((t) => t?.function?.name ?? t?.name).filter(Boolean) : [],
+    roles: messages.map((m) => m?.role),
+    lastUserText: messageText(lastUser),
+    toolResults: messages.filter((m) => m?.role === 'tool').length,
+    // The server's domain classifier is a separate model call with its own
+    // system prompt; the oracle must not mistake it for the reply turn.
+    classifier: isClassifierPrompt(messages),
+  };
+}
+
+function summarizeTurn(turn) {
+  if (turn.text != null) return { text: turn.text };
+  return { toolCalls: turn.toolCalls.map((c) => ({ name: c.name, args: c.args })) };
+}
+
+// Tool-call ids must be unique for the life of the process, not just within
+// one reply. The client keys tool parts by id, and the server's loop asks for
+// the next turn within the same second — a timestamp-based id made the
+// proposal land on the search's part, which then rendered as a generic chip
+// instead of the routine card and the flow never found "Proposed routine".
+let toolCallSerial = 0;
+
+/** Writes the turn in whichever shape the client asked for; returns the
+ *  tool-call ids it issued so the request log can hold them distinct. */
+function respond(res, body, turn) {
+  const id = `qa-ai-stub-${Date.now()}`;
+  const model = body?.model ?? 'qa-stub-chat';
+  const created = Math.floor(Date.now() / 1000);
+  const toolCalls = (turn.toolCalls ?? []).map((call, index) => ({
+    index,
+    id: `call_qa_${++toolCallSerial}`,
+    type: 'function',
+    function: { name: call.name, arguments: JSON.stringify(call.args) },
+  }));
+  const finish = toolCalls.length > 0 ? 'tool_calls' : 'stop';
+
+  const issuedIds = toolCalls.map((call) => call.id);
+
+  if (!body?.stream) {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        id,
+        object: 'chat.completion',
+        created,
+        model,
+        choices: [
+          {
+            index: 0,
+            finish_reason: finish,
+            message: {
+              role: 'assistant',
+              content: turn.text ?? null,
+              ...(toolCalls.length > 0 ? { tool_calls: toolCalls.map(({ index: _i, ...rest }) => rest) } : {}),
+            },
+          },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      })
+    );
+    return issuedIds;
+  }
+
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive',
+  });
+  const chunk = (delta, finishReason = null) =>
+    res.write(
+      `data: ${JSON.stringify({
+        id,
+        object: 'chat.completion.chunk',
+        created,
+        model,
+        choices: [{ index: 0, delta, finish_reason: finishReason }],
+      })}\n\n`
+    );
+  chunk({ role: 'assistant', content: '' });
+  if (turn.text != null) {
+    // A few chunks rather than one, so the client's streaming path is the one
+    // that runs.
+    for (const piece of turn.text.match(/.{1,12}/g) ?? []) chunk({ content: piece });
+  }
+  for (const call of toolCalls) {
+    chunk({ tool_calls: [{ index: call.index, id: call.id, type: 'function', function: { name: call.function.name, arguments: '' } }] });
+    chunk({ tool_calls: [{ index: call.index, function: { arguments: call.function.arguments } }] });
+  }
+  chunk({}, finish);
+  res.write(
+    `data: ${JSON.stringify({
+      id,
+      object: 'chat.completion.chunk',
+      created,
+      model,
+      choices: [],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    })}\n\n`
+  );
+  res.write('data: [DONE]\n\n');
+  res.end();
+  return issuedIds;
+}
 
 // Loopback only. This process answers anything that asks and would be a
 // standing invitation on a shared network.

@@ -145,6 +145,8 @@ export function getSourceLabel(
 }
 
 export function formatDuration(minutes: number): string {
+  // A session that lasted seconds is still a session: never round it to "0 min".
+  if (minutes > 0 && minutes < 1) return '<1 min';
   if (minutes < 60) return `${Math.round(minutes)} min`;
   const hrs = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);

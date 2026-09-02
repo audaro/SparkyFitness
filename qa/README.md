@@ -193,6 +193,31 @@ Steps more than one scenario needs live in `flows/lib/` and are pulled in with
 that was doing something else entirely, so a copy would drift the moment one of
 them is fixed.
 
+`flows/workout-proposal.yaml` is the seventh, and the first to drive Sparky
+chat. The fake provider plays a *model* here, not a vision endpoint: given the
+typed request it calls `sparky_search_exercises`, programs whatever the server's
+search returns as a `sparky_propose_workout_preset` card, and acknowledges the
+acceptance — three turns, scripted in `bin/qa-ai-stub.mjs` from one fixture
+(`fixtures/workout-proposal.mjs`) that the flow, the stub and the oracle all
+read. Everything between the turns is real: the server's tool loop and stop
+condition, the streamed tool part, the card, the POST that creates the preset,
+the persisted history, and the card coming back out of it after leaving and
+returning to the chat.
+
+The oracle reads the preset (name, description, private, exercises in order,
+every set's reps, kg and rest), checks that the exercise ids on it are rows the
+seeded catalog's chest search would return — the ids came from the server's
+search, not from the stub — and reads the model loop out of the stub's request
+log: the exact message typed, the search before the proposal, the proposal on
+the turn that carried the search result, the acceptance naming the routine,
+and the acknowledgement persisted as an assistant row. Getting it green found
+three real defects, none of them in the harness: a fresh install cached "no AI
+provider" from before it had a server and gated chat for five minutes after
+sign-in; the first tap on the card after typing only dismissed the keyboard;
+and the stub's own tool-call ids collided within a second, which is exactly
+what a client keyed on those ids does with them — so the oracle now holds the
+ids distinct.
+
 `app-logs.mjs` is the cheapest broad coverage in the harness: `LogService.ts`
 already writes structured entries into AsyncStorage and most screens are wrapped
 in error boundaries that log on the way down, so every scenario gets
@@ -531,6 +556,32 @@ usually absorbs the spinner, not the guarantee — a spinner is a small region a
 the heuristic is a frame comparison. When a step is genuinely invisible, borrow
 the next step's signal; do not let an animation wait be the only thing standing
 between a tap and the state it depends on.
+
+**Assistant replies are invisible to the driver.** Sparky's markdown is drawn by
+`react-native-enriched-markdown`, a native view that exposes no accessibility
+elements XCUITest can see: `maestro hierarchy` shows the user's bubble and the
+"syncing, Retry" action, and nothing at all for the text between them, however
+plainly it sits on screen. `workout-proposal.yaml` therefore never asserts a
+reply. It waits on the appended user bubble (plain Text) and on the Send button
+(`id: chat-send`), which the composer draws only once the thread has stopped
+running, and leaves the reply's content to the oracle, which reads it out of
+`sparky_chat_history`. The same dump is the place to look whenever text that is
+visibly on screen "is not visible": the action bar's label is `syncing, Retry`
+(icon name plus text), so `"Retry"` needs `".*Retry"`.
+
+**Wait for enabled, not for drawn.** The proposal card's buttons render while
+the reply is still streaming and only become live when it settles; a tap on a
+disabled Pressable is dropped without a trace, and the flow then fails thirty
+seconds later on the badge that never appeared. `visible: {id: …, enabled: true}`
+is the selector for "the control will take the tap" — RN maps `disabled` to the
+accessibility state Maestro reads.
+
+**A green run in one scenario says nothing about a neighbour.** `food-photo`
+seeds the same AI provider and passed for weeks, while chat on the same install
+said "No active AI provider": the photo gate refetches on entry (`staleTime: 0`)
+and chat trusted a five-minute cache that the app-root voice button had filled
+with `null` before onboarding created a server. Each gate on shared state is
+its own scenario.
 
 **Prefer the control that needs no aim.** Logging a set on ActiveWorkout means
 finding one cell among three identical rows, which needs an anchor *and* an

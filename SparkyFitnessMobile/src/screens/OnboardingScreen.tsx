@@ -47,7 +47,7 @@ import {
   fetchWithTimeout,
 } from '../utils/concurrency';
 import { markCurrentVersionSeen } from '../services/whatsNewBanner';
-import { queryClient, serverConnectionQueryKey } from '../hooks';
+import { activeAiServiceSettingQueryKey, queryClient, serverConnectionQueryKey } from '../hooks';
 import type { RootStackScreenProps } from '../types/navigation';
 
 type AuthTab = 'signIn' | 'apiKey';
@@ -159,6 +159,9 @@ export default function OnboardingScreen({ navigation }: Props) {
   const finishWithConnection = () => {
     void markCurrentVersionSeen();
     queryClient.invalidateQueries({ queryKey: serverConnectionQueryKey });
+    // Anything fetched before there was a server (the voice button asks for
+    // the AI provider at launch) cached "nothing" and must be asked again.
+    queryClient.invalidateQueries({ queryKey: activeAiServiceSettingQueryKey });
     navigation.replace('Tabs', { screen: 'Home' });
   };
 

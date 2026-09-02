@@ -19,7 +19,7 @@ import { FoodImageSourceProvider } from './src/components/FoodImageSourceProvide
 import { LightboxProvider } from './src/components/LightboxProvider';
 import { Uniwind, useUniwind, useCSSVariable } from 'uniwind';
 
-import { queryClient, serverConnectionQueryKey, serverConfigsQueryKey, useSyncHealthData, useCycleMode } from './src/hooks';
+import { activeAiServiceSettingQueryKey, queryClient, serverConnectionQueryKey, serverConfigsQueryKey, useSyncHealthData, useCycleMode } from './src/hooks';
 import { useAppStartup } from './src/hooks/useAppStartup';
 import { useAppBootstrap } from './src/hooks/useAppBootstrap';
 import { useAppLanguageForegroundSync } from './src/hooks/useAppLanguageForegroundSync';
@@ -790,6 +790,7 @@ function AppContent() {
             }
             queryClient.invalidateQueries({ queryKey: serverConnectionQueryKey });
             queryClient.invalidateQueries({ queryKey: serverConfigsQueryKey });
+            queryClient.invalidateQueries({ queryKey: activeAiServiceSettingQueryKey });
           }}
           onDismiss={() => {
             if (showApiKeySwitchModal) {

@@ -341,6 +341,12 @@ describe('workoutSession', () => {
       expect(formatDuration(30.6)).toBe('31 min');
     });
 
+    it('never shows a sub-minute session as 0 min', () => {
+      expect(formatDuration(0.4)).toBe('<1 min');
+      expect(formatDuration(0.9)).toBe('<1 min');
+      expect(formatDuration(0)).toBe('0 min');
+    });
+
     it('formats hours without remaining minutes', () => {
       expect(formatDuration(120)).toBe('2h');
     });

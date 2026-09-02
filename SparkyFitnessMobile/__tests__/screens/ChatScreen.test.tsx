@@ -222,9 +222,24 @@ describe('ChatScreen config gating', () => {
     const { findByText } = renderScreen();
     expect(await findByText(/No active AI provider/i)).toBeTruthy();
   });
+
+  it('asks for the active provider afresh on every entry instead of trusting a launch-time cache', async () => {
+    // The voice button fetches this setting at app launch; on a fresh install
+    // that is before any server exists, and the cached null must not gate chat.
+    mockUseActiveAiServiceSetting.mockReturnValue({ data: undefined, isLoading: false } as any);
+    renderScreen();
+    expect(mockUseActiveAiServiceSetting).toHaveBeenCalledWith({ staleTime: 0 });
+  });
 });
 
 describe('ChatScreen thread', () => {
+  it('lets a tap on a card button through while the keyboard is still up', async () => {
+    // FlatList's default swallows the first tap after typing to dismiss the
+    // keyboard, which made "Save routine" on a proposal card a no-op.
+    const { findByTestId } = renderScreen();
+    expect((await findByTestId('thread-messages')).props.keyboardShouldPersistTaps).toBe('handled');
+  });
+
   it('renders the empty state with the configured starter suggestions', async () => {
     const { findByText, getByText } = renderScreen();
     expect(

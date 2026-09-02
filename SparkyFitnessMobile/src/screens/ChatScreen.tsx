@@ -488,7 +488,10 @@ function Composer({ autoFocusReady }: { autoFocusReady: boolean }) {
       {/* ThreadPrimitive.If is the running-aware conditional (ComposerPrimitive.If
           is not): show Send when idle, swap to a Stop button while streaming. */}
       <ThreadPrimitive.If running={false}>
-        <ComposerPrimitive.Send>
+        <ComposerPrimitive.Send
+          accessibilityLabel={t('chat.send', { defaultValue: 'Send message' })}
+          testID="chat-send"
+        >
           <View className="bg-accent-primary rounded-full w-10 h-10 items-center justify-center">
             <Icon name="arrow-up" size={20} color="#ffffff" />
           </View>
@@ -655,6 +658,11 @@ function ChatThread({
             ref={messagesRef}
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16 }}
+            // The reply that follows a typed message arrives with the keyboard
+            // still up. With the FlatList default ("never") the first tap on a
+            // card button only dismisses the keyboard and is otherwise dropped
+            // — Save routine did nothing until tapped twice.
+            keyboardShouldPersistTaps="handled"
             onContentSizeChange={scrollToBottom}
             onLayout={scrollToBottom}
           >
@@ -699,7 +707,11 @@ export default function ChatScreen({ navigation }: RootStackScreenProps<'Chat'>)
   // Remounting ChatThread by key resets the in-memory runtime (it ignores
   // `messages` changes after mount), so bump this to clear the thread.
   const [threadKey, setThreadKey] = useState(0);
-  const { data: setting, isLoading: loadingSetting } = useActiveAiServiceSetting();
+  // staleTime 0: the voice button at the app root asks for this setting at
+  // launch, before a fresh install has a server at all, and that silent null
+  // would otherwise be served here for five minutes after the user signs in.
+  // It also lets a provider configured in the web app show up on re-entry.
+  const { data: setting, isLoading: loadingSetting } = useActiveAiServiceSetting({ staleTime: 0 });
 
   // Gate the composer's autofocus on the push transition finishing so the
   // keyboard doesn't animate in over the still-sliding screen (which renders it
