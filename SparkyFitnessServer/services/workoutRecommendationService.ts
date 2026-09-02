@@ -580,7 +580,9 @@ async function generateRecommendation(
     // is not a workout. Fail loudly rather than persisting a row every client
     // would then have to special-case.
     throw new WorkoutGenerationError(
-      'No exercises available to build a workout. Add exercises to your catalog, or relax your gym profile.'
+      gymProfile
+        ? `No exercises in your library work with the "${gymProfile.name}" gym profile. Change the gym profile or add exercises.`
+        : 'No exercises available to build a workout yet. Add an exercise pack or create exercises first.'
     );
   }
 

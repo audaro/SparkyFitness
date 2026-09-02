@@ -887,7 +887,7 @@ describe('generateRecommendation', () => {
 
       await expect(
         workoutRecommendationService.generateRecommendation(USER_ID)
-      ).rejects.toThrow(/No exercises available/);
+      ).rejects.toThrow(/No exercises/);
 
       // At most one import per target muscle, and never more than the cap.
       expect(
@@ -995,7 +995,7 @@ describe('generateRecommendation', () => {
 
       await expect(
         workoutRecommendationService.generateRecommendation(USER_ID)
-      ).rejects.toThrow(/No exercises available/);
+      ).rejects.toThrow(/No exercises/);
       expect(
         exercises.addFreeExerciseDBExerciseToUserExercises
       ).not.toHaveBeenCalled();
@@ -1143,7 +1143,7 @@ describe('generateRecommendation', () => {
 
     await expect(
       workoutRecommendationService.generateRecommendation(USER_ID)
-    ).rejects.toThrow(/No exercises available/);
+    ).rejects.toThrow(/No exercises/);
     expect(repo.upsertWorkoutRecommendation).not.toHaveBeenCalled();
   });
 });
