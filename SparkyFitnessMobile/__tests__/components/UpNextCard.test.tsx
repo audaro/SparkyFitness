@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 
 import UpNextCard from '../../src/components/UpNextCard';
 import { useWorkoutRecommendation } from '../../src/hooks/useWorkoutRecommendation';
+import { useActiveWorkoutStore } from '../../src/stores/activeWorkoutStore';
 
 jest.mock('../../src/hooks/useWorkoutRecommendation', () => ({
   useWorkoutRecommendation: jest.fn(),
@@ -46,6 +47,7 @@ const recommendation = {
 describe('UpNextCard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    useActiveWorkoutStore.getState().clearWorkout();
   });
 
   it('summarizes the generated workout', () => {
@@ -83,6 +85,34 @@ describe('UpNextCard', () => {
 
     expect(screen.getByTestId('up-next-card')).toBeTruthy();
     expect(screen.getByText('Chest · Triceps')).toBeTruthy();
+  });
+
+  it('shows Done today once the recommendation is completed', () => {
+    setState({ recommendation: { ...recommendation, status: 'completed' } });
+
+    const screen = render(<UpNextCard navigation={navigation as never} />);
+
+    expect(screen.getByTestId('up-next-card-completed')).toBeTruthy();
+    expect(screen.getByText('Done today')).toBeTruthy();
+  });
+
+  it('shows In progress while this recommendation is the live workout, whatever the server status says', () => {
+    setState({ recommendation: { ...recommendation, status: 'started' } });
+    useActiveWorkoutStore.setState({ sessionId: 'session-1', sourceRecommendationId: 'rec-1' });
+
+    const screen = render(<UpNextCard navigation={navigation as never} />);
+
+    expect(screen.getByText('In progress')).toBeTruthy();
+    expect(screen.queryByTestId('up-next-card-completed')).toBeNull();
+  });
+
+  it('does not claim In progress when the live workout came from somewhere else', () => {
+    setState({ recommendation: { ...recommendation, status: 'started' } });
+    useActiveWorkoutStore.setState({ sessionId: 'session-1', sourceRecommendationId: null });
+
+    const screen = render(<UpNextCard navigation={navigation as never} />);
+
+    expect(screen.queryByText('In progress')).toBeNull();
   });
 
   it('navigates to the Up Next screen', () => {

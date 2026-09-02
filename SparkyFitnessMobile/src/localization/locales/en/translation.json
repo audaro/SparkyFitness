@@ -4648,7 +4648,8 @@
       "exerciseCount_other": "{{count}} exercises",
       "muscleCount_one": "{{count}} muscle",
       "muscleCount_other": "{{count}} muscles",
-      "completed": "Done today"
+      "completed": "Done today",
+      "inProgress": "In progress"
     },
     "generateFailed": "Could not build a workout",
     "generateNoMatch": "No exercises matched your gym equipment. Try another gym profile.",

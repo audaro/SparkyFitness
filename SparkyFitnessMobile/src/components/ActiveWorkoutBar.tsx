@@ -25,6 +25,7 @@ import Icon from './Icon';
 import { TAB_BAR_HEIGHT } from './CustomTabBar';
 import { useActiveWorkoutStore } from '../stores/activeWorkoutStore';
 import { flushActiveWorkoutBeforeClear } from '../hooks/useActiveWorkoutAutosave';
+import { clearActiveWorkout } from '../utils/clearActiveWorkout';
 import { usePreferences } from '../hooks/usePreferences';
 import { useRestCountdown } from '../hooks/useRestCountdown';
 import {
@@ -538,6 +539,9 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
   // the active-workout screen (and its autosave hook) unmounted, so dirty
   // state is saved before the workout is dismissed.
   const flushAndClear = async () => {
+    // Dismissing a fully-done workout from the HUD is finishing it without the
+    // celebration; anything short of that hands Today's Workout back.
+    const outcome = isWorkoutComplete ? 'completed' : 'abandoned';
     const ok = await flushActiveWorkoutBeforeClear(queryClient);
     if (!ok) {
       Alert.alert(
@@ -548,13 +552,13 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
           {
             text: t('activeWorkout.bar.discardAnyway', { defaultValue: 'Discard anyway' }),
             style: 'destructive',
-            onPress: () => useActiveWorkoutStore.getState().clearWorkout(),
+            onPress: () => clearActiveWorkout(queryClient, outcome),
           },
         ],
       );
       return;
     }
-    useActiveWorkoutStore.getState().clearWorkout();
+    clearActiveWorkout(queryClient, outcome);
   };
 
   const handleClear = () => {

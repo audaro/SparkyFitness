@@ -69,6 +69,7 @@ import { addLog } from '../services/LogService';
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
 import { getActiveServerConfig } from '../services/storage';
 import { useActiveWorkoutStore, type ActiveSetPatch } from '../stores/activeWorkoutStore';
+import { clearActiveWorkout } from '../utils/clearActiveWorkout';
 import { normalizeDate } from '../utils/dateUtils';
 import { runAfterKeyboardSettles } from '../utils/keyboardFocus';
 import {
@@ -905,7 +906,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
             // Clear and exit first: clearing cancels the pending autosave
             // debounce and frees the user immediately; the delete finishes in
             // the background (a racing autosave 404s harmlessly server-side).
-            useActiveWorkoutStore.getState().clearWorkout();
+            clearActiveWorkout(queryClient, 'abandoned');
             navigation.goBack();
             deleteWorkout(idToDelete)
               .then(() => {
@@ -934,7 +935,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
           text: t('workout.discard', { defaultValue: 'Discard' }),
           style: 'destructive',
           onPress: () => {
-            useActiveWorkoutStore.getState().clearWorkout();
+            clearActiveWorkout(queryClient, 'abandoned');
             navigation.goBack();
           },
         },
@@ -961,7 +962,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
             text: t('workout.discard', { defaultValue: 'Discard' }),
             style: 'destructive',
             onPress: () => {
-              useActiveWorkoutStore.getState().clearWorkout();
+              clearActiveWorkout(queryClient, 'abandoned');
               navigation.goBack();
             },
           },
@@ -1005,10 +1006,13 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
               plannedSetValues: state.plannedSetValues,
             }
           : null;
-      useActiveWorkoutStore.getState().clearWorkout();
       if (celebration != null) {
+        // The Complete screen owns the `completed` marker, so a plain clear here.
+        useActiveWorkoutStore.getState().clearWorkout();
         navigation.replace('WorkoutComplete', celebration);
       } else {
+        // Nothing logged: ending is abandoning, and Today's Workout is offered again.
+        clearActiveWorkout(queryClient, 'abandoned');
         navigation.goBack();
       }
     }
@@ -1018,7 +1022,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     await attempt().finally(() => {
       finishingRef.current = false;
     });
-  }, [flush, navigation, t]);
+  }, [flush, navigation, queryClient, t]);
 
   // Long-gap guard on the way out: a workout left open across a long break
   // (forgotten overnight, one straggler set the next morning) would stamp the

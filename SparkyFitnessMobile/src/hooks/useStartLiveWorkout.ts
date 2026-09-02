@@ -9,6 +9,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { PresetSessionExerciseRequest } from '@workspace/shared';
 import { useCreateWorkout } from './useExerciseMutations';
 import { flushActiveWorkoutBeforeClear } from './useActiveWorkoutAutosave';
+import { clearActiveWorkout } from '../utils/clearActiveWorkout';
 import { serverConnectionQueryKey } from './queryKeys';
 import { defaultWorkoutName } from './useWorkoutForm';
 import { useActiveWorkoutStore } from '../stores/activeWorkoutStore';
@@ -79,7 +80,7 @@ export function promptForActiveWorkoutConflict(
         onPress: () => {
           void (async () => {
             await flushActiveWorkoutBeforeClear(queryClient);
-            useActiveWorkoutStore.getState().clearWorkout();
+            clearActiveWorkout(queryClient, 'abandoned');
             await options.onClearAndStart();
           })();
         },

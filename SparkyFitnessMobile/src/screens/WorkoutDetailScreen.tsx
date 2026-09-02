@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
+import { clearActiveWorkout } from '../utils/clearActiveWorkout';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import FadeView from '../components/FadeView';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
@@ -138,7 +139,7 @@ const WorkoutDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       // clear the active state so the bar doesn't keep referencing a session
       // that no longer exists on the server.
       if (useActiveWorkoutStore.getState().sessionId === session.id) {
-        useActiveWorkoutStore.getState().clearWorkout();
+        clearActiveWorkout(queryClient, 'abandoned');
       }
       navigation.goBack();
     },

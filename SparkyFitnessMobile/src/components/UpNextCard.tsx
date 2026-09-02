@@ -8,6 +8,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import Icon from './Icon';
 import { useWorkoutRecommendation } from '../hooks/useWorkoutRecommendation';
+import { useActiveWorkoutStore } from '../stores/activeWorkoutStore';
 import { formatDuration } from '../utils/workoutSession';
 import type { RootStackParamList, TabParamList } from '../types/navigation';
 
@@ -35,6 +36,7 @@ interface UpNextCardProps {
 const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const { recommendation, isLoading, isError } = useWorkoutRecommendation();
+  const liveRecommendationId = useActiveWorkoutStore((s) => s.sourceRecommendationId);
   const [accentPrimary, textMuted] = useCSSVariable([
     '--color-accent-primary',
     '--color-text-muted',
@@ -52,6 +54,10 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
   const exerciseCount = payload?.exercises.length ?? 0;
   const muscleCount = payload?.muscle_groups.length ?? 0;
   const isCompleted = recommendation?.status === 'completed';
+  // Live on this device right now — the store, not the server status, is the
+  // truth for that, since a stale `started` can outlive a cleared workout.
+  const isInProgress =
+    recommendation != null && liveRecommendationId === recommendation.id;
 
   return (
     <Pressable
@@ -65,14 +71,21 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
         <Text className="font-bold text-text-secondary">
           {t('upNext.title', { defaultValue: "Today's Workout" })}
         </Text>
-        {isCompleted && (
+        {isInProgress ? (
+          <Text
+            className="ml-auto mr-2 text-xs font-semibold text-accent-primary"
+            testID="up-next-card-in-progress"
+          >
+            {t('upNext.card.inProgress', { defaultValue: 'In progress' })}
+          </Text>
+        ) : isCompleted ? (
           <Text
             className="ml-auto mr-2 text-xs font-semibold text-accent-primary"
             testID="up-next-card-completed"
           >
             {t('upNext.card.completed', { defaultValue: 'Done today' })}
           </Text>
-        )}
+        ) : null}
         {isLoading ? (
           <ActivityIndicator size="small" color={accentPrimary} />
         ) : (
