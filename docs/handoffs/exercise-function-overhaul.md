@@ -14,6 +14,7 @@ below was either fixed and committed or is listed under open risks.
 | `ef4a78977` | shared, server | Generation engine and server fixes: progression that could not move below ~50 kg, history reader treating a future plan as last session, 160-minute "30-minute" workouts, fatigue earned by pressing Start, chat logging storing pounds as kg, HealthKit re-sync deleting the morning's workout, PR query using a different 1RM formula than the engine. |
 | `ec351545b` | server | Generation 422 says which side is empty: the gym profile filtered everything out, or the library has no exercises at all. |
 | `0adf526c6` | mobile, qa | Mobile fixes, Today's Workout lifecycle, chat proposal card, UX simplification, QA walks. Details below. |
+| `d929f334f` | mobile, qa | Chat proposal card exercised on device (`workout-proposal` scenario) and the three defects it found fixed; sub-minute duration floor. Details below. |
 | `a23081026` | mobile | Abandon paths hand Today's Workout back: `clearActiveWorkout` PATCHes the recommendation to `active` (or `completed` from a fully-done HUD clear); the card shows "In progress" while the workout is live. |
 
 ### Mobile bug fixes (`0adf526c6`)
@@ -46,6 +47,31 @@ below was either fixed and committed or is listed under open risks.
   Save routine / Request changes, and the part type is now seeded so it
   survives a history reload.
 
+### Chat proposal on device, and what it found (`d929f334f`)
+
+- **New scenario `qa/flows/workout-proposal.yaml`** with `setup/`, `fixtures/`
+  and `oracles/` siblings. The QA stub (`qa/bin/qa-ai-stub.mjs`) now plays a
+  chat model: search the library, propose what came back as a
+  `sparky_propose_workout_preset` card, acknowledge the acceptance. 19 oracle
+  checks read the created preset (sets, kg, rest, order, ids that came from
+  the server's search), the persisted history (proposal part, acceptance,
+  acknowledgement) and the stub's request log. Flow and oracles all pass.
+- **Chat falsely gated on a fresh install.** `VoicePushToTalk` at the app root
+  calls `useActiveAiServiceSetting` at launch, before onboarding has created a
+  server; `fetchActiveAiServiceSetting` returns `null` silently in that case
+  and React Query cached it for five minutes, so the first chat after sign-in
+  said "No active AI provider". `ChatScreen` now uses `staleTime: 0`, and
+  onboarding, server settings and the setup modal invalidate
+  `activeAiServiceSettingQueryKey` when the active server changes.
+- **First tap on the card only dismissed the keyboard.** The thread FlatList
+  used the RN default; it now sets `keyboardShouldPersistTaps="handled"`.
+- **Stub tool-call ids collided** (per-second timestamp) and the client merged
+  the proposal into the search's part, rendering a generic chip. Serial ids
+  now, and the oracle asserts distinctness.
+- **Duration floor.** `formatDuration` returns "<1 min" for sub-minute
+  sessions instead of "0 min".
+- Composer Send button has an accessibility label and `testID="chat-send"`.
+
 ### UX simplification (`0adf526c6`)
 
 Audit stance: a non-technical person opening the Exercise tab for the first
@@ -72,7 +98,7 @@ time. Nothing was removed; labels and entry points were made legible.
 | --- | --- |
 | Server `pnpm run validate` + vitest | green (committed in `ec351545b`) |
 | Mobile `pnpm run validate` | green (tsc, expo lint 0 warnings, i18n audit 0 blocking) |
-| Mobile jest `--runInBand` | 389 suites, 6332 tests, all passing |
+| Mobile jest `--runInBand` | 389 suites, 6335 tests, all passing |
 | Maestro `ux-walk` | PASS |
 | Maestro `ux-walk-2` | PASS (4m 35s), screenshots in `qa/run/shots2/40..62` |
 | Second-opinion review | not run: codex reviewer is down (see `~/.claude/CLAUDE.md`) |
@@ -87,22 +113,32 @@ time. Nothing was removed; labels and entry points were made legible.
   dashboard options. Tap the tab by position (`point: "10%,93%"`).
 - Tapping a gym-profile row toggles it active; the pencil ("Edit <name>")
   opens the editor.
+- Assistant replies (`react-native-enriched-markdown`) expose nothing to
+  XCUITest: `maestro hierarchy` shows the user bubble and `syncing, Retry`
+  but never the reply text. Wait on the user bubble and `id: chat-send`
+  instead, and let the oracle read the reply from `sparky_chat_history`.
+- Card buttons are disabled while the reply streams; wait with
+  `visible: {id: …, enabled: true}` before tapping or the tap is dropped.
+- `maestro hierarchy` needs the harness Java: run it through
+  `bash -c '. qa/bin/qa-env.sh; maestro --device $(cat qa/run/sim.udid) hierarchy'`.
 
 ## Open risks
 
 - ~~Clearing the live HUD leaves the recommendation `started`.~~ Fixed in
   `a23081026`: every abandon path goes through `clearActiveWorkout`.
-- **Duration rounding on the Complete screen.** Very short sessions can
-  read "0 min"; the QA walk showed "1 min" for a ~90 s session, so this is a
-  floor issue below one minute only.
-- **Codex reviewer is down**, so the `0adf526c6` diff (~1.9k lines) has had
-  no independent review. Re-run the marker once the ChatGPT plan is active.
-- The chat proposal card is untested on device against a live model reply;
-  it is covered by unit tests and the seeded part-type test only.
+- ~~Duration rounding on the Complete screen.~~ Fixed in `d929f334f`.
+- ~~The chat proposal card is untested on device.~~ Fixed in `d929f334f`:
+  `workout-proposal` drives it against the stub, 19 oracle checks green.
+- **Codex reviewer is down**, so neither `0adf526c6` (~1.9k lines) nor
+  `d929f334f` has had independent review. Re-run the marker once the
+  ChatGPT plan is active.
+- **VoiceOver on assistant replies is unverified.** The markdown view builds
+  its own accessibility elements, but XCUITest sees none of them; whether
+  VoiceOver reads Sparky's replies has not been checked on a device.
 
 ## Exact next step
 
-Nothing is blocked. If picking this up fresh: run `bash qa/bin/qa-run.sh
-ux-walk-2` to confirm the walk still passes. The remaining open items are the
-sub-minute duration floor and exercising the chat proposal card against a
-live model reply.
+Nothing is blocked and nothing is open apart from the review and VoiceOver
+notes above. If picking this up fresh: `bash qa/bin/qa-run.sh ux-walk-2` and
+`bash qa/bin/qa-run.sh workout-proposal` both pass at `d929f334f`; run them
+before changing the exercise or chat flows.
