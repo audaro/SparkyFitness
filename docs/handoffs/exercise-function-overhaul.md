@@ -14,7 +14,7 @@ below was either fixed and committed or is listed under open risks.
 | `ef4a78977` | shared, server | Generation engine and server fixes: progression that could not move below ~50 kg, history reader treating a future plan as last session, 160-minute "30-minute" workouts, fatigue earned by pressing Start, chat logging storing pounds as kg, HealthKit re-sync deleting the morning's workout, PR query using a different 1RM formula than the engine. |
 | `ec351545b` | server | Generation 422 says which side is empty: the gym profile filtered everything out, or the library has no exercises at all. |
 | `0adf526c6` | mobile, qa | Mobile fixes, Today's Workout lifecycle, chat proposal card, UX simplification, QA walks. Details below. |
-| follow-up | mobile | Abandon paths hand Today's Workout back: `clearActiveWorkout` PATCHes the recommendation to `active` (or `completed` from a fully-done HUD clear); the card shows "In progress" while the workout is live. |
+| `a23081026` | mobile | Abandon paths hand Today's Workout back: `clearActiveWorkout` PATCHes the recommendation to `active` (or `completed` from a fully-done HUD clear); the card shows "In progress" while the workout is live. |
 
 ### Mobile bug fixes (`0adf526c6`)
 
@@ -90,8 +90,8 @@ time. Nothing was removed; labels and entry points were made legible.
 
 ## Open risks
 
-- ~~Clearing the live HUD leaves the recommendation `started`.~~ Fixed in the
-  follow-up commit: every abandon path goes through `clearActiveWorkout`.
+- ~~Clearing the live HUD leaves the recommendation `started`.~~ Fixed in
+  `a23081026`: every abandon path goes through `clearActiveWorkout`.
 - **Duration rounding on the Complete screen.** Very short sessions can
   read "0 min"; the QA walk showed "1 min" for a ~90 s session, so this is a
   floor issue below one minute only.
