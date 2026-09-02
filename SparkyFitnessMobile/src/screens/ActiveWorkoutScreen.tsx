@@ -942,7 +942,12 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     );
   }, [createdByLiveStart, sessionId, session, queryClient, navigation, t]);
 
+  // A second "End Workout" tap while the flush is in flight would run the
+  // finish twice — two celebration pushes over an already-cleared store.
+  const finishingRef = useRef(false);
   const handleFinish = useCallback(async () => {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
     // "Discard changes" sits one tap from "Retry", and a mis-tap would
     // silently lose every set logged since the last successful save, so the
     // destructive exit gets its own confirm.
@@ -996,6 +1001,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
               finishedAt: Date.now(),
               sourcePresetId: state.sourcePresetId,
               sourceServerConfigId: state.sourceServerConfigId,
+              sourceRecommendationId: state.sourceRecommendationId,
               plannedSetValues: state.plannedSetValues,
             }
           : null;
@@ -1006,7 +1012,12 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         navigation.goBack();
       }
     }
-    await attempt();
+    // `.finally` rather than try/finally: a try/finally around the await makes
+    // the React Compiler skip this component, which silently switches off the
+    // react-hooks lint rules for the whole file.
+    await attempt().finally(() => {
+      finishingRef.current = false;
+    });
   }, [flush, navigation, t]);
 
   // Long-gap guard on the way out: a workout left open across a long break

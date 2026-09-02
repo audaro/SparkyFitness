@@ -32,11 +32,16 @@ import {
   type MessageRole,
 } from '@assistant-ui/react-native';
 import { useChatRuntime, AssistantChatTransport } from '@assistant-ui/react-ai-sdk';
-import { ASK_USER_TOOL_NAME, CONFIRM_FOOD_TOOL_NAME } from '@workspace/shared';
+import {
+  ASK_USER_TOOL_NAME,
+  CONFIRM_FOOD_TOOL_NAME,
+  PROPOSE_WORKOUT_PRESET_TOOL_NAME,
+} from '@workspace/shared';
 import Icon from '../components/Icon';
 import ToolCallCard from '../components/chat/ToolCallCard';
 import AskUserChips from '../components/chat/AskUserChips';
 import FoodConfirmCards from '../components/chat/FoodConfirmCards';
+import WorkoutProposalCard from '../components/chat/WorkoutProposalCard';
 import TypingIndicator from '../components/chat/TypingIndicator';
 import MarkdownMessage from '../components/chat/MarkdownMessage';
 import { CHAT_SUGGESTIONS } from '../constants/chat';
@@ -205,6 +210,9 @@ function MessageBubble({ role }: { role: MessageRole }) {
               }
               if (part.toolName === CONFIRM_FOOD_TOOL_NAME) {
                 return <FoodConfirmCards part={part} />;
+              }
+              if (part.toolName === PROPOSE_WORKOUT_PRESET_TOOL_NAME) {
+                return <WorkoutProposalCard part={part} />;
               }
               return <ToolCallCard part={part} />;
             }}

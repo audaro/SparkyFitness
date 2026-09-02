@@ -15,6 +15,7 @@ import {
   buildExercisesPayload,
   buildPresetExercisesPayload,
   buildPresetStartExercisesPayload,
+  backfillPlannedSetValues,
   buildPresetUpdateExercises,
   buildSessionExercisesPayload,
   buildSingleExerciseStartPayload,
@@ -4183,6 +4184,39 @@ describe('workoutSession', () => {
         primary_muscles: ['quadriceps'],
         equipment: ['barbell'],
       });
+    });
+  });
+
+  describe('backfillPlannedSetValues', () => {
+    const planned = {
+      '1': { weight: 40, reps: 10, duration: null, distance: null },
+      '2': { weight: 40, reps: 10, duration: null, distance: null },
+    };
+    const session = () =>
+      makePreset({
+        exercises: [
+          {
+            id: 'e1',
+            exercise_id: 'ex-1',
+            exercise_snapshot: makeSnapshot({ id: 'ex-1', name: 'Bench', category: 'Strength', calories_per_hour: 400, source: 'system' }),
+            sets: [
+              { id: 1, set_number: 1, set_type: 'Working Set', reps: 8, weight: 42.5, duration: null, distance: null, rest_time: 90, notes: null, completed_at: '2026-03-20T10:00:00.000Z' },
+              { id: 2, set_number: 2, set_type: 'Working Set', reps: null, weight: null, duration: null, distance: null, rest_time: 90, notes: null, completed_at: null },
+            ],
+          } as any,
+        ],
+      });
+
+    it('fills skipped sets from the plan and leaves completed sets alone', () => {
+      const result = backfillPlannedSetValues(session(), { '1': 1 }, planned);
+      expect(result.exercises[0].sets[0]).toMatchObject({ reps: 8, weight: 42.5 });
+      expect(result.exercises[0].sets[1]).toMatchObject({ reps: 10, weight: 40 });
+    });
+
+    it('returns the same session object when nothing needs filling', () => {
+      const input = session();
+      expect(backfillPlannedSetValues(input, { '1': 1, '2': 2 }, planned)).toBe(input);
+      expect(backfillPlannedSetValues(input, { '1': 1 }, {})).toBe(input);
     });
   });
 

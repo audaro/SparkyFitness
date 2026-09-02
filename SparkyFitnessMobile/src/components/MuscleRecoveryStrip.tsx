@@ -7,7 +7,7 @@ import { useFreshnessToneColors } from '../hooks/useFreshnessToneColors';
 import { useMuscleRecovery } from '../hooks/useMuscleRecovery';
 import { titleCaseCanonical } from '../utils/workoutSession';
 
-const TILE_WIDTH = 64;
+const TILE_WIDTH = 76;
 
 /**
  * Per-muscle recovery for today, as a horizontally scrolled strip.

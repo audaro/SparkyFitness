@@ -42,6 +42,10 @@ appId: ${APP_ID}
 - waitForAnimationToEnd
 - tapOn: "Complete Set"
 - waitForAnimationToEnd
+# Completing a set turns the bottom bar into the rest timer; skip it to get
+# the Complete Set button back for the second set.
+- tapOn: "Skip rest"
+- waitForAnimationToEnd
 - tapOn: "Complete Set"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/40-active-two-sets-done
@@ -69,11 +73,21 @@ appId: ${APP_ID}
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/42-save-as-preset-form
 - tapOn: "Save"
+# The detail screen's Start Workout button sits below the fold of a long
+# routine, and the header buttons live in the native navigation bar where
+# Maestro cannot see them, so anchor on the exercise-count line in the body
+# and scroll to the button.
 - extendedWaitUntil:
-    visible: "Start Workout"
+    visible: ".* exercises?"
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/43-preset-detail
+- scrollUntilVisible:
+    element: "Start Workout"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/43b-preset-detail-bottom
 - tapOn: "Back"
 - tapOn: "View Workout"
 - extendedWaitUntil:
@@ -123,6 +137,12 @@ appId: ${APP_ID}
     id: "exercise-home-exercises-library"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/54-exercises-library
+# The library is alphabetical, so "chest" sits below the first screen.
+- scrollUntilVisible:
+    element: ".*QA Catalog chest 1.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - tapOn: ".*QA Catalog chest 1.*"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/55-exercise-detail-top
@@ -144,10 +164,25 @@ appId: ${APP_ID}
     id: "exercise-home-gym-profiles"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/57-gym-profiles
-- tapOn: "QA Gym"
+# Tapping the row toggles the active profile; the pencil opens the editor.
+- tapOn: "Edit QA Gym"
+- extendedWaitUntil:
+    visible:
+      id: "gym-profile-editor"
+    timeout: 20000
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/58-gym-profile-editor
-- tapOn: "Back"
+# The editor swaps the header back chevron for Cancel; the item lives in the
+# native bar, so try the label first and the identifier as a fallback.
+- tapOn:
+    text: "Cancel"
+    optional: true
+- tapOn:
+    id: "gym-profiles-cancel"
+    optional: true
+- extendedWaitUntil:
+    visible: "Tap a profile to make it active.*"
+    timeout: 20000
 - tapOn: "Back"
 - scrollUntilVisible:
     element:
@@ -185,7 +220,11 @@ appId: ${APP_ID}
 - tapOn: "Back"
 
 # === Chat ===================================================================
-- tapOn: "Home"
+# Settings has a row titled "Home" (dashboard options) that text matching
+# finds before the tab, so hit the tab bar by position instead.
+- tapOn:
+    point: "10%,93%"
+- waitForAnimationToEnd
 - scrollUntilVisible:
     element: ".*Ask Sparky.*"
     direction: DOWN

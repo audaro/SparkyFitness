@@ -1812,6 +1812,44 @@ describe('activeWorkoutStore', () => {
       expect(useActiveWorkoutStore.getState().activeSetId).toBe('102');
     });
 
+    it('adopts the server completion stamp for set ids new to this device', async () => {
+      // WorkoutDetail's edit-save recreates every set when an exercise is
+      // added: same work, fresh ids, `completed_at` preserved server-side.
+      useActiveWorkoutStore.getState().completeActiveSet();
+      await flushPromises();
+
+      const updated = makeSession();
+      updated.exercises[0].sets[0] = {
+        ...updated.exercises[0].sets[0],
+        id: 901,
+        completed_at: '2026-03-20T10:00:00.000Z',
+        is_pr: true,
+      } as any;
+      updated.exercises[0].sets[1] = { ...updated.exercises[0].sets[1], id: 902 } as any;
+      useActiveWorkoutStore.getState().reconcileWithSession(updated);
+
+      const state = useActiveWorkoutStore.getState();
+      expect(state.completedSetIds['901']).toBe(Date.parse('2026-03-20T10:00:00.000Z'));
+      expect(state.completedSetIds['902']).toBeUndefined();
+      expect(state.prSetIds['901']).toBe(true);
+      expect(state.activeSetId).toBe('902');
+    });
+
+    it('keeps a known set un-ticked even when the server still shows it completed', async () => {
+      useActiveWorkoutStore.getState().completeActiveSet();
+      await flushPromises();
+      useActiveWorkoutStore.getState().uncompleteSet('101');
+
+      const updated = makeSession();
+      updated.exercises[0].sets[0] = {
+        ...updated.exercises[0].sets[0],
+        completed_at: '2026-03-20T10:00:00.000Z',
+      } as any;
+      useActiveWorkoutStore.getState().reconcileWithSession(updated);
+
+      expect(useActiveWorkoutStore.getState().completedSetIds['101']).toBeUndefined();
+    });
+
     it('drops completedSetIds entries whose IDs no longer exist', async () => {
       // Advance past 101 and 102 so both are complete.
       useActiveWorkoutStore.getState().completeActiveSet();

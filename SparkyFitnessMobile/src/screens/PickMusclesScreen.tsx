@@ -208,7 +208,7 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
   const screenTitle =
     mode === 'grid'
       ? t('pickMuscles.gridTitle', { defaultValue: 'Individual Muscles' })
-      : t('upNext.pickMuscles', { defaultValue: 'Pick Muscles' });
+      : t('upNext.pickMuscles', { defaultValue: 'Choose muscles' });
 
   const header = useScreenHeader({
     title: screenTitle,
@@ -232,7 +232,7 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
       mode === 'grid'
         ? {
             kind: 'primary',
-            label: t('common.save', { defaultValue: 'Save' }),
+            label: t('pickMuscles.buildWorkout', { defaultValue: 'Build workout' }),
             onPress: handleSaveGrid,
             disabled: selectedTileIds.length === 0,
             busy: pendingKey === 'grid',

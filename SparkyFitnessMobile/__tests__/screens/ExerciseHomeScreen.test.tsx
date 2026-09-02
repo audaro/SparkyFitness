@@ -365,7 +365,7 @@ describe('ExerciseHomeScreen', () => {
     const { findByText } = renderScreen();
 
     expect(
-      await findByText('No active profile — every exercise is available'),
+      await findByText('None — every exercise allowed'),
     ).toBeTruthy();
   });
 

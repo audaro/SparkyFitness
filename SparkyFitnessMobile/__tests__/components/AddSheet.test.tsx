@@ -145,14 +145,14 @@ describe('AddSheet', () => {
 
     act(() => ref.current?.present({ initialMenu: 'exercise' }));
 
-    expect(getByText('Workout')).toBeTruthy();
-    expect(getByText('Live sets & reps')).toBeTruthy();
-    expect(getByText('Activity')).toBeTruthy();
-    expect(getByText('Log Workout')).toBeTruthy();
-    expect(getByText('Past sets & reps')).toBeTruthy();
+    expect(getByText('Start Workout')).toBeTruthy();
+    expect(getByText('Track sets as you go')).toBeTruthy();
+    expect(getByText('Log Activity')).toBeTruthy();
+    expect(getByText('Log Past Workout')).toBeTruthy();
+    expect(getByText('Sets you already did')).toBeTruthy();
     expect(queryByText('Preset')).toBeNull();
 
-    fireEvent.press(getByText('Workout'));
+    fireEvent.press(getByText('Start Workout'));
     expect(props.onStartWorkout).toHaveBeenCalledTimes(1);
     expect(props.onLogWorkout).not.toHaveBeenCalled();
   });
@@ -164,8 +164,8 @@ describe('AddSheet', () => {
     const { ref, getByText } = renderAddSheet();
     await i18n.changeLanguage('pl');
     act(() => ref.current?.present({ initialMenu: 'exercise' }));
-    expect(getByText('Trening')).toBeTruthy();
-    expect(getByText('Serie i powtórzenia na żywo')).toBeTruthy();
+    expect(getByText('Rozpocznij trening')).toBeTruthy();
+    expect(getByText('Zapisuj serie na bieżąco')).toBeTruthy();
     expect(getByText('Wstecz')).toBeTruthy();
     await i18n.changeLanguage('en');
   });
@@ -174,7 +174,7 @@ describe('AddSheet', () => {
     const { ref, props, getByText } = renderAddSheet();
 
     act(() => ref.current?.present({ initialMenu: 'exercise' }));
-    fireEvent.press(getByText('Log Workout'));
+    fireEvent.press(getByText('Log Past Workout'));
 
     expect(props.onLogWorkout).toHaveBeenCalledTimes(1);
     expect(props.onStartWorkout).not.toHaveBeenCalled();

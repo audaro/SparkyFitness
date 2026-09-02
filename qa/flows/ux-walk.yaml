@@ -15,19 +15,19 @@ appId: ${APP_ID}
 - tapOn: ".*, Exercise"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/04-add-sheet-exercise
-- tapOn: ".*Workout, Live sets & reps"
+- tapOn: ".*Start Workout, Track sets as you go"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/05-preset-search-from-add
 - tapOn: "Close"
 - tapOn: "Add"
 - tapOn: ".*, Exercise"
-- tapOn: ".*Log Workout, Past sets & reps"
+- tapOn: ".*Log Past Workout, Sets you already did"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/06-log-past-workout
 - tapOn: "Close"
 - tapOn: "Add"
 - tapOn: ".*, Exercise"
-- tapOn: ".*Activity, Duration & distance"
+- tapOn: ".*Log Activity, Run, walk, ride: time & distance"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/07-activity-add
 - tapOn: "Close"

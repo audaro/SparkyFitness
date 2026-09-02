@@ -67,12 +67,15 @@ export function useWorkoutRecommendation({
         // 422 is the engine reporting it had nothing to program with — a fresh
         // catalog, or a gym profile so narrow no exercise survives the filter.
         // That is the user's to fix, so it gets its own message.
+        // The server spells out which it was (it knows whether a profile was
+        // applied); the fixed copy is only the fallback for a bodiless 422.
         text2:
           error instanceof ApiError && error.statusCode === 422
-            ? t('upNext.generateNoMatch', {
+            ? (getApiErrorMessage(error) ??
+              t('upNext.generateNoMatch', {
                 defaultValue:
                   'No exercises matched your gym equipment. Try another gym profile.',
-              })
+              }))
             : t('common.tryAgain', { defaultValue: 'Please try again.' }),
       });
     },

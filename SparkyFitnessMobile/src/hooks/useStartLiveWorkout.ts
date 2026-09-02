@@ -39,6 +39,8 @@ interface StartLiveWorkoutArgs {
    * flow can offer to update the preset. Omit for empty starts.
    */
   sourcePresetId?: number;
+  /** Up Next recommendation the exercises came from; marked completed on finish. */
+  sourceRecommendationId?: string;
 }
 
 /**
@@ -112,7 +114,7 @@ export function useStartLiveWorkout(navigation: StartLiveWorkoutNavigation): {
   // guard has cleared. Split out so the "Workout in progress" prompt can
   // clear the in-progress session and then call straight through.
   const runStart = useCallback(
-    async ({ name, exercises, sourcePresetId }: StartLiveWorkoutArgs) => {
+    async ({ name, exercises, sourcePresetId, sourceRecommendationId }: StartLiveWorkoutArgs) => {
       if (exercises.length === 0) {
         Toast.show({
           type: 'error',
@@ -164,6 +166,7 @@ export function useStartLiveWorkout(navigation: StartLiveWorkoutNavigation): {
           plannedSetValues,
           sourcePresetId,
           sourceServerConfigId,
+          sourceRecommendationId,
         });
         if (navigation.isFocused()) {
           navigation.replace('ActiveWorkout');

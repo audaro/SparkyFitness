@@ -29,6 +29,7 @@ import { useNavigationActionGuard } from '../hooks/useNavigationActionGuard';
 import { usePreferences } from '../hooks/usePreferences';
 import { useProfile } from '../hooks/useProfile';
 import { useUpdateWorkoutPreset } from '../hooks/useWorkoutPresetMutations';
+import { useUpdateRecommendationStatus } from '../hooks/useWorkoutRecommendation';
 import { getWorkout } from '../services/api/exerciseApi';
 import { getWorkoutPresetById } from '../services/api/workoutPresetsApi';
 import { getActiveServerConfig } from '../services/storage';
@@ -38,6 +39,7 @@ import { distanceFromKm, weightFromKg } from '../utils/unitConversions';
 import { formatLocalizedNumber, getAppLocale } from '../localization';
 import { setsDurationMinutes } from '@workspace/shared';
 import {
+  backfillPlannedSetValues,
   buildPresetUpdateExercises,
   buildSessionDurationMinutes,
   buildWorkoutCompletionSummary,
@@ -262,6 +264,7 @@ function WorkoutCompleteScreen({ navigation, route }: Props) {
     finishedAt,
     sourcePresetId,
     sourceServerConfigId,
+    sourceRecommendationId,
     plannedSetValues,
   } = route.params;
 
@@ -338,6 +341,18 @@ function WorkoutCompleteScreen({ navigation, route }: Props) {
   const { profile } = useProfile();
   const isFocused = useIsFocused();
   const { updatePresetAsync } = useUpdateWorkoutPreset();
+  const { mutate: updateRecommendationStatus } = useUpdateRecommendationStatus();
+
+  // Reaching this screen is the one moment the app knows an Up Next workout
+  // was carried through, so the recommendation is marked completed here. The
+  // mutation is silent on failure: a marker that does not land costs the card
+  // nothing more than staying on "Start Workout".
+  const markedRef = useRef(false);
+  useEffect(() => {
+    if (markedRef.current || sourceRecommendationId == null) return;
+    markedRef.current = true;
+    updateRecommendationStatus({ id: sourceRecommendationId, status: 'completed' });
+  }, [sourceRecommendationId, updateRecommendationStatus]);
   const [sourcePreset, setSourcePreset] = useState<WorkoutPreset | null>(null);
   const promptedRef = useRef(false);
 
@@ -425,12 +440,17 @@ function WorkoutCompleteScreen({ navigation, route }: Props) {
     runNavigationAction(() => {
       navigation.navigate('WorkoutPresetForm', {
         mode: 'create-preset',
-        sourceSession: sessionForDetail,
+        // Skipped sets get their programmed values back: a routine saved from
+        // a live start would otherwise carry blank sets for everything the
+        // user did not get to.
+        sourceSession: backfillPlannedSetValues(sessionForDetail, completedSetIds, plannedSetValues),
       });
     });
   };
+  // Done lands on the tab the workout was logged from. The diary tab used to
+  // be the destination, which read as "where did my workout go?".
   const handleDone = () => {
-    navigation.navigate('Tabs', { screen: 'Food' });
+    navigation.navigate('Tabs', { screen: 'Exercise' });
   };
 
   const allSetsLogged = summary.completedSetCount === summary.totalSetCount;
@@ -455,7 +475,7 @@ function WorkoutCompleteScreen({ navigation, route }: Props) {
                 })}
           </Text>
           <Text className="text-sm font-medium text-text-muted">
-            {t('workoutComplete.labels.todayAt', { defaultValue: ' · Today at ' })}
+            {t('workoutComplete.labels.todayAt', { defaultValue: 'Today at ' })}
             {finishedTimeText}
           </Text>
         </View>

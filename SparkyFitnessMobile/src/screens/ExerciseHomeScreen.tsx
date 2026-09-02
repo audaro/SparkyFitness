@@ -22,6 +22,7 @@ import Icon from '../components/Icon';
 import MuscleRecoveryStrip from '../components/MuscleRecoveryStrip';
 import SettingsRow, { SettingsRowGroup } from '../components/SettingsRow';
 import UpNextCard from '../components/UpNextCard';
+import Button from '../components/ui/Button';
 import { addSheetRef } from '../components/AddSheet';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
@@ -226,6 +227,23 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
         */}
         <UpNextCard navigation={navigation} />
 
+        {/* The one obvious way in. It lands on the start sheet, which offers
+            today's workout, a saved one, or a blank one — so a first-time
+            user never has to work out which of the sections below "starts". */}
+        <View className="mb-6">
+          <Button
+            variant="primary"
+            onPress={() => runNavigationAction(() => navigation.navigate('PresetSearch'))}
+            disabled={isNavigationLocked}
+            accessibilityLabel={t('exerciseHome.startWorkoutA11y', {
+              defaultValue: 'Start a workout',
+            })}
+            testID="exercise-home-start-workout"
+          >
+            {t('exerciseHome.startWorkout', { defaultValue: 'Start a workout' })}
+          </Button>
+        </View>
+
         {/* A failed read is not worth an error block on a tab that has plenty
             else to offer; the section simply stays out of the way, and the ring
             is one tap away on the targets screen either way.
@@ -367,7 +385,7 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             icon="bookmark-filled"
             title={t('exerciseHome.createPreset', { defaultValue: 'Workout preset' })}
             subtitle={t('exerciseHome.createPresetSubtitle', {
-              defaultValue: 'Exercise routine',
+              defaultValue: 'A workout you can repeat',
             })}
             disabled={isNavigationLocked}
             onPress={() =>
@@ -391,7 +409,7 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             icon="bookmark-filled"
             title={t('exerciseHome.workoutPresets', { defaultValue: 'Workout presets' })}
             subtitle={t('exerciseHome.workoutPresetsSubtitle', {
-              defaultValue: 'Routines you have saved',
+              defaultValue: 'Workouts you saved to repeat',
             })}
             onPress={() => navigation.navigate('WorkoutPresetsLibrary')}
             testID="exercise-home-workout-presets"
@@ -428,7 +446,7 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
                     name: activeProfile.name,
                   })
                 : t('exerciseHome.gymProfileNone', {
-                    defaultValue: 'No active profile — every exercise is available',
+                    defaultValue: 'None — every exercise allowed',
                   })
             }
             onPress={() => navigation.navigate('GymProfiles')}
@@ -440,7 +458,7 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
               defaultValue: 'Weekly set targets',
             })}
             subtitle={t('exerciseHome.weeklySetTargetsSubtitle', {
-              defaultValue: 'Working sets per muscle group, per week',
+              defaultValue: 'Weekly sets per muscle',
             })}
             onPress={() => navigation.navigate('WeeklySetTargets')}
             testID="exercise-home-weekly-set-targets"
@@ -467,7 +485,7 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             icon="list"
             title={t('exerciseHome.exercisePacks', { defaultValue: 'Exercise packs' })}
             subtitle={t('exerciseHome.exercisePacksSubtitle', {
-              defaultValue: 'Add a ready-made set of exercises',
+              defaultValue: 'Ready-made exercise lists',
             })}
             onPress={() => navigation.navigate('ExercisePacks')}
             testID="exercise-home-exercise-packs"

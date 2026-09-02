@@ -436,7 +436,7 @@ export function setVolumeKg(set: Pick<ExerciseEntrySetResponse, 'weight' | 'reps
 /** Total working volume for an exercise entry. Warmup sets are excluded. */
 export function getExerciseVolumeKg(exercise: { sets: WorkoutCardSet[] }): number {
   return exercise.sets.reduce(
-    (total, set) => (set.set_type === 'warmup' ? total : total + setVolumeKg(set)),
+    (total, set) => (isWarmupSetType(set.set_type) ? total : total + setVolumeKg(set)),
     0,
   );
 }
@@ -636,7 +636,7 @@ export function formatRecentSessionSet(
   modality?: ExerciseModality,
   distanceUnit: 'km' | 'miles' = 'km',
 ): string {
-  const prefix = set.setType === 'warmup' ? 'W ' : '';
+  const prefix = isWarmupSetType(set.setType) ? 'W ' : '';
   if (modality != null && isDurationModality(modality)) {
     const seconds = effectiveSetDurationSec(
       { duration: set.duration ?? null, reps: set.reps },
@@ -829,7 +829,7 @@ export function resolveAssumedSetValues(
     working: { weight: null, reps: null, duration: null, distance: null } as AssumedSetValues,
   };
   return sets.map((set, index) => {
-    const tier = set.set_type === 'warmup' ? 'warmup' : 'working';
+    const tier = isWarmupSetType(set.set_type) ? 'warmup' : 'working';
     const previous = previousSets?.[index];
     const planned = plannedBySetId?.[String(set.id)];
     const assumed: AssumedSetValues = {
@@ -1900,6 +1900,11 @@ export function buildActivitySetsPayload(
         rest_time: original.rest_time,
         notes: original.notes,
         rpe: original.rpe,
+        // Editing an activity's sets must not erase what a live workout
+        // recorded on them: the server replaces the set list wholesale, so
+        // anything left off here reads as "never completed".
+        completed_at: original.completed_at,
+        is_pr: original.is_pr,
       }),
       set_type: original?.set_type ?? 'Working Set',
       set_number: index + 1,
@@ -2021,6 +2026,47 @@ function canonicalizeSessionSet(
     rest_time: isCardioModality(modality) ? 0 : (set.rest_time ?? null),
     notes: set.notes ?? null,
   };
+}
+
+/**
+ * A live start creates every set empty and only records values when a set is
+ * completed or typed over, so a finished workout's skipped sets carry nothing.
+ * Anything that turns the session into a *routine* (Save as Preset) wants the
+ * programmed values back on those sets, the same way `canonicalizeSessionSet`
+ * treats them for the update-preset diff. Completed sets are left alone —
+ * they are authoritative, nulls included.
+ */
+export function backfillPlannedSetValues(
+  session: PresetSessionResponse,
+  completedSetIds: CompletedSetMap,
+  plannedSetValues: Record<string, AssumedSetValues>,
+): PresetSessionResponse {
+  let changed = false;
+  const exercises = session.exercises.map((exercise) => {
+    const sets = exercise.sets.map((set) => {
+      const planned = plannedSetValues[String(set.id)];
+      if (planned == null || completedSetIds[String(set.id)] != null) return set;
+      const filled = {
+        ...set,
+        reps: set.reps ?? planned.reps ?? null,
+        weight: set.weight ?? planned.weight ?? null,
+        duration: set.duration ?? planned.duration ?? null,
+        distance: set.distance ?? planned.distance ?? null,
+      };
+      if (
+        filled.reps === set.reps &&
+        filled.weight === set.weight &&
+        filled.duration === set.duration &&
+        filled.distance === set.distance
+      ) {
+        return set;
+      }
+      changed = true;
+      return filled;
+    });
+    return sets.some((set, i) => set !== exercise.sets[i]) ? { ...exercise, sets } : exercise;
+  });
+  return changed ? { ...session, exercises } : session;
 }
 
 function canonicalizePresetSet(

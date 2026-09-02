@@ -51,6 +51,7 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
 
   const exerciseCount = payload?.exercises.length ?? 0;
   const muscleCount = payload?.muscle_groups.length ?? 0;
+  const isCompleted = recommendation?.status === 'completed';
 
   return (
     <Pressable
@@ -62,8 +63,16 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
     >
       <View className="flex-row items-center justify-between mb-2">
         <Text className="font-bold text-text-secondary">
-          {t('upNext.title', { defaultValue: 'Up Next' })}
+          {t('upNext.title', { defaultValue: "Today's Workout" })}
         </Text>
+        {isCompleted && (
+          <Text
+            className="ml-auto mr-2 text-xs font-semibold text-accent-primary"
+            testID="up-next-card-completed"
+          >
+            {t('upNext.card.completed', { defaultValue: 'Done today' })}
+          </Text>
+        )}
         {isLoading ? (
           <ActivityIndicator size="small" color={accentPrimary} />
         ) : (
@@ -99,7 +108,7 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
       ) : (
         !isLoading && (
           <Text className="text-sm" style={{ color: textMuted }}>
-            {t('upNext.generateToday', { defaultValue: "Generate today's workout" })}
+            {t('upNext.generateToday', { defaultValue: "Build today's workout" })}
           </Text>
         )
       )}

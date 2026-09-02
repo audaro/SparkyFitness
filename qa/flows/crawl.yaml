@@ -143,17 +143,17 @@ appId: ${APP_ID}
 
 - tapOn: "Add"
 - tapOn: ".*, Exercise"
-- tapOn: ".*Workout, Live sets & reps"
+- tapOn: ".*Start Workout, Track sets as you go"
 - tapOn: "Close"
 
 - tapOn: "Add"
 - tapOn: ".*, Exercise"
-- tapOn: ".*Activity, Duration & distance"
+- tapOn: ".*Log Activity, Run, walk, ride: time & distance"
 - tapOn: "Close"
 
 - tapOn: "Add"
 - tapOn: ".*, Exercise"
-- tapOn: ".*Log Workout, Past sets & reps"
+- tapOn: ".*Log Past Workout, Sets you already did"
 - tapOn: "Close"
 
 # The sheet's remaining two rows are deliberately not tapped: "Ask Sparky" goes

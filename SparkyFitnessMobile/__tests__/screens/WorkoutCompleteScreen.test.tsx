@@ -166,6 +166,7 @@ const baseParams: RootStackParamList['WorkoutComplete'] = {
   finishedAt: new Date('2026-07-15T17:42:00').getTime(),
   sourcePresetId: null,
   sourceServerConfigId: null,
+      sourceRecommendationId: null,
   plannedSetValues: {},
 };
 
@@ -427,12 +428,12 @@ describe('WorkoutCompleteScreen', () => {
     expect(queryByLabelText('Calculating')).toBeNull();
   });
 
-  it('Done returns to the Diary tab', () => {
+  it('Done returns to the Exercise tab', () => {
     const { getByText } = renderScreen();
 
     fireEvent.press(getByText('Done'));
 
-    expect(navigation.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Food' });
+    expect(navigation.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Exercise' });
   });
 
   it('Save as Preset opens the prefilled preset create form', () => {

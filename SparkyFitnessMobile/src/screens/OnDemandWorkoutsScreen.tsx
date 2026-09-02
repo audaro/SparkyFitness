@@ -41,7 +41,7 @@ const OnDemandWorkoutsScreen: React.FC<OnDemandWorkoutsScreenProps> = ({
     useGenerateAndShowWorkout(navigation);
 
   const header = useScreenHeader({
-    title: t('upNext.onDemand', { defaultValue: 'On Demand' }),
+    title: t('upNext.onDemand', { defaultValue: 'Quick workouts' }),
     left: { kind: 'back' },
   });
 

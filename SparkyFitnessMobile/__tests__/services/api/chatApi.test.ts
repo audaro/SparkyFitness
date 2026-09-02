@@ -135,27 +135,26 @@ describe('mapHistoryToInitialMessages', () => {
     expect(result[0].parts).toBe(parts);
   });
 
-  // Mobile has no workout proposal card, so a proposal part still falls back
-  // to the row's content summary instead of seeding a dead tool part.
-  it('falls back to content for a stored workout-proposal part', () => {
+  // WorkoutProposalCard renders a reloaded proposal read-only, so the stored
+  // part is seeded like the other interactive tool parts.
+  it('passes through a stored workout-proposal part', () => {
+    const parts = [
+      {
+        type: 'tool-sparky_propose_workout_preset',
+        toolCallId: 'tc-3',
+        state: 'output-available',
+        input: { name: 'Push Day', exercises: [] },
+        output: '',
+      },
+    ];
     const result = mapHistoryToInitialMessages([
       entry({
         message_type: 'assistant',
         content: 'Proposed workout preset "Push Day".',
-        parts: [
-          {
-            type: 'tool-sparky_propose_workout_preset',
-            toolCallId: 'tc-3',
-            state: 'output-available',
-            input: { name: 'Push Day', exercises: [] },
-            output: '',
-          },
-        ],
+        parts,
       }),
     ]) as unknown as MappedMessage[];
 
-    expect(result[0].parts).toEqual([
-      { type: 'text', text: 'Proposed workout preset "Push Day".' },
-    ]);
+    expect(result[0].parts).toBe(parts);
   });
 });

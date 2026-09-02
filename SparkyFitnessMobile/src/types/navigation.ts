@@ -235,6 +235,8 @@ export type RootStackParamList = {
     // skipped sets with their programmed values.
     sourcePresetId: number | null;
     sourceServerConfigId: string | null;
+    /** Up Next recommendation the workout ran; marked completed on arrival. */
+    sourceRecommendationId: string | null;
     plannedSetValues: Record<string, AssumedSetValues>;
   };
   ActivityDetail: { session: IndividualSessionResponse };

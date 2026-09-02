@@ -395,10 +395,11 @@ describe('UpNextScreen', () => {
     fireEvent.press(screen.getByTestId('up-next-start'));
 
     expect(startLiveWorkout).toHaveBeenCalledWith({
-      name: 'Up Next workout',
+      name: "Today's workout",
       exercises: buildRecommendationStartPayload(
         orderedRecommendationExercises(recommendation.payload),
       ),
+      sourceRecommendationId: recommendation.id,
     });
     expect(updateStatus).toHaveBeenCalledWith({ id: recommendation.id, status: 'started' });
   });
@@ -474,7 +475,7 @@ describe('UpNextScreen', () => {
     const screen = renderScreen();
     expect(screen.getByText('No workout yet')).toBeTruthy();
 
-    fireEvent.press(screen.getByText("Generate today's workout"));
+    fireEvent.press(screen.getByText("Build today's workout"));
     // Nothing to carry forward: there is no workout on screen, and this is the
     // one generate that legitimately wants every server-side default.
     await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({}));

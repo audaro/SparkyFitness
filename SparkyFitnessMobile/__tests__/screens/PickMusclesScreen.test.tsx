@@ -269,7 +269,7 @@ describe('PickMusclesScreen', () => {
       fireEvent.press(screen.getByTestId('pick-muscles-body-quadriceps'));
       showBack(screen);
       fireEvent.press(screen.getByTestId('pick-muscles-body-lats'));
-      fireEvent.press(screen.getByText('Save'));
+      fireEvent.press(screen.getByText('Build workout'));
 
       await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
       expect(mockGenerateRecommendation).toHaveBeenCalledWith({
@@ -295,7 +295,7 @@ describe('PickMusclesScreen', () => {
       fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
       fireEvent.press(screen.getByTestId('pick-muscles-body-biceps'));
       fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
-      fireEvent.press(screen.getByText('Save'));
+      fireEvent.press(screen.getByText('Build workout'));
 
       await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
       expect(mockGenerateRecommendation).toHaveBeenCalledWith({
@@ -306,7 +306,7 @@ describe('PickMusclesScreen', () => {
     it('does not generate with nothing picked', () => {
       const screen = openGrid(renderScreen());
 
-      fireEvent.press(screen.getByText('Save'));
+      fireEvent.press(screen.getByText('Build workout'));
 
       expect(mockGenerateRecommendation).not.toHaveBeenCalled();
     });
@@ -366,7 +366,7 @@ describe('PickMusclesScreen', () => {
 
         expect(screen.queryByTestId('pick-muscles-selected-chest')).toBeNull();
 
-        fireEvent.press(screen.getByText('Save'));
+        fireEvent.press(screen.getByText('Build workout'));
         await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
         expect(mockGenerateRecommendation).toHaveBeenCalledWith({ target_muscles: ['biceps'] });
       });
@@ -432,7 +432,7 @@ describe('PickMusclesScreen', () => {
       const screen = openGrid(renderScreen());
 
       fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
-      fireEvent.press(screen.getByText('Save'));
+      fireEvent.press(screen.getByText('Build workout'));
       await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('UpNext'));
 
       const event = { preventDefault: jest.fn() };

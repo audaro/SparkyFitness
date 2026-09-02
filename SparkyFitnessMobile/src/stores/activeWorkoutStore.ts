@@ -194,6 +194,12 @@ export interface ActiveWorkoutState {
    */
   sourcePresetId: number | null;
   sourceServerConfigId: string | null;
+  /**
+   * Up Next recommendation this workout was started from, so the finish flow
+   * can mark it completed and the card stops offering a workout that is
+   * already done. Persisted for the same cold-start reason as the preset link.
+   */
+  sourceRecommendationId: string | null;
 
   startWorkout: (
     session: PresetSessionResponse,
@@ -202,6 +208,7 @@ export interface ActiveWorkoutState {
       plannedSetValues?: AssumedSetValues[][];
       sourcePresetId?: number;
       sourceServerConfigId?: string;
+      sourceRecommendationId?: string;
     },
   ) => void;
   startWorkoutAtSet: (session: PresetSessionResponse, setId: string) => void;
@@ -390,6 +397,7 @@ const initialData: Pick<
   | 'previousSessionSets'
   | 'sourcePresetId'
   | 'sourceServerConfigId'
+  | 'sourceRecommendationId'
 > = {
   sessionId: null,
   session: null,
@@ -408,6 +416,7 @@ const initialData: Pick<
   previousSessionSets: {},
   sourcePresetId: null,
   sourceServerConfigId: null,
+  sourceRecommendationId: null,
 };
 
 /**
@@ -973,6 +982,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           previousSessionSets: {},
           sourcePresetId: opts?.sourcePresetId ?? null,
           sourceServerConfigId: opts?.sourceServerConfigId ?? null,
+          sourceRecommendationId: opts?.sourceRecommendationId ?? null,
         });
       },
 
@@ -1018,9 +1028,10 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           plannedSetValues: {},
           previousSessionSets: {},
           // Nor was it started from a preset this session — no update-preset
-          // prompt on finish.
+          // prompt on finish, nor from an Up Next recommendation.
           sourcePresetId: null,
           sourceServerConfigId: null,
+          sourceRecommendationId: null,
         });
       },
 
@@ -1354,15 +1365,30 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         const newSteps = buildStepsFromSession(session);
         const newSetIds = new Set(newSteps.map((s) => s.setId));
 
+        // Ids this device already knew keep their local state — including a
+        // set the user un-ticked, which the server may still show completed
+        // until the next autosave lands. Ids that are new to this device take
+        // the server's `completed_at`: WorkoutDetail's edit-save recreates
+        // every set (fresh ids) when an exercise is added, so pruning alone
+        // would wipe a half-done workout's progress even though the server
+        // still holds every completion.
+        const knownSetIds = new Set(state.steps.map((s) => s.setId));
+        const serverCompleted = seedCompletionFromSession(session);
         const nextCompleted: CompletedSetMap = {};
-        for (const id of Object.keys(state.completedSetIds)) {
-          if (newSetIds.has(id)) nextCompleted[id] = state.completedSetIds[id];
+        for (const id of newSetIds) {
+          if (knownSetIds.has(id)) {
+            if (state.completedSetIds[id] != null) nextCompleted[id] = state.completedSetIds[id];
+          } else if (serverCompleted[id] != null) {
+            nextCompleted[id] = serverCompleted[id];
+          }
         }
 
-        // Prune PR stamps to the surviving set ids, same as completions.
+        // PR stamps follow the same rule: local for known ids, server `is_pr`
+        // for ids new to this device.
+        const serverPr = seedPrFromSession(session);
         const nextPr: PrSetMap = {};
-        for (const id of Object.keys(state.prSetIds)) {
-          if (newSetIds.has(id)) nextPr[id] = true;
+        for (const id of newSetIds) {
+          if (knownSetIds.has(id) ? state.prSetIds[id] : serverPr[id]) nextPr[id] = true;
         }
 
         // Prune render keys the same way — reconcile keeps ids stable (no
@@ -1881,6 +1907,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         // The preset link feeds the finish prompt; survives a cold start.
         sourcePresetId: state.sourcePresetId,
         sourceServerConfigId: state.sourceServerConfigId,
+        sourceRecommendationId: state.sourceRecommendationId,
       }),
       migrate: (persistedState, version) => {
         // v4 changed `completedSetIds` values from `true` to epoch-ms tap

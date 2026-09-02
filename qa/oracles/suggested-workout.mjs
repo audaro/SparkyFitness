@@ -74,7 +74,7 @@ const EXPECTED_MUSCLES = ['chest', 'shoulders', 'triceps'];
 // passing without the fitter ever having run.
 const EXPECTED_TARGET_MINUTES = 45;
 // The name UpNextScreen's Start button gives the session it creates.
-const SESSION_NAME = 'Up Next workout';
+const SESSION_NAME = "Today's workout";
 
 // The app dates a session by the device's calendar day and the simulator shares
 // this machine's timezone, so the expected day is the local one. Deriving it

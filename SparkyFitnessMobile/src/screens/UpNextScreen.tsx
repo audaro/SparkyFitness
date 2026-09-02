@@ -362,7 +362,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const showsSwapButton = !isLoading && !isError && !!recommendation && !!payload;
 
   const header = useScreenHeader({
-    title: t('upNext.title', { defaultValue: 'Up Next' }),
+    title: t('upNext.title', { defaultValue: "Today's Workout" }),
     left: { kind: 'back' },
     // With a workout on screen the header carries its ⋯ menu; without one there
     // is nothing to save or refresh, so the slot carries the sheet instead.
@@ -428,7 +428,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     () => [
       {
         key: 'pick-muscles',
-        label: t('upNext.pickMuscles', { defaultValue: 'Pick Muscles' }),
+        label: t('upNext.pickMuscles', { defaultValue: 'Choose muscles' }),
         onPress: handlePickMuscles,
       },
       {
@@ -438,12 +438,12 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
       },
       {
         key: 'create-from-scratch',
-        label: t('upNext.createFromScratch', { defaultValue: 'Create From Scratch' }),
+        label: t('upNext.createFromScratch', { defaultValue: 'Build my own' }),
         onPress: handleCreateFromScratch,
       },
       {
         key: 'on-demand',
-        label: t('upNext.onDemand', { defaultValue: 'On Demand' }),
+        label: t('upNext.onDemand', { defaultValue: 'Quick workouts' }),
         onPress: handleOnDemand,
       },
     ],
@@ -485,11 +485,12 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const handleStart = useCallback(() => {
     if (!recommendation || !payload) return;
     void startLiveWorkout({
-      name: 'Up Next workout',
+      name: t('upNext.sessionName', { defaultValue: "Today's workout" }),
       // `plan`, not the payload: this is where a locally built superset becomes
       // a `superset_group` on the entries, and its ordering is what makes each
       // run adjacent.
       exercises: buildRecommendationStartPayload(plan),
+      sourceRecommendationId: recommendation.id,
     });
     // Optimistic, best-effort lifecycle marker. `startLiveWorkout` swallows its
     // own failures (it owns the toast) and returns the same void promise either
@@ -499,7 +500,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     // user then cancelled costs nothing; a failure here must never unwind a
     // workout that is already live.
     updateStatus({ id: recommendation.id, status: 'started' });
-  }, [recommendation, payload, plan, startLiveWorkout, updateStatus]);
+  }, [recommendation, payload, plan, startLiveWorkout, updateStatus, t]);
 
   const handleOpenExercise = useCallback(
     (exercise: RecommendedExercise) => {
@@ -603,7 +604,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           <Text className="text-sm mt-0.5" style={{ color: textSecondary }}>
             {formatRecommendedSets(exercise, weightUnit, distanceUnit)}
           </Text>
-          <Text className="text-xs mt-0.5" style={{ color: textMuted }} numberOfLines={1}>
+          <Text className="text-xs mt-0.5" style={{ color: textMuted }} numberOfLines={2}>
             {/* Cardio is one continuous block, so its rest prescription is not
                 something the row should advertise. */}
             {isCardioModality(exercise.modality)
@@ -666,7 +667,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           action={{
             label: isGenerating
               ? t('upNext.generating', { defaultValue: 'Generating…' })
-              : t('upNext.generateToday', { defaultValue: "Generate today's workout" }),
+              : t('upNext.generateToday', { defaultValue: "Build today's workout" }),
             onPress: () => void runGenerate({}, 'settings'),
             variant: 'primary',
           }}
@@ -687,7 +688,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
         >
           <View className="px-4 pt-4 pb-3">
             <Text className="text-text-primary text-2xl font-bold">
-              {t('upNext.title', { defaultValue: 'Up Next' })}
+              {t('upNext.title', { defaultValue: "Today's Workout" })}
             </Text>
             <Text className="text-sm mt-1" style={{ color: textSecondary }}>
               {t('upNext.exerciseCount', {
@@ -776,7 +777,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
             loading={isStarting}
             testID="up-next-start"
           >
-            {t('screens.startWorkout', { defaultValue: 'Start Workout' })}
+            {recommendation?.status === 'completed'
+              ? t('upNext.startAgain', { defaultValue: 'Do it again' })
+              : t('screens.startWorkout', { defaultValue: 'Start Workout' })}
           </Button>
         </View>
 

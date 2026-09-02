@@ -273,9 +273,9 @@ const AddSheet = React.forwardRef<AddSheetRef, AddSheetProps>(
                 </Text>
               </Pressable>
               <View className="flex-row">
-                {renderExerciseOption(t('addSheet.workout', { defaultValue: 'Workout' }), t('addSheet.liveSets', { defaultValue: 'Live sets & reps' }), 'exercise-weights', onStartWorkout)}
-                {renderExerciseOption(t('addSheet.activity', { defaultValue: 'Activity' }), t('addSheet.durationDistance', { defaultValue: 'Duration & distance' }), 'exercise-running-filled', onAddActivity)}
-                {renderExerciseOption(t('addSheet.logWorkout', { defaultValue: 'Log Workout' }), t('addSheet.pastSets', { defaultValue: 'Past sets & reps' }), 'pencil', onLogWorkout)}
+                {renderExerciseOption(t('addSheet.workout', { defaultValue: 'Start Workout' }), t('addSheet.liveSets', { defaultValue: 'Track sets as you go' }), 'exercise-weights', onStartWorkout)}
+                {renderExerciseOption(t('addSheet.activity', { defaultValue: 'Log Activity' }), t('addSheet.durationDistance', { defaultValue: 'Run, walk, ride: time & distance' }), 'exercise-running-filled', onAddActivity)}
+                {renderExerciseOption(t('addSheet.logWorkout', { defaultValue: 'Log Past Workout' }), t('addSheet.pastSets', { defaultValue: 'Sets you already did' }), 'pencil', onLogWorkout)}
               </View>
             </>
           ) : (

@@ -1,5 +1,5 @@
 import type { useChatRuntime } from '@assistant-ui/react-ai-sdk';
-import { ASK_USER_TOOL_NAME, CONFIRM_FOOD_PART_TYPE } from '@workspace/shared';
+import { ASK_USER_TOOL_NAME, CONFIRM_FOOD_PART_TYPE, PROPOSAL_PART_TYPES } from '@workspace/shared';
 import { apiFetch } from './apiClient';
 
 /**
@@ -53,14 +53,14 @@ export const clearAllChatHistory = (): Promise<void> =>
 
 /**
  * Chat-only interactive tool parts mobile can re-render after a reload: the
- * quick-reply chips and the food-confirmation cards. The workout proposal
- * part is NOT here — mobile has no proposal card, so those rows fall back to
- * their `content` summary ("Proposed workout preset …") instead of a dead
- * generic tool card.
+ * quick-reply chips, the food-confirmation cards and the workout proposal
+ * card (WorkoutProposalCard renders the reloaded part as a stale, read-only
+ * routine).
  */
 const SEEDABLE_TOOL_PART_TYPES: readonly string[] = [
   `tool-${ASK_USER_TOOL_NAME}`,
   CONFIRM_FOOD_PART_TYPE,
+  ...PROPOSAL_PART_TYPES,
 ];
 
 /** True when `parts` only contains parts mobile can seed: text parts and the

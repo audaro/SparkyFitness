@@ -47,6 +47,11 @@ const VOICE_HIDDEN_ROUTES = new Set<string>([
   'FoodPhotoFlow',
   'EditBarcode',
   'ExerciseSearch',
+  // Footer-CTA screens: the FAB would sit on top of Start Workout.
+  'UpNext',
+  'PickMuscles',
+  'PresetSearch',
+  'WorkoutPresetDetail',
   'WorkoutAdd',
   'ActivityAdd',
   'MeasurementsAdd',

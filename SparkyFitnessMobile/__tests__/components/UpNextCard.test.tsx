@@ -62,7 +62,7 @@ describe('UpNextCard', () => {
 
     const screen = render(<UpNextCard navigation={navigation as never} />);
 
-    expect(screen.getByText("Generate today's workout")).toBeTruthy();
+    expect(screen.getByText("Build today's workout")).toBeTruthy();
   });
 
   it('stays silent rather than showing an error block on a failed read', () => {
