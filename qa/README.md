@@ -557,12 +557,17 @@ the heuristic is a frame comparison. When a step is genuinely invisible, borrow
 the next step's signal; do not let an animation wait be the only thing standing
 between a tap and the state it depends on.
 
-**Assistant replies are invisible to the driver.** Sparky's markdown is drawn by
-`react-native-enriched-markdown`, a native view that exposes no accessibility
-elements XCUITest can see: `maestro hierarchy` shows the user's bubble and the
-"syncing, Retry" action, and nothing at all for the text between them, however
-plainly it sits on screen. `workout-proposal.yaml` therefore never asserts a
-reply. It waits on the appended user bubble (plain Text) and on the Send button
+**Multi-line assistant replies are invisible to the driver.** Sparky's markdown
+is drawn by `react-native-enriched-markdown`, whose native view is a
+UIAccessibility *container*: it builds one virtual element per paragraph, with
+the text as label and heading/link traits. Those elements are real — a one-line
+reply ("Saved it.") shows up in `maestro hierarchy` — but a paragraph that wraps
+is given an `accessibilityPath` (one rectangle per line) and no
+`accessibilityFrame`, and XCUITest drops zero-frame elements, so every reply
+longer than a line is missing from the snapshot however plainly it sits on
+screen. VoiceOver navigates the container's element list and outlines by path,
+so it reads them; the driver does not. `workout-proposal.yaml` therefore never
+asserts a reply. It waits on the appended user bubble (plain Text) and on the Send button
 (`id: chat-send`), which the composer draws only once the thread has stopped
 running, and leaves the reply's content to the oracle, which reads it out of
 `sparky_chat_history`. The same dump is the place to look whenever text that is

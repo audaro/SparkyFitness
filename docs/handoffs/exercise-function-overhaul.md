@@ -132,9 +132,13 @@ time. Nothing was removed; labels and entry points were made legible.
 - **Codex reviewer is down**, so neither `0adf526c6` (~1.9k lines) nor
   `d929f334f` has had independent review. Re-run the marker once the
   ChatGPT plan is active.
-- **VoiceOver on assistant replies is unverified.** The markdown view builds
-  its own accessibility elements, but XCUITest sees none of them; whether
-  VoiceOver reads Sparky's replies has not been checked on a device.
+- ~~VoiceOver on assistant replies is unverified.~~ Checked 2026-09-02: the
+  markdown view is a proper accessibility container. A one-line reply appears
+  in the XCUITest hierarchy with its text as label; wrapped paragraphs are
+  given an `accessibilityPath` and no frame, which is why XCUITest drops them
+  while VoiceOver, which navigates the element list and outlines by path,
+  reads them. No app change needed; the flow-side rule (never assert reply
+  text) stands.
 
 ## Exact next step
 
