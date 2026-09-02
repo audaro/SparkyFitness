@@ -59,8 +59,8 @@ appId: ${APP_ID}
     id: "workout-proposal-accept"
 # Accepting appends a user message, so the model gets another turn. The reply
 # itself cannot be asserted here: assistant text is drawn by the native
-# markdown view, which exposes nothing to XCUITest (see qa/README.md), so the
-# oracle reads the reply out of the persisted history instead. What the flow
+# markdown view, whose wrapped paragraphs XCUITest drops (see qa/README.md), so
+# the oracle reads the reply out of the persisted history instead. What the flow
 # can see is the appended user bubble, and then the Send button, which the
 # composer only draws once the thread has stopped running.
 - extendedWaitUntil:

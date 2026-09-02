@@ -224,9 +224,9 @@ report.check(
   'the acceptance message is in the history once',
   acceptRows.length
 );
-// The flow cannot see this reply on screen (native markdown, no accessibility
-// elements), so the persisted row is the evidence that the model's answer to
-// the acceptance reached the user.
+// The flow cannot see this reply on screen (native markdown; XCUITest drops
+// its wrapped paragraphs), so the persisted row is the evidence that the
+// model's answer to the acceptance reached the user.
 const replyRows = history.filter(
   (row) =>
     row.message_type === 'assistant' &&
