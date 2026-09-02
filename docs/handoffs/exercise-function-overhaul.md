@@ -99,8 +99,10 @@ time. Nothing was removed; labels and entry points were made legible.
 | Server `pnpm run validate` + vitest | green (committed in `ec351545b`) |
 | Mobile `pnpm run validate` | green (tsc, expo lint 0 warnings, i18n audit 0 blocking) |
 | Mobile jest `--runInBand` | 389 suites, 6335 tests, all passing |
-| Maestro `ux-walk` | PASS |
-| Maestro `ux-walk-2` | PASS (4m 35s), screenshots in `qa/run/shots2/40..62` |
+| Maestro `ux-walk` | PASS (4m 2s on 2026-09-02, all four scenarios rerun at `4713244b5`) |
+| Maestro `ux-walk-2` | PASS (4m 40s), screenshots in `qa/run/shots2/40..62` |
+| Maestro `workout-proposal` | PASS (1m 57s), 19 oracle checks green |
+| Maestro `food-photo` | PASS (2m 35s), 18 oracle checks green |
 | Second-opinion review | not run: codex reviewer is down (see `~/.claude/CLAUDE.md`) |
 
 ## QA harness notes learned this session
@@ -113,9 +115,9 @@ time. Nothing was removed; labels and entry points were made legible.
   dashboard options. Tap the tab by position (`point: "10%,93%"`).
 - Tapping a gym-profile row toggles it active; the pencil ("Edit <name>")
   opens the editor.
-- Assistant replies (`react-native-enriched-markdown`) expose nothing to
-  XCUITest: `maestro hierarchy` shows the user bubble and `syncing, Retry`
-  but never the reply text. Wait on the user bubble and `id: chat-send`
+- Multi-line assistant replies (`react-native-enriched-markdown`) are dropped
+  by XCUITest: `maestro hierarchy` shows the user bubble and `syncing, Retry`
+  but only a one-line reply. Wait on the user bubble and `id: chat-send`
   instead, and let the oracle read the reply from `sparky_chat_history`.
 - Card buttons are disabled while the reply streams; wait with
   `visible: {id: …, enabled: true}` before tapping or the tap is dropped.
@@ -142,7 +144,9 @@ time. Nothing was removed; labels and entry points were made legible.
 
 ## Exact next step
 
-Nothing is blocked and nothing is open apart from the review and VoiceOver
-notes above. If picking this up fresh: `bash qa/bin/qa-run.sh ux-walk-2` and
-`bash qa/bin/qa-run.sh workout-proposal` both pass at `d929f334f`; run them
-before changing the exercise or chat flows.
+Nothing is blocked and nothing is open apart from the missing review noted
+above. If picking this up fresh: all four scenarios (`ux-walk`, `ux-walk-2`,
+`workout-proposal`, `food-photo`) pass through `bash qa/bin/qa-run.sh <name>`
+at `4713244b5` on a simulator with stock accessibility defaults; the only
+oracle notes are the two pre-onboarding timezone-bootstrap warnings every
+reset run logs. Run them before changing the exercise or chat flows.
