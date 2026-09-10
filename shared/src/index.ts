@@ -105,6 +105,7 @@ export * from "./constants/chatToolCategories.ts";
 export * from "./constants/exercise.ts";
 export * from "./constants/exerciseTaxonomy.ts";
 export * from "./constants/exerciseApparatus.ts";
+export * from "./constants/exerciseMechanic.ts";
 export * from "./constants/equipmentItems.ts";
 export * from "./constants/equipmentIcons.ts";
 export * from "./constants/exercisedb.ts";

@@ -277,6 +277,36 @@ export const MUSCLE_GROUP_MEMBERS: Readonly<
   core: ["abdominals"],
 };
 
+/**
+ * Muscles a session is not built around.
+ *
+ * A training budget is spent on the muscles that define the day, and these
+ * are the ones a coach adds when time is left over — a wrist curl after the
+ * rows, a calf raise after the squats. They are still real targets: a user
+ * who picks forearms alone gets a forearm workout. The list only matters to
+ * the duration fitter, which gives them up first when a workout runs long, so
+ * a big muscle keeps its second movement before a small one gets its first.
+ *
+ * `traps` is deliberately NOT here even though the mobile picker files it
+ * under Accessory: on a pull day a shrug or upright row is a main movement
+ * (Fitbod programs one), and the fitter's tail-drop already handles a traps
+ * request that will not fit.
+ */
+export const ACCESSORY_MUSCLES: readonly Muscle[] = [
+  "abductors",
+  "adductors",
+  "calves",
+  "forearms",
+  "neck",
+];
+
+const ACCESSORY_MUSCLE_SET: ReadonlySet<string> = new Set(ACCESSORY_MUSCLES);
+
+/** Whether a muscle is one the duration fitter gives up first. Normalizes its input. */
+export function isAccessoryMuscle(raw: string): boolean {
+  return ACCESSORY_MUSCLE_SET.has(normalizeMuscleName(raw));
+}
+
 const MUSCLE_TO_GROUP: ReadonlyMap<string, MuscleGroup> = new Map(
   MUSCLE_GROUPS.flatMap((group) =>
     MUSCLE_GROUP_MEMBERS[group].map(

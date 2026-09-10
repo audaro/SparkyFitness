@@ -29,6 +29,10 @@ import {
   type RecommendedExercise,
   type Muscle,
   isLowerBodyMuscle,
+  isAccessoryMuscle,
+  isCompound,
+  effectiveMechanic,
+  MECHANIC_OVERRIDE_SOURCE,
   MUSCLES,
   MUSCLE_SIZE_RANK,
   MUSCLE_SPLIT_MEMBERS,
@@ -273,10 +277,39 @@ describe('selectTargetMuscles with requested muscles', () => {
     fresh('glutes', 0.15),
   ];
 
-  it('honours the request exactly, in the order asked for', () => {
+  it('honours the request exactly, keeping the order asked for among equals', () => {
+    // Both are large muscles, so size cannot separate them and the request
+    // order stands.
     expect(
       selectTargetMuscles(legDayYesterday, ['hamstrings', 'quadriceps'])
     ).toEqual(['hamstrings', 'quadriceps']);
+  });
+
+  it('orders a request by muscle size so the fitter spends the budget on the big ones', () => {
+    // A pull day arrives from the tiles alphabetically — biceps, forearms,
+    // lats… — and the fitter drops from the END of this list. Without the
+    // sort, traps was the muscle cut for time while neck kept a full slot.
+    const result = selectTargetMuscles(legDayYesterday, [
+      'biceps',
+      'forearms',
+      'lats',
+      'lower back',
+      'middle back',
+      'neck',
+      'traps',
+    ]);
+
+    expect(result).toEqual([
+      'lats',
+      'middle back',
+      'lower back',
+      'traps',
+      'biceps',
+      'forearms',
+      'neck',
+    ]);
+    const ranks = result.map((muscle) => MUSCLE_SIZE_RANK[muscle as Muscle]);
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
   });
 
   it('does not add a muscle for balance', () => {
@@ -296,7 +329,7 @@ describe('selectTargetMuscles with requested muscles', () => {
     const upperBody = [...MUSCLE_SPLIT_MEMBERS['upper body']];
     const result = selectTargetMuscles(legDayYesterday, upperBody);
 
-    expect(result).toEqual(upperBody);
+    expect([...result].sort()).toEqual([...upperBody].sort());
     expect(result.length).toBeGreaterThan(GENERATION_TUNABLES.maxTargetMuscles);
   });
 
@@ -338,7 +371,7 @@ describe('selectTargetMuscles with requested muscles', () => {
     const second = selectTargetMuscles(legDayYesterday, request);
 
     expect(first).toEqual(second);
-    expect(first).toEqual(request);
+    expect([...first].sort()).toEqual([...request].sort());
   });
 });
 
@@ -897,25 +930,36 @@ describe('planWorkout', () => {
     ).toBe('c9');
   });
 
-  it('prefers a candidate matching the stated experience level', () => {
-    // Both are canonical chest presses, so the pattern bonus cancels and the
-    // level match is the only term left to separate them.
-    const matched = candidate({
+  it('does not reward a level match — a catalog with NULL levels must not lose to one without', () => {
+    // ExerciseDB rows carry no level at all. When a match earned a bonus, a
+    // free-exercise-db row tagged `intermediate` beat the machine row the user
+    // had actually logged (Lying T-Bar Row over Machine Seated Row). Level
+    // only ever subtracts now, so the unleveled row wins on familiarity.
+    const leveled = candidate({
+      id: 'c0',
+      name: 'Barbell Press',
+      primaryMuscles: ['chest'],
+      mechanic: 'compound',
+      level: 'intermediate',
+    });
+    const unleveled = candidate({
       id: 'c9',
       name: 'Machine Press',
       primaryMuscles: ['chest'],
       mechanic: 'compound',
-      level: 'beginner',
+      level: null,
+      timesPerformed: 4,
     });
     const plan = planWorkout(
       [fresh('chest', 1), fresh('lats', 0.9)],
-      [CHEST_COMPOUND, matched, LAT_COMPOUND],
-      options({ experienceLevel: 'beginner' })
+      [leveled, unleveled, LAT_COMPOUND],
+      options({ experienceLevel: 'intermediate' })
     );
 
     expect(
       plan.exercises.find((e) => e.targetMuscle === 'chest')?.candidate.id
     ).toBe('c9');
+    expect('levelMatchBonus' in GENERATION_TUNABLES).toBe(false);
   });
 
   it('biases a stated beginner away from an unperformed expert movement', () => {
@@ -1179,13 +1223,108 @@ describe('planWorkout', () => {
   });
 });
 
+// --- mechanic override --------------------------------------------------------
+
+describe('effectiveMechanic', () => {
+  it('overrides a mis-tagged free-exercise-db row to isolation', () => {
+    // High Cable Curls is tagged compound upstream. As the only "compound"
+    // biceps row it took the compound slot unconditionally and the fitter
+    // then deleted the familiar Machine Bicep Curl from the isolation slot.
+    expect(
+      effectiveMechanic(
+        MECHANIC_OVERRIDE_SOURCE,
+        'High_Cable_Curls',
+        'compound'
+      )
+    ).toBe('isolation');
+  });
+
+  it('leaves every other row on its stored mechanic', () => {
+    expect(
+      effectiveMechanic(MECHANIC_OVERRIDE_SOURCE, 'Barbell_Curl', 'isolation')
+    ).toBe('isolation');
+    expect(
+      effectiveMechanic('exercisedb', 'High_Cable_Curls', 'compound')
+    ).toBe('compound');
+    expect(effectiveMechanic('manual', null, ' Compound ')).toBe('compound');
+    expect(effectiveMechanic('manual', null, 'weird')).toBeNull();
+    expect(effectiveMechanic('manual', null, null)).toBeNull();
+  });
+
+  it('is what isCompound reads, so the override reaches slot assignment', () => {
+    const curl = candidate({
+      id: 'hcc',
+      name: 'High Cable Curls',
+      source: MECHANIC_OVERRIDE_SOURCE,
+      sourceId: 'High_Cable_Curls',
+      primaryMuscles: ['biceps'],
+      equipment: ['cable'],
+      mechanic: 'compound',
+    });
+    const machineCurl = candidate({
+      id: 'mbc',
+      name: 'Machine Bicep Curl',
+      primaryMuscles: ['biceps'],
+      equipment: ['machine'],
+      mechanic: 'isolation',
+      timesPerformed: 20,
+    });
+
+    expect(isCompound(curl)).toBe(false);
+    expect(isCompound(candidate({ id: 'x', mechanic: 'compound' }))).toBe(true);
+
+    // Neither row is compound now, so the first biceps pick is the familiar
+    // machine curl rather than the only row wearing the wrong label — and it
+    // is listed first, so a fitter trimming biceps to one exercise keeps it.
+    const plan = planWorkout(
+      [fresh('biceps', 1)],
+      [curl, machineCurl],
+      options({ equipmentPreference: 'machines' })
+    );
+    expect(plan.exercises.map((e) => [e.candidate.id, e.slot])).toEqual([
+      ['mbc', 'isolation'],
+      ['hcc', 'isolation'],
+    ]);
+  });
+
+  it("lists a muscle's first pick before its second even when both are isolation", () => {
+    // Ids sort the other way round here; pick order has to win or the fitter
+    // deletes the better exercise.
+    const first = candidate({
+      id: 'z-first',
+      name: 'Machine Bicep Curl',
+      primaryMuscles: ['biceps'],
+      equipment: ['machine'],
+      mechanic: 'isolation',
+      timesPerformed: 20,
+    });
+    const second = candidate({
+      id: 'a-second',
+      name: 'Cable Curl',
+      primaryMuscles: ['biceps'],
+      equipment: ['cable'],
+      mechanic: 'isolation',
+    });
+    const plan = planWorkout(
+      [fresh('biceps', 1)],
+      [second, first],
+      options({ equipmentPreference: 'machines' })
+    );
+    expect(plan.exercises.map((e) => e.candidate.id)).toEqual([
+      'z-first',
+      'a-second',
+    ]);
+  });
+});
+
 // --- equipment preference ---------------------------------------------------
 
 describe('equipment preference', () => {
   // The regression this whole feature exists for, reduced to its bones: a
   // free-exercise-db catalog rates machines `beginner` almost without
-  // exception, so on an `intermediate` profile the level-match bonus alone
-  // selected *away* from every machine in the gym.
+  // exception, so on an `intermediate` profile the (since removed) level-match
+  // bonus alone selected *away* from every machine in the gym. The level
+  // tags stay on these rows so the preference is proven to win regardless.
   const MACHINE_PRESS = candidate({
     id: 'm1',
     name: 'Machine Chest Press',
@@ -1220,16 +1359,74 @@ describe('equipment preference', () => {
   });
 
   it('leaves selection untouched when no preference is stated', () => {
+    // Nothing to do with equipment decides here: the machine row carries the
+    // canonical "press" pattern and the oddity does not.
     const plan = planWorkout(
       [fresh('chest', 1)],
       [MACHINE_PRESS, DUMBBELL_ODDITY],
       options({ experienceLevel: 'intermediate', equipmentPreference: null })
     );
 
-    expect(plan.exercises[0]!.candidate.id).toBe('d1');
+    expect(plan.exercises[0]!.candidate.id).toBe('m1');
   });
 
-  it('outranks the level-match bonus, so a machine gym gets machines', () => {
+  it('lets familiarity outrank the near tier — a logged cable beats an unlogged machine', () => {
+    // The user has done thirteen lat pulldowns at this gym. A machine-only
+    // preference must nudge, not erase that: near penalty −2 sits under
+    // familiarity +3, so the pulldown wins, and the name-length tiebreak that
+    // used to hand the slot to "Assisted Pull-Up" never runs.
+    const pulldown = candidate({
+      id: 'p-cable',
+      name: 'Wide-Grip Lat Pulldown',
+      primaryMuscles: ['lats'],
+      equipment: ['cable'],
+      mechanic: 'compound',
+      timesPerformed: 13,
+    });
+    const assisted = candidate({
+      id: 'p-machine',
+      name: 'Assisted Pull-Up',
+      primaryMuscles: ['lats'],
+      equipment: ['machine'],
+      mechanic: 'compound',
+    });
+    const plan = planWorkout(
+      [fresh('lats', 1)],
+      [assisted, pulldown],
+      options({ equipmentPreference: 'machines' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('p-cable');
+    expect(
+      GENERATION_TUNABLES.familiarityBonus +
+        GENERATION_TUNABLES.equipmentPreferenceNearPenalty
+    ).toBeGreaterThan(0);
+  });
+
+  it('lets the far tier outrank familiarity, so a machine gym still gets machines', () => {
+    // The other side of the same line: a logged dumbbell row must not drag a
+    // machine gym back onto free weights.
+    const logged = candidate({
+      ...DUMBBELL_ODDITY,
+      id: 'd-logged',
+      name: 'Dumbbell Chest Press',
+      timesPerformed: 13,
+    });
+    const plan = planWorkout(
+      [fresh('chest', 1)],
+      [MACHINE_PRESS, logged],
+      options({ equipmentPreference: 'machines' })
+    );
+
+    expect(plan.exercises[0]!.candidate.id).toBe('m1');
+    expect(
+      GENERATION_TUNABLES.familiarityBonus +
+        GENERATION_TUNABLES.canonicalPatternBonus +
+        GENERATION_TUNABLES.equipmentPreferenceFarPenalty
+    ).toBeLessThan(0);
+  });
+
+  it('outranks a catalog level tag, so a machine gym gets machines', () => {
     const plan = planWorkout(
       [fresh('chest', 1)],
       [MACHINE_PRESS, DUMBBELL_ODDITY],
@@ -2433,6 +2630,77 @@ describe('fitToDuration', () => {
 
     expect(result.exercises.map((e) => e.exercise_id)).toEqual(['c1']);
     expect(result.targetMuscles).toEqual(['chest']);
+  });
+
+  it('drops accessory work before a main muscle loses its second movement', () => {
+    // A pull day into a tight budget: neck and forearms are accessories, so
+    // both go — whatever slot they hold — while lats keeps its isolation.
+    const neckCompound = fittable(
+      withSets(recommended({ exercise_id: 'n1' }), 3),
+      'compound',
+      'neck'
+    );
+    const forearmIsolation = fittable(
+      withSets(recommended({ exercise_id: 'f1' }), 3),
+      'isolation',
+      'forearms'
+    );
+    const result = fitToDurationDetailed(
+      [latCompound, latIsolation, forearmIsolation, neckCompound],
+      20,
+      [],
+      ['lats', 'forearms', 'neck']
+    );
+
+    expect(result.exercises.map((e) => e.exercise_id)).toEqual(['l1', 'l2']);
+    expect(result.targetMuscles).toEqual(['lats']);
+    expect(isAccessoryMuscle('neck')).toBe(true);
+    expect(isAccessoryMuscle('traps')).toBe(false);
+  });
+
+  it('removes accessories from the end of the request first', () => {
+    // Over by exactly one exercise: the last-requested accessory goes, the
+    // earlier one stays.
+    const calfIsolation = fittable(
+      withSets(recommended({ exercise_id: 'k1' }), 3),
+      'isolation',
+      'calves'
+    );
+    const forearmIsolation = fittable(
+      withSets(recommended({ exercise_id: 'f1' }), 3),
+      'isolation',
+      'forearms'
+    );
+    const result = fitToDuration(
+      [chestCompound, calfIsolation, forearmIsolation],
+      20,
+      [],
+      ['chest', 'calves', 'forearms']
+    );
+
+    expect(result.map((e) => e.exercise_id)).toEqual(['c1', 'k1']);
+  });
+
+  it("keeps an accessory head muscle's last exercise", () => {
+    // Someone who asked for forearms alone gets forearms, not nothing.
+    const forearmCompound = fittable(
+      withSets(recommended({ exercise_id: 'f1' }), 3),
+      'compound',
+      'forearms'
+    );
+    const forearmIsolation = fittable(
+      withSets(recommended({ exercise_id: 'f2' }), 3),
+      'isolation',
+      'forearms'
+    );
+    const result = fitToDuration(
+      [forearmCompound, forearmIsolation],
+      1,
+      [],
+      ['forearms']
+    );
+
+    expect(result.map((e) => e.exercise_id)).toEqual(['f1']);
   });
 
   it('never drops the first muscle, however far over budget it runs', () => {

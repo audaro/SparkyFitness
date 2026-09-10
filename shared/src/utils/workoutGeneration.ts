@@ -3,6 +3,7 @@ import {
   CANONICAL_MOVEMENT_PATTERNS,
   EQUIPMENT_PREFERENCE_FAR_TIER,
   EQUIPMENT_PREFERENCE_TIERS,
+  isAccessoryMuscle,
   isLowerBodyMuscle,
   normalizeEquipmentName,
   normalizeMuscleName,
@@ -17,6 +18,7 @@ import {
   requiredApparatus,
   type ExerciseApparatus,
 } from "../constants/exerciseApparatus.ts";
+import { effectiveMechanic } from "../constants/exerciseMechanic.ts";
 import {
   areItemsAvailable,
   requiredItemsFor,
@@ -83,10 +85,16 @@ export const GENERATION_TUNABLES = {
   /** Freshness the other half of the body needs to earn the balance swap. */
   balanceSwapFreshness: 0.6,
 
-  /** Score for a movement the user has performed before. */
-  familiarityBonus: 2,
-  /** Score for matching the coach profile's stated experience level. */
-  levelMatchBonus: 1,
+  /**
+   * Score for a movement the user has performed before.
+   *
+   * The heaviest term, on purpose, and sized to beat
+   * `equipmentPreferenceNearPenalty`: a cable lat pulldown logged thirteen
+   * times is what a lifter at a machine gym means by "the pulldown", and at
+   * +2 it tied an assisted pull-up they had never done and lost on the
+   * name-length tiebreak. It does NOT beat the far tier — see there.
+   */
+  familiarityBonus: 3,
   /**
    * Penalty for a movement rated two levels above the user's stated
    * experience (beginner ↔ expert) that they have never performed.
@@ -97,6 +105,14 @@ export const GENERATION_TUNABLES = {
    * graduate through them. A penalty rather than an exclusion, for the same
    * reason as `mobilityPenalty`: a muscle whose only candidates are expert
    * movements should still get one, not an empty slot.
+   *
+   * This is the ONLY thing the level label does. There used to be a bonus for
+   * matching it, and it selected by catalog rather than by movement: the
+   * ExerciseDB mirror carries no level at all, so its machine rows could never
+   * earn the point while free-exercise-db rows tagged `intermediate` always
+   * did, and an intermediate profile at a machine gym got a lying T-bar row
+   * over the seated row machine it had actually used. A label upstream
+   * assigned by editorial habit is not evidence of fit; a logged set is.
    */
   levelTooAdvancedPenalty: -2,
   /**
@@ -119,14 +135,14 @@ export const GENERATION_TUNABLES = {
    * were asked for, the far tier is everything else. Nothing is applied when
    * no preference is stated.
    *
-   * The far penalty has to beat every positive term combined
-   * (`familiarityBonus + levelMatchBonus` = +3) or the preference would be
-   * advisory: the whole reason this exists is that a free-exercise-db catalog
-   * rates almost every machine `beginner`, so on an intermediate profile the
-   * level bonus alone was silently selecting *away* from machines — 0 of 58
-   * eligible machine rows could win a push slot. A preference the user stated
-   * out loud must outrank a difficulty label upstream assigned by editorial
-   * habit.
+   * The two tiers sit on opposite sides of `familiarityBonus`, and that is
+   * the design. The near tier loses to it: a cable station at a machine gym
+   * is a machine to the person using it, so the pulldown they have logged
+   * beats the assisted pull-up they have not. The far tier beats every
+   * positive term combined (`familiarityBonus + canonicalPatternBonus` = +4),
+   * or the preference would be advisory: "I prefer machines" said out loud
+   * must outrank the dumbbell curl in the log, because the log is where they
+   * trained before they said it.
    *
    * Still penalties rather than a filter, and that is the point of the whole
    * design: a muscle whose only sane movement is the non-preferred kind gets
@@ -134,7 +150,7 @@ export const GENERATION_TUNABLES = {
    * pool takes the same penalty and the ordering underneath re-emerges intact.
    */
   equipmentPreferenceNearPenalty: -2,
-  equipmentPreferenceFarPenalty: -4,
+  equipmentPreferenceFarPenalty: -5,
   /**
    * Penalty for a movement whose name marks it as a variation of a base
    * movement it is competing against ({@link VARIANT_NAME_MARKERS}).
@@ -162,20 +178,17 @@ export const GENERATION_TUNABLES = {
   /**
    * Penalty for a mobility movement competing for a training slot.
    *
-   * Sized to lose to any real movement: the best-scoring stretch (familiar and
-   * level-matched, `familiarityBonus + levelMatchBonus` = +3) has to land below
-   * the worst-scoring real movement, or a stretch the user has done before
-   * would outrank a press they have not. Not a hard exclusion, so a muscle
-   * whose catalog offers nothing else still gets something — programmed as a
-   * hold, which is what {@link isMobilityExercise} is really for.
-   *
-   * The floor it has to clear moved when equipment preference arrived: the
-   * worst real movement is now unfamiliar, two levels too advanced, a variant,
-   * AND the far side of a stated preference (-2 + -1 + -4 = -7), while the
-   * best stretch can additionally match a canonical pattern (+1 on top of the
-   * +3 above). -6 would have let a familiar stretch beat a real movement on a
-   * machine day. This is the arithmetic; `tests/workoutGeneration.test.ts`
-   * asserts the behaviour, which is what actually has to hold.
+   * Sized to lose to any real movement: the best-scoring stretch (familiar
+   * and canonically named, `familiarityBonus + canonicalPatternBonus` = +4)
+   * has to land below the worst-scoring real movement — unfamiliar, two
+   * levels too advanced, a variant, AND the far side of a stated preference
+   * (-2 + -1 + -5 = -8) — or a stretch the user has done before would outrank
+   * a press they have not. -14 leaves the stretch at -10. Not a hard
+   * exclusion, so a muscle whose catalog offers nothing else still gets
+   * something — programmed as a hold, which is what
+   * {@link isMobilityExercise} is really for. This is the arithmetic;
+   * `tests/workoutGeneration.test.ts` asserts the behaviour, which is what
+   * actually has to hold.
    */
   mobilityPenalty: -14,
 
@@ -550,12 +563,19 @@ function rankByFreshness(freshness: readonly MuscleFreshness[]): string[] {
 /**
  * The muscles to build the workout around.
  *
- * When the caller names muscles, those are the muscles — returned in the order
- * asked for, with none added and none removed. Not the cap, not the balance
- * swap, not the freshness floor: a user who taps Legs on fatigued legs is
- * making a decision, and quietly adding a shoulder to it produces a workout
- * nobody asked for. Recovery is still shown next to every muscle in the picker,
- * so the information is offered rather than enforced.
+ * When the caller names muscles, those are the muscles — none added and none
+ * removed. Not the cap, not the balance swap, not the freshness floor: a user
+ * who taps Legs on fatigued legs is making a decision, and quietly adding a
+ * shoulder to it produces a workout nobody asked for. Recovery is still shown
+ * next to every muscle in the picker, so the information is offered rather
+ * than enforced.
+ *
+ * They come back largest muscle first, request order breaking ties. The order
+ * is load-bearing downstream: the duration fitter spends its budget from the
+ * front of this list and drops muscles from the back, so the order decides
+ * which muscle a 60-minute pull day loses. Clients send the canonical
+ * vocabulary's alphabetical order, and honouring that verbatim dropped traps
+ * for being spelled last while neck and forearms each kept a movement.
  *
  * Otherwise: the freshest muscles clearing
  * {@link GENERATION_TUNABLES.minTargetFreshness}, capped at five. If fewer than
@@ -590,7 +610,16 @@ export function selectTargetMuscles(
         .filter((muscle): muscle is Muscle => muscle !== null),
     ),
   ];
-  if (honoured.length > 0) return honoured;
+  if (honoured.length > 0) {
+    return honoured
+      .map((muscle, index) => ({ muscle, index }))
+      .sort(
+        (a, b) =>
+          muscleSizeRank(a.muscle) - muscleSizeRank(b.muscle) ||
+          a.index - b.index,
+      )
+      .map((entry) => entry.muscle);
+  }
 
   const ranked = rankByFreshness(freshness);
   if (ranked.length === 0) return [];
@@ -784,7 +813,10 @@ export function isExcludedByLimitations(
  * same exercise depending on how it got in.
  */
 export function isCompound(candidate: CandidateExercise): boolean {
-  return candidate.mechanic?.trim().toLowerCase() === "compound";
+  return (
+    effectiveMechanic(candidate.source, candidate.sourceId, candidate.mechanic) ===
+    "compound"
+  );
 }
 
 /**
@@ -891,7 +923,8 @@ function trainsPrimarily(
  * Familiarity is the heaviest term because a workout made entirely of
  * movements the user has never done is a workout they cannot load correctly —
  * every exercise would cold-start, and the whole session becomes calibration.
- * Fitbod biases the same way.
+ * Fitbod biases the same way. The stated experience level only ever
+ * subtracts (see `levelTooAdvancedPenalty`); it never rewards a label match.
  */
 function scoreCandidate(
   candidate: CandidateExercise,
@@ -911,9 +944,6 @@ function scoreCandidate(
   }
   const level = options.experienceLevel?.trim().toLowerCase();
   const candidateLevel = candidate.level?.trim().toLowerCase();
-  if (level && candidateLevel === level) {
-    score += GENERATION_TUNABLES.levelMatchBonus;
-  }
   // Both ranks known, never performed, and the gap is the full two levels
   // (beginner ↔ expert): bias away, but only as a prior — a logged session is
   // evidence the movement is within reach, and evidence wins. The other
@@ -1119,6 +1149,13 @@ export function planWorkout(
   const muscleRank = new Map(
     targetMuscles.map((muscle, index) => [muscle, index]),
   );
+  // Two exercises only tie through every key above when they train the same
+  // muscle in the same slot — a muscle with no compound row, whose first pick
+  // came out of the isolation pool. Pick order settles it, not the id: the
+  // first pick is the higher-scoring one, and the duration fitter removes a
+  // muscle's isolation work from the END of the list, so an id sort would
+  // have deleted the familiar machine curl and kept the stray cable one.
+  const pickOrder = new Map(exercises.map((entry, index) => [entry, index]));
   const ordered = [...exercises].sort((a, b) => {
     const slotDelta =
       (a.slot === "compound" ? 0 : 1) - (b.slot === "compound" ? 0 : 1);
@@ -1130,11 +1167,7 @@ export function planWorkout(
       (muscleRank.get(a.targetMuscle) ?? 0) -
       (muscleRank.get(b.targetMuscle) ?? 0);
     if (rankDelta !== 0) return rankDelta;
-    return a.candidate.id < b.candidate.id
-      ? -1
-      : a.candidate.id > b.candidate.id
-        ? 1
-        : 0;
+    return (pickOrder.get(a) ?? 0) - (pickOrder.get(b) ?? 0);
   });
 
   return { targetMuscles, exercises: ordered, alternates };
@@ -1795,12 +1828,16 @@ export interface FittableExercise {
 /**
  * Trim or extend the workout to land near the requested duration.
  *
- * Over budget, work comes off in the order it can best be spared: isolation
- * exercises first and from the least fresh muscle backwards, then fourth sets.
- * A compound is never removed, and an isolation is never removed while it is
- * the only exercise left for its target muscle — a "chest and back" workout
- * that has lost its chest movement is not a shorter version of the workout, it
- * is a different one.
+ * Over budget, work comes off in the order it can best be spared: accessory
+ * muscles' exercises first (`ACCESSORY_MUSCLES` — a wrist curl goes before
+ * the lats lose their second movement, which is how a coach spends an hour),
+ * then isolation exercises from the least fresh muscle backwards, then fourth
+ * sets. A compound of a main muscle is never removed, and an isolation is
+ * never removed while it is the only exercise left for a main muscle — a
+ * "chest and back" workout that has lost its chest movement is not a shorter
+ * version of the workout, it is a different one. The head muscle's last
+ * exercise is safe even when it is an accessory: forearms alone is still a
+ * forearm workout.
  *
  * Under budget by more than the slack, pre-programmed bench candidates are
  * added while they still fit. Anything added must arrive already prescribed:
@@ -1846,17 +1883,42 @@ export function fitToDurationDetailed(
       counts.set(item.targetMuscle, (counts.get(item.targetMuscle) ?? 0) + 1);
     }
 
+    const headMuscle = targetMuscles[0] ?? current[0]?.targetMuscle;
+    const byTailFirst = (
+      a: { item: FittableExercise; index: number },
+      b: { item: FittableExercise; index: number },
+    ) =>
+      (muscleOrder.get(b.item.targetMuscle) ?? 0) -
+        (muscleOrder.get(a.item.targetMuscle) ?? 0) || b.index - a.index;
+
+    // Accessory work goes first, whatever slot it holds, so a main muscle
+    // keeps its second movement before a small one keeps its first. The head
+    // muscle's last exercise stays even here: with nothing else asked for, it
+    // is the workout.
+    const accessory = current
+      .map((item, index) => ({ item, index }))
+      .filter(
+        ({ item }) =>
+          isAccessoryMuscle(item.targetMuscle) &&
+          !(
+            item.targetMuscle === headMuscle &&
+            (counts.get(item.targetMuscle) ?? 0) <= 1
+          ),
+      )
+      .sort(byTailFirst);
+    if (accessory.length > 0) {
+      const target = accessory[0]!.index;
+      current = current.filter((_, index) => index !== target);
+      continue;
+    }
+
     const removable = current
       .map((item, index) => ({ item, index }))
       .filter(
         ({ item }) =>
           item.slot === "isolation" && (counts.get(item.targetMuscle) ?? 0) > 1,
       )
-      .sort(
-        (a, b) =>
-          (muscleOrder.get(b.item.targetMuscle) ?? 0) -
-          (muscleOrder.get(a.item.targetMuscle) ?? 0),
-      );
+      .sort(byTailFirst);
 
     if (removable.length > 0) {
       const target = removable[0]!.index;

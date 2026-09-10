@@ -381,28 +381,26 @@ describe('generateRecommendation', () => {
       experience_level: 'beginner',
       limitations: [],
     });
-    const beginnerBench = candidate({
-      id: '77777777-7777-4777-8777-777777777777',
-      name: 'Push-Up',
-      level: 'beginner',
+    // Equal-length names and the expert row holding the LOWER id: on a tie
+    // the tiebreak would pick it, so the unleveled row winning is the
+    // too-advanced penalty — the only term a level contributes — arriving.
+    const expertBench = candidate({
+      id: '11111111-aaaa-4aaa-8aaa-111111111111',
+      name: 'Movement One',
+      level: 'expert',
     });
     const unleveledBench = candidate({
-      id: '11111111-aaaa-4aaa-8aaa-111111111111',
-      name: 'Machine Press',
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Movement Two',
     });
-    repo.getCandidateExercises.mockResolvedValue([
-      unleveledBench,
-      beginnerBench,
-    ]);
+    repo.getCandidateExercises.mockResolvedValue([unleveledBench, expertBench]);
 
     const result = await workoutRecommendationService.generateRecommendation(
       USER_ID,
       { targetMuscles: ['chest'] }
     );
 
-    // Otherwise identical candidates: only the level-match bonus separates
-    // them, so the beginner-rated row winning is the profile value arriving.
-    expect(result.payload.exercises[0].exercise_id).toBe(beginnerBench.id);
+    expect(result.payload.exercises[0].exercise_id).toBe(unleveledBench.id);
   });
 
   it('does not derive a level when the profile states one', async () => {
@@ -422,24 +420,22 @@ describe('generateRecommendation', () => {
 
   it('derives a level from the training log when the profile is silent', async () => {
     // No profile row at all (the beforeEach default). One day short of the
-    // intermediate threshold derives 'beginner', so the beginner-rated
-    // candidate winning is the derived value reaching selection.
+    // intermediate threshold derives 'beginner', so the unperformed expert
+    // row losing (see above for why the ids are arranged this way) is the
+    // derived value reaching selection.
     repo.getStrengthSessionDayCount.mockResolvedValue(
       GENERATION_TUNABLES.derivedIntermediateSessionDays - 1
     );
-    const beginnerBench = candidate({
-      id: '77777777-7777-4777-8777-777777777777',
-      name: 'Push-Up',
-      level: 'beginner',
+    const expertBench = candidate({
+      id: '11111111-aaaa-4aaa-8aaa-111111111111',
+      name: 'Movement One',
+      level: 'expert',
     });
     const unleveledBench = candidate({
-      id: '11111111-aaaa-4aaa-8aaa-111111111111',
-      name: 'Machine Press',
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Movement Two',
     });
-    repo.getCandidateExercises.mockResolvedValue([
-      unleveledBench,
-      beginnerBench,
-    ]);
+    repo.getCandidateExercises.mockResolvedValue([unleveledBench, expertBench]);
 
     const result = await workoutRecommendationService.generateRecommendation(
       USER_ID,
@@ -447,7 +443,7 @@ describe('generateRecommendation', () => {
     );
 
     expect(repo.getStrengthSessionDayCount).toHaveBeenCalledTimes(1);
-    expect(result.payload.exercises[0].exercise_id).toBe(beginnerBench.id);
+    expect(result.payload.exercises[0].exercise_id).toBe(unleveledBench.id);
   });
 
   it('narrows the catalog read to the muscles it actually chose', async () => {
