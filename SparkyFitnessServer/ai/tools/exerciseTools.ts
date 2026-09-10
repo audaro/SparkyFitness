@@ -2,7 +2,13 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import {
   addDays,
+  MUSCLES,
+  MUSCLE_SPLITS,
+  musclesForSplit,
+  normalizeEquipmentName,
   todayInZone,
+  toCanonicalMuscle,
+  type Muscle,
   type MuscleRecoveryResponse,
   type RecommendationSet,
   type RecommendedExercise,
@@ -90,7 +96,79 @@ const LOG_SIGNAL_KEYS = [
 
 // Every key generate_workout accepts; an inferred generation request is
 // trimmed to these before the strict schema sees it.
-const GENERATION_KEYS = new Set(['action', 'duration_minutes', 'swap']);
+const GENERATION_KEYS = new Set([
+  'action',
+  'duration_minutes',
+  'swap',
+  'split',
+  'target_muscles',
+]);
+
+// "legs" is how people say lower body; the split vocabulary does not carry
+// the alias because MUSCLE_SPLITS is also a UI enum.
+const SPLIT_ALIASES: Readonly<Record<string, string>> = { legs: 'lower body' };
+
+/**
+ * The muscle list a chat generation request asks for, or a VALIDATION error.
+ * `undefined` means "let the engine choose" (nothing was named). A split and
+ * explicit muscles combine; unknown names fail loudly with the vocabulary,
+ * because a mis-cased muscle would otherwise reach `::jsonb ?|` and match
+ * nothing.
+ */
+function resolveGenerationTargets(
+  split: string | undefined,
+  targetMuscles: readonly string[] | undefined
+): { muscles: Muscle[] | undefined } | { error: string } {
+  const muscles: Muscle[] = [];
+  if (split !== undefined) {
+    const normalized = split.trim().toLowerCase();
+    const members = musclesForSplit(SPLIT_ALIASES[normalized] ?? normalized);
+    if (!members) {
+      return {
+        error: ERRORS.VALIDATION(
+          `split: '${split}' is not a training split. Use one of: ${MUSCLE_SPLITS.join(', ')} (or 'legs' for lower body).`
+        ),
+      };
+    }
+    muscles.push(...members);
+  }
+  for (const raw of targetMuscles ?? []) {
+    const muscle = toCanonicalMuscle(raw);
+    if (!muscle) {
+      return {
+        error: ERRORS.VALIDATION(
+          `target_muscles: '${raw}' is not a muscle. Use one of: ${MUSCLES.join(', ')}.`
+        ),
+      };
+    }
+    if (!muscles.includes(muscle)) muscles.push(muscle);
+  }
+  return { muscles: muscles.length > 0 ? muscles : undefined };
+}
+
+/**
+ * A muscle filter for the catalog search, or a VALIDATION error. The catalog
+ * stores the lowercase canonical vocabulary and `::jsonb ?|` is exact, so
+ * "Chest" or "back" would silently return nothing.
+ */
+function resolveMuscleFilter(
+  raw: string | undefined
+): { muscles: string[] | undefined } | { error: string } {
+  if (raw === undefined) return { muscles: undefined };
+  const muscle = toCanonicalMuscle(raw);
+  if (!muscle) {
+    return {
+      error: ERRORS.VALIDATION(
+        `muscle filter: '${raw}' is not a muscle. Use one of: ${MUSCLES.join(', ')}.`
+      ),
+    };
+  }
+  return { muscles: [muscle] };
+}
+
+function resolveEquipmentFilter(raw: string | undefined): string[] | undefined {
+  return raw === undefined ? undefined : [normalizeEquipmentName(raw)];
+}
 
 /** kg and km are what the columns hold; anything else is converted on the way in. */
 type WeightUnit = 'kg' | 'lbs';
@@ -821,7 +899,7 @@ export function buildExerciseTools(userId: string, tz: string) {
       description: `Fitness tracking: search exercises, log workouts with sets, manage presets.
 
 Actions:
-- search_exercises(searchTerm, muscleGroup?, equipment?, limit?, offset?)
+- search_exercises(searchTerm, muscleGroup?, equipment?, limit?, offset?) — muscleGroup must be a canonical muscle name (lats, middle back, biceps…); a name match is NOT a muscle match, so to find exercises for a muscle pass muscleGroup rather than putting the muscle in searchTerm
 - create_exercise(name, category?, calories_per_hour?, description?, modality?:weight_reps|reps_only|duration|duration_distance)
 - log_exercise(entry_date, exercise_id?|exercise_name?, duration_minutes?, calories_burned?, notes?, distance?, avg_heart_rate?, steps?, sets?:JSON string or array of [{reps,weight,duration,distance,rest_time,set_type,rpe,notes}]) — distance/avg_heart_rate/steps are for cardio
 - list_exercise_diary(entry_date)
@@ -838,7 +916,7 @@ Actions:
 - create_workout_plan(name, description?, start_date?(default today), end_date?, is_active?, assignments:[{day_of_week 0-6 (0=Sunday), workout_preset_id? OR exercise_id? (exactly one), sort_order?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), rest_time?(seconds), notes?}]}]) — sets only with exercise_id; active plans auto-generate workout diary entries from today; get preset ids from get_workout_presets
 - update_workout_plan(plan_id?|plan_name?, name?, description?, start_date?, end_date?, is_active?, assignments?) — only provided fields change, but assignments REPLACES the entire weekly schedule, so send the complete desired week
 - get_muscle_recovery() — per-muscle freshness derived from logged sets: which muscles are recovered and which are still fatigued, with the day each was last trained
-- generate_workout(duration_minutes?, swap?) — the deterministic engine's session for today: it picks the freshest muscles, chooses exercises the user's active gym profile can do, and prescribes sets/reps/load/rest from their own history. Use it for "what should I train today"; pass swap=true to re-roll onto different exercises. It also becomes the "Up Next" workout in the app, and its output ends with the instruction for handing it to the proposal card`,
+- generate_workout(duration_minutes?, swap?, split?, target_muscles?) — the deterministic engine's session: it picks the freshest muscles (or the ones named), chooses exercises the user's active gym profile can do, and prescribes sets/reps/load/rest from their own history. Use it for "what should I train today"; for "give me a pull day" / "push routine" / "leg day" pass split (push, pull, upper body, lower body, full body); for specific muscles pass target_muscles; pass swap=true to re-roll onto different exercises. It also becomes the "Up Next" workout in the app, and its output ends with the instruction for handing it to the proposal card`,
       inputSchema: manageExerciseInput,
       execute: async (rawArgs) => {
         const normalized = normalizeActionArgs(
@@ -860,7 +938,11 @@ Actions:
             // routed to log_exercise it would default exercise_name to
             // "General Exercise" and write a diary entry for a workout that
             // never happened, which is worse than any wrong read.
-            if (args.swap !== undefined) {
+            if (
+              args.swap !== undefined ||
+              args.split !== undefined ||
+              args.target_muscles !== undefined
+            ) {
               return 'generate_workout';
             }
             if (
@@ -928,13 +1010,15 @@ Actions:
                 args.limit,
                 args.offset
               );
+              const muscleFilter = resolveMuscleFilter(args.muscleGroup);
+              if ('error' in muscleFilter) return muscleFilter.error;
               const { exercises, totalCount } =
                 await exerciseService.searchExercisesPaginated(
                   userId,
                   args.searchTerm,
                   userId,
-                  args.equipment ? [args.equipment] : undefined,
-                  args.muscleGroup ? [args.muscleGroup] : undefined,
+                  resolveEquipmentFilter(args.equipment),
+                  muscleFilter.muscles,
                   limit,
                   offset
                 );
@@ -1559,6 +1643,11 @@ Actions:
             }
 
             case 'generate_workout': {
+              const targets = resolveGenerationTargets(
+                args.split,
+                args.target_muscles
+              );
+              if ('error' in targets) return targets.error;
               try {
                 const recommendation =
                   await workoutRecommendationService.generateRecommendation(
@@ -1566,6 +1655,7 @@ Actions:
                     {
                       durationMinutes: args.duration_minutes,
                       swap: args.swap,
+                      targetMuscles: targets.muscles,
                     }
                   );
                 return renderGeneratedWorkout(recommendation);
@@ -1694,13 +1784,15 @@ Actions:
             args.limit,
             args.offset
           );
+          const muscleFilter = resolveMuscleFilter(args.muscle_group);
+          if ('error' in muscleFilter) return muscleFilter.error;
           const { exercises, totalCount } =
             await exerciseService.searchExercisesPaginated(
               userId,
               args.query,
               userId,
-              args.equipment ? [args.equipment] : undefined,
-              args.muscle_group ? [args.muscle_group] : undefined,
+              resolveEquipmentFilter(args.equipment),
+              muscleFilter.muscles,
               limit,
               offset
             );

@@ -195,6 +195,8 @@ describe('published (flat) chatbot tool schemas', () => {
         'is_active',
         'assignments',
         'swap',
+        'split',
+        'target_muscles',
       ],
       actions: [
         'search_exercises',

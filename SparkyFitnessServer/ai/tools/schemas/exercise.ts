@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EXERCISE_MODALITIES } from '@workspace/shared';
+import { EXERCISE_MODALITIES, MUSCLES } from '@workspace/shared';
 import {
   dateSchema,
   optionalEntryTimeSchema,
@@ -551,6 +551,27 @@ const getMuscleRecoverySchema = z
 // The bounds mirror generateWorkoutRecommendationRequestSchema in
 // @workspace/shared — the tool reaches the same service the REST route does,
 // so a value this accepts and that rejects would fail deeper and less legibly.
+// How a chat request names what to train. A split resolves server-side to
+// its muscle list (MUSCLE_SPLIT_MEMBERS); explicit muscles are validated
+// against the canonical vocabulary, because `::jsonb ?|` silently matches
+// nothing for "Lats" or "back". Both may be given; the union is trained.
+const generationTargetSchema = z.object({
+  split: z
+    .string()
+    .max(40)
+    .optional()
+    .describe(
+      "Training split to build the session around: 'push', 'pull', 'upper body', 'lower body' (or 'legs'), 'full body'"
+    ),
+  target_muscles: z
+    .array(z.string().max(40))
+    .max(MUSCLES.length)
+    .optional()
+    .describe(
+      "Explicit canonical muscles to train, lowercase (e.g., ['lats', 'biceps']); use with or instead of split"
+    ),
+});
+
 const generateWorkoutSchema = z
   .object({
     action: z.literal('generate_workout'),
@@ -569,6 +590,8 @@ const generateWorkoutSchema = z
       .describe(
         'Regenerate preferring exercises other than the ones already suggested'
       ),
+    ...generationTargetSchema.shape,
+    ...generationTargetSchema.shape,
   })
   .strict();
 
@@ -881,4 +904,5 @@ export const manageExerciseInput = z.object({
     .describe(
       'For generate_workout: prefer exercises other than the ones already suggested'
     ),
+  ...generationTargetSchema.shape,
 });

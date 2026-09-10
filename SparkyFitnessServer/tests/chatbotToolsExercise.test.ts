@@ -231,11 +231,26 @@ describe('search_exercises', () => {
       'user-1',
       'fly',
       'user-1',
-      ['Cable'],
-      ['Chest'],
+      ['cable'],
+      ['chest'],
       1,
       0
     );
+  });
+
+  it('rejects a muscle filter outside the canonical vocabulary instead of matching nothing', async () => {
+    // `::jsonb ?|` is exact, so "back" would silently return zero rows and
+    // the model would then free-hand from name matches ("Back Extension",
+    // "Behind the Back Shrug") as if they were back exercises.
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'search_exercises', searchTerm: 'row', muscleGroup: 'back' },
+      opts
+    );
+
+    expect(result).toBe(
+      "Error [VALIDATION]: muscle filter: 'back' is not a muscle. Use one of: abdominals, abductors, adductors, biceps, calves, chest, forearms, glutes, hamstrings, lats, lower back, middle back, neck, quadriceps, shoulders, traps, triceps."
+    );
+    expect(exerciseService.searchExercisesPaginated).not.toHaveBeenCalled();
   });
 
   it('renders an empty result set', async () => {
@@ -1843,7 +1858,7 @@ describe('sparky_search_exercises', () => {
       'bench',
       'user-1',
       undefined,
-      ['Chest'],
+      ['chest'],
       20,
       0
     );
@@ -2789,6 +2804,7 @@ describe('generate_workout', () => {
     ).toHaveBeenCalledWith('user-1', {
       durationMinutes: undefined,
       swap: undefined,
+      targetMuscles: undefined,
     });
     expect(result).toBe(
       '# Suggested Workout\n\n' +
@@ -2817,7 +2833,94 @@ describe('generate_workout', () => {
 
     expect(
       workoutRecommendationService.generateRecommendation
-    ).toHaveBeenCalledWith('user-1', { durationMinutes: 45, swap: true });
+    ).toHaveBeenCalledWith('user-1', {
+      durationMinutes: 45,
+      swap: true,
+      targetMuscles: undefined,
+    });
+  });
+
+  it('resolves a split to its muscle list and infers the action from it', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockResolvedValue(RECOMMENDATION);
+
+    await tools.sparky_manage_exercise.execute!({ split: 'Pull' }, opts);
+
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).toHaveBeenCalledWith('user-1', {
+      durationMinutes: undefined,
+      swap: undefined,
+      targetMuscles: [
+        'biceps',
+        'forearms',
+        'lats',
+        'lower back',
+        'middle back',
+        'neck',
+        'traps',
+      ],
+    });
+  });
+
+  it('reads "legs" as lower body and unions explicit muscles onto a split', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockResolvedValue(RECOMMENDATION);
+
+    await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'generate_workout',
+        split: 'legs',
+        target_muscles: ['Abdominals', 'calves'],
+      },
+      opts
+    );
+
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).toHaveBeenCalledWith('user-1', {
+      durationMinutes: undefined,
+      swap: undefined,
+      targetMuscles: [
+        'abductors',
+        'adductors',
+        'calves',
+        'glutes',
+        'hamstrings',
+        'quadriceps',
+        'abdominals',
+      ],
+    });
+  });
+
+  it('rejects an unknown split with the vocabulary', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'generate_workout', split: 'arms' },
+      opts
+    );
+
+    expect(result).toBe(
+      "Error [VALIDATION]: split: 'arms' is not a training split. Use one of: push, pull, upper body, lower body, full body (or 'legs' for lower body)."
+    );
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects a target muscle outside the canonical vocabulary', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      { action: 'generate_workout', target_muscles: ['lats', 'back'] },
+      opts
+    );
+
+    expect(result).toBe(
+      "Error [VALIDATION]: target_muscles: 'back' is not a muscle. Use one of: abdominals, abductors, adductors, biceps, calves, chest, forearms, glutes, hamstrings, lats, lower back, middle back, neck, quadriceps, shoulders, traps, triceps."
+    );
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).not.toHaveBeenCalled();
   });
 
   it('infers the action from a bare swap', async () => {
