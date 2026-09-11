@@ -59,6 +59,7 @@ export const exerciseSnapshotResponseSchema = z
     category: z.string().nullable(),
     modality: exerciseModalitySchema.nullable().optional(),
     images: z.array(z.string()).nullable(),
+    videos: z.array(z.string()).nullable().optional(),
     primary_muscles: z.array(z.string()).nullable(),
     secondary_muscles: z.array(z.string()).nullable(),
     equipment: z.array(z.string()).nullable(),

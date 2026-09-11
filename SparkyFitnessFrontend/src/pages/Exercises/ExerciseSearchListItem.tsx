@@ -95,12 +95,30 @@ export const ExerciseSearchListItem = ({
 
   const hasImage = imageCount > 0;
   const showFallback = !hasImage || imageError;
+  // A demonstration clip replaces the photo thumbnail; muted + inline is what
+  // browsers require before they honour autoplay.
+  const videoSrc = resolveExerciseImageSrc(
+    exercise.videos?.find((candidate) => Boolean(candidate?.trim()))
+  );
   const safeImageIndex = imageCount > 0 ? currentImageIndex % imageCount : 0;
 
   return (
     <div className="group flex gap-3 p-3 rounded-lg bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm transition-all duration-150">
       {/* Category icon or image thumbnail */}
-      {hasImage && !showFallback ? (
+      {videoSrc && !imageError ? (
+        <div className="relative flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden ring-1 ring-gray-200 dark:ring-gray-700 bg-gray-50 dark:bg-gray-800">
+          <video
+            src={videoSrc}
+            muted
+            loop
+            autoPlay
+            playsInline
+            aria-label={exercise.name}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        </div>
+      ) : hasImage && !showFallback ? (
         <div className="relative flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden ring-1 ring-gray-200 dark:ring-gray-700 bg-gray-50 dark:bg-gray-800">
           <img
             src={resolveExerciseImageSrc(validImages[safeImageIndex])}

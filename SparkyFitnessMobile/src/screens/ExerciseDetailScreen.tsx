@@ -1,11 +1,12 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { CommonActions, StackActions } from '@react-navigation/native';
+import { CommonActions, StackActions, useIsFocused } from '@react-navigation/native';
 import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PagerView from 'react-native-pager-view';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCSSVariable } from 'uniwind';
@@ -60,6 +61,10 @@ const DESCRIPTION_PREVIEW_THRESHOLD = 180;
 // Matches the dominant exercise image sets (4:3 photos), so cover-filled
 // frames crop little to nothing.
 const IMAGE_ASPECT_RATIO = 4 / 3;
+
+// Demonstration clips are landscape 16:9 (the Fitbod catalog ships 1280x720),
+// so the video hero keeps that frame instead of cropping to the photo ratio.
+const VIDEO_ASPECT_RATIO = 16 / 9;
 
 // Tab-change flings ignore touches starting this close to the left screen
 // edge so the native-stack back swipe keeps the edge to itself.
@@ -205,6 +210,28 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
 
   const pairAspectMatch = useImagePairAspectMatch(imageSources);
 
+  // First clip only: a looping, muted demonstration is a hero, not a gallery.
+  // The hook must run every render, so it takes `null` when there is no clip.
+  const videoSource = useMemo(() => {
+    const path = exercise.videos?.find((candidate) => Boolean(candidate));
+    return path ? getImageSource(path) : null;
+  }, [exercise.videos, getImageSource]);
+  const isFocused = useIsFocused();
+  const videoPlayer = useVideoPlayer(videoSource, (player) => {
+    player.loop = true;
+    player.muted = true;
+  });
+  // Reduced motion shows the still photo instead, and a screen pushed over
+  // this one pauses the loop rather than decoding under the cover.
+  useEffect(() => {
+    if (!videoSource) return;
+    if (isFocused && !reducedMotion) {
+      videoPlayer.play();
+    } else {
+      videoPlayer.pause();
+    }
+  }, [isFocused, reducedMotion, videoPlayer, videoSource]);
+
   const equipmentText = formatList(exercise.equipment ?? []);
   const primaryMusclesText = formatList(exercise.primary_muscles ?? []);
   const secondaryMusclesText = formatList(exercise.secondary_muscles ?? []);
@@ -234,7 +261,10 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
   }, []);
 
   const hasHowToContent =
-    imageSources.length > 0 || instructionSteps.length > 0 || description.length > 0;
+    imageSources.length > 0 ||
+    videoSource !== null ||
+    instructionSteps.length > 0 ||
+    description.length > 0;
 
   const segments = useMemo(() => {
     const tabs: Segment<TabKey>[] = [{ key: 'summary', label: t('exerciseDetail.summary', { defaultValue: 'Summary' }) }];
@@ -288,7 +318,18 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
   );
 
   const imageCarousel =
-    imageSources.length === 1 ? (
+    videoSource && !reducedMotion ? (
+      <View className="bg-surface rounded-xl overflow-hidden">
+        <VideoView
+          player={videoPlayer}
+          style={{ width: '100%', aspectRatio: VIDEO_ASPECT_RATIO }}
+          contentFit="cover"
+          nativeControls={false}
+          allowsPictureInPicture={false}
+          accessibilityLabel={exercise.name}
+        />
+      </View>
+    ) : imageSources.length === 1 ? (
       <View
         className={`${
           sourceMayHaveTransparency(imageSources[0].uri) ? 'bg-white' : 'bg-surface'

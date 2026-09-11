@@ -107,13 +107,19 @@ describe('exercise modality writers', () => {
       expect(await captureUpdateBind({ category: 'Cardio' })).toBeNull();
     });
 
-    it('keeps the exercise id as the last bind after the modality param', async () => {
+    it('keeps the exercise id as the last bind after the modality and videos params', async () => {
       const id = uuidv4();
       mockClient.query.mockResolvedValueOnce({ rows: [{ id }] });
-      await exerciseDb.updateExercise(id, uuidv4(), { modality: 'duration' });
+      await exerciseDb.updateExercise(id, uuidv4(), {
+        modality: 'duration',
+        videos: ['/uploads/exercises/x/clip.mp4'],
+      });
       const params = lastQuery(mockClient)[1];
-      expect(params[UPDATE_MODALITY_PARAM + 1]).toBe(id);
-      expect(params).toHaveLength(UPDATE_MODALITY_PARAM + 2);
+      expect(params[UPDATE_MODALITY_PARAM + 1]).toBe(
+        JSON.stringify(['/uploads/exercises/x/clip.mp4'])
+      );
+      expect(params[UPDATE_MODALITY_PARAM + 2]).toBe(id);
+      expect(params).toHaveLength(UPDATE_MODALITY_PARAM + 3);
     });
   });
 

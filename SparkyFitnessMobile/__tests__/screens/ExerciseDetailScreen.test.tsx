@@ -86,6 +86,7 @@ const mockNavigation = {
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => mockNavigation,
+  useIsFocused: () => true,
 }));
 
 const mockUseProfile = useProfile as jest.MockedFunction<typeof useProfile>;
@@ -743,6 +744,28 @@ describe('ExerciseDetailScreen', () => {
         getImageSource: jest.fn(() => null),
       });
       mockUseImagePairAspectMatch.mockReturnValue(undefined);
+    });
+
+    it('renders the looping clip as the hero when the exercise has a video', () => {
+      const screen = renderScreen({ images: ['a.png', 'b.png'], videos: ['clip.mp4'] });
+
+      expect(screen.getByTestId('expo-video-view')).toBeTruthy();
+      expect(screen.queryByTestId('exercise-image-crossfade')).toBeNull();
+      expect(screen.queryByTestId('pager-view')).toBeNull();
+    });
+
+    it('shows the photos instead of the clip when reduce motion is on', () => {
+      const spy = jest
+        .spyOn(reanimated, 'useReducedMotion')
+        .mockReturnValue(true);
+      try {
+        const screen = renderScreen({ images: ['a.png', 'b.png'], videos: ['clip.mp4'] });
+
+        expect(screen.queryByTestId('expo-video-view')).toBeNull();
+        expect(screen.getByTestId('pager-view')).toBeTruthy();
+      } finally {
+        spy.mockRestore();
+      }
     });
 
     it('renders the crossfade instead of the pager for exactly two images', () => {

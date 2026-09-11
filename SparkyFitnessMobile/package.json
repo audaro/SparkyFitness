@@ -85,6 +85,7 @@
     "expo-symbols": "~56.0.6",
     "expo-system-ui": "~56.0.5",
     "expo-task-manager": "~56.0.20",
+    "expo-video": "~56.1.4",
     "expo-web-browser": "~56.0.5",
     "expo-widgets": "~56.0.22",
     "i18next": "25.8.18",

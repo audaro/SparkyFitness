@@ -61,6 +61,7 @@ export const exerciseWriteArrayFieldsSchema = z
     secondary_muscles: exerciseStringArrayFieldSchema,
     instructions: exerciseStringArrayFieldSchema,
     images: exerciseStringArrayFieldSchema,
+    videos: exerciseStringArrayFieldSchema,
   })
   .passthrough();
 
@@ -87,6 +88,8 @@ export const exerciseLibraryItemSchema = z
     category: z.string().nullable(),
     modality: exerciseModalitySchema.optional(),
     images: z.array(z.string()),
+    // Optional rather than required: pre-videos rows and older servers omit it.
+    videos: z.array(z.string()).optional(),
     calories_per_hour: z.number().nullable(),
     description: z.string().nullable(),
     user_id: z.string().nullable(),
@@ -130,6 +133,7 @@ export const externalExerciseSearchItemSchema = z
     secondary_muscles: z.array(z.string()).optional(),
     instructions: z.array(z.string()).optional(),
     images: z.array(z.string()).optional(),
+    videos: z.array(z.string()).optional(),
   })
   .strict();
 

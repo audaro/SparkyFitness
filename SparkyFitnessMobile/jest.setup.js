@@ -161,6 +161,20 @@ jest.mock('expo-notifications', () => {
 });
 
 // Mock expo-haptics
+jest.mock('expo-video', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    useVideoPlayer: () => ({
+      play: jest.fn(),
+      pause: jest.fn(),
+      loop: false,
+      muted: false,
+    }),
+    VideoView: (props) => React.createElement(View, { testID: 'expo-video-view', ...props }),
+  };
+});
+
 jest.mock('expo-haptics', () => ({
   notificationAsync: jest.fn().mockResolvedValue(undefined),
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },

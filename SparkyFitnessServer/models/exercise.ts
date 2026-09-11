@@ -63,7 +63,7 @@ async function getExerciseById(id: string, userId: string) {
   try {
     const result = await client.query(
       `SELECT id, source, source_id, name, force, level, mechanic, equipment,
-              primary_muscles, secondary_muscles, instructions, category, images,
+              primary_muscles, secondary_muscles, instructions, category, images, videos,
               calories_per_hour, description, user_id, is_custom, shared_with_public,
               modality, created_at, updated_at
        FROM exercises WHERE id = $1`,
@@ -77,6 +77,12 @@ async function getExerciseById(id: string, userId: string) {
         log('error', `Error parsing images for exercise ${exercise.id}:`, e);
         exercise.images = []; // Default to empty array on parse error
       }
+    }
+    if (exercise) {
+      exercise.videos = parseJsonArrayField(
+        exercise.videos,
+        `videos for exercise ${exercise.id}`
+      );
     }
     return exercise;
   } finally {
@@ -227,7 +233,7 @@ async function getExercisesWithPagination(
     }
     const query = `
       SELECT id, source, source_id, name, force, level, mechanic, equipment,
-             primary_muscles, secondary_muscles, instructions, category, images,
+             primary_muscles, secondary_muscles, instructions, category, images, videos,
              calories_per_hour, description, user_id, is_custom, shared_with_public,
              modality, created_at, updated_at
       FROM exercises
@@ -247,6 +253,10 @@ async function getExercisesWithPagination(
           row.images = [];
         }
       }
+      row.videos = parseJsonArrayField(
+        row.videos,
+        `videos for exercise ${row.id}`
+      );
       return row;
     });
   } finally {
@@ -467,7 +477,7 @@ async function searchExercises(
     }
     const finalQuery = `
       SELECT id, source, source_id, name, force, level, mechanic, equipment,
-              primary_muscles, secondary_muscles, instructions, category, images,
+              primary_muscles, secondary_muscles, instructions, category, images, videos,
               calories_per_hour, description, user_id, is_custom, shared_with_public,
               modality
        FROM exercises
@@ -496,6 +506,10 @@ async function searchExercises(
       row.images = parseJsonArrayField(
         row.images,
         `images for exercise ${row.id}`
+      );
+      row.videos = parseJsonArrayField(
+        row.videos,
+        `videos for exercise ${row.id}`
       );
       return row;
     });
@@ -567,7 +581,7 @@ async function searchExercisesPaginated(
     const offsetParamIndex = selectParamIndex + 1;
     const finalQuery = `
       SELECT id, source, source_id, name, force, level, mechanic, equipment,
-              primary_muscles, secondary_muscles, instructions, category, images,
+              primary_muscles, secondary_muscles, instructions, category, images, videos,
               calories_per_hour, description, user_id, is_custom, shared_with_public,
               modality
        FROM exercises
@@ -601,6 +615,10 @@ async function searchExercisesPaginated(
         row.images,
         `images for exercise ${row.id}`
       );
+      row.videos = parseJsonArrayField(
+        row.videos,
+        `videos for exercise ${row.id}`
+      );
       return row;
     });
     return { exercises, totalCount };
@@ -621,9 +639,9 @@ async function createExercise(exerciseData: any) {
         source, source_id, name, force, level, mechanic, equipment,
         primary_muscles, secondary_muscles, instructions, category, images,
         calories_per_hour, description, is_custom, user_id, shared_with_public,
-        modality, created_at, updated_at
+        modality, videos, created_at, updated_at
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, now(), now())
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now(), now())
        RETURNING *`,
       [
         exerciseData.source,
@@ -662,6 +680,9 @@ async function createExercise(exerciseData: any) {
         // Sanitized here rather than at the route so an arbitrary client string
         // cannot reach the CHECK constraint as a 500.
         resolveExerciseModality(exerciseData.modality, exerciseData.category),
+        exerciseData.videos
+          ? JSON.stringify(normalizeToStringArray(exerciseData.videos))
+          : null,
       ]
     );
     return result.rows[0];
@@ -691,8 +712,9 @@ async function updateExercise(id: string, userId: string, updateData: any) {
         images = COALESCE($14, images),
         is_quick_exercise = COALESCE($15, is_quick_exercise),
         modality = COALESCE($16, modality),
+        videos = COALESCE($17, videos),
         updated_at = now()
-      WHERE id = $17
+      WHERE id = $18
       RETURNING *`,
       [
         updateData.name,
@@ -727,6 +749,9 @@ async function updateExercise(id: string, userId: string, updateData: any) {
         // Modality is authoritative once set: an omitted or unrecognized value
         // preserves it, and editing `category` alone never re-derives it.
         isExerciseModality(updateData.modality) ? updateData.modality : null,
+        updateData.videos
+          ? JSON.stringify(normalizeToStringArray(updateData.videos))
+          : null,
         id,
       ]
     );
@@ -754,7 +779,7 @@ async function getRecentExercises(userId: string, limit: any) {
     const result = await client.query(
       `SELECT
         e.id, e.source, e.source_id, e.name, e.force, e.level, e.mechanic, e.equipment,
-        e.primary_muscles, e.secondary_muscles, e.instructions, e.category, e.images,
+        e.primary_muscles, e.secondary_muscles, e.instructions, e.category, e.images, e.videos,
         e.calories_per_hour, e.description, e.user_id, e.is_custom, e.shared_with_public,
         e.modality, e.created_at, e.updated_at
       FROM exercise_entries ee
@@ -762,7 +787,7 @@ async function getRecentExercises(userId: string, limit: any) {
       WHERE ee.user_id = $1
         AND e.is_quick_exercise = FALSE
       GROUP BY e.id, e.source, e.source_id, e.name, e.force, e.level, e.mechanic, e.equipment,
-               e.primary_muscles, e.secondary_muscles, e.instructions, e.category, e.images,
+               e.primary_muscles, e.secondary_muscles, e.instructions, e.category, e.images, e.videos,
                e.calories_per_hour, e.description, e.user_id, e.is_custom, e.shared_with_public,
                e.modality, e.created_at, e.updated_at
       ORDER BY MAX(ee.entry_date) DESC, MAX(ee.created_at) DESC
@@ -791,6 +816,10 @@ async function getRecentExercises(userId: string, limit: any) {
         row.images,
         `images for exercise ${row.id}`
       );
+      row.videos = parseJsonArrayField(
+        row.videos,
+        `videos for exercise ${row.id}`
+      );
       return row;
     });
   } finally {
@@ -804,7 +833,7 @@ async function getTopExercises(userId: string, limit: any) {
     const result = await client.query(
       `SELECT
         e.id, e.source, e.source_id, e.name, e.force, e.level, e.mechanic, e.equipment,
-        e.primary_muscles, e.secondary_muscles, e.instructions, e.category, e.images,
+        e.primary_muscles, e.secondary_muscles, e.instructions, e.category, e.images, e.videos,
         e.calories_per_hour, e.description, e.user_id, e.is_custom, e.shared_with_public,
         e.modality, e.created_at, e.updated_at,
         COUNT(ee.exercise_id) AS usage_count
@@ -813,7 +842,7 @@ async function getTopExercises(userId: string, limit: any) {
       WHERE ee.user_id = $1
         AND e.is_quick_exercise = FALSE
       GROUP BY e.id, e.source, e.source_id, e.name, e.force, e.level, e.mechanic, e.equipment,
-               e.primary_muscles, e.secondary_muscles, e.instructions, e.category, e.images,
+               e.primary_muscles, e.secondary_muscles, e.instructions, e.category, e.images, e.videos,
                e.calories_per_hour, e.description, e.user_id, e.is_custom, e.shared_with_public,
                e.modality, e.created_at, e.updated_at
       ORDER BY usage_count DESC
@@ -842,6 +871,10 @@ async function getTopExercises(userId: string, limit: any) {
         row.images,
         `images for exercise ${row.id}`
       );
+      row.videos = parseJsonArrayField(
+        row.videos,
+        `videos for exercise ${row.id}`
+      );
       return row;
     });
   } finally {
@@ -858,7 +891,7 @@ async function getExerciseBySourceAndSourceId(
   try {
     const result = await client.query(
       `SELECT id, source, source_id, name, force, level, mechanic, equipment,
-              primary_muscles, secondary_muscles, instructions, category, images,
+              primary_muscles, secondary_muscles, instructions, category, images, videos,
               calories_per_hour, description, user_id, is_custom, shared_with_public,
               modality, created_at, updated_at
        FROM exercises WHERE source = $1 AND source_id = $2 AND user_id = $3`,
@@ -1065,7 +1098,7 @@ async function findExerciseByNameAndUserId(name: any, userId: string) {
   try {
     const result = await client.query(
       `SELECT id, source, source_id, name, force, level, mechanic, equipment,
-              primary_muscles, secondary_muscles, instructions, category, images,
+              primary_muscles, secondary_muscles, instructions, category, images, videos,
               calories_per_hour, description, user_id, is_custom, shared_with_public,
               modality, created_at, updated_at
        FROM exercises WHERE name = $1 AND (user_id = $2 OR shared_with_public = TRUE)`,
