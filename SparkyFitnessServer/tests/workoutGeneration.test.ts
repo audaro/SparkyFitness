@@ -13,6 +13,8 @@ import {
   isPerformable,
   modalWorkingWeightKg,
   planWorkout,
+  IMPERIAL_EQUIPMENT_INCREMENT_KG,
+  KG_PER_LB,
   prescribeSets,
   rationaleFor,
   restSecondsFor,
@@ -79,6 +81,7 @@ function options(
     availableEquipment: null,
     availableApparatus: null,
     loadLimits: null,
+    incrementDefaultsKg: null,
     availableEquipmentItems: null,
     equipmentPreference: null,
     limitations: [],
@@ -1617,6 +1620,26 @@ describe('prescribeSets', () => {
     expect(result.capped).toBe(true);
   });
 
+  it('cold-starts a pounds user on the rack, not at a metric round number', () => {
+    // 5 kg is an 11 lb dumbbell. With pounds defaults the cold start snaps to
+    // 10 lb (4.54 kg); without them it is the legacy 5 kg exactly.
+    const dumbbell = candidate({
+      id: 'a',
+      equipment: ['dumbbell'],
+      primaryMuscles: ['chest'],
+    });
+    const metric = prescribeSets(dumbbell, null, options());
+    const pounds = prescribeSets(
+      dumbbell,
+      null,
+      options({ incrementDefaultsKg: IMPERIAL_EQUIPMENT_INCREMENT_KG })
+    );
+    expect(metric.workingWeightKg).toBe(5);
+    expect(pounds.workingWeightKg).toBe(4.54);
+    expect(pounds.progression).toBe('cold-start');
+    expect(pounds.capped).toBe(false);
+  });
+
   it('cold-starts with no load at all when the equipment suggests none', () => {
     const result = prescribeSets(
       candidate({ id: 'a', equipment: ['body only'] }),
@@ -1803,6 +1826,51 @@ describe('prescribeSets', () => {
 
     expect(result.workingWeightKg).toBe(20.43);
     expect(result.capped).toBe(false);
+  });
+
+  it('prescribes on the pounds rack for a pounds user, and the profile still wins', () => {
+    // 20 lb logged (9.07 kg) held: the metric 2 kg dumbbell step would hand
+    // back 10 kg = 22 lb, a dumbbell that is not on the rack. With the
+    // pounds defaults it stays on a 5 lb multiple, and a profile increment
+    // override still beats the unit default.
+    const hold = history(
+      session('2026-08-20', [{ reps: 10, weight: 9.07 }]),
+      session('2026-08-13', [{ reps: 10, weight: 9.07 }])
+    );
+    const metric = prescribeSets(
+      candidate({
+        id: 'a',
+        equipment: ['dumbbell'],
+        primaryMuscles: ['chest'],
+      }),
+      hold,
+      options()
+    );
+    const pounds = prescribeSets(
+      candidate({
+        id: 'a',
+        equipment: ['dumbbell'],
+        primaryMuscles: ['chest'],
+      }),
+      hold,
+      options({ incrementDefaultsKg: IMPERIAL_EQUIPMENT_INCREMENT_KG })
+    );
+    const profile = prescribeSets(
+      candidate({
+        id: 'a',
+        equipment: ['dumbbell'],
+        primaryMuscles: ['chest'],
+      }),
+      hold,
+      options({
+        incrementDefaultsKg: IMPERIAL_EQUIPMENT_INCREMENT_KG,
+        loadLimits: { dumbbell: { max_kg: 50, increment_kg: 2.5 } },
+      })
+    );
+    const lb = (kg: number | null) => Math.round((kg! / KG_PER_LB) * 10) / 10;
+    expect(lb(pounds.workingWeightKg) % 5).toBe(0);
+    expect(lb(metric.workingWeightKg) % 5).not.toBe(0);
+    expect((profile.workingWeightKg! * 10) % 25).toBe(0);
   });
 
   it('prescribes byte-identically with null limits — the legacy pin', () => {

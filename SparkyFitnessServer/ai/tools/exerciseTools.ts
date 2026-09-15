@@ -2,12 +2,16 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import {
   addDays,
+  EQUIPMENT,
+  EXERCISE_APPARATUS,
   MUSCLES,
   MUSCLE_SPLITS,
   musclesForSplit,
   normalizeEquipmentName,
   todayInZone,
+  toCanonicalEquipment,
   toCanonicalMuscle,
+  type ExerciseApparatus,
   type Muscle,
   type MuscleRecoveryResponse,
   type RecommendationSet,
@@ -26,6 +30,7 @@ import exerciseEntryDb from '../../models/exerciseEntry.js';
 import workoutPresetRepository from '../../models/workoutPresetRepository.js';
 import workoutRecommendationService, {
   WorkoutGenerationError,
+  type GenerateOptions,
 } from '../../services/workoutRecommendationService.js';
 import { ERRORS, formatZodError } from './errors.js';
 import {
@@ -102,6 +107,8 @@ const GENERATION_KEYS = new Set([
   'swap',
   'split',
   'target_muscles',
+  'available_equipment',
+  'available_apparatus',
 ]);
 
 // "legs" is how people say lower body; the split vocabulary does not carry
@@ -144,6 +151,104 @@ function resolveGenerationTargets(
     if (!muscles.includes(muscle)) muscles.push(muscle);
   }
   return { muscles: muscles.length > 0 ? muscles : undefined };
+}
+
+// How people say equipment versus how the catalog spells it. The shared
+// canonicalizers are deliberately exact-after-lowercasing (a `?|` filter
+// value must be byte-identical), so the speech-to-vocabulary step lives
+// here, at the one boundary where a model relays what a user said.
+const EQUIPMENT_SPEECH_ALIASES: Readonly<Record<string, string>> = {
+  bodyweight: 'body only',
+  'body weight': 'body only',
+  'no equipment': 'body only',
+  none: 'body only',
+  'resistance band': 'bands',
+  'resistance bands': 'bands',
+  band: 'bands',
+  'ez bar': 'e-z curl bar',
+  'ez curl bar': 'e-z curl bar',
+  'ez-curl bar': 'e-z curl bar',
+  'e-z bar': 'e-z curl bar',
+  'curl bar': 'e-z curl bar',
+  'swiss ball': 'exercise ball',
+  'stability ball': 'exercise ball',
+  'foam roller': 'foam roll',
+  'med ball': 'medicine ball',
+  'cable machine': 'cable',
+  cables: 'cable',
+};
+
+function canonicalEquipmentFromSpeech(raw: string): string | null {
+  const spoken = normalizeEquipmentName(raw).replace(/\s+/g, ' ');
+  const direct = toCanonicalEquipment(spoken);
+  if (direct) return direct;
+  const alias = EQUIPMENT_SPEECH_ALIASES[spoken];
+  if (alias) return alias;
+  // "dumbbells" ⇄ "dumbbell", "kettlebell" ⇄ "kettlebells".
+  const toggled = spoken.endsWith('s') ? spoken.slice(0, -1) : `${spoken}s`;
+  return toCanonicalEquipment(toggled);
+}
+
+/**
+ * The per-session equipment constraint for generation, or a VALIDATION
+ * error. Both lists are canonicalized rather than passed through: the
+ * engine's availability test is a normalized subset match, so "Dumbbells"
+ * would not fail — it would quietly exclude every dumbbell exercise and
+ * build a bodyweight session for someone who said they have dumbbells.
+ * Apparatus without equipment is rejected: the engine infers apparatus from
+ * equipment, so a bare "I have a bench" has nothing to constrain.
+ */
+function resolveGenerationConstraint(
+  equipment: readonly string[] | undefined,
+  apparatus: readonly string[] | undefined
+): { override: GenerateOptions['equipmentOverride'] } | { error: string } {
+  if (equipment === undefined) {
+    if (apparatus !== undefined) {
+      return {
+        error: ERRORS.VALIDATION(
+          'available_apparatus needs available_equipment: say what equipment the user has as well as which apparatus.'
+        ),
+      };
+    }
+    return { override: undefined };
+  }
+  const canonicalEquipment: string[] = [];
+  for (const raw of equipment) {
+    const canonical = canonicalEquipmentFromSpeech(raw);
+    if (!canonical) {
+      return {
+        error: ERRORS.VALIDATION(
+          `available_equipment: '${raw}' is not an equipment type. Use one of: ${EQUIPMENT.join(', ')}. A bench, pull-up bar, dip station or squat rack goes in available_apparatus.`
+        ),
+      };
+    }
+    if (!canonicalEquipment.includes(canonical)) {
+      canonicalEquipment.push(canonical);
+    }
+  }
+  if (apparatus === undefined) {
+    return {
+      override: { equipment: canonicalEquipment, apparatus: null },
+    };
+  }
+  const canonicalApparatus: ExerciseApparatus[] = [];
+  for (const raw of apparatus) {
+    const normalized = raw.trim().toLowerCase().replace(/\s+/g, ' ');
+    const match = EXERCISE_APPARATUS.find(
+      (item) => item === normalized || item.replace('-', ' ') === normalized
+    );
+    if (!match) {
+      return {
+        error: ERRORS.VALIDATION(
+          `available_apparatus: '${raw}' is not an apparatus. Use one of: ${EXERCISE_APPARATUS.join(', ')}.`
+        ),
+      };
+    }
+    if (!canonicalApparatus.includes(match)) canonicalApparatus.push(match);
+  }
+  return {
+    override: { equipment: canonicalEquipment, apparatus: canonicalApparatus },
+  };
 }
 
 /**
@@ -828,20 +933,33 @@ function renderRecommendedExercise(
  * commits nothing.
  */
 function renderGeneratedWorkout(
-  recommendation: WorkoutRecommendationResponse
+  recommendation: WorkoutRecommendationResponse,
+  constraint?: GenerateOptions['equipmentOverride']
 ): string {
   const { payload } = recommendation;
   const header = [
     `Built around: ${payload.muscle_groups.join(', ')}`,
     `Estimated ${payload.estimated_duration_minutes} min (target ${recommendation.target_duration_minutes} min) · ${payload.exercises.length} exercises`,
-  ].join('\n');
+  ];
+  if (constraint) {
+    const apparatus =
+      constraint.apparatus === null
+        ? ''
+        : constraint.apparatus.length === 0
+          ? ' · no bench, bar, rack or dip station'
+          : ` · apparatus: ${constraint.apparatus.join(', ')}`;
+    header.push(
+      `Limited to the equipment stated for this session: ${constraint.equipment.join(', ')} (plus bodyweight)${apparatus} — the active gym profile was not used and was not changed`
+    );
+  }
+  const headerText = header.join('\n');
   const body = payload.exercises
     .map((exercise, index) => renderRecommendedExercise(exercise, index + 1))
     .join('\n\n');
   return [
     '# Suggested Workout',
     '',
-    header,
+    headerText,
     '',
     body,
     '',
@@ -916,7 +1034,7 @@ Actions:
 - create_workout_plan(name, description?, start_date?(default today), end_date?, is_active?, assignments:[{day_of_week 0-6 (0=Sunday), workout_preset_id? OR exercise_id? (exactly one), sort_order?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), rest_time?(seconds), notes?}]}]) — sets only with exercise_id; active plans auto-generate workout diary entries from today; get preset ids from get_workout_presets
 - update_workout_plan(plan_id?|plan_name?, name?, description?, start_date?, end_date?, is_active?, assignments?) — only provided fields change, but assignments REPLACES the entire weekly schedule, so send the complete desired week
 - get_muscle_recovery() — per-muscle freshness derived from logged sets: which muscles are recovered and which are still fatigued, with the day each was last trained
-- generate_workout(duration_minutes?, swap?, split?, target_muscles?) — the deterministic engine's session: it picks the freshest muscles (or the ones named), chooses exercises the user's active gym profile can do, and prescribes sets/reps/load/rest from their own history. Use it for "what should I train today"; for "give me a pull day" / "push routine" / "leg day" pass split (push, pull, upper body, lower body, full body); for specific muscles pass target_muscles; pass swap=true to re-roll onto different exercises. It also becomes the "Up Next" workout in the app, and its output ends with the instruction for handing it to the proposal card`,
+- generate_workout(duration_minutes?, swap?, split?, target_muscles?, available_equipment?, available_apparatus?) — the deterministic engine's session: it picks the freshest muscles (or the ones named), chooses exercises the user's active gym profile can do, and prescribes sets/reps/load/rest from their own history. Use it for "what should I train today"; for "give me a pull day" / "push routine" / "leg day" pass split (push, pull, upper body, lower body, full body); for specific muscles pass target_muscles; pass swap=true to re-roll onto different exercises. When the request itself says what equipment is on hand ("I have dumbbells and a bench", "hotel gym, machines only") pass available_equipment (canonical: barbell, dumbbell, cable, machine, kettlebells, bands, e-z curl bar, exercise ball, medicine ball, foam roll; bodyweight is always assumed) and available_apparatus (bench, pull-up bar, dip station, squat rack) — that constrains this one session without touching their gym profiles. It also becomes the "Up Next" workout in the app, and its output ends with the instruction for handing it to the proposal card`,
       inputSchema: manageExerciseInput,
       execute: async (rawArgs) => {
         const normalized = normalizeActionArgs(
@@ -941,7 +1059,9 @@ Actions:
             if (
               args.swap !== undefined ||
               args.split !== undefined ||
-              args.target_muscles !== undefined
+              args.target_muscles !== undefined ||
+              args.available_equipment !== undefined ||
+              args.available_apparatus !== undefined
             ) {
               return 'generate_workout';
             }
@@ -1648,6 +1768,11 @@ Actions:
                 args.target_muscles
               );
               if ('error' in targets) return targets.error;
+              const constraint = resolveGenerationConstraint(
+                args.available_equipment,
+                args.available_apparatus
+              );
+              if ('error' in constraint) return constraint.error;
               try {
                 const recommendation =
                   await workoutRecommendationService.generateRecommendation(
@@ -1656,9 +1781,13 @@ Actions:
                       durationMinutes: args.duration_minutes,
                       swap: args.swap,
                       targetMuscles: targets.muscles,
+                      equipmentOverride: constraint.override,
                     }
                   );
-                return renderGeneratedWorkout(recommendation);
+                return renderGeneratedWorkout(
+                  recommendation,
+                  constraint.override
+                );
               } catch (error) {
                 // "Your catalog cannot answer this" is a state of the user's
                 // data, not a fault — the REST route answers it 422 for the

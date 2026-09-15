@@ -387,13 +387,19 @@ export interface WorkoutRecommendationRow {
   target_duration_minutes: number;
   payload: unknown;
   status: WorkoutRecommendationStatus;
+  /**
+   * Every exercise id the current Swap chain has shown, the stored workout's
+   * own included. The service reads it as the penalty set for the next Swap
+   * and rewrites it on every generate; see the migration that added it.
+   */
+  swap_excluded_exercise_ids: string[];
   generated_at: Date;
   created_at: Date;
   updated_at: Date;
 }
 
 const RECOMMENDATION_COLS =
-  'id, user_id, gym_profile_id, target_duration_minutes, payload, status, generated_at, created_at, updated_at';
+  'id, user_id, gym_profile_id, target_duration_minutes, payload, status, swap_excluded_exercise_ids, generated_at, created_at, updated_at';
 
 async function getWorkoutRecommendation(
   userId: string
@@ -425,7 +431,9 @@ async function getWorkoutRecommendation(
  * `payload` is serialized explicitly and cast: node-postgres renders a JS
  * object parameter for a jsonb column correctly, but an *array* parameter
  * would go out as a Postgres array literal, and the column would reject it.
- * Stringifying makes the shape irrelevant.
+ * Stringifying makes the shape irrelevant. `swapExcludedExerciseIds` is the
+ * opposite case on purpose: its column *is* a Postgres array, so the JS array
+ * goes through as-is with a `::uuid[]` cast.
  */
 async function upsertWorkoutRecommendation(
   userId: string,
@@ -433,19 +441,22 @@ async function upsertWorkoutRecommendation(
     gymProfileId: string | null;
     targetDurationMinutes: number;
     payload: WorkoutRecommendationPayload;
+    swapExcludedExerciseIds: readonly string[];
   }
 ): Promise<WorkoutRecommendationRow> {
   const client = await getClient(userId);
   try {
     const result = await client.query(
       `INSERT INTO workout_recommendations
-         (user_id, gym_profile_id, target_duration_minutes, payload, status, generated_at)
-       VALUES ($1, $2, $3, $4::jsonb, 'active', now())
+         (user_id, gym_profile_id, target_duration_minutes, payload, status,
+          swap_excluded_exercise_ids, generated_at)
+       VALUES ($1, $2, $3, $4::jsonb, 'active', $5::uuid[], now())
        ON CONFLICT (user_id) DO UPDATE
           SET gym_profile_id = EXCLUDED.gym_profile_id,
               target_duration_minutes = EXCLUDED.target_duration_minutes,
               payload = EXCLUDED.payload,
               status = 'active',
+              swap_excluded_exercise_ids = EXCLUDED.swap_excluded_exercise_ids,
               generated_at = now(),
               updated_at = now()
        RETURNING ${RECOMMENDATION_COLS}`,
@@ -454,6 +465,7 @@ async function upsertWorkoutRecommendation(
         input.gymProfileId,
         input.targetDurationMinutes,
         JSON.stringify(input.payload),
+        [...input.swapExcludedExerciseIds],
       ]
     );
     return result.rows[0];

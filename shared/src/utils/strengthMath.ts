@@ -62,26 +62,54 @@ export function estimateRepMaxKg(
  * `0` means "no meaningful step" — resistance is continuous or not a load at
  * all — and makes {@link quantizeLoadKg} a pass-through.
  *
- * Machine and cable stacks are pinned in 5 lb plates in most gyms, hence
- * 2.27 kg rather than a round metric step.
+ * Machine and cable stacks are pinned in 5 lb plates in most gyms, hence an
+ * imperial step rather than a round metric one. The step is the EXACT 5 lb
+ * (`5 * KG_PER_LB`), not a rounded 2.27: {@link quantizeLoadKg} multiplies
+ * the step by a pin count, so a rounded step accumulates — 12 pins of 2.27
+ * is 27.24 kg, which a pounds display renders as "60.1 lbs" for what the
+ * lifter logged as 60. With the exact step, 12 pins is 27.2155 → 27.22 kg
+ * at storage precision → 60.0 lb on the way back out.
  */
+export const KG_PER_LB = 0.45359237;
+
 export const EQUIPMENT_INCREMENT_KG: Readonly<Record<Equipment, number>> = {
   bands: 0,
   barbell: 2.5, // 1.25 kg plate per side
   "body only": 0,
-  cable: 2.27, // 5 lb stack pin
+  cable: 5 * KG_PER_LB, // 5 lb stack pin
   dumbbell: 2.0, // next pair up, per hand
   "e-z curl bar": 2.5,
   "exercise ball": 0,
   "foam roll": 0,
   kettlebells: 4.0, // 4 kg between competition bells
-  machine: 2.27, // 5 lb stack pin
+  machine: 5 * KG_PER_LB, // 5 lb stack pin
   "medicine ball": 1.0,
   other: 1.0,
 };
 
 /** Step used when the equipment is unknown or outside the canonical enum. */
 export const DEFAULT_INCREMENT_KG = 1.0;
+
+/**
+ * Per-equipment steps that stand in for {@link EQUIPMENT_INCREMENT_KG} when
+ * nothing more specific is known — a profile's `increment_kg` still wins.
+ */
+export type IncrementDefaults = Partial<Record<Equipment, number>>;
+
+/**
+ * The steps a lifter in a pounds gym actually has: dumbbell racks, plate
+ * pairs and bells in 5 lb jumps. Without this a pounds user's logged 20 lb
+ * (9.07 kg) snapped to the metric 2 kg dumbbell step and came back as 10 kg
+ * = "22 lbs", a dumbbell that does not exist on their rack. Applied by the
+ * server when `user_preferences.default_weight_unit` is pounds; the global
+ * table stays metric for everyone else. Stack pins are already 5 lb.
+ */
+export const IMPERIAL_EQUIPMENT_INCREMENT_KG: IncrementDefaults = {
+  barbell: 5 * KG_PER_LB, // 2.5 lb plate per side
+  dumbbell: 5 * KG_PER_LB,
+  "e-z curl bar": 5 * KG_PER_LB,
+  kettlebells: 5 * KG_PER_LB,
+};
 
 /**
  * One gym profile's limit for one equipment type, kg. `max_kg` is the
@@ -114,12 +142,15 @@ function limitFor(
 
 /**
  * The load step for an equipment string, canonicalizing first. A profile's
- * `increment_kg` override wins; unknown or missing equipment falls back to
+ * `increment_kg` override wins, then a caller-supplied default set (the
+ * user's unit, see {@link IMPERIAL_EQUIPMENT_INCREMENT_KG}), then the global
+ * table; unknown or missing equipment falls back to
  * {@link DEFAULT_INCREMENT_KG}.
  */
 export function incrementForEquipmentKg(
   equipment: string | null | undefined,
   limits?: LoadLimits | null,
+  defaults?: IncrementDefaults | null,
 ): number {
   const override = limitFor(equipment, limits)?.increment_kg;
   if (override != null && Number.isFinite(override) && override > 0) {
@@ -128,6 +159,10 @@ export function incrementForEquipmentKg(
   if (equipment == null) return DEFAULT_INCREMENT_KG;
   const canonical = toCanonicalEquipment(equipment);
   if (canonical == null) return DEFAULT_INCREMENT_KG;
+  const preferred = defaults?.[canonical];
+  if (preferred != null && Number.isFinite(preferred) && preferred > 0) {
+    return preferred;
+  }
   return EQUIPMENT_INCREMENT_KG[canonical];
 }
 
@@ -146,9 +181,10 @@ export function quantizeLoadKg(
   kg: number,
   equipment: string | null | undefined,
   limits?: LoadLimits | null,
+  defaults?: IncrementDefaults | null,
 ): number {
   if (!Number.isFinite(kg) || kg <= 0) return 0;
-  const increment = incrementForEquipmentKg(equipment, limits);
+  const increment = incrementForEquipmentKg(equipment, limits, defaults);
   if (increment <= 0) return kg;
   const snapped = Math.round(kg / increment) * increment;
   return Math.round(snapped * 100) / 100;
@@ -168,6 +204,7 @@ export function capLoadKg(
   kg: number,
   equipment: string | null | undefined,
   limits: LoadLimits | null | undefined,
+  defaults?: IncrementDefaults | null,
 ): number {
   const limit = limitFor(equipment, limits);
   if (
@@ -179,7 +216,7 @@ export function capLoadKg(
   ) {
     return kg;
   }
-  const increment = incrementForEquipmentKg(equipment, limits);
+  const increment = incrementForEquipmentKg(equipment, limits, defaults);
   if (increment <= 0) return Math.round(limit.max_kg * 100) / 100;
   const floored = Math.floor((limit.max_kg + 1e-9) / increment) * increment;
   // A cap below the first step still means "the ceiling", not zero.

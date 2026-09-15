@@ -2923,6 +2923,106 @@ describe('generate_workout', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it('passes equipment stated for the session through as a one-off constraint', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockResolvedValue(RECOMMENDATION);
+
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'generate_workout',
+        split: 'pull',
+        duration_minutes: 60,
+        available_equipment: ['Dumbbells', 'dumbbell'],
+        available_apparatus: ['Bench'],
+      },
+      opts
+    );
+
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).toHaveBeenCalledWith('user-1', {
+      durationMinutes: 60,
+      swap: undefined,
+      targetMuscles: [
+        'biceps',
+        'forearms',
+        'lats',
+        'lower back',
+        'middle back',
+        'neck',
+        'traps',
+      ],
+      equipmentOverride: { equipment: ['dumbbell'], apparatus: ['bench'] },
+    });
+    // The model is told, in the result it reads, that the profile was left alone.
+    expect(result).toContain(
+      'Limited to the equipment stated for this session: dumbbell (plus bodyweight) · apparatus: bench — the active gym profile was not used and was not changed'
+    );
+  });
+
+  it('infers the action from stated equipment alone', async () => {
+    vi.mocked(
+      workoutRecommendationService.generateRecommendation
+    ).mockResolvedValue(RECOMMENDATION);
+
+    await tools.sparky_manage_exercise.execute!(
+      { available_equipment: ['dumbbell'] },
+      opts
+    );
+
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).toHaveBeenCalledWith('user-1', {
+      durationMinutes: undefined,
+      swap: undefined,
+      targetMuscles: undefined,
+      equipmentOverride: { equipment: ['dumbbell'], apparatus: null },
+    });
+  });
+
+  it('rejects equipment outside the canonical vocabulary instead of silently excluding it', async () => {
+    const result = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'generate_workout',
+        available_equipment: ['dumbbell', 'bench'],
+      },
+      opts
+    );
+
+    expect(result).toBe(
+      "Error [VALIDATION]: available_equipment: 'bench' is not an equipment type. Use one of: bands, barbell, body only, cable, dumbbell, e-z curl bar, exercise ball, foam roll, kettlebells, machine, medicine ball, other. A bench, pull-up bar, dip station or squat rack goes in available_apparatus."
+    );
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects apparatus without equipment, and an unknown apparatus', async () => {
+    const bare = await tools.sparky_manage_exercise.execute!(
+      { action: 'generate_workout', available_apparatus: ['bench'] },
+      opts
+    );
+    expect(bare).toBe(
+      'Error [VALIDATION]: available_apparatus needs available_equipment: say what equipment the user has as well as which apparatus.'
+    );
+
+    const unknown = await tools.sparky_manage_exercise.execute!(
+      {
+        action: 'generate_workout',
+        available_equipment: ['dumbbell'],
+        available_apparatus: ['smith machine'],
+      },
+      opts
+    );
+    expect(unknown).toBe(
+      "Error [VALIDATION]: available_apparatus: 'smith machine' is not an apparatus. Use one of: pull-up bar, dip station, squat rack, bench."
+    );
+    expect(
+      workoutRecommendationService.generateRecommendation
+    ).not.toHaveBeenCalled();
+  });
+
   it('infers the action from a bare swap', async () => {
     vi.mocked(
       workoutRecommendationService.generateRecommendation

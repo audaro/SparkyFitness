@@ -36,6 +36,12 @@ const workoutRecommendationsFieldsSchema = z.object({
    */
   payload: z.unknown(),
   status: workoutRecommendationStatusSchema,
+  /**
+   * Exercise ids the current Swap chain has already shown (the stored
+   * workout's own included). Never sent to a client; the service reads it as
+   * the next Swap's penalty set and resets it on a plain regenerate.
+   */
+  swap_excluded_exercise_ids: z.array(z.string().uuid()),
   generated_at: z.date(),
   created_at: z.date(),
   updated_at: z.date(),

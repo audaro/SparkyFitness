@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { EXERCISE_MODALITIES, MUSCLES } from '@workspace/shared';
+import {
+  EQUIPMENT,
+  EXERCISE_APPARATUS,
+  EXERCISE_MODALITIES,
+  MUSCLES,
+} from '@workspace/shared';
 import {
   dateSchema,
   optionalEntryTimeSchema,
@@ -572,6 +577,30 @@ const generationTargetSchema = z.object({
     ),
 });
 
+// What the user has to train with RIGHT NOW, when that is not their stored
+// gym profile: "I have dumbbells and a bench", "the hotel gym only has
+// machines". Stated per call, never persisted — creating or switching a
+// profile for a one-off session would leave the user's real gym deactivated
+// for every later request. Absent means "use the active gym profile", which
+// is what every caller did before this existed.
+const generationConstraintSchema = z.object({
+  available_equipment: z
+    .array(z.string().max(40))
+    .min(1)
+    .max(EQUIPMENT.length)
+    .optional()
+    .describe(
+      "Equipment available for THIS session only, lowercase canonical values (e.g., ['dumbbell', 'bands']); bodyweight is always assumed. Overrides the active gym profile for this call without changing it."
+    ),
+  available_apparatus: z
+    .array(z.string().max(40))
+    .max(EXERCISE_APPARATUS.length)
+    .optional()
+    .describe(
+      "Fixed apparatus available for THIS session, with available_equipment: 'bench', 'pull-up bar', 'dip station', 'squat rack'. An empty array means none of them."
+    ),
+});
+
 const generateWorkoutSchema = z
   .object({
     action: z.literal('generate_workout'),
@@ -591,7 +620,7 @@ const generateWorkoutSchema = z
         'Regenerate preferring exercises other than the ones already suggested'
       ),
     ...generationTargetSchema.shape,
-    ...generationTargetSchema.shape,
+    ...generationConstraintSchema.shape,
   })
   .strict();
 
@@ -905,4 +934,5 @@ export const manageExerciseInput = z.object({
       'For generate_workout: prefer exercises other than the ones already suggested'
     ),
   ...generationTargetSchema.shape,
+  ...generationConstraintSchema.shape,
 });

@@ -21,7 +21,9 @@ import {
   RECOVERY_TUNABLES,
   type CandidateExercise,
   type EquipmentItemSlug,
+  IMPERIAL_EQUIPMENT_INCREMENT_KG,
   type ExerciseApparatus,
+  type IncrementDefaults,
   type ExerciseHistoryInput,
   type GenerationOptions,
   type MuscleFreshness,
@@ -42,6 +44,7 @@ import workoutRecommendationRepository, {
 } from '../models/workoutRecommendationRepository.js';
 import coachProfileRepository from '../models/coachProfileRepository.js';
 import gymEquipmentProfileRepository from '../models/gymEquipmentProfileRepository.js';
+import preferenceRepository from '../models/preferenceRepository.js';
 import exerciseEntryModel from '../models/exerciseEntry.js';
 import exerciseService from './exerciseService.js';
 
@@ -131,9 +134,41 @@ export interface GenerateOptions {
    * every caller did before this existed.
    */
   targetMuscles?: readonly string[];
+  /**
+   * The equipment on hand for this one session, stated in the request rather
+   * than read from a gym profile — "I have dumbbells and a bench today".
+   * When present it REPLACES the profile's constraints wholesale (equipment,
+   * apparatus, load limits, equipment items, preference): the user is
+   * somewhere else, so the profile's dumbbell ceiling and machine list say
+   * nothing about where they are. Nothing is persisted and the stored row
+   * carries no gym profile id, because none was used. `apparatus` follows the
+   * profile column's tri-state: `null` = not stated, infer from equipment.
+   */
+  equipmentOverride?: {
+    equipment: readonly string[];
+    apparatus: readonly ExerciseApparatus[] | null;
+  };
 }
 
 const DEFAULT_SESSION_MINUTES = 60;
+
+/**
+ * The load steps to prescribe in when the gym profile states none: a pounds
+ * user's racks and plates step in 5 lb, so their logged 20 lb must not come
+ * back as the metric 2 kg step's "22 lbs". Anything but pounds keeps the
+ * global metric table (`null`), which is byte-identical to the old behaviour.
+ */
+async function loadIncrementDefaults(
+  userId: string
+): Promise<IncrementDefaults | null> {
+  const prefs = await preferenceRepository.getUserPreferences(userId);
+  const unit = String(prefs?.default_weight_unit ?? '')
+    .trim()
+    .toLowerCase();
+  return unit === 'lb' || unit === 'lbs' || unit === 'pounds'
+    ? IMPERIAL_EQUIPMENT_INCREMENT_KG
+    : null;
+}
 
 /**
  * How far back the derived-experience fallback counts training days. A year
@@ -393,7 +428,8 @@ async function programExercise(
       prescription.workingWeightKg,
       planned.candidate.equipment,
       prescription.modality,
-      options.loadLimits
+      options.loadLimits,
+      options.incrementDefaultsKg
     )
   );
 
@@ -454,12 +490,17 @@ async function generateRecommendation(
   userId: string,
   opts: GenerateOptions = {}
 ): Promise<WorkoutRecommendationResponse> {
-  const [{ today, muscles }, coachProfile, activeGymProfile] =
-    await Promise.all([
-      loadFreshness(userId),
-      coachProfileRepository.getCoachProfile(userId),
-      gymEquipmentProfileRepository.getActiveGymProfile(userId),
-    ]);
+  const [
+    { today, muscles },
+    coachProfile,
+    activeGymProfile,
+    incrementDefaultsKg,
+  ] = await Promise.all([
+    loadFreshness(userId),
+    coachProfileRepository.getCoachProfile(userId),
+    gymEquipmentProfileRepository.getActiveGymProfile(userId),
+    loadIncrementDefaults(userId),
+  ]);
 
   const targetDurationMinutes =
     opts.durationMinutes ??
@@ -479,12 +520,19 @@ async function generateRecommendation(
             opts.gymProfileId
           );
 
-  // The previous workout's exercises, so Swap can prefer different ones. Read
-  // before the upsert overwrites the row.
+  // Every exercise the Swap chain has shown so far, so Swap prefers ones it
+  // has not. Read before the upsert overwrites the row. The stored workout's
+  // own ids are unioned in for a row written before the history column
+  // existed; on a current row they are already there.
   const previous = opts.swap
     ? await workoutRecommendationRepository.getWorkoutRecommendation(userId)
     : null;
-  const excludeIds = opts.swap ? previousExerciseIds(previous?.payload) : [];
+  const excludeIds = opts.swap
+    ? unique([
+        ...previousSwapHistory(previous?.swap_excluded_exercise_ids),
+        ...previousExerciseIds(previous?.payload),
+      ])
+    : [];
 
   const experienceLevel = await resolveExperienceLevel(
     userId,
@@ -492,23 +540,37 @@ async function generateRecommendation(
     today
   );
 
+  // A stated per-session constraint stands in for the profile entirely; see
+  // `GenerateOptions.equipmentOverride`. `null` here means "no constraint".
+  const override = opts.equipmentOverride;
+  const constraint = override
+    ? {
+        equipment: [...override.equipment],
+        apparatus: override.apparatus === null ? null : [...override.apparatus],
+        load_limits: null,
+        equipment_items: null,
+        equipment_preference: null,
+      }
+    : gymProfile;
+
   const options: GenerationOptions = {
     targetDurationMinutes,
-    availableEquipment: gymProfile ? gymProfile.equipment : null,
+    availableEquipment: constraint ? constraint.equipment : null,
     // `?? null` guards a row read before the apparatus migration ran, and any
     // future reader that leaves the column off — `undefined` would read as
     // "stated" downstream, which is the opposite of what silence means.
-    availableApparatus: gymProfile ? (gymProfile.apparatus ?? null) : null,
-    loadLimits: gymProfile ? (gymProfile.load_limits ?? null) : null,
+    availableApparatus: constraint ? (constraint.apparatus ?? null) : null,
+    loadLimits: constraint ? (constraint.load_limits ?? null) : null,
+    incrementDefaultsKg,
     // Same guard as apparatus: a row read before the equipment_items
     // migration ran must read as "never stated", not as a statement.
-    availableEquipmentItems: gymProfile
-      ? (gymProfile.equipment_items ?? null)
+    availableEquipmentItems: constraint
+      ? (constraint.equipment_items ?? null)
       : null,
     // Same guard again: a row read before the equipment_preference migration
     // must read as "never stated", which is what an absent preference means.
-    equipmentPreference: gymProfile
-      ? (gymProfile.equipment_preference ?? null)
+    equipmentPreference: constraint
+      ? (constraint.equipment_preference ?? null)
       : null,
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
@@ -580,9 +642,11 @@ async function generateRecommendation(
     // is not a workout. Fail loudly rather than persisting a row every client
     // would then have to special-case.
     throw new WorkoutGenerationError(
-      gymProfile
-        ? `No exercises in your library work with the "${gymProfile.name}" gym profile. Change the gym profile or add exercises.`
-        : 'No exercises available to build a workout yet. Add an exercise pack or create exercises first.'
+      override
+        ? `No exercises in your library work with only ${override.equipment.join(', ')}. Name more equipment or add exercises.`
+        : gymProfile
+          ? `No exercises in your library work with the "${gymProfile.name}" gym profile. Change the gym profile or add exercises.`
+          : 'No exercises available to build a workout yet. Add an exercise pack or create exercises first.'
     );
   }
 
@@ -599,12 +663,53 @@ async function generateRecommendation(
   const row = await workoutRecommendationRepository.upsertWorkoutRecommendation(
     userId,
     {
-      gymProfileId: gymProfile?.id ?? null,
+      // A stated per-session constraint was built against no profile, and
+      // the row must not claim otherwise: Up Next shows the profile name.
+      gymProfileId: override ? null : (gymProfile?.id ?? null),
       targetDurationMinutes,
       payload,
+      swapExcludedExerciseIds: nextSwapHistory(
+        excludeIds,
+        exercises.map((exercise) => exercise.exercise_id)
+      ),
     }
   );
   return toResponse(row);
+}
+
+/**
+ * What the next Swap must avoid, given what this one avoided and what it
+ * produced.
+ *
+ * The engine is deterministic and the penalty is a preference, not a filter:
+ * penalizing only the outgoing workout handed the second Swap the first
+ * workout back, and the third the second — two workouts forever. So the
+ * history accumulates across the chain. A plain regenerate arrives with an
+ * empty `avoided` and so starts a fresh chain at its own workout.
+ *
+ * When a Swap found nothing outside the chain, every eligible movement has had
+ * its turn and the penalty is uniform: keeping the history would make every
+ * later Swap return this same workout. Restarting the chain at it rotates from
+ * the top again instead.
+ */
+function nextSwapHistory(
+  avoided: readonly string[],
+  produced: readonly string[]
+): string[] {
+  const seen = new Set(avoided);
+  const foundNew = produced.some((id) => !seen.has(id));
+  return foundNew ? unique([...avoided, ...produced]) : unique(produced);
+}
+
+function unique(ids: readonly string[]): string[] {
+  return [...new Set(ids)];
+}
+
+/** The stored Swap history, tolerating a row read by a mock or an older shape. */
+function previousSwapHistory(history: unknown): string[] {
+  return Array.isArray(history)
+    ? history.filter((id): id is string => typeof id === 'string')
+    : [];
 }
 
 /** The exercise ids in a stored payload, tolerating a row written by an older shape. */
@@ -754,17 +859,22 @@ async function replaceRecommendationExercise(
     );
   }
 
-  const [candidate, coachProfile, gymProfile, tz] = await Promise.all([
-    workoutRecommendationRepository.getCandidateExerciseById(
-      userId,
-      exerciseIdIn
-    ),
-    coachProfileRepository.getCoachProfile(userId),
-    row.gym_profile_id
-      ? gymEquipmentProfileRepository.getGymProfile(userId, row.gym_profile_id)
-      : Promise.resolve(null),
-    loadUserTimezone(userId),
-  ]);
+  const [candidate, coachProfile, gymProfile, tz, incrementDefaultsKg] =
+    await Promise.all([
+      workoutRecommendationRepository.getCandidateExerciseById(
+        userId,
+        exerciseIdIn
+      ),
+      coachProfileRepository.getCoachProfile(userId),
+      row.gym_profile_id
+        ? gymEquipmentProfileRepository.getGymProfile(
+            userId,
+            row.gym_profile_id
+          )
+        : Promise.resolve(null),
+      loadUserTimezone(userId),
+      loadIncrementDefaults(userId),
+    ]);
   const today = todayInZone(tz);
   if (!candidate) {
     // An external suggestion has to be imported before it can be swapped in;
@@ -779,6 +889,7 @@ async function replaceRecommendationExercise(
     availableEquipment: gymProfile ? gymProfile.equipment : null,
     availableApparatus: gymProfile ? (gymProfile.apparatus ?? null) : null,
     loadLimits: gymProfile ? (gymProfile.load_limits ?? null) : null,
+    incrementDefaultsKg,
     availableEquipmentItems: gymProfile
       ? (gymProfile.equipment_items ?? null)
       : null,

@@ -166,9 +166,10 @@ export const generateWorkoutRecommendationRequestSchema = z
     /**
      * Fitbod's whole-workout Swap. The engine is deterministic, so a plain
      * regenerate would hand back the identical workout — the point of Swap is
-     * that it does not. Setting this passes the current payload's exercise ids
-     * to the planner as a scoring penalty, so it prefers different movements
-     * for the same muscles but can still repeat one if nothing else fits.
+     * that it does not. Setting this passes every exercise id the current
+     * Swap chain has shown (persisted server-side, not just the outgoing
+     * workout's) to the planner as a scoring penalty, so it prefers movements
+     * it has not shown yet but can still repeat one if nothing else fits.
      */
     swap: z.boolean().optional(),
     /**

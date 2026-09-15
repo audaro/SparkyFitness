@@ -31,6 +31,7 @@ import {
 import { DEFAULT_SET_TYPE, isWarmupSetType } from "../constants/setTypes.ts";
 import type { ExperienceLevel } from "../constants/experience.ts";
 import {
+  type IncrementDefaults,
   capLoadKg,
   estimateRepMaxKg,
   incrementForEquipmentKg,
@@ -409,6 +410,14 @@ export interface GenerationOptions {
    * as `availableApparatus`.
    */
   loadLimits: LoadLimits | null;
+  /**
+   * Per-equipment load steps to use when the profile states none — the
+   * user's unit, in practice ({@link IMPERIAL_EQUIPMENT_INCREMENT_KG} for a
+   * pounds user). `null` = the global metric table, exactly as before.
+   * Required, not defaulted, for the same fail-loud reason as
+   * `availableApparatus`.
+   */
+  incrementDefaultsKg: IncrementDefaults | null;
   /**
    * The gym profile's stated granular items
    * (`gym_equipment_profiles.equipment_items`). `null` = never stated — the
@@ -1516,19 +1525,37 @@ export function prescribeSets(
     if (baseline == null) {
       const coldStart = coldStartLoadKg(exercise.equipment);
       if (coldStart != null) {
+        // The table is metric round numbers. On a pounds rack "5 kg" is an
+        // 11 lb dumbbell that does not exist, so a unit default snaps the
+        // cold start onto the rack first; with no default the legacy load
+        // stays byte-identical. Snap before capping so the cap still floors.
+        const onRack = options.incrementDefaultsKg
+          ? quantizeLoadKg(
+              coldStart.loadKg,
+              coldStart.equipment,
+              options.loadLimits,
+              options.incrementDefaultsKg,
+            )
+          : coldStart.loadKg;
         // A tiny home setup can stock less than the cold start assumes.
         const clamped = capLoadKg(
-          coldStart.loadKg,
+          onRack,
           coldStart.equipment,
           options.loadLimits,
+          options.incrementDefaultsKg,
         );
         workingWeightKg = clamped;
-        capped = clamped < coldStart.loadKg;
+        capped = clamped < onRack;
       }
     } else {
       const incrementEquipment = exercise.equipment[0];
       const quantize = (kg: number) =>
-        quantizeLoadKg(kg, incrementEquipment, options.loadLimits);
+        quantizeLoadKg(
+          kg,
+          incrementEquipment,
+          options.loadLimits,
+          options.incrementDefaultsKg,
+        );
 
       // History logged at a different rep range says nothing rep-for-rep
       // about today's target: 4x5 at 100 kg read against a 10-rep target
@@ -1566,6 +1593,7 @@ export function prescribeSets(
       const step = incrementForEquipmentKg(
         incrementEquipment,
         options.loadLimits,
+        options.incrementDefaultsKg,
       );
       if (step > 0) {
         if (decision === "increase" && workingWeightKg <= workingBaseline) {
@@ -1584,6 +1612,7 @@ export function prescribeSets(
         workingWeightKg,
         incrementEquipment,
         options.loadLimits,
+        options.incrementDefaultsKg,
       );
       if (clamped < workingWeightKg) {
         // The gym stops where the progression wanted to go. Prescribe what
@@ -1700,6 +1729,7 @@ export function warmupSetsFor(
   equipment: readonly string[],
   modality = "weight_reps",
   loadLimits: LoadLimits | null = null,
+  incrementDefaultsKg: IncrementDefaults | null = null,
 ): RecommendationSet[] {
   if (modality !== "weight_reps") return [];
   if (
@@ -1712,7 +1742,12 @@ export function warmupSetsFor(
   // Fractions of an already-capped working weight cannot exceed the cap, so
   // the limits matter here only for the increment override.
   const ramp = (fraction: number, reps: number) => ({
-    weight: quantizeLoadKg(workingWeightKg * fraction, increment, loadLimits),
+    weight: quantizeLoadKg(
+      workingWeightKg * fraction,
+      increment,
+      loadLimits,
+      incrementDefaultsKg,
+    ),
     reps,
   });
   const steps =

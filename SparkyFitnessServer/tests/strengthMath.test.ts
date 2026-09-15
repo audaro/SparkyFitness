@@ -12,6 +12,8 @@ import {
   epley1RmKg,
   estimateRepMaxKg,
   incrementForEquipmentKg,
+  IMPERIAL_EQUIPMENT_INCREMENT_KG,
+  KG_PER_LB,
   isCanonicalSetType,
   isKnownEquipment,
   isKnownMuscle,
@@ -226,8 +228,8 @@ describe('equipment load increments', () => {
     expect(incrementForEquipmentKg('  Barbell ')).toBe(2.5);
     expect(incrementForEquipmentKg('dumbbell')).toBe(2.0);
     expect(incrementForEquipmentKg('kettlebells')).toBe(4.0);
-    expect(incrementForEquipmentKg('machine')).toBe(2.27);
-    expect(incrementForEquipmentKg('cable')).toBe(2.27);
+    expect(incrementForEquipmentKg('machine')).toBe(5 * KG_PER_LB);
+    expect(incrementForEquipmentKg('cable')).toBe(5 * KG_PER_LB);
     expect(incrementForEquipmentKg('bands')).toBe(0);
     expect(incrementForEquipmentKg('body only')).toBe(0);
   });
@@ -301,11 +303,62 @@ describe('quantizeLoadKg', () => {
   });
 
   it('snaps stack machines to 5 lb pins and stays at 2 dp', () => {
-    // 61.3 / 2.27 = 27.0 pins ⇒ 61.29 kg, not 61.290000000000006.
-    expect(quantizeLoadKg(61.3, 'machine')).toBe(61.29);
-    expect(quantizeLoadKg(61.3, 'cable')).toBe(61.29);
+    // 61.3 / 2.26796 = 27.03 pins ⇒ 27 × 5 lb = 61.235 ⇒ 61.23 kg.
+    expect(quantizeLoadKg(61.3, 'machine')).toBe(61.23);
+    expect(quantizeLoadKg(61.3, 'cable')).toBe(61.23);
     const quantized = quantizeLoadKg(83.7, 'machine');
     expect(Math.round(quantized * 100)).toBe(quantized * 100);
+  });
+
+  it('uses caller defaults under a profile override and over the global table', () => {
+    // A pounds user's 20 lb (9.07 kg) dumbbell: metric table snaps to 10 kg,
+    // the pounds defaults keep it at 9.07, and a profile increment wins.
+    expect(quantizeLoadKg(9.07, 'dumbbell')).toBe(10);
+    expect(
+      quantizeLoadKg(9.07, 'dumbbell', null, IMPERIAL_EQUIPMENT_INCREMENT_KG)
+    ).toBe(9.07);
+    expect(
+      quantizeLoadKg(
+        9.07,
+        'dumbbell',
+        { dumbbell: { max_kg: 50, increment_kg: 2.5 } },
+        IMPERIAL_EQUIPMENT_INCREMENT_KG
+      )
+    ).toBe(10);
+    // Equipment the defaults do not mention keeps the global step.
+    expect(
+      incrementForEquipmentKg(
+        'medicine ball',
+        null,
+        IMPERIAL_EQUIPMENT_INCREMENT_KG
+      )
+    ).toBe(1.0);
+    // The cap floors to the effective step too: a 22.5 kg (49.6 lb) ceiling
+    // on 5 lb dumbbells is 45 lb = 20.41 kg, not the metric 22.
+    expect(
+      capLoadKg(
+        30,
+        'dumbbell',
+        { dumbbell: { max_kg: 22.5 } },
+        IMPERIAL_EQUIPMENT_INCREMENT_KG
+      )
+    ).toBe(20.41);
+  });
+
+  it('hands a logged 5 lb multiple back as the same pounds, not a drifted decimal', () => {
+    // 60 lb logged ⇒ stored 27.22 kg. 12 pins of a rounded 2.27 step would
+    // come back as 27.24 kg = 60.05 lb, which a one-decimal display shows as
+    // "60.1 lbs"; the exact step lands on 27.22 = 60.0 lb.
+    const stored = Math.round(60 * KG_PER_LB * 100) / 100;
+    expect(stored).toBe(27.22);
+    expect(quantizeLoadKg(stored, 'machine')).toBe(27.22);
+    expect(quantizeLoadKg(stored, 'cable') / KG_PER_LB).toBeCloseTo(60, 1);
+    for (const lb of [80, 100, 125, 180]) {
+      const kg = Math.round(lb * KG_PER_LB * 100) / 100;
+      expect(
+        Math.round((quantizeLoadKg(kg, 'machine') / KG_PER_LB) * 10) / 10
+      ).toBe(lb);
+    }
   });
 
   it('passes zero-increment equipment through untouched', () => {

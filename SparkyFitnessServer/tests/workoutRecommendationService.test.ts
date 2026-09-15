@@ -16,6 +16,7 @@ import workoutRecommendationRepository from '../models/workoutRecommendationRepo
 import workoutRecommendationRoutes from '../routes/workoutRecommendationRoutes.js';
 import coachProfileRepository from '../models/coachProfileRepository.js';
 import gymEquipmentProfileRepository from '../models/gymEquipmentProfileRepository.js';
+import preferenceRepository from '../models/preferenceRepository.js';
 import exerciseEntryModel from '../models/exerciseEntry.js';
 import exerciseService from '../services/exerciseService.js';
 import freeExerciseDBService from '../integrations/freeexercisedb/FreeExerciseDBService.js';
@@ -42,6 +43,11 @@ vi.mock('../models/coachProfileRepository.js', () => {
 
 vi.mock('../models/gymEquipmentProfileRepository.js', () => {
   const mock = { getActiveGymProfile: vi.fn(), getGymProfile: vi.fn() };
+  return { default: mock, ...mock };
+});
+
+vi.mock('../models/preferenceRepository.js', () => {
+  const mock = { getUserPreferences: vi.fn() };
   return { default: mock, ...mock };
 });
 
@@ -97,6 +103,7 @@ app.use((err: any, _req: any, res: any, _next: any) => {
 const repo = workoutRecommendationRepository as any;
 const coachRepo = coachProfileRepository as any;
 const gymRepo = gymEquipmentProfileRepository as any;
+const prefsRepo = preferenceRepository as any;
 const entries = exerciseEntryModel as any;
 const exercises = exerciseService as any;
 const fedb = freeExerciseDBService as any;
@@ -206,6 +213,7 @@ function echoUpsert(_userId: string, input: any) {
     target_duration_minutes: input.targetDurationMinutes,
     payload: input.payload,
     status: 'active',
+    swap_excluded_exercise_ids: input.swapExcludedExerciseIds,
     generated_at: new Date('2026-08-23T10:00:00Z'),
     created_at: new Date('2026-08-23T10:00:00Z'),
     updated_at: new Date('2026-08-23T10:00:00Z'),
@@ -253,6 +261,9 @@ async function storeGenerated(overrides: Record<string, any> = {}) {
     target_duration_minutes: 60,
     payload: generated.payload,
     status: 'active',
+    swap_excluded_exercise_ids: generated.payload.exercises.map(
+      (exercise) => exercise.exercise_id
+    ),
     generated_at: new Date('2026-08-23T10:00:00Z'),
     created_at: new Date('2026-08-23T10:00:00Z'),
     updated_at: new Date('2026-08-23T10:00:00Z'),
@@ -300,6 +311,7 @@ beforeEach(() => {
   coachRepo.getCoachProfile.mockResolvedValue(null);
   gymRepo.getActiveGymProfile.mockResolvedValue(null);
   gymRepo.getGymProfile.mockResolvedValue(null);
+  prefsRepo.getUserPreferences.mockResolvedValue({ default_weight_unit: 'kg' });
   entries.getRecentSessionsForExercise.mockResolvedValue([]);
   exercises.addFreeExerciseDBExerciseToUserExercises.mockResolvedValue({});
   fedb.searchExercises.mockResolvedValue({ exercises: [], totalCount: 0 });
@@ -532,6 +544,83 @@ describe('generateRecommendation', () => {
     );
   });
 
+  it('lets equipment stated for the session replace the active profile', async () => {
+    // Active profile has the cable stack the fly needs; the user said they
+    // only have dumbbells today. The profile is neither used nor recorded.
+    gymRepo.getActiveGymProfile.mockResolvedValue({
+      id: 'gym-1',
+      equipment: ['barbell', 'cable'],
+      load_limits: { dumbbell: { max_kg: 10 } },
+    });
+    repo.getCandidateExercises.mockResolvedValue([
+      BENCH,
+      FLY,
+      BARBELL_ROW,
+      DUMBBELL_ROW,
+    ]);
+    const result = await workoutRecommendationService.generateRecommendation(
+      USER_ID,
+      { equipmentOverride: { equipment: ['dumbbell'], apparatus: null } }
+    );
+
+    expect(result.gym_profile_id).toBeNull();
+    expect(result.payload.exercises.some((e) => e.exercise_id === FLY_ID)).toBe(
+      false
+    );
+    expect(
+      result.payload.exercises.some((e) => e.exercise_id === DUMBBELL_ROW_ID)
+    ).toBe(true);
+    expect(gymRepo.getGymProfile).not.toHaveBeenCalled();
+  });
+
+  it('prescribes on 5 lb steps for a pounds user without a profile increment', async () => {
+    // 20 lb (9.07 kg) dumbbell rows held across two sessions. A kg user gets
+    // the metric 2 kg step (10 kg = 22 lb); a pounds user stays on the rack.
+    repo.getCandidateExercises.mockResolvedValue([DUMBBELL_ROW]);
+    const held = (entry_date: string) => ({
+      entry_date,
+      sets: [
+        {
+          set_type: 'Working Set',
+          reps: 10,
+          weight: 9.07,
+          duration: null,
+          distance: null,
+        },
+        {
+          set_type: 'Working Set',
+          reps: 10,
+          weight: 9.07,
+          duration: null,
+          distance: null,
+        },
+      ],
+    });
+    entries.getRecentSessionsForExercise.mockResolvedValue([
+      held('2026-08-20'),
+      held('2026-08-13'),
+    ]);
+    const workingLb = (r: { payload: { exercises: any[] } }) => {
+      const row = r.payload.exercises.find(
+        (e) => e.exercise_id === DUMBBELL_ROW_ID
+      )!;
+      const working = row.sets.filter((s: any) => s.set_type === 'Working Set');
+      return Math.round((working[0].weight / 0.45359237) * 10) / 10;
+    };
+
+    const metric =
+      await workoutRecommendationService.generateRecommendation(USER_ID);
+    expect(workingLb(metric) % 5).not.toBe(0);
+
+    prefsRepo.getUserPreferences.mockResolvedValue({
+      default_weight_unit: 'lbs',
+    });
+    const pounds =
+      await workoutRecommendationService.generateRecommendation(USER_ID);
+    expect(workingLb(pounds) % 5).toBe(0);
+    expect(prefsRepo.getUserPreferences).toHaveBeenCalledWith(USER_ID);
+  });
+
   it('honours a stated limitation', async () => {
     coachRepo.getCoachProfile.mockResolvedValue({
       goals: null,
@@ -701,6 +790,139 @@ describe('generateRecommendation', () => {
   it('does not read the previous workout when not swapping', async () => {
     await workoutRecommendationService.generateRecommendation(USER_ID);
     expect(repo.getWorkoutRecommendation).not.toHaveBeenCalled();
+  });
+
+  describe('swap chain', () => {
+    const INCLINE = candidate({
+      id: '66666666-6666-4666-8666-666666666666',
+      name: 'Incline Press',
+      primaryMuscles: ['chest'],
+      mechanic: 'compound',
+    });
+    const DECLINE = candidate({
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Decline Press',
+      primaryMuscles: ['chest'],
+      mechanic: 'compound',
+    });
+
+    /**
+     * Generate and make the written row the stored one, the way the database
+     * does between two requests. Without this the second Swap would read the
+     * row the first Swap replaced.
+     */
+    async function generateAndStore(opts?: { swap?: boolean }) {
+      const response =
+        await workoutRecommendationService.generateRecommendation(
+          USER_ID,
+          opts
+        );
+      const row =
+        await repo.upsertWorkoutRecommendation.mock.results.at(-1)!.value;
+      repo.getWorkoutRecommendation.mockResolvedValue(row);
+      return response;
+    }
+
+    const chestCompounds = (payload: {
+      exercises: { exercise_name: string }[];
+    }) =>
+      payload.exercises
+        .map((e) => e.exercise_name)
+        .filter((name) =>
+          ['Bench Press', 'Incline Press', 'Decline Press'].includes(name)
+        );
+
+    beforeEach(() => {
+      repo.getCandidateExercises.mockResolvedValue([
+        BENCH,
+        INCLINE,
+        DECLINE,
+        FLY,
+        BARBELL_ROW,
+      ]);
+    });
+
+    it('starts the chain at the generated workout', async () => {
+      const first = await generateAndStore();
+      expect(
+        repo.upsertWorkoutRecommendation.mock.calls[0][1]
+          .swapExcludedExerciseIds
+      ).toEqual(first.payload.exercises.map((e) => e.exercise_id));
+    });
+
+    it('rotates through every alternative before repeating one', async () => {
+      // The bug: penalizing only the outgoing workout handed the second Swap
+      // the first workout back, so Swap alternated between two workouts and
+      // never reached the third chest press.
+      const first = await generateAndStore();
+      const second = await generateAndStore({ swap: true });
+      const third = await generateAndStore({ swap: true });
+
+      const seen = [first, second, third].map((r) => chestCompounds(r.payload));
+      expect(seen.map((s) => s.length)).toEqual([1, 1, 1]);
+      expect(new Set(seen.flat()).size).toBe(3);
+    });
+
+    it('penalizes the whole chain, not just the outgoing workout', async () => {
+      const first = await generateAndStore();
+      const second = await generateAndStore({ swap: true });
+      await generateAndStore({ swap: true });
+
+      const stored =
+        repo.upsertWorkoutRecommendation.mock.calls.at(-1)![1]
+          .swapExcludedExerciseIds;
+      for (const exercise of [
+        ...first.payload.exercises,
+        ...second.payload.exercises,
+      ]) {
+        expect(stored).toContain(exercise.exercise_id);
+      }
+    });
+
+    it('restarts the rotation once every alternative has been shown', async () => {
+      const first = await generateAndStore();
+      const second = await generateAndStore({ swap: true });
+      const third = await generateAndStore({ swap: true });
+      // Nothing new is left: the chain resets to this workout and the next
+      // Swap moves off it again instead of returning it forever.
+      const fourth = await generateAndStore({ swap: true });
+      const fifth = await generateAndStore({ swap: true });
+
+      expect(chestCompounds(fourth.payload)).toEqual(
+        chestCompounds(first.payload)
+      );
+      expect(chestCompounds(fifth.payload)).toEqual(
+        chestCompounds(second.payload)
+      );
+      expect(chestCompounds(fifth.payload)).not.toEqual(
+        chestCompounds(third.payload)
+      );
+    });
+
+    it('a plain regenerate drops the chain', async () => {
+      await generateAndStore();
+      await generateAndStore({ swap: true });
+      const fresh = await generateAndStore();
+
+      expect(
+        repo.upsertWorkoutRecommendation.mock.calls.at(-1)![1]
+          .swapExcludedExerciseIds
+      ).toEqual(fresh.payload.exercises.map((e) => e.exercise_id));
+    });
+
+    it('treats a row written before the history existed as a one-workout chain', async () => {
+      const first = await generateAndStore();
+      repo.getWorkoutRecommendation.mockResolvedValue({
+        id: REC_ID,
+        payload: first.payload,
+      });
+
+      const second = await generateAndStore({ swap: true });
+
+      expect(chestCompounds(second.payload)).not.toEqual(
+        chestCompounds(first.payload)
+      );
+    });
   });
 
   it('resets a completed workout to active when it regenerates', async () => {
