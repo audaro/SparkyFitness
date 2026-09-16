@@ -31,7 +31,7 @@ const row: CoachProfileRow = {
   priority_muscle_groups: ['push', 'pull'],
   enhancement: {
     status: 'trt',
-    testosterone_mg_per_week: 137,
+    testosterone_mg_per_dose: 137,
     ester: 'cypionate',
   },
   plan_completed_at: new Date('2026-09-15T10:00:00Z'),

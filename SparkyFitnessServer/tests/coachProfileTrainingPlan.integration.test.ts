@@ -102,7 +102,7 @@ describe.runIf(RUN)(
         priority_muscle_groups: ['push', 'pull'],
         enhancement: {
           status: 'trt',
-          testosterone_mg_per_week: 120,
+          testosterone_mg_per_dose: 120,
           ester: 'cypionate',
         },
         plan_completed_at: stamp,
@@ -115,7 +115,7 @@ describe.runIf(RUN)(
       // An object, not the string "{...}".
       expect(row.enhancement).toEqual({
         status: 'trt',
-        testosterone_mg_per_week: 120,
+        testosterone_mg_per_dose: 120,
         ester: 'cypionate',
       });
       expect(row.plan_completed_at?.toISOString()).toBe(stamp.toISOString());
@@ -148,7 +148,7 @@ describe.runIf(RUN)(
     // the absence of one, and "not answered" has to be the second.
     it('clears a jsonb answer to SQL NULL, not to jsonb null', async () => {
       await coachProfileRepository.upsertCoachProfile(USER, {
-        enhancement: { status: 'enhanced', testosterone_mg_per_week: 500 },
+        enhancement: { status: 'enhanced', testosterone_mg_per_dose: 500 },
         priority_muscle_groups: ['legs'],
       });
       await coachProfileRepository.upsertCoachProfile(USER, {

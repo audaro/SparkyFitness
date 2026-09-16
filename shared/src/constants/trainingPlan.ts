@@ -74,13 +74,35 @@ export const TESTOSTERONE_ESTERS = [
 export type TestosteroneEster = (typeof TESTOSTERONE_ESTERS)[number];
 
 /**
- * Upper bound on stated weekly dose, in milligrams.
+ * Upper bound on the *derived* weekly dose, in milligrams.
  *
  * A bound, not a training opinion: it stops a fat-fingered entry from driving
  * an absurd projection. The projection itself holds its estimate flat above
  * the highest dose it has trial data for, which is well below this ceiling.
  */
 export const MAX_TESTOSTERONE_MG_PER_WEEK = 3000;
+
+/**
+ * Upper bound on a single stated dose, in milligrams.
+ *
+ * Higher than the weekly ceiling would suggest, because a dose is not a week:
+ * undecanoate is normally 1000 mg at a time and long-interval protocols are
+ * the reason the questionnaire asks for a dose and an interval at all. The
+ * weekly figure those two produce is bounded separately.
+ */
+export const MAX_TESTOSTERONE_MG_PER_DOSE = 3000;
+
+/**
+ * Bounds on the interval between doses, in weeks.
+ *
+ * The floor is half a week rather than one because splitting a weekly dose
+ * across two injections is ordinary practice, and a user who states it that
+ * way should not have to do the multiplication themselves. The ceiling clears
+ * the longest protocol in common use (undecanoate at 10-14 weeks) with room
+ * to spare, and is deliberately not a whole-number-only field.
+ */
+export const MIN_DOSE_INTERVAL_WEEKS = 0.5;
+export const MAX_DOSE_INTERVAL_WEEKS = 16;
 
 /**
  * How many muscle groups the user may prioritise at once.

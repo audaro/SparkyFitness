@@ -30,8 +30,10 @@ ALTER TABLE public.coach_profiles
     -- jsonb-serialization rule keeps covering all of them.
     ADD COLUMN IF NOT EXISTS priority_muscle_groups JSONB,
 
-    -- { status, testosterone_mg_per_week?, ester? } behind the lean-mass
-    -- projection.
+    -- { status, testosterone_mg_per_dose?, dose_interval_weeks?, ester? }
+    -- behind the lean-mass projection. The dose is stored as stated rather
+    -- than as a weekly average, so a 10-weekly protocol reads back as what
+    -- the user typed; the weekly figure is derived where it is needed.
     --
     -- SENSITIVE. This column must never reach the chat model: the chat
     -- provider is third-party, and neither the tool renderer nor the cached

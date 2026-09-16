@@ -40,10 +40,22 @@ export const coachProfileAliasSchema = z.discriminatedUnion("kind", [
  *
  * Dose and ester are optional because `status: 'natural'` has neither, and a
  * user may state that they are on testosterone without stating how much.
+ *
+ * The dose is stored **as the user stated it** — an amount and the interval
+ * between amounts — rather than as a weekly average. Undecanoate is the case
+ * that forces it: a user answering "1000 mg every 10 weeks" whose answer was
+ * averaged on the way in would reopen the questionnaire to "100 mg/week", a
+ * number they never typed and would reasonably try to correct. The weekly
+ * figure the projection needs is derived at read time by
+ * `effectiveWeeklyDoseMg`, where the arithmetic is visible and tested.
+ *
+ * A missing interval means weekly, which is what an unstated interval means
+ * everywhere the user might have come from.
  */
 export const coachProfileEnhancementSchema = z.object({
   status: z.enum(ENHANCEMENT_STATUSES),
-  testosterone_mg_per_week: z.number().nonnegative().optional(),
+  testosterone_mg_per_dose: z.number().nonnegative().optional(),
+  dose_interval_weeks: z.number().positive().optional(),
   ester: z.enum(TESTOSTERONE_ESTERS).optional(),
 });
 

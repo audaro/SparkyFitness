@@ -104,7 +104,11 @@ describe('effectiveWeeklyDoseMg', () => {
     expect(effectiveWeeklyDoseMg({ status: 'natural' })).toBe(0);
     expect(effectiveWeeklyDoseMg({ status: 'trt' })).toBe(0);
     expect(
-      effectiveWeeklyDoseMg({ status: 'trt', testosterone_mg_per_week: 0 })
+      effectiveWeeklyDoseMg({ status: 'trt', testosterone_mg_per_dose: 0 })
+    ).toBe(0);
+    // An interval with no amount is not a dose.
+    expect(
+      effectiveWeeklyDoseMg({ status: 'trt', dose_interval_weeks: 10 })
     ).toBe(0);
   });
 
@@ -114,7 +118,7 @@ describe('effectiveWeeklyDoseMg', () => {
     const at = (ester: 'enanthate' | 'cypionate' | 'propionate') =>
       effectiveWeeklyDoseMg({
         status: 'enhanced',
-        testosterone_mg_per_week: 200,
+        testosterone_mg_per_dose: 200,
         ester,
       });
     expect(at('enanthate')).toBe(200);
@@ -125,16 +129,75 @@ describe('effectiveWeeklyDoseMg', () => {
     expect(at('cypionate')).toBeGreaterThan(190);
   });
 
+  // The case the stored shape exists for. Nebido is 1000 mg every 10 weeks;
+  // stored as a weekly average it would reopen the questionnaire as
+  // "100 mg/week", a number the user never typed.
+  it('spreads a stated dose over the interval between doses', () => {
+    expect(
+      effectiveWeeklyDoseMg({
+        status: 'trt',
+        testosterone_mg_per_dose: 1000,
+        dose_interval_weeks: 10,
+        ester: 'enanthate',
+      })
+    ).toBeCloseTo(100, 6);
+    // Splitting a weekly dose across two injections is the same weekly dose.
+    expect(
+      effectiveWeeklyDoseMg({
+        status: 'trt',
+        testosterone_mg_per_dose: 60,
+        dose_interval_weeks: 0.5,
+        ester: 'enanthate',
+      })
+    ).toBeCloseTo(120, 6);
+  });
+
+  it('reads an absent or unusable interval as weekly', () => {
+    const weekly = effectiveWeeklyDoseMg({
+      status: 'trt',
+      testosterone_mg_per_dose: 120,
+      ester: 'enanthate',
+    });
+    expect(weekly).toBe(120);
+    for (const interval of [0, -2, Number.NaN, undefined]) {
+      expect(
+        effectiveWeeklyDoseMg({
+          status: 'trt',
+          testosterone_mg_per_dose: 120,
+          dose_interval_weeks: interval as never,
+          ester: 'enanthate',
+        })
+      ).toBe(weekly);
+    }
+  });
+
+  // Both conversions apply, in the documented order: the interval first, then
+  // the ester. Undecanoate is the ester long intervals actually use, so the
+  // two would otherwise only ever be tested apart.
+  it('applies the interval and the ester conversion together', () => {
+    const mg = effectiveWeeklyDoseMg({
+      status: 'trt',
+      testosterone_mg_per_dose: 1000,
+      dose_interval_weeks: 10,
+      ester: 'undecanoate',
+    });
+    expect(mg).toBeCloseTo(
+      100 * PROJECTION_TUNABLES.esterFactors.undecanoate,
+      6
+    );
+    expect(mg).toBeLessThan(100);
+  });
+
   it('treats an unstated or unknown ester as the reference', () => {
     const base = effectiveWeeklyDoseMg({
       status: 'trt',
-      testosterone_mg_per_week: 120,
+      testosterone_mg_per_dose: 120,
     });
     expect(base).toBe(120);
     expect(
       effectiveWeeklyDoseMg({
         status: 'trt',
-        testosterone_mg_per_week: 120,
+        testosterone_mg_per_dose: 120,
         ester: 'sublingual' as never,
       })
     ).toBe(120);
@@ -241,7 +304,7 @@ describe('projectMuscleGain — the testosterone component', () => {
       input({
         enhancement: {
           status: 'trt',
-          testosterone_mg_per_week: mg,
+          testosterone_mg_per_dose: mg,
           ester: 'enanthate',
         },
         ...overrides,
@@ -369,7 +432,7 @@ describe('projectMuscleGain — the output as the card reads it', () => {
         adherence: 0.73,
         enhancement: {
           status: 'enhanced',
-          testosterone_mg_per_week: 237,
+          testosterone_mg_per_dose: 237,
           ester: 'cypionate',
         },
       })
@@ -397,7 +460,7 @@ describe('projectMuscleGain — the output as the card reads it', () => {
   it('is pure: the same input gives the same answer', () => {
     const args = input({
       adherence: 0.82,
-      enhancement: { status: 'trt', testosterone_mg_per_week: 140 },
+      enhancement: { status: 'trt', testosterone_mg_per_dose: 140 },
     });
     expect(projectMuscleGain(args)).toEqual(projectMuscleGain(args));
   });

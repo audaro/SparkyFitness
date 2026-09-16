@@ -345,13 +345,39 @@ function doseGainOverHorizon(
   return total;
 }
 
-/** The enanthate-equivalent weekly dose a stated enhancement implies, in mg. */
+/**
+ * The enanthate-equivalent weekly dose a stated enhancement implies, in mg.
+ *
+ * Two conversions, in this order. First the stated amount is spread over the
+ * interval it is taken at — the profile records "1000 mg every 10 weeks" as
+ * the user said it, so that the questionnaire can show it back to them
+ * unchanged, and the averaging happens here where it is visible. An absent
+ * interval means weekly. Second the weekly figure is scaled to its enanthate
+ * equivalent, because that is the ester the dose anchors were measured on and
+ * a milligram of undecanoate carries noticeably less testosterone.
+ *
+ * Deliberately total: anything unstated, zero, negative or not a number is a
+ * dose of zero, which the projection reports as `no_stated_dose` rather than
+ * as an estimate of nothing.
+ */
 export function effectiveWeeklyDoseMg(
   enhancement: CoachProfileEnhancement | null | undefined,
 ): number {
   if (!enhancement || enhancement.status === "natural") return 0;
-  const dose = enhancement.testosterone_mg_per_week;
-  if (typeof dose !== "number" || !Number.isFinite(dose) || dose <= 0) return 0;
+  const perDose = enhancement.testosterone_mg_per_dose;
+  if (
+    typeof perDose !== "number" ||
+    !Number.isFinite(perDose) ||
+    perDose <= 0
+  ) {
+    return 0;
+  }
+  const interval = enhancement.dose_interval_weeks;
+  const intervalWeeks =
+    typeof interval === "number" && Number.isFinite(interval) && interval > 0
+      ? interval
+      : 1;
+  const dose = perDose / intervalWeeks;
   const ester = enhancement.ester;
   const factor =
     ester !== undefined && TESTOSTERONE_ESTERS.includes(ester)

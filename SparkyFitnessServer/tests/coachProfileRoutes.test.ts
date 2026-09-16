@@ -47,7 +47,7 @@ const row = {
   priority_muscle_groups: ['push', 'pull'],
   enhancement: {
     status: 'trt',
-    testosterone_mg_per_week: 120,
+    testosterone_mg_per_dose: 120,
     ester: 'cypionate',
   },
   plan_completed_at: new Date('2026-09-15T10:00:00Z'),
@@ -89,7 +89,7 @@ describe('GET /coach-profile', () => {
       priority_muscle_groups: ['push', 'pull'],
       enhancement: {
         status: 'trt',
-        testosterone_mg_per_week: 120,
+        testosterone_mg_per_dose: 120,
         ester: 'cypionate',
       },
       plan_completed_at: '2026-09-15T10:00:00.000Z',
@@ -134,7 +134,7 @@ describe('GET /coach-profile', () => {
     const res = await request(app).get('/coach-profile');
     expect(res.body.enhancement).toEqual({
       status: 'trt',
-      testosterone_mg_per_week: 120,
+      testosterone_mg_per_dose: 120,
       ester: 'cypionate',
     });
   });
@@ -213,7 +213,7 @@ describe('PATCH /coach-profile — training plan fields', () => {
     const res = await request(app)
       .patch('/coach-profile')
       .send({
-        enhancement: { status: 'natural', testosterone_mg_per_week: 200 },
+        enhancement: { status: 'natural', testosterone_mg_per_dose: 200 },
       });
     expect(res.status).toBe(400);
   });
@@ -222,9 +222,70 @@ describe('PATCH /coach-profile — training plan fields', () => {
     const res = await request(app)
       .patch('/coach-profile')
       .send({
-        enhancement: { status: 'enhanced', testosterone_mg_per_week: 99999 },
+        enhancement: { status: 'enhanced', testosterone_mg_per_dose: 99999 },
       });
     expect(res.status).toBe(400);
+  });
+
+  // The protocol the stored shape exists for: 1000 mg is an ordinary dose at
+  // a 10-week interval, and a per-dose bound tight enough to be a useful typo
+  // check on a weekly protocol would reject it.
+  it('accepts an ordinary long-interval protocol', async () => {
+    const res = await request(app)
+      .patch('/coach-profile')
+      .send({
+        enhancement: {
+          status: 'trt',
+          testosterone_mg_per_dose: 1000,
+          dose_interval_weeks: 10,
+          ester: 'undecanoate',
+        },
+      });
+    expect(res.status).toBe(200);
+  });
+
+  // Which is why the bound is on the weekly figure the two work out to: the
+  // same amount passes at one interval and fails at another.
+  it('bounds the weekly figure the dose and interval imply', async () => {
+    const send = (dose_interval_weeks: number) =>
+      request(app)
+        .patch('/coach-profile')
+        .send({
+          enhancement: {
+            status: 'trt',
+            testosterone_mg_per_dose: 2500,
+            dose_interval_weeks,
+            ester: 'enanthate',
+          },
+        });
+    // 250 mg/week.
+    expect((await send(10)).status).toBe(200);
+    // 5000 mg/week.
+    expect((await send(0.5)).status).toBe(400);
+  });
+
+  // "Every 10 weeks" with no amount is not a dose, and storing it would make
+  // the questionnaire reopen on a field the projection cannot use.
+  it('rejects an interval stated without a dose', async () => {
+    const res = await request(app)
+      .patch('/coach-profile')
+      .send({ enhancement: { status: 'trt', dose_interval_weeks: 10 } });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an out-of-range interval', async () => {
+    for (const weeks of [0, 0.1, 52]) {
+      const res = await request(app)
+        .patch('/coach-profile')
+        .send({
+          enhancement: {
+            status: 'trt',
+            testosterone_mg_per_dose: 100,
+            dose_interval_weeks: weeks,
+          },
+        });
+      expect(res.status).toBe(400);
+    }
   });
 
   it('rejects an unknown key inside enhancement', async () => {

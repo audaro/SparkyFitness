@@ -235,7 +235,7 @@ describe('the projection payload never carries the stated dose', () => {
     ...profile,
     enhancement: {
       status: 'trt' as const,
-      testosterone_mg_per_week: 137,
+      testosterone_mg_per_dose: 137,
       ester: 'cypionate' as const,
     },
   };

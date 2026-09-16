@@ -4,7 +4,10 @@ import { MUSCLE_GROUPS } from "../../constants/exerciseTaxonomy.ts";
 import {
   ENHANCEMENT_STATUSES,
   MAX_PRIORITY_MUSCLE_GROUPS,
+  MAX_DOSE_INTERVAL_WEEKS,
+  MAX_TESTOSTERONE_MG_PER_DOSE,
   MAX_TESTOSTERONE_MG_PER_WEEK,
+  MIN_DOSE_INTERVAL_WEEKS,
   PHYSIQUE_TARGETS,
   PRIMARY_GOALS,
   TESTOSTERONE_ESTERS,
@@ -91,14 +94,25 @@ export const priorityMuscleGroupsSchema = z
  * Dose and ester are rejected for `status: 'natural'` rather than ignored: a
  * payload that states both is a client bug, and silently dropping half of it
  * would leave the user looking at an answer they did not give.
+ *
+ * The dose is an amount plus an interval, not a weekly average, so that what
+ * comes back out of the questionnaire is what the user typed into it — see
+ * `coachProfileEnhancementSchema`. The per-dose ceiling is therefore higher
+ * than the weekly one; the weekly figure the two imply is bounded by the
+ * refinement below, which is the check that actually catches a typo.
  */
 const coachEnhancementShape = z
   .object({
     status: z.enum(ENHANCEMENT_STATUSES),
-    testosterone_mg_per_week: z
+    testosterone_mg_per_dose: z
       .number()
       .min(0)
-      .max(MAX_TESTOSTERONE_MG_PER_WEEK)
+      .max(MAX_TESTOSTERONE_MG_PER_DOSE)
+      .optional(),
+    dose_interval_weeks: z
+      .number()
+      .min(MIN_DOSE_INTERVAL_WEEKS)
+      .max(MAX_DOSE_INTERVAL_WEEKS)
       .optional(),
     ester: z.enum(TESTOSTERONE_ESTERS).optional(),
   })
@@ -113,15 +127,44 @@ const coachEnhancementShape = z
  * it. Validating what a client sends is the right place to be strict; reporting
  * what is stored is the right place to be faithful.
  */
-export const coachEnhancementSchema = coachEnhancementShape.refine(
-  (value) =>
-    value.status !== "natural" ||
-    (value.testosterone_mg_per_week === undefined && value.ester === undefined),
-  {
-    message:
-      "A natural status carries no dose or ester; omit them or state a different status",
-  },
-);
+export const coachEnhancementSchema = coachEnhancementShape
+  .refine(
+    (value) =>
+      value.status !== "natural" ||
+      (value.testosterone_mg_per_dose === undefined &&
+        value.dose_interval_weeks === undefined &&
+        value.ester === undefined),
+    {
+      message:
+        "A natural status carries no dose or ester; omit them or state a different status",
+    },
+  )
+  // An interval on its own says nothing: "every 10 weeks" without an amount is
+  // not a dose, and storing it would make the questionnaire reopen on a field
+  // the projection cannot use.
+  .refine(
+    (value) =>
+      value.dose_interval_weeks === undefined ||
+      value.testosterone_mg_per_dose !== undefined,
+    {
+      message: "State a dose alongside the interval between doses",
+    },
+  )
+  // The bound that catches a fat-fingered entry. It is on the weekly figure
+  // rather than on the per-dose field because that is the number the
+  // projection reads, and 1000 mg is an ordinary dose at a 10-week interval
+  // and an implausible one at a weekly interval.
+  .refine(
+    (value) => {
+      const dose = value.testosterone_mg_per_dose;
+      if (dose === undefined) return true;
+      const weeks = value.dose_interval_weeks ?? 1;
+      return dose / weeks <= MAX_TESTOSTERONE_MG_PER_WEEK;
+    },
+    {
+      message: `That dose and interval work out above ${MAX_TESTOSTERONE_MG_PER_WEEK} mg per week`,
+    },
+  );
 
 // --- Response contracts ---
 
