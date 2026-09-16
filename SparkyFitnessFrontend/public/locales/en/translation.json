@@ -1280,7 +1280,8 @@
       "pull": "Back, lats, traps, biceps, forearms",
       "legs": "Quads, hamstrings, glutes, calves",
       "core": "Abdominals"
-    }
+    },
+    "clearError": "Could not switch back to your plan’s targets."
   },
   "muscleRecovery": {
     "cardTitle": "Recovery",
@@ -5128,5 +5129,93 @@
     "garage-crossfit": "Garage / CrossFit",
     "hotel-gym": "Hotel gym",
     "bodyweight-only": "Bodyweight only"
+  },
+  "trainingPlan": {
+    "cardTitle": "Training plan",
+    "cardDescription": "What you are training for, and what the weekly targets are built from.",
+    "unanswered": "Not set yet — your targets are a default based on how often you train.",
+    "setUpRow": "Set up your training plan",
+    "editPlan": "Edit plan",
+    "savePlan": "Save my plan",
+    "saved": "Training plan saved.",
+    "saveError": "Failed to save your training plan.",
+    "unset": "Not set",
+    "goalLabel": "What are you training for?",
+    "physiqueLabel": "What are you building toward?",
+    "experienceLabel": "How long have you trained?",
+    "daysPerWeek": "Training days a week",
+    "daysSummary_one": "{{count}} day a week",
+    "daysSummary_other": "{{count}} days a week",
+    "sessionMinutes": "Minutes a session",
+    "priorityLabel": "Anything to prioritise?",
+    "priorityHint": "Up to two. A priority group takes volume from the others, so past two nothing is prioritised.",
+    "limitationsLabel": "Anything to work around?",
+    "limitationsNotePlaceholder": "Anything else, separated by commas",
+    "notesLabel": "Anything else worth knowing?",
+    "notesPlaceholder": "A race you are training for, a lift you want back, anything the plan should account for.",
+    "enhancementLabel": "Are you on testosterone?",
+    "enhancementHint": "Only used to estimate what your training can add. It is never sent to the AI coach.",
+    "doseLabel": "Milligrams per injection",
+    "esterLabel": "Ester",
+    "intervalLabel": "How often?",
+    "everyWeeks_one": "Every week",
+    "everyWeeks_other": "Every {{count}} weeks",
+    "derivedTitle": "Your weekly set targets",
+    "setsPerWeek_one": "{{count}} set / week",
+    "setsPerWeek_other": "{{count}} sets / week",
+    "replaceTargetsTitle": "Use the plan’s set targets?",
+    "replaceTargetsMessage": "You have set weekly set targets by hand. They will keep overriding this plan unless you replace them.",
+    "usePlanTargets": "Use the plan",
+    "keepMyTargets": "Keep mine",
+    "goal": {
+      "buildMuscle": "Build muscle",
+      "loseFat": "Lose fat",
+      "recomp": "Build muscle and lose fat",
+      "strength": "Get stronger",
+      "generalFitness": "General fitness"
+    },
+    "physique": {
+      "lean": "Lean",
+      "athletic": "Athletic",
+      "muscular": "Muscular",
+      "powerful": "Powerful",
+      "maintain": "Keep what I have"
+    },
+    "experience": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "expert": "Expert"
+    },
+    "enhancement": {
+      "natural": "Natural",
+      "trt": "On TRT",
+      "enhanced": "Above replacement"
+    },
+    "ester": {
+      "enanthate": "Enanthate",
+      "cypionate": "Cypionate",
+      "propionate": "Propionate",
+      "undecanoate": "Undecanoate",
+      "other": "Something else"
+    },
+    "limitation": {
+      "shoulder": "Shoulder pain",
+      "knee": "Knee pain",
+      "lowerBack": "Lower back pain",
+      "wrist": "Wrist pain",
+      "noOverhead": "No overhead pressing"
+    }
+  },
+  "muscleGainProjection": {
+    "cardTitle": "What your plan could add",
+    "twelveWeeks": "12 weeks",
+    "oneYear": "1 year",
+    "range": "+{{low}}–{{high}} {{unit}} of lean mass",
+    "leanMass": "Lean mass, not scale weight — in a deficit you can gain all of it and weigh less.",
+    "noHistory": "Assumes you hit every target, because there is nothing logged yet to measure against.",
+    "adherence": "At the {{percent}}% of your targets you have been hitting.",
+    "yearCaveat": "A year is an extrapolation — the trials behind this ran about twelve weeks, and nobody trains a year without a break.",
+    "estimate": "An estimate from published trials, not a promise.",
+    "loadError": "Failed to load your projection."
   }
 }

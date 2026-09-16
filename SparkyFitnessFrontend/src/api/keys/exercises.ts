@@ -55,6 +55,14 @@ export const coachProfileKeys = {
   current: () => [...coachProfileKeys.all, 'current'] as const,
 };
 
+// One entry per horizon, because the server answers a different question for
+// each: the projection over a year is not the twelve-week one scaled up.
+export const muscleGainProjectionKeys = {
+  all: ['muscleGainProjection'] as const,
+  horizon: (weeks: number) =>
+    [...muscleGainProjectionKeys.all, { weeks }] as const,
+};
+
 // Scoped by acting user, unlike the two keys above: recovery is derived from
 // logged exercise entries and rides the `diary` permission, so a delegate reads
 // a different account's vector and the two must not share a cache entry.

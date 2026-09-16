@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
+  clearWeeklySetTargets,
   getWeeklySetTargets,
   updateWeeklySetTargets,
   type WeeklySetTargetsMap,
@@ -102,6 +103,36 @@ export const useUpdateWeeklySetTargetsMutation = (
       errorMessage: t(
         'weeklySetTargets.saveError',
         'Could not save your targets.'
+      ),
+    },
+  });
+};
+
+/**
+ * Puts every group back on the derived plan.
+ *
+ * No overlap guard, unlike the save above: this takes no arguments, so two
+ * clears cannot disagree about what they stored, and the response is the whole
+ * recomputed week either way.
+ */
+export const useClearWeeklySetTargetsMutation = (
+  historyWeeks: number = WEEKLY_SET_HISTORY_WEEKS
+) => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: () => clearWeeklySetTargets(historyWeeks),
+    onSuccess: (response) => {
+      queryClient.setQueryData(
+        weeklySetTargetKeys.week(historyWeeks),
+        response
+      );
+    },
+    meta: {
+      errorMessage: t(
+        'weeklySetTargets.clearError',
+        'Could not switch back to your plan\u2019s targets.'
       ),
     },
   });

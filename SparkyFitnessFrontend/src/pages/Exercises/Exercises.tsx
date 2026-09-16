@@ -41,7 +41,9 @@ import WorkoutPresetsManager from './WorkoutPresetsManager';
 import WorkoutPlansManager from '@/pages/Exercises/WorkoutPlansManager';
 import GymProfilesManager from '@/pages/Exercises/GymProfilesManager';
 import UpNextCard from '@/pages/Exercises/UpNextCard';
+import TrainingPlanCard from '@/pages/Exercises/TrainingPlanCard';
 import WeeklySetTargetsCard from '@/pages/Exercises/WeeklySetTargetsCard';
+import MuscleGainProjectionCard from '@/pages/Exercises/MuscleGainProjectionCard';
 import MuscleRecoveryCard from '@/pages/Exercises/MuscleRecoveryCard';
 import ExerciseDayCard from '@/pages/Exercises/ExerciseDayCard';
 import {
@@ -428,7 +430,17 @@ const ExerciseDatabaseManager = () => {
           the two readings that explain why Up Next programmed what it did.
           Targets are owner-only; recovery only needs diary access, so the two
           gate themselves differently. */}
+      {/* What the targets below are built from. Above them because it is the
+          answer to "why these numbers", and because the offer to state a plan
+          is worth more than the default it replaces. */}
+      <TrainingPlanCard />
+
       <WeeklySetTargetsCard />
+
+      {/* What hitting those targets is worth. Hides itself without an answered
+          plan or a weigh-in to estimate from. */}
+      <MuscleGainProjectionCard />
+
       <MuscleRecoveryCard />
 
       {/* What has actually been done, on this page's own day. Moved off the

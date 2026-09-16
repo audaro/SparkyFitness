@@ -45,3 +45,22 @@ export const updateWeeklySetTargets = async (
     body: JSON.stringify({ targets }),
   });
 };
+
+/**
+ * Drops every hand-set target so the groups derive from the training plan
+ * again, and returns the recomputed week.
+ *
+ * A `PUT` cannot express this: the server merges a partial map, a jsonb merge
+ * cannot remove a key, and a target of 0 means "not training this group right
+ * now" rather than "work it out for me". Without this verb, setting one target
+ * by hand is a one-way door out of the derived plan — which is what makes a
+ * re-plan invisible in the ring.
+ */
+export const clearWeeklySetTargets = async (
+  historyWeeks: number
+): Promise<WeeklySetTargets> => {
+  return apiCall('/weekly-set-targets', {
+    method: 'DELETE',
+    params: { history_weeks: historyWeeks },
+  });
+};
