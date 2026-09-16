@@ -1,5 +1,11 @@
 import { getClient } from '../db/poolManager.js';
-import type { CoachProfileAlias } from '@workspace/shared';
+import type {
+  CoachProfileAlias,
+  CoachProfileEnhancement,
+  MuscleGroup,
+  PhysiqueTarget,
+  PrimaryGoal,
+} from '@workspace/shared';
 
 export interface CoachProfileRow {
   id: string;
@@ -8,6 +14,13 @@ export interface CoachProfileRow {
   training_days_per_week: number | null;
   session_minutes: number | null;
   experience_level: string | null;
+  primary_goal: PrimaryGoal | null;
+  physique_target: PhysiqueTarget | null;
+  priority_muscle_groups: MuscleGroup[] | null;
+  // SENSITIVE — never include this in anything sent to the chat model. See the
+  // migration that adds the column, and the renderer tests that assert it.
+  enhancement: CoachProfileEnhancement | null;
+  plan_completed_at: Date | null;
   equipment: string[];
   limitations: string[];
   food_preferences: Record<string, unknown>;
@@ -26,6 +39,11 @@ export interface CoachProfilePatch {
   training_days_per_week?: number | null;
   session_minutes?: number | null;
   experience_level?: string | null;
+  primary_goal?: PrimaryGoal | null;
+  physique_target?: PhysiqueTarget | null;
+  priority_muscle_groups?: MuscleGroup[] | null;
+  enhancement?: CoachProfileEnhancement | null;
+  plan_completed_at?: Date | string | null;
   equipment?: string[];
   limitations?: string[];
   food_preferences?: Record<string, unknown>;
@@ -34,7 +52,7 @@ export interface CoachProfilePatch {
 }
 
 const PROFILE_COLS =
-  'id, user_id, goals, training_days_per_week, session_minutes, experience_level, equipment, limitations, food_preferences, aliases, weekly_set_targets, created_at, updated_at';
+  'id, user_id, goals, training_days_per_week, session_minutes, experience_level, primary_goal, physique_target, priority_muscle_groups, enhancement, plan_completed_at, equipment, limitations, food_preferences, aliases, weekly_set_targets, created_at, updated_at';
 
 // Columns that hold jsonb. Their values must be serialized explicitly:
 // node-postgres renders a JS array parameter as a Postgres array literal,
@@ -45,13 +63,37 @@ const JSONB_COLS = new Set([
   'food_preferences',
   'aliases',
   'weekly_set_targets',
+  'priority_muscle_groups',
+  'enhancement',
 ]);
+
+/**
+ * Serialize a value bound for a jsonb column.
+ *
+ * The naive `JSON.stringify(value)` turns JS null into the string "null",
+ * which `::jsonb` stores as *jsonb null* — a value, distinct from SQL NULL. On
+ * the nullable columns here (`priority_muscle_groups`, `enhancement`) SQL NULL
+ * is what "not answered" means, so clearing an answer has to reach the column
+ * as a real NULL. Same fix, same reason, as `toJsonbParam` in
+ * gymEquipmentProfileRepository.
+ *
+ * The NOT NULL jsonb columns on this table never receive null, so routing them
+ * through here costs nothing and keeps one rule for the whole set.
+ */
+function toJsonbParam(value: unknown): string | null {
+  return value === null || value === undefined ? null : JSON.stringify(value);
+}
 
 const PATCHABLE_COLS = [
   'goals',
   'training_days_per_week',
   'session_minutes',
   'experience_level',
+  'primary_goal',
+  'physique_target',
+  'priority_muscle_groups',
+  'enhancement',
+  'plan_completed_at',
   'equipment',
   'limitations',
   'food_preferences',
@@ -88,7 +130,7 @@ async function upsertCoachProfile(
   }
   const values = keys.map((key) => {
     const value = (patch as Record<string, unknown>)[key];
-    return JSONB_COLS.has(key) ? JSON.stringify(value) : value;
+    return JSONB_COLS.has(key) ? toJsonbParam(value) : value;
   });
   const placeholders = keys.map(
     (key, i) => `$${i + 2}${JSONB_COLS.has(key) ? '::jsonb' : ''}`

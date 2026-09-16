@@ -110,6 +110,7 @@ export * from "./constants/equipmentItems.ts";
 export * from "./constants/equipmentIcons.ts";
 export * from "./constants/exercisedb.ts";
 export * from "./constants/experience.ts";
+export * from "./constants/trainingPlan.ts";
 export * from "./constants/onDemandWorkouts.ts";
 export * from "./constants/setTypes.ts";
 export * from "./constants/chatAskUser.ts";

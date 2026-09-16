@@ -38,6 +38,10 @@ export const VALID_ACTIONS = [
   'set_active_gym_profile',
 ];
 
+// The columns the chat may write. The training-plan questionnaire's answers
+// (primary_goal, physique_target, priority_muscle_groups, enhancement,
+// plan_completed_at) are deliberately absent: the questionnaire owns them, and
+// `enhancement` must never reach the model in either direction.
 const PROFILE_FIELDS = [
   'goals',
   'training_days_per_week',
@@ -49,6 +53,15 @@ const PROFILE_FIELDS = [
   'aliases',
 ] as const;
 
+/**
+ * The profile as the chat model sees it.
+ *
+ * Built field by field rather than by spreading the row, and that is load
+ * bearing: `coach_profiles.enhancement` holds sensitive health data, the chat
+ * provider is third-party, and a spread would ship it the moment someone added
+ * a column. `coachProfileTools.test.ts` asserts the omission so a future
+ * refactor to `{...profile}` fails a test rather than leaking quietly.
+ */
 export function renderCoachProfile(profile: CoachProfileRow): string {
   let text = '# Coach Profile\n\n';
   text += `- Goals: ${profile.goals ?? 'not set'}\n`;

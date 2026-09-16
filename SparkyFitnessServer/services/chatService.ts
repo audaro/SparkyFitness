@@ -510,7 +510,17 @@ export function buildEscalationPrepareStep(
 // prompt. Only stable, user-edited facts — never per-turn values (see the
 // prefix-caching invariant on getSystemPrompt). Alias targets are omitted;
 // the model reads ids via sparky_manage_coach_profile when it needs them.
-function buildCoachProfileSummary(profile: CoachProfileRow | null): string {
+/**
+ * The profile summary embedded in every coaching system prompt.
+ *
+ * Field by field on purpose, for the same reason as `renderCoachProfile`:
+ * `enhancement` is sensitive health data that must never reach a third-party
+ * model, and spreading the row would send it. `chatContextCoachProfile.test.ts`
+ * asserts it stays out.
+ */
+export function buildCoachProfileSummary(
+  profile: CoachProfileRow | null
+): string {
   if (!profile) return 'None';
   const lines: string[] = [];
   if (profile.goals) lines.push(`- Goals: ${profile.goals}`);

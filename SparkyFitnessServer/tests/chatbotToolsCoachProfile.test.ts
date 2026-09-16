@@ -44,6 +44,14 @@ const fullProfile = {
   training_days_per_week: 4,
   session_minutes: 60,
   experience_level: null,
+  // The questionnaire's columns. The chat tool neither reads nor writes them;
+  // `enhancement` in particular must never reach the model, which
+  // coachProfileEnhancementPrivacy.test.ts asserts against the rendered text.
+  primary_goal: null,
+  physique_target: null,
+  priority_muscle_groups: null,
+  enhancement: null,
+  plan_completed_at: null,
   equipment: ['dumbbells', 'resistance bands'],
   limitations: ['left knee pain'],
   food_preferences: { style: 'vegetarian' },

@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { EXPERIENCE_LEVELS } from "../../constants/experience.ts";
+import { MUSCLE_GROUPS } from "../../constants/exerciseTaxonomy.ts";
+import {
+  ENHANCEMENT_STATUSES,
+  PHYSIQUE_TARGETS,
+  PRIMARY_GOALS,
+  TESTOSTERONE_ESTERS,
+} from "../../constants/trainingPlan.ts";
 
 // Branded so a public.coach_profiles id cannot be passed where another
 // table's id belongs.
@@ -24,6 +31,22 @@ export const coachProfileAliasSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+/**
+ * Exogenous testosterone, behind the lean-mass projection.
+ *
+ * SENSITIVE: this value must never be sent to the chat model. It is stored so
+ * the projection can be computed on the server and rendered by the user's own
+ * app, and for no other reader.
+ *
+ * Dose and ester are optional because `status: 'natural'` has neither, and a
+ * user may state that they are on testosterone without stating how much.
+ */
+export const coachProfileEnhancementSchema = z.object({
+  status: z.enum(ENHANCEMENT_STATUSES),
+  testosterone_mg_per_week: z.number().nonnegative().optional(),
+  ester: z.enum(TESTOSTERONE_ESTERS).optional(),
+});
+
 const coachProfilesFieldsSchema = z.object({
   user_id: userIdSchema,
   goals: z.string().nullable(),
@@ -32,6 +55,16 @@ const coachProfilesFieldsSchema = z.object({
   // Self-stated training experience, in the exercises.level vocabulary so the
   // generator's exact-match level term can compare the two. Null = not stated.
   experience_level: z.enum(EXPERIENCE_LEVELS).nullable(),
+  // The training-plan questionnaire's structured answers. Null on every one
+  // means "not answered", under which generation and weekly set targets behave
+  // exactly as they did before these columns existed.
+  primary_goal: z.enum(PRIMARY_GOALS).nullable(),
+  physique_target: z.enum(PHYSIQUE_TARGETS).nullable(),
+  priority_muscle_groups: z.array(z.enum(MUSCLE_GROUPS)).nullable(),
+  enhancement: coachProfileEnhancementSchema.nullable(),
+  // Null is what makes the Exercise home offer to set a plan up. Not derivable
+  // from the other four: answering one question is not a finished plan.
+  plan_completed_at: z.date().nullable(),
   equipment: z.array(z.string()),
   limitations: z.array(z.string()),
   food_preferences: z.record(z.string(), z.unknown()),
@@ -61,6 +94,9 @@ export const coachProfilesMutatorSchema = coachProfilesFieldsSchema
   });
 
 export type CoachProfiles = z.infer<typeof coachProfilesSchema>;
+export type CoachProfileEnhancement = z.infer<
+  typeof coachProfileEnhancementSchema
+>;
 export type CoachProfileAlias = z.infer<typeof coachProfileAliasSchema>;
 export type CoachProfilesInitializer = z.infer<
   typeof coachProfilesInitializerSchema

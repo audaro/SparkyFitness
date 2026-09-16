@@ -42,6 +42,15 @@ const row = {
   training_days_per_week: 4,
   session_minutes: 60,
   experience_level: 'intermediate',
+  primary_goal: 'build_muscle',
+  physique_target: 'muscular',
+  priority_muscle_groups: ['push', 'pull'],
+  enhancement: {
+    status: 'trt',
+    testosterone_mg_per_week: 120,
+    ester: 'cypionate',
+  },
+  plan_completed_at: new Date('2026-09-15T10:00:00Z'),
   equipment: ['barbell'],
   limitations: ['left shoulder'],
   food_preferences: {},
@@ -75,6 +84,15 @@ describe('GET /coach-profile', () => {
       session_minutes: 60,
       experience_level: 'intermediate',
       limitations: ['left shoulder'],
+      primary_goal: 'build_muscle',
+      physique_target: 'muscular',
+      priority_muscle_groups: ['push', 'pull'],
+      enhancement: {
+        status: 'trt',
+        testosterone_mg_per_week: 120,
+        ester: 'cypionate',
+      },
+      plan_completed_at: '2026-09-15T10:00:00.000Z',
     });
   });
 
@@ -102,7 +120,118 @@ describe('GET /coach-profile', () => {
       session_minutes: null,
       experience_level: null,
       limitations: [],
+      primary_goal: null,
+      physique_target: null,
+      priority_muscle_groups: null,
+      enhancement: null,
+      plan_completed_at: null,
     });
+  });
+
+  // The owner's own client needs this to pre-fill the questionnaire. It is the
+  // chat model that must never see it, which the renderer tests cover.
+  it('returns the enhancement answer to the owner', async () => {
+    const res = await request(app).get('/coach-profile');
+    expect(res.body.enhancement).toEqual({
+      status: 'trt',
+      testosterone_mg_per_week: 120,
+      ester: 'cypionate',
+    });
+  });
+});
+
+describe('PATCH /coach-profile — training plan fields', () => {
+  it('accepts the questionnaire answers', async () => {
+    const res = await request(app)
+      .patch('/coach-profile')
+      .send({
+        primary_goal: 'recomp',
+        physique_target: 'athletic',
+        priority_muscle_groups: ['legs'],
+        enhancement: { status: 'natural' },
+        plan_completed_at: '2026-09-15T10:00:00.000Z',
+      });
+    expect(res.status).toBe(200);
+    expect(coachProfileRepository.upsertCoachProfile).toHaveBeenCalledWith(
+      'owner-1',
+      {
+        primary_goal: 'recomp',
+        physique_target: 'athletic',
+        priority_muscle_groups: ['legs'],
+        enhancement: { status: 'natural' },
+        plan_completed_at: '2026-09-15T10:00:00.000Z',
+      }
+    );
+  });
+
+  // Null clears an answer back to "not answered". For the priority list that is
+  // a different statement from `[]`, which means "I prioritise nothing".
+  it('distinguishes clearing priorities from prioritising nothing', async () => {
+    await request(app)
+      .patch('/coach-profile')
+      .send({ priority_muscle_groups: null });
+    expect(coachProfileRepository.upsertCoachProfile).toHaveBeenCalledWith(
+      'owner-1',
+      { priority_muscle_groups: null }
+    );
+    await request(app)
+      .patch('/coach-profile')
+      .send({ priority_muscle_groups: [] });
+    expect(coachProfileRepository.upsertCoachProfile).toHaveBeenLastCalledWith(
+      'owner-1',
+      { priority_muscle_groups: [] }
+    );
+  });
+
+  it('rejects a goal outside the vocabulary', async () => {
+    const res = await request(app)
+      .patch('/coach-profile')
+      .send({ primary_goal: 'bulking' });
+    expect(res.status).toBe(400);
+    expect(coachProfileRepository.upsertCoachProfile).not.toHaveBeenCalled();
+  });
+
+  // Past two, each priority stops taking meaningful share from the others and
+  // the plan no longer differs from an even split.
+  it('rejects more than two priority groups', async () => {
+    const res = await request(app)
+      .patch('/coach-profile')
+      .send({ priority_muscle_groups: ['push', 'pull', 'legs'] });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a repeated priority group', async () => {
+    const res = await request(app)
+      .patch('/coach-profile')
+      .send({ priority_muscle_groups: ['push', 'push'] });
+    expect(res.status).toBe(400);
+  });
+
+  // Stating a dose alongside 'natural' is a client bug. Dropping half the
+  // payload silently would leave the user reading an answer they never gave.
+  it('rejects a dose stated alongside a natural status', async () => {
+    const res = await request(app)
+      .patch('/coach-profile')
+      .send({
+        enhancement: { status: 'natural', testosterone_mg_per_week: 200 },
+      });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an out-of-range dose', async () => {
+    const res = await request(app)
+      .patch('/coach-profile')
+      .send({
+        enhancement: { status: 'enhanced', testosterone_mg_per_week: 99999 },
+      });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an unknown key inside enhancement', async () => {
+    const res = await request(app)
+      .patch('/coach-profile')
+      .send({ enhancement: { status: 'trt', compound: 'something else' } });
+    expect(res.status).toBe(400);
   });
 });
 

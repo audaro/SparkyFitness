@@ -55,6 +55,19 @@ function toResponse(row: CoachProfileRow | null): CoachProfileResponse {
     session_minutes: row?.session_minutes ?? null,
     experience_level: row?.experience_level ?? null,
     limitations: row?.limitations ?? [],
+    primary_goal: row?.primary_goal ?? null,
+    physique_target: row?.physique_target ?? null,
+    priority_muscle_groups: row?.priority_muscle_groups ?? null,
+    // Returned to the owner's own client, which needs it to pre-fill the
+    // questionnaire. Owner-only by RLS, and deliberately absent from both
+    // chat-model surfaces — see buildCoachProfileSummary and
+    // renderCoachProfile.
+    enhancement: row?.enhancement ?? null,
+    // The column is TIMESTAMPTZ; the contract is an ISO instant, so the client
+    // never has to guess how a Date was serialized.
+    plan_completed_at: row?.plan_completed_at
+      ? row.plan_completed_at.toISOString()
+      : null,
   });
 }
 
