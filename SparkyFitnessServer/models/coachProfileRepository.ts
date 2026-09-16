@@ -2,6 +2,7 @@ import { getClient } from '../db/poolManager.js';
 import type {
   CoachProfileAlias,
   CoachProfileEnhancement,
+  ExperienceLevel,
   MuscleGroup,
   PhysiqueTarget,
   PrimaryGoal,
@@ -13,7 +14,7 @@ export interface CoachProfileRow {
   goals: string | null;
   training_days_per_week: number | null;
   session_minutes: number | null;
-  experience_level: string | null;
+  experience_level: ExperienceLevel | null;
   primary_goal: PrimaryGoal | null;
   physique_target: PhysiqueTarget | null;
   priority_muscle_groups: MuscleGroup[] | null;
@@ -38,7 +39,7 @@ export interface CoachProfilePatch {
   goals?: string | null;
   training_days_per_week?: number | null;
   session_minutes?: number | null;
-  experience_level?: string | null;
+  experience_level?: ExperienceLevel | null;
   primary_goal?: PrimaryGoal | null;
   physique_target?: PhysiqueTarget | null;
   priority_muscle_groups?: MuscleGroup[] | null;

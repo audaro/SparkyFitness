@@ -3,6 +3,12 @@ import {
   muscleGroupOf,
   type MuscleGroup,
 } from "../constants/exerciseTaxonomy.ts";
+import type { ExperienceLevel } from "../constants/experience.ts";
+import {
+  MAX_PRIORITY_MUSCLE_GROUPS,
+  type PhysiqueTarget,
+  type PrimaryGoal,
+} from "../constants/trainingPlan.ts";
 import { addDays, dayOfWeek, isDayString } from "./timezone.ts";
 
 /**
@@ -64,16 +70,74 @@ export const WEEKLY_SET_TUNABLES = {
    */
   secondaryWeight: 0.5,
   /**
-   * Sets per training day used to derive a target for someone who has not set
-   * one. Push/pull/legs get a full share; core is programmed lighter almost
-   * everywhere, and a default that demands otherwise reads as broken.
+   * Weekly working sets per group at {@link referenceTrainingDaysPerWeek},
+   * before any goal, physique or priority adjustment.
+   *
+   * The dose-response meta-analyses (Schoenfeld 2017; Baz-Valle 2022) put ~10
+   * sets per muscle per week at the floor for growth and 15-20 at a productive
+   * ceiling for trained lifters, so experience sets the row rather than
+   * nudging a flat number. Core is programmed lighter almost everywhere, and a
+   * default that demands otherwise reads as broken.
+   *
+   * The intermediate row is 3.5 sets per group per training day and core 1.5,
+   * which is exactly what this module derived before it read the profile at
+   * all. That is deliberate: an unanswered profile has to keep deriving the
+   * targets it derives today, so the only thing that moves a user's ring is
+   * the user answering a question.
    */
-  defaultSetsPerTrainingDay: {
-    push: 3.5,
-    pull: 3.5,
-    legs: 3.5,
-    core: 1.5,
-  } as Readonly<Record<MuscleGroup, number>>,
+  baseWeeklySetsByExperience: {
+    beginner: { push: 10, pull: 10, legs: 10, core: 4 },
+    intermediate: { push: 14, pull: 14, legs: 14, core: 6 },
+    expert: { push: 18, pull: 18, legs: 18, core: 6 },
+  } as Readonly<Record<ExperienceLevel, Readonly<Record<MuscleGroup, number>>>>,
+  /**
+   * Experience assumed when the profile does not say.
+   *
+   * The middle row, not the bottom one. "Not stated" is an unknown, and the
+   * honest estimate of an unknown is the middle of the range; treating it as
+   * "beginner" would also quietly cut the targets of every user who has had a
+   * ring since before this field existed.
+   */
+  defaultExperienceLevel: "intermediate" as ExperienceLevel,
+  /** The training frequency {@link baseWeeklySetsByExperience} is stated at. */
+  referenceTrainingDaysPerWeek: 4,
+  /**
+   * Frequency is clamped to this range before it scales the base row.
+   *
+   * Volume does not track sessions linearly at either end: one session a week
+   * still carries real weekly volume, and a seventh session is recovery
+   * spread thinner rather than 75% more work than four.
+   */
+  minScalingDays: 2,
+  maxScalingDays: 6,
+  /**
+   * Per-group multipliers for what the user is training for.
+   *
+   * `strength` trains heavier for fewer total sets; `lose_fat` pulls overall
+   * volume back to what is recoverable in a deficit while leaning on core
+   * work that stays productive there; `general_fitness` is a lighter
+   * commitment by definition. `build_muscle` and `recomp` are the reference.
+   */
+  goalMultipliers: {
+    build_muscle: { push: 1, pull: 1, legs: 1, core: 1 },
+    recomp: { push: 1, pull: 1, legs: 1, core: 1 },
+    lose_fat: { push: 0.9, pull: 0.9, legs: 0.9, core: 1.17 },
+    strength: { push: 0.8, pull: 0.8, legs: 0.8, core: 0.8 },
+    general_fitness: { push: 0.85, pull: 0.85, legs: 0.85, core: 0.85 },
+  } as Readonly<Record<PrimaryGoal, Readonly<Record<MuscleGroup, number>>>>,
+  /**
+   * Per-group multipliers for the shape being trained toward. Small on
+   * purpose: physique biases a plan, it does not replace the goal.
+   */
+  physiqueMultipliers: {
+    lean: { push: 1, pull: 1, legs: 1, core: 1.3 },
+    athletic: { push: 1, pull: 1, legs: 1, core: 1 },
+    muscular: { push: 1.1, pull: 1.1, legs: 1, core: 1 },
+    powerful: { push: 1, pull: 1.15, legs: 1.15, core: 1 },
+    maintain: { push: 1, pull: 1, legs: 1, core: 1 },
+  } as Readonly<Record<PhysiqueTarget, Readonly<Record<MuscleGroup, number>>>>,
+  /** Applied to each group the user named as a priority, at most two of them. */
+  priorityMultiplier: 1.2,
   /** Assumed when the coach profile does not say. */
   defaultTrainingDaysPerWeek: 3,
   /** Derived defaults are clamped here. Hand-set targets are not. */
@@ -166,20 +230,116 @@ export function computeGroupSetCounts(
 }
 
 /**
- * A starting target for someone who has not set one, scaled by how often they
- * train. Deliberately modest: a target that is unreachable in week one teaches
- * the user to ignore the screen.
+ * The training-plan answers that shape a derived target. Every field is
+ * optional and null-tolerant because every one of them is a column the user
+ * may simply not have answered, and an unanswered plan still has to produce a
+ * sensible week.
+ */
+export interface WeeklySetTargetInput {
+  /** `coach_profiles.training_days_per_week`. */
+  trainingDaysPerWeek?: number | null;
+  /** `coach_profiles.primary_goal`. */
+  primaryGoal?: PrimaryGoal | null;
+  /** `coach_profiles.physique_target`. */
+  physiqueTarget?: PhysiqueTarget | null;
+  /** `coach_profiles.experience_level`. */
+  experienceLevel?: ExperienceLevel | null;
+  /** `coach_profiles.priority_muscle_groups`. */
+  priorityGroups?: readonly MuscleGroup[] | null;
+}
+
+/**
+ * Look a key up in a tunables table, falling back when it is absent.
+ *
+ * None of these columns carries a CHECK constraint — the vocabularies are
+ * enforced by Zod at the write paths — so a row written before an enum existed,
+ * or by a future version, can hold a token this table has no row for. Indexing
+ * it blindly would yield `undefined` and turn every target into `NaN`, which
+ * renders as an empty ring rather than as an error anyone would notice.
+ */
+function fromTable<K extends string, V>(
+  table: Readonly<Record<K, V>>,
+  key: string | null | undefined,
+  fallback: V,
+): V {
+  if (key == null) return fallback;
+  return Object.prototype.hasOwnProperty.call(table, key)
+    ? table[key as K]
+    : fallback;
+}
+
+/**
+ * A starting target for someone who has not set one, from whatever the
+ * training plan states.
+ *
+ * The shape is: an experience-scaled base row, scaled by training frequency,
+ * then multiplied by the goal, the physique target and any priority groups.
+ * Every factor is a multiplier on the same base rather than its own additive
+ * rule, which is what keeps them composable — a `strength` goal and a
+ * `powerful` physique pull in opposite directions on legs and the result is
+ * still a number, not a special case.
+ *
+ * Rounding happens **once**, at the end. Rounding between factors would let a
+ * 1.1 multiplier move a target by 2 sets, and would make the order the factors
+ * are applied in observable.
+ *
+ * Deliberately modest overall: a target that is unreachable in week one
+ * teaches the user to ignore the screen.
  */
 export function deriveDefaultWeeklySetTargets(
-  trainingDaysPerWeek: number | null | undefined,
+  input: WeeklySetTargetInput = {},
 ): Record<MuscleGroup, number> {
+  const stated = input.trainingDaysPerWeek;
   const days =
-    typeof trainingDaysPerWeek === "number" && trainingDaysPerWeek > 0
-      ? Math.min(trainingDaysPerWeek, 7)
+    typeof stated === "number" && Number.isFinite(stated) && stated > 0
+      ? stated
       : WEEKLY_SET_TUNABLES.defaultTrainingDaysPerWeek;
+  const scalingDays = Math.min(
+    WEEKLY_SET_TUNABLES.maxScalingDays,
+    Math.max(WEEKLY_SET_TUNABLES.minScalingDays, days),
+  );
+  const frequencyScale =
+    scalingDays / WEEKLY_SET_TUNABLES.referenceTrainingDaysPerWeek;
+
+  const base = fromTable(
+    WEEKLY_SET_TUNABLES.baseWeeklySetsByExperience,
+    input.experienceLevel,
+    WEEKLY_SET_TUNABLES.baseWeeklySetsByExperience[
+      WEEKLY_SET_TUNABLES.defaultExperienceLevel
+    ],
+  );
+  const neutral: Readonly<Record<MuscleGroup, number>> = {
+    push: 1,
+    pull: 1,
+    legs: 1,
+    core: 1,
+  };
+  const goal = fromTable(
+    WEEKLY_SET_TUNABLES.goalMultipliers,
+    input.primaryGoal,
+    neutral,
+  );
+  const physique = fromTable(
+    WEEKLY_SET_TUNABLES.physiqueMultipliers,
+    input.physiqueTarget,
+    neutral,
+  );
+
+  // Deduped before the cap so ["push", "push", "legs"] prioritises push and
+  // legs rather than spending both slots on push, and capped here rather than
+  // trusted from the caller: the contract enforces the limit at the write
+  // path, but a row stored before the limit existed must not multiply every
+  // group by 1.2.
+  const priorities = new Set<MuscleGroup>();
+  for (const group of input.priorityGroups ?? []) {
+    if (priorities.size >= MAX_PRIORITY_MUSCLE_GROUPS) break;
+    if (MUSCLE_GROUPS.includes(group)) priorities.add(group);
+  }
+
   const targets = emptyCounts();
   for (const group of MUSCLE_GROUPS) {
-    const raw = WEEKLY_SET_TUNABLES.defaultSetsPerTrainingDay[group] * days;
+    let raw = base[group] * frequencyScale * goal[group] * physique[group];
+    if (priorities.has(group)) raw *= WEEKLY_SET_TUNABLES.priorityMultiplier;
     targets[group] = Math.min(
       WEEKLY_SET_TUNABLES.maxDerivedTarget,
       Math.max(WEEKLY_SET_TUNABLES.minDerivedTarget, Math.round(raw)),

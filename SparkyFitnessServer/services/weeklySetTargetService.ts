@@ -25,6 +25,12 @@ export const MAX_HISTORY_WEEKS = 12;
  * group rather than used wholesale. `targetsAreCustom` reports whether the user
  * set *anything*, because the client labels a derived number differently from
  * one the user committed to.
+ *
+ * The merge direction is what makes the training plan safe to re-derive: a
+ * group the user set by hand still wins over whatever the plan would suggest,
+ * so answering the questionnaire cannot silently overwrite a number someone
+ * chose deliberately. The questionnaire clears those overrides explicitly, with
+ * a confirmation, rather than having this function ignore them.
  */
 async function resolveTargets(userId: string): Promise<{
   targets: Record<MuscleGroup, number>;
@@ -32,9 +38,13 @@ async function resolveTargets(userId: string): Promise<{
 }> {
   const profile = await coachProfileRepository.getCoachProfile(userId);
   const stored = profile?.weekly_set_targets ?? {};
-  const defaults = deriveDefaultWeeklySetTargets(
-    profile?.training_days_per_week ?? null
-  );
+  const defaults = deriveDefaultWeeklySetTargets({
+    trainingDaysPerWeek: profile?.training_days_per_week ?? null,
+    primaryGoal: profile?.primary_goal ?? null,
+    physiqueTarget: profile?.physique_target ?? null,
+    experienceLevel: profile?.experience_level ?? null,
+    priorityGroups: profile?.priority_muscle_groups ?? null,
+  });
   const targets = { ...defaults };
   let targetsAreCustom = false;
   for (const group of MUSCLE_GROUPS) {

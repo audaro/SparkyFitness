@@ -10,6 +10,8 @@ import {
   summarizeWeeklySetTargets,
   weekEndFor,
   weekStartFor,
+  WEEKLY_SET_TUNABLES,
+  type MuscleGroup,
   type WeeklySetEntry,
 } from '@workspace/shared';
 
@@ -166,23 +168,230 @@ describe('summarizeWeeklySetTargets', () => {
 
 describe('deriveDefaultWeeklySetTargets', () => {
   it('scales with training days', () => {
-    const three = deriveDefaultWeeklySetTargets(3);
-    const five = deriveDefaultWeeklySetTargets(5);
+    const three = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 3 });
+    const five = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 5 });
     expect(five.push).toBeGreaterThan(three.push);
     expect(three.core).toBeLessThan(three.push);
   });
 
   it('falls back to a sane default when the profile says nothing', () => {
-    expect(deriveDefaultWeeklySetTargets(null)).toEqual(
-      deriveDefaultWeeklySetTargets(3)
+    expect(deriveDefaultWeeklySetTargets()).toEqual(
+      deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 3 })
     );
+    expect(
+      deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: null })
+    ).toEqual(deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 3 }));
   });
 
   it('clamps an implausible training frequency', () => {
-    const targets = deriveDefaultWeeklySetTargets(400);
+    const targets = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 400,
+    });
     for (const group of MUSCLE_GROUPS) {
       expect(targets[group]).toBeLessThanOrEqual(30);
       expect(targets[group]).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  /**
+   * The contract that lets this ship without moving anyone's ring: a profile
+   * that answers none of the plan questions must derive exactly what the flat
+   * 3.5-sets-per-training-day rule derived before the plan existed. The
+   * intermediate base row is calibrated for it (14 / 4 = 3.5, 6 / 4 = 1.5).
+   */
+  it('reproduces the pre-plan numbers for an unanswered profile', () => {
+    for (let days = 2; days <= 6; days += 1) {
+      const targets = deriveDefaultWeeklySetTargets({
+        trainingDaysPerWeek: days,
+      });
+      const legacy: Record<MuscleGroup, number> = {
+        push: Math.round(3.5 * days),
+        pull: Math.round(3.5 * days),
+        legs: Math.round(3.5 * days),
+        core: Math.max(4, Math.round(1.5 * days)),
+      };
+      expect(targets).toEqual(legacy);
+    }
+  });
+
+  it('treats an unstated experience level as intermediate, not beginner', () => {
+    const unstated = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4 });
+    expect(unstated).toEqual(
+      deriveDefaultWeeklySetTargets({
+        trainingDaysPerWeek: 4,
+        experienceLevel: 'intermediate',
+      })
+    );
+    const beginner = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      experienceLevel: 'beginner',
+    });
+    expect(beginner.push).toBeLessThan(unstated.push);
+  });
+
+  it('raises volume with experience', () => {
+    const at = (experienceLevel: 'beginner' | 'intermediate' | 'expert') =>
+      deriveDefaultWeeklySetTargets({
+        trainingDaysPerWeek: 4,
+        experienceLevel,
+      });
+    expect(at('beginner').push).toBe(10);
+    expect(at('intermediate').push).toBe(14);
+    expect(at('expert').push).toBe(18);
+    // Core does not climb with the pressing volume; the expert and
+    // intermediate rows share it deliberately.
+    expect(at('expert').core).toBe(at('intermediate').core);
+  });
+
+  it('pulls total volume back for a strength goal', () => {
+    const base = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4 });
+    const strength = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      primaryGoal: 'strength',
+    });
+    for (const group of MUSCLE_GROUPS) {
+      expect(strength[group]).toBeLessThanOrEqual(base[group]);
+    }
+    expect(strength.push).toBeLessThan(base.push);
+  });
+
+  it('trims limbs but not core when the goal is fat loss', () => {
+    const base = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4 });
+    const cutting = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      primaryGoal: 'lose_fat',
+    });
+    expect(cutting.push).toBeLessThan(base.push);
+    expect(cutting.core).toBeGreaterThan(base.core);
+  });
+
+  it('leaves build_muscle and recomp on the reference numbers', () => {
+    const base = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4 });
+    for (const primaryGoal of ['build_muscle', 'recomp'] as const) {
+      expect(
+        deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4, primaryGoal })
+      ).toEqual(base);
+    }
+  });
+
+  it('biases the split by physique target', () => {
+    const base = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4 });
+    const lean = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      physiqueTarget: 'lean',
+    });
+    expect(lean.core).toBeGreaterThan(base.core);
+    expect(lean.push).toBe(base.push);
+
+    const muscular = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      physiqueTarget: 'muscular',
+    });
+    expect(muscular.push).toBeGreaterThan(base.push);
+    expect(muscular.legs).toBe(base.legs);
+
+    const powerful = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      physiqueTarget: 'powerful',
+    });
+    expect(powerful.legs).toBeGreaterThan(base.legs);
+    expect(powerful.push).toBe(base.push);
+  });
+
+  it('adds volume to priority groups only', () => {
+    const base = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4 });
+    const withPriority = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      priorityGroups: ['pull'],
+    });
+    expect(withPriority.pull).toBeGreaterThan(base.pull);
+    expect(withPriority.push).toBe(base.push);
+    expect(withPriority.legs).toBe(base.legs);
+    expect(withPriority.core).toBe(base.core);
+  });
+
+  // A row written before the two-group cap existed, or by a client that
+  // ignored it, must not end up prioritising everything — which is the same as
+  // prioritising nothing, at 20% more volume everywhere.
+  it('honours the priority cap however many groups are stored', () => {
+    const base = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4 });
+    const overCapped = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      priorityGroups: ['push', 'pull', 'legs', 'core'],
+    });
+    const raised = MUSCLE_GROUPS.filter(
+      (group) => overCapped[group] > base[group]
+    );
+    expect(raised).toHaveLength(2);
+  });
+
+  it('does not spend both priority slots on a repeated group', () => {
+    const targets = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      priorityGroups: ['push', 'push', 'legs'],
+    });
+    const base = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4 });
+    expect(targets.push).toBeGreaterThan(base.push);
+    expect(targets.legs).toBeGreaterThan(base.legs);
+    expect(targets.pull).toBe(base.pull);
+  });
+
+  /**
+   * Every factor multiplies the same base and rounding happens once, so the
+   * result cannot depend on the order they were applied in. Rounding between
+   * factors would let a 1.1 move a target by a full 2 sets.
+   */
+  it('rounds once, at the end', () => {
+    // intermediate 14 x (5/4) x 0.9 (lose_fat) x 1.1 (muscular) x 1.2
+    // (priority) = 20.79 -> 21. Rounding after each step would give
+    // 14 x 1.25 = 18 (17.5 rounds to 18), then 16, then 18, then 22.
+    const targets = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 5,
+      primaryGoal: 'lose_fat',
+      physiqueTarget: 'muscular',
+      priorityGroups: ['push'],
+    });
+    expect(targets.push).toBe(21);
+  });
+
+  it('clamps derived targets to the tunable floor and ceiling', () => {
+    const tiny = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 1,
+      experienceLevel: 'beginner',
+      primaryGoal: 'strength',
+    });
+    const huge = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 7,
+      experienceLevel: 'expert',
+      physiqueTarget: 'muscular',
+      priorityGroups: ['push', 'pull'],
+    });
+    for (const group of MUSCLE_GROUPS) {
+      expect(tiny[group]).toBeGreaterThanOrEqual(
+        WEEKLY_SET_TUNABLES.minDerivedTarget
+      );
+      expect(huge[group]).toBeLessThanOrEqual(
+        WEEKLY_SET_TUNABLES.maxDerivedTarget
+      );
+    }
+  });
+
+  // None of these columns carries a CHECK constraint, so a token this module
+  // has no row for is reachable from the database. It must degrade to the
+  // neutral factor, not to NaN — a NaN target renders as an empty ring rather
+  // than as anything anyone would report.
+  it('ignores vocabulary tokens it does not recognise', () => {
+    const base = deriveDefaultWeeklySetTargets({ trainingDaysPerWeek: 4 });
+    const unknown = deriveDefaultWeeklySetTargets({
+      trainingDaysPerWeek: 4,
+      experienceLevel: 'grandmaster' as never,
+      primaryGoal: 'become_a_bird' as never,
+      physiqueTarget: 'triangular' as never,
+      priorityGroups: ['neck' as never],
+    });
+    expect(unknown).toEqual(base);
+    for (const group of MUSCLE_GROUPS) {
+      expect(Number.isFinite(unknown[group])).toBe(true);
     }
   });
 });
