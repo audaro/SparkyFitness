@@ -171,6 +171,20 @@ describe.runIf(RUN)(
       }
     });
 
+    // The clear exists because a jsonb `||` cannot remove a key, so this is
+    // the only statement that puts a user back on the derived plan. A mocked
+    // repository would report success for a merge that stored `{}` as a value
+    // over the top of nothing.
+    it('clears every hand-set weekly target back to the derived plan', async () => {
+      await coachProfileRepository.mergeWeeklySetTargets(USER, {
+        legs: 20,
+        push: 16,
+      });
+      await coachProfileRepository.clearWeeklySetTargets(USER);
+      const row = await coachProfileRepository.getCoachProfile(USER);
+      expect(row?.weekly_set_targets).toEqual({});
+    });
+
     // An empty priority list is a real answer ("I prioritise nothing in
     // particular") and must survive as `[]` rather than collapsing to NULL.
     it('keeps an empty priority list distinct from a cleared one', async () => {

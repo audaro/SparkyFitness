@@ -154,10 +154,29 @@ async function updateWeeklySetTargets(
   return await getWeeklySetTargets(userId, historyWeeks);
 }
 
-export { getWeeklySetTargets, updateWeeklySetTargets };
+/**
+ * Drops every hand-set target and returns the recomputed screen, which now
+ * shows what the training plan derives.
+ *
+ * The questionnaire is the caller that needs this: answering it produces a new
+ * derived plan, and a target the user set by hand months ago would silently
+ * override it — the ring would keep showing the old number while every other
+ * surface moved. Offering to clear is the only way to make the two agree, and
+ * `mergeWeeklySetTargets` cannot express it.
+ */
+async function clearWeeklySetTargets(
+  userId: string,
+  historyWeeks: number
+): Promise<WeeklySetTargetsResponse> {
+  await coachProfileRepository.clearWeeklySetTargets(userId);
+  return await getWeeklySetTargets(userId, historyWeeks);
+}
+
+export { getWeeklySetTargets, updateWeeklySetTargets, clearWeeklySetTargets };
 
 export default {
   getWeeklySetTargets,
   updateWeeklySetTargets,
+  clearWeeklySetTargets,
   MAX_HISTORY_WEEKS,
 };

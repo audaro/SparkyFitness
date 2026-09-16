@@ -56,3 +56,23 @@ export const updateWeeklySetTargets = async (
     operation: 'update weekly set targets',
   });
 };
+
+/**
+ * Drops every hand-set target so the groups derive from the training plan
+ * again.
+ *
+ * A `PUT` cannot express this — it merges, and a target of 0 means "not
+ * training this group right now" rather than "work it out for me" — which is
+ * why the questionnaire needs its own verb to make a fresh plan actually take
+ * effect.
+ */
+export const clearWeeklySetTargets = async (
+  historyWeeks: number,
+): Promise<WeeklySetTargetsResponse> => {
+  return apiFetch<WeeklySetTargetsResponse>({
+    endpoint: `/api/weekly-set-targets?history_weeks=${historyWeeks}`,
+    method: 'DELETE',
+    serviceName: SERVICE_NAME,
+    operation: 'clear weekly set targets',
+  });
+};

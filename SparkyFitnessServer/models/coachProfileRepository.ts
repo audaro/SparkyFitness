@@ -187,10 +187,44 @@ async function mergeWeeklySetTargets(
   }
 }
 
-export { getCoachProfile, upsertCoachProfile, mergeWeeklySetTargets };
+/**
+ * Drops every hand-set weekly target, putting the user back on the derived
+ * plan.
+ *
+ * A separate statement rather than a patch, because `mergeWeeklySetTargets`
+ * is a jsonb `||` and there is no value a merge can send that *removes* a
+ * key: `{"legs": 0}` states "I am not training legs this block", which is a
+ * different answer from "work it out from my plan". Without this, hand-setting
+ * one group was a one-way door.
+ *
+ * Writes nothing when the user has no row: an absent profile already derives.
+ */
+async function clearWeeklySetTargets(userId: string): Promise<void> {
+  const client = await getClient(userId);
+  try {
+    await client.query(
+      `UPDATE coach_profiles
+          SET weekly_set_targets = '{}'::jsonb,
+              updated_at = now()
+        WHERE user_id = $1
+          AND weekly_set_targets <> '{}'::jsonb`,
+      [userId]
+    );
+  } finally {
+    client.release();
+  }
+}
+
+export {
+  getCoachProfile,
+  upsertCoachProfile,
+  mergeWeeklySetTargets,
+  clearWeeklySetTargets,
+};
 
 export default {
   getCoachProfile,
   upsertCoachProfile,
   mergeWeeklySetTargets,
+  clearWeeklySetTargets,
 };

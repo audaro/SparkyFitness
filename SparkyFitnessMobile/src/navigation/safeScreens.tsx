@@ -43,6 +43,7 @@ import MedicationSettingsScreen from '../screens/MedicationSettingsScreen';
 import GymProfilesScreen from '../screens/GymProfilesScreen';
 import ExercisePacksScreen from '../screens/ExercisePacksScreen';
 import WeeklySetTargetsScreen from '../screens/WeeklySetTargetsScreen';
+import TrainingPlanScreen from '../screens/TrainingPlanScreen';
 import ServerSettingsScreen from '../screens/ServerSettingsScreen';
 import PasskeySettingsScreen from '../screens/PasskeySettingsScreen';
 import AppSettingsScreen from '../screens/AppSettingsScreen';
@@ -116,6 +117,7 @@ export const SafeMedicationSettings = withErrorBoundary(MedicationSettingsScreen
 export const SafeGymProfiles = withErrorBoundary(GymProfilesScreen, 'GymProfiles', { canGoBack: true });
 export const SafeExercisePacks = withErrorBoundary(ExercisePacksScreen, 'ExercisePacks', { canGoBack: true });
 export const SafeWeeklySetTargets = withErrorBoundary(WeeklySetTargetsScreen, 'WeeklySetTargets', { canGoBack: true });
+export const SafeTrainingPlan = withErrorBoundary(TrainingPlanScreen, 'TrainingPlan', { canGoBack: true });
 export const SafeServerSettings = withErrorBoundary(ServerSettingsScreen, 'ServerSettings', { canGoBack: true });
 export const SafePasskeySettings = withErrorBoundary(PasskeySettingsScreen, 'PasskeySettings', { canGoBack: true });
 export const SafeAppSettings = withErrorBoundary(AppSettingsScreen, 'AppSettings', { canGoBack: true });

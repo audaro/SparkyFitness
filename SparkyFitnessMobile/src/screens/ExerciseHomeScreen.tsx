@@ -244,6 +244,37 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
           </Button>
         </View>
 
+        {/* The questionnaire is what makes the ring below specific to this
+            user rather than a default, so the offer sits directly above it and
+            disappears the moment the plan is answered. `plan_completed_at` is
+            deliberately not derived from the other answers: answering one
+            question in isolation is not a finished plan. */}
+        {coachProfile !== undefined && coachProfile.plan_completed_at === null && (
+          <Pressable
+            className="bg-surface rounded-xl p-4 mb-4 shadow-sm"
+            onPress={() => navigation.navigate('TrainingPlan')}
+            accessibilityRole="button"
+            testID="exercise-home-training-plan-prompt"
+          >
+            <View className="flex-row items-center">
+              <View className="flex-1">
+                <Text className="text-base font-semibold text-text-primary">
+                  {t('trainingPlan.setUpRow', {
+                    defaultValue: 'Set up your training plan',
+                  })}
+                </Text>
+                <Text className="mt-0.5 text-sm text-text-secondary">
+                  {t('trainingPlan.setUpSubtitle', {
+                    defaultValue:
+                      'Six questions that tailor your weekly targets',
+                  })}
+                </Text>
+              </View>
+              <Icon name="chevron-forward" size={14} color={accentPrimary} />
+            </View>
+          </Pressable>
+        )}
+
         {/* A failed read is not worth an error block on a tab that has plenty
             else to offer; the section simply stays out of the way, and the ring
             is one tap away on the targets screen either way.
@@ -451,6 +482,15 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             }
             onPress={() => navigation.navigate('GymProfiles')}
             testID="exercise-home-gym-profiles"
+          />
+          <SettingsRow
+            icon="paste"
+            title={t('trainingPlan.editRow', { defaultValue: 'Training plan' })}
+            subtitle={t('trainingPlan.editSubtitle', {
+              defaultValue: 'Goals, schedule, limitations',
+            })}
+            onPress={() => navigation.navigate('TrainingPlan')}
+            testID="exercise-home-training-plan"
           />
           <SettingsRow
             icon="chart-bar"

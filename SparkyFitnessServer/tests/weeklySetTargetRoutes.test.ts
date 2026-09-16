@@ -10,6 +10,7 @@ vi.mock('../services/weeklySetTargetService.js', () => ({
   default: {
     getWeeklySetTargets: vi.fn(),
     updateWeeklySetTargets: vi.fn(),
+    clearWeeklySetTargets: vi.fn(),
     MAX_HISTORY_WEEKS: 12,
   },
   MAX_HISTORY_WEEKS: 12,
@@ -60,6 +61,9 @@ beforeEach(() => {
   context.userId = 'owner-1';
   context.authenticatedUserId = 'owner-1';
   mocked(weeklySetTargetService.getWeeklySetTargets).mockResolvedValue(payload);
+  mocked(weeklySetTargetService.clearWeeklySetTargets).mockResolvedValue(
+    payload
+  );
   mocked(weeklySetTargetService.updateWeeklySetTargets).mockResolvedValue(
     payload
   );
@@ -108,6 +112,12 @@ describe('delegated access', () => {
     expect(weeklySetTargetService.getWeeklySetTargets).not.toHaveBeenCalled();
   });
 
+  it('refuses to clear another user targets', async () => {
+    const res = await request(app).delete('/weekly-set-targets');
+    expect(res.status).toBe(403);
+    expect(weeklySetTargetService.clearWeeklySetTargets).not.toHaveBeenCalled();
+  });
+
   it('refuses to write another user targets', async () => {
     const res = await request(app)
       .put('/weekly-set-targets')
@@ -150,5 +160,30 @@ describe('PUT /weekly-set-targets', () => {
     expect(
       weeklySetTargetService.updateWeeklySetTargets
     ).not.toHaveBeenCalled();
+  });
+});
+
+// A PUT cannot express this: it merges, and `{"legs": 0}` says "not training
+// legs this block" rather than "derive it for me". Without a clear, hand-
+// setting one group was a one-way door out of the training plan's numbers.
+describe('DELETE /weekly-set-targets', () => {
+  it('clears the stored targets and returns the recomputed screen', async () => {
+    const res = await request(app).delete(
+      '/weekly-set-targets?history_weeks=4'
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.targets_are_custom).toBe(false);
+    expect(weeklySetTargetService.clearWeeklySetTargets).toHaveBeenCalledWith(
+      'owner-1',
+      4
+    );
+  });
+
+  it('rejects an out-of-range history window', async () => {
+    const res = await request(app).delete(
+      '/weekly-set-targets?history_weeks=99'
+    );
+    expect(res.status).toBe(400);
+    expect(weeklySetTargetService.clearWeeklySetTargets).not.toHaveBeenCalled();
   });
 });

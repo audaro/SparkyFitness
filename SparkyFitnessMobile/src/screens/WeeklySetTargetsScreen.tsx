@@ -95,7 +95,9 @@ function weekRangeLabel(summary: WeeklySetTargetSummary): string {
   return `${formatDay(summary.week_start)} – ${formatDay(summary.week_end)}`;
 }
 
-const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
+const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = ({
+  navigation,
+}) => {
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const usesNativeHeader = useNativeIOSHeadersActive();
@@ -232,6 +234,18 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = () => {
             })}
           </Text>
         ) : null}
+
+        {/* The numbers here are derived from the training plan, so the way to
+            change all four at once is to change the answers behind them rather
+            than to step each group. */}
+        <Button
+          className="mb-4"
+          variant="outline"
+          onPress={() => navigation.navigate('TrainingPlan')}
+          testID="weekly-set-targets-replan"
+        >
+          {t('trainingPlan.replan', { defaultValue: 'Re-plan' })}
+        </Button>
 
         {data.current.groups.map((group) => {
           const isEditing = editingGroup === group.group;

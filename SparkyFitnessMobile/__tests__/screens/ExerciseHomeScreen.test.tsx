@@ -120,6 +120,11 @@ function makeCoachProfile(
     session_minutes: null,
     experience_level: level,
     limitations: [],
+    primary_goal: null,
+    physique_target: null,
+    priority_muscle_groups: null,
+    enhancement: null,
+    plan_completed_at: null,
   };
 }
 
@@ -341,6 +346,34 @@ describe('ExerciseHomeScreen', () => {
 
     fireEvent.press(getByTestId('exercise-home-exercise-packs'));
     expect(navigation.navigate).toHaveBeenCalledWith('ExercisePacks');
+  });
+
+  // The questionnaire is what makes the ring specific to this user, so the
+  // offer sits above it — and has to stop offering once it is answered.
+  it('offers the training plan until it has been completed', async () => {
+    const { getByTestId } = renderScreen();
+
+    await waitFor(() =>
+      expect(getByTestId('exercise-home-training-plan-prompt')).toBeTruthy(),
+    );
+    fireEvent.press(getByTestId('exercise-home-training-plan-prompt'));
+    expect(navigation.navigate).toHaveBeenCalledWith('TrainingPlan');
+
+    // The permanent Setup row is what keeps the plan reachable afterwards.
+    fireEvent.press(getByTestId('exercise-home-training-plan'));
+    expect(navigation.navigate).toHaveBeenCalledWith('TrainingPlan');
+
+    mockFetchCoachProfile.mockResolvedValue({
+      ...makeCoachProfile(null),
+      plan_completed_at: '2026-09-16T10:00:00.000Z',
+    });
+    const answered = renderScreen();
+    await waitFor(() =>
+      expect(answered.getByTestId('exercise-home-training-plan')).toBeTruthy(),
+    );
+    expect(
+      answered.queryByTestId('exercise-home-training-plan-prompt'),
+    ).toBeNull();
   });
 
   it('names the active gym profile in the setup row', async () => {

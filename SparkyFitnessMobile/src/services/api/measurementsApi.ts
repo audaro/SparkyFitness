@@ -17,6 +17,29 @@ export const fetchMeasurements = async (date: string): Promise<CheckInMeasuremen
 };
 
 /**
+ * The most recent check-in on or before a date, carrying each field forward
+ * independently.
+ *
+ * Distinct from {@link fetchMeasurements}, which deliberately reports only
+ * what was recorded on the day. This is for readers that want the latest
+ * known value — "what do you weigh" rather than "what did you weigh on
+ * Tuesday" — and it is the same read the server's lean-mass projection makes,
+ * so the two cannot disagree about which weigh-in is current.
+ */
+export const fetchLatestCheckIn = async (
+  date: string,
+): Promise<CheckInMeasurement | null> => {
+  const row = await apiFetch<CheckInMeasurement | null>({
+    endpoint: `/api/measurements/check-in/latest-on-or-before-date?date=${date}`,
+    serviceName: 'Measurements API',
+    operation: 'fetch latest check-in',
+  });
+  // Null rather than an empty object: a user who has never checked in has no
+  // row, and a caller reading `weight` off `{}` would be reading a fiction.
+  return row ?? null;
+};
+
+/**
  * Fetches water intake for a given date.
  */
 export const fetchWaterIntake = async (date: string): Promise<WaterIntake> => {

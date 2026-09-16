@@ -255,6 +255,12 @@ export type RootStackParamList = {
   GymProfiles: undefined;
   ExercisePacks: undefined;
   WeeklySetTargets: undefined;
+  /**
+   * The training-plan questionnaire. `initialStep` opens it on a given step,
+   * which is how the projection card links straight to the plan summary
+   * rather than making the user page through six questions to reach it.
+   */
+  TrainingPlan: { initialStep?: number } | undefined;
   ServerSettings: undefined;
   PasskeySettings: undefined;
   AppSettings: undefined;

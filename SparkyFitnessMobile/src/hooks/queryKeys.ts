@@ -113,6 +113,28 @@ export const gymProfilesQueryKey = ['gymProfiles'] as const;
 /** The user's stated training constraints; one row per user, owner-only. */
 export const coachProfileQueryKey = ['coachProfile'] as const;
 
+/**
+ * The most recent check-in on or before a day, with each field carried
+ * forward. Keyed by the day asked for, which is the user's today.
+ */
+export const latestCheckInQueryKey = (date: string) =>
+  ['latestCheckIn', date] as const;
+
+/**
+ * The lean-mass projection, keyed by horizon in weeks: the server answers a
+ * different question for each one, so a shared key would show a twelve-week
+ * estimate under a one-year heading.
+ *
+ * Invalidated by the root key whenever the training plan is saved, since the
+ * plan changes the targets adherence is measured against.
+ */
+export const muscleGainProjectionRootQueryKey = [
+  'muscleGainProjection',
+] as const;
+
+export const muscleGainProjectionQueryKey = (weeks: number) =>
+  [...muscleGainProjectionRootQueryKey, weeks] as const;
+
 /** Importable exercise catalog packs and the user's progress through each. */
 export const exercisePacksQueryKey = ['exercisePacks'] as const;
 

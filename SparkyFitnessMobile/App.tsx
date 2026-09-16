@@ -77,6 +77,7 @@ import {
   SafeGymProfiles,
   SafeExercisePacks,
   SafeWeeklySetTargets,
+  SafeTrainingPlan,
   SafeServerSettings,
   SafePasskeySettings,
   SafeAppSettings,
@@ -670,6 +671,15 @@ function AppContent() {
             name="WeeklySetTargets"
             component={SafeWeeklySetTargets}
             options={createStackScreenOptions(t('weeklySetTargets.title', { defaultValue: 'Weekly Set Targets' }), { headerBackTitle: t('common.back', { defaultValue: 'Back' }) })}
+          />
+          <Stack.Screen
+            name="TrainingPlan"
+            component={SafeTrainingPlan}
+            options={createStackScreenOptions(t('trainingPlan.title', { defaultValue: 'Training Plan' }), {
+              presentation: 'modal',
+              headerBackButtonDisplayMode: 'minimal',
+              ...(Platform.OS === 'android' ? androidModalAnimation : {}),
+            })}
           />
           <Stack.Screen
             name="ServerSettings"

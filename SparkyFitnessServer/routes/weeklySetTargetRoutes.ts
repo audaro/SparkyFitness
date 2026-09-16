@@ -165,7 +165,58 @@ const updateHandler: RequestHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * @swagger
+ * /weekly-set-targets:
+ *   delete:
+ *     summary: Clear hand-set weekly working-set targets
+ *     tags: [Exercise & Workouts]
+ *     description: |
+ *       Drops every stored target so the groups derive from the training plan again, and returns the
+ *       recomputed screen with `targets_are_custom` false. A `PUT` cannot express this: it merges,
+ *       and `{"legs": 0}` means "not training legs this block" rather than "work it out for me".
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: history_weeks
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           maximum: 12
+ *         description: Earlier weeks to include in the returned payload. Defaults to 0.
+ *     responses:
+ *       200:
+ *         description: Targets cleared; the recomputed progress is returned.
+ *       400:
+ *         description: Invalid query parameters.
+ *       401:
+ *         description: Unauthenticated.
+ *       403:
+ *         description: Forbidden (not the owner, or no diary permission for the active context).
+ */
+const clearHandler: RequestHandler = async (req, res, next) => {
+  try {
+    const queryResult = historyQuerySchema.safeParse(req.query);
+    if (!queryResult.success) {
+      res.status(400).json({
+        error: 'Invalid query parameters',
+        details: queryResult.error.flatten().fieldErrors,
+      });
+      return;
+    }
+    const result = await weeklySetTargetService.clearWeeklySetTargets(
+      req.userId,
+      queryResult.data.history_weeks ?? 0
+    );
+    res.status(200).json(weeklySetTargetsResponseSchema.parse(result));
+  } catch (error: unknown) {
+    next(error);
+  }
+};
+
 router.get('/', getHandler);
 router.put('/', updateHandler);
+router.delete('/', clearHandler);
 
 export default router;
