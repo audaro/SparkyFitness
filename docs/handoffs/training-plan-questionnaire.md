@@ -1,7 +1,7 @@
 # Handoff — Training Plan questionnaire, goal-aware weekly targets, muscle-gain projection
 
-*Updated 2026-09-16. Branch `main`, HEAD `a1f913e68`. **All seven phases are implemented and
-committed. Nothing is pushed.***
+*Updated 2026-09-16. Branch `main`, HEAD `2870295d8`. **All seven phases are implemented and
+committed, plus a review-fix pass. Nothing is pushed.***
 
 ## What this is
 
@@ -31,13 +31,40 @@ questionnaire is **six steps** as drafted.
 | 5 | Mobile six-step questionnaire, `DELETE /api/weekly-set-targets` | `2233a59ae` |
 | 6 | Mobile projection card on the Exercise tab | `3a99db64b` |
 | 7 | Web parity: `TrainingPlanCard` + `MuscleGainProjectionCard` on `/exercises` | `a1f913e68` |
+| — | Docs: this handoff covering all seven phases | `e32b304a0` |
+| 7a | Four review fixes (see below) | `2870295d8` |
+
+### What `2870295d8` fixed
+
+An independent review of phase 7 found four defects; all four were confirmed against the code
+and fixed, each with a regression test.
+
+1. **Web opened the plan editor from a read that had not landed.** `undefined` from
+   `useCoachProfile` is a request in flight or one that failed, never "no plan" — the endpoint
+   answers a row of nulls for that — so the editor seeded its defaults and a save wrote them
+   over a stored plan. The button now waits for the read.
+2. **Web silently clamped an over-range dose to 3000 mg.** That answers a question about the
+   user's own protocol on their behalf and reopens showing a figure they never typed. It now
+   blocks the save with a message; mobile always sent what was stated and needed no change.
+3. **The post-save target clear raced the save's own invalidation.** The invalidated read of the
+   still-custom week starts first and can land last, putting the overrides back over a week the
+   server no longer holds them for. The clear now cancels those reads in `onMutate`. Mobile
+   already sequenced this correctly (it awaits the clear, then invalidates).
+   `src/tests/hooks/useClearWeeklySetTargets.test.tsx` fails without the fix — verified.
+4. **Both projection cards showed the other horizon's figure under the new label.**
+   `keepPreviousData` is what keeps the card mounted across the toggle, but the kept data
+   answers the horizon just left. Both now render a pending line while `isPlaceholderData`.
 
 Gate at `a1f913e68`: server `tsc` 0 / 5268 tests + 7 integration; mobile `validate` green (i18n
 audit at zero) / 391 suites / 6355 tests; frontend `validate` green / 121 suites / 1234 tests.
 
+Gate at `2870295d8`: frontend `validate` green / 122 suites / 1238 tests; mobile `validate` green
+(i18n audit at zero, native-locale and muscle-art checks pass) with the recommendation-family
+suites rerun (43 tests). The server is untouched since `2233a59ae`.
+
 ## Exact next step
 
-1. **Push.** Eight commits `d5b567370..a1f913e68` are local only. `audaro/SparkyFitness` is
+1. **Push.** Ten commits `d5b567370..2870295d8` are local only. `audaro/SparkyFitness` is
    public — the commit messages were written in product terms, but re-read them before pushing.
 2. **Answer the questionnaire on a real device** and confirm the ring moves. Nothing here has
    been exercised against the live account; every verdict so far is from tests.
