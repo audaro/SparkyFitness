@@ -19,6 +19,7 @@ import {
   rationaleFor,
   restSecondsFor,
   selectTargetMuscles,
+  sessionBreadthFor,
   warmupSetsFor,
   withWarmups,
   workingSetCountFor,
@@ -36,6 +37,7 @@ import {
   effectiveMechanic,
   MECHANIC_OVERRIDE_SOURCE,
   MUSCLES,
+  muscleGroupOf,
   MUSCLE_SIZE_RANK,
   MUSCLE_SPLIT_MEMBERS,
   GYM_TEMPLATES,
@@ -375,6 +377,137 @@ describe('selectTargetMuscles with requested muscles', () => {
 
     expect(first).toEqual(second);
     expect([...first].sort()).toEqual([...request].sort());
+  });
+});
+
+describe('selectTargetMuscles with a training plan', () => {
+  const allFresh = MUSCLES.map((muscle) => fresh(muscle, 1));
+
+  it('leaves the session as wide as before when nothing is stated', () => {
+    expect(selectTargetMuscles(allFresh, undefined, {})).toEqual(
+      selectTargetMuscles(allFresh)
+    );
+    expect(
+      selectTargetMuscles(allFresh, undefined, {
+        trainingDaysPerWeek: null,
+        priorityGroups: null,
+      })
+    ).toEqual(selectTargetMuscles(allFresh));
+  });
+
+  // Breadth per session and frequency trade off against each other: two
+  // sessions a week have to cover the body, six have room to go narrow and
+  // deep. Five muscles in a six-day week is the same weekly volume spread too
+  // thin to drive anything.
+  it('narrows the session as training frequency rises', () => {
+    const twice = selectTargetMuscles(allFresh, undefined, {
+      trainingDaysPerWeek: 2,
+    });
+    const fourTimes = selectTargetMuscles(allFresh, undefined, {
+      trainingDaysPerWeek: 4,
+    });
+    const sixTimes = selectTargetMuscles(allFresh, undefined, {
+      trainingDaysPerWeek: 6,
+    });
+
+    expect(twice).toHaveLength(5);
+    expect(fourTimes).toHaveLength(4);
+    expect(sixTimes).toHaveLength(3);
+  });
+
+  it('exposes the breadth rule on its own', () => {
+    expect(sessionBreadthFor(null)).toBe(GENERATION_TUNABLES.maxTargetMuscles);
+    expect(sessionBreadthFor(undefined)).toBe(
+      GENERATION_TUNABLES.maxTargetMuscles
+    );
+    expect(sessionBreadthFor(0)).toBe(GENERATION_TUNABLES.maxTargetMuscles);
+    expect(sessionBreadthFor(Number.NaN)).toBe(
+      GENERATION_TUNABLES.maxTargetMuscles
+    );
+    expect(sessionBreadthFor(1)).toBe(5);
+    expect(sessionBreadthFor(7)).toBe(3);
+    // Never wider than the header allows, whatever the bands say.
+    for (let days = 1; days <= 7; days += 1) {
+      expect(sessionBreadthFor(days)).toBeLessThanOrEqual(
+        GENERATION_TUNABLES.maxTargetMuscles
+      );
+      expect(sessionBreadthFor(days)).toBeGreaterThanOrEqual(
+        GENERATION_TUNABLES.minTargetMuscles
+      );
+    }
+  });
+
+  it('reaches for a priority group first among equally fresh muscles', () => {
+    const withoutPriority = selectTargetMuscles(allFresh);
+    const withPull = selectTargetMuscles(allFresh, undefined, {
+      priorityGroups: ['pull'],
+    });
+
+    const pullCount = (muscles: string[]) =>
+      muscles.filter((muscle) => muscleGroupOf(muscle) === 'pull').length;
+    expect(pullCount(withPull)).toBeGreaterThan(pullCount(withoutPriority));
+  });
+
+  /**
+   * The line this must not cross. A priority is a statement about emphasis,
+   * not permission to program a muscle that has not recovered — a priority
+   * that could override fatigue would make the recovery model decorative.
+   */
+  it('never drags a fatigued priority muscle over the freshness floor', () => {
+    const soreBack = [
+      fresh('chest', 1),
+      fresh('shoulders', 0.95),
+      fresh('quadriceps', 0.9),
+      // Every pull muscle trained yesterday, all below the floor.
+      fresh('lats', 0.2),
+      fresh('biceps', 0.2),
+      fresh('middle back', 0.2),
+    ];
+    const result = selectTargetMuscles(soreBack, undefined, {
+      priorityGroups: ['pull'],
+    });
+
+    expect(result.some((muscle) => muscleGroupOf(muscle) === 'pull')).toBe(
+      false
+    );
+    expect(result).toEqual(selectTargetMuscles(soreBack));
+  });
+
+  it('honours a client request over the plan entirely', () => {
+    // Tapping Legs means legs, whatever the profile prioritises and however
+    // many days a week it says the user trains.
+    expect(
+      selectTargetMuscles(allFresh, ['hamstrings', 'quadriceps'], {
+        trainingDaysPerWeek: 6,
+        priorityGroups: ['push'],
+      })
+    ).toEqual(selectTargetMuscles(allFresh, ['hamstrings', 'quadriceps']));
+  });
+
+  it('caps stored priorities at two groups and ignores unknown ones', () => {
+    const everything = selectTargetMuscles(allFresh, undefined, {
+      priorityGroups: ['push', 'pull', 'legs', 'core'],
+    });
+    const firstTwo = selectTargetMuscles(allFresh, undefined, {
+      priorityGroups: ['push', 'pull'],
+    });
+    expect(everything).toEqual(firstTwo);
+
+    expect(
+      selectTargetMuscles(allFresh, undefined, {
+        priorityGroups: ['arms' as never],
+      })
+    ).toEqual(selectTargetMuscles(allFresh));
+  });
+
+  it('stays deterministic with a plan applied', () => {
+    const plan = {
+      trainingDaysPerWeek: 5,
+      priorityGroups: ['legs'] as const,
+    };
+    expect(selectTargetMuscles(allFresh, undefined, plan)).toEqual(
+      selectTargetMuscles([...allFresh].reverse(), undefined, plan)
+    );
   });
 });
 

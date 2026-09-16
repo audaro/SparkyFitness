@@ -30,6 +30,7 @@ import {
   type MuscleRecoveryResponse,
   type PlannedExercise,
   type RecommendedExercise,
+  type PrimaryGoal,
   type WorkoutGoal,
   type WorkoutRecommendationPayload,
   type WorkoutRecommendationResponse,
@@ -179,14 +180,50 @@ async function loadIncrementDefaults(
 const DERIVED_EXPERIENCE_WINDOW_DAYS = 365;
 
 /**
- * Read the training goal out of the coach profile's free-text goals.
+ * How the questionnaire's goal vocabulary maps onto the rep schemes the
+ * generator programs.
  *
- * Keyword matching on prose, which is as good as this gets until the profile
- * has a real field for it. Strength is checked first because "build strength
- * and muscle" is a strength answer with the word muscle in it, and the
- * rep scheme has to pick one.
+ * `lose_fat` is hypertrophy work, not "general": training in a deficit is
+ * about keeping the muscle you have, and the 8-12 rep range is the standard
+ * prescription for it. `recomp` is the same argument from the other side.
  */
-export function deriveGoal(goals: string | null | undefined): WorkoutGoal {
+const WORKOUT_GOAL_BY_PRIMARY_GOAL: Readonly<Record<PrimaryGoal, WorkoutGoal>> =
+  {
+    strength: 'strength',
+    build_muscle: 'hypertrophy',
+    recomp: 'hypertrophy',
+    lose_fat: 'hypertrophy',
+    general_fitness: 'general',
+  };
+
+/**
+ * The training goal behind the rep scheme: the stated one when there is one,
+ * otherwise keyword matching on the free-text goals.
+ *
+ * The column wins outright. The regex it falls back to was always a stopgap —
+ * it cannot tell "I want to get strong enough to stop hurting my back" from
+ * "strength", and it picks a rep scheme either way — but it stays, because
+ * every profile written through the AI chat before the questionnaire existed
+ * has prose here and nothing else, and those users must not silently drop to
+ * `general`.
+ *
+ * Within the fallback, strength is checked first: "build strength and muscle"
+ * is a strength answer with the word muscle in it, and the rep scheme has to
+ * pick one.
+ */
+export function deriveGoal(
+  primaryGoal: PrimaryGoal | null | undefined,
+  goals: string | null | undefined
+): WorkoutGoal {
+  if (
+    typeof primaryGoal === 'string' &&
+    Object.prototype.hasOwnProperty.call(
+      WORKOUT_GOAL_BY_PRIMARY_GOAL,
+      primaryGoal
+    )
+  ) {
+    return WORKOUT_GOAL_BY_PRIMARY_GOAL[primaryGoal];
+  }
   const text = goals?.toLowerCase() ?? '';
   if (/strength|powerlifting|1rm|heavy/.test(text)) return 'strength';
   if (/hypertrophy|muscle|bodybuild|size|tone/.test(text)) return 'hypertrophy';
@@ -575,16 +612,21 @@ async function generateRecommendation(
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
     ),
-    goal: deriveGoal(coachProfile?.goals),
+    goal: deriveGoal(coachProfile?.primary_goal, coachProfile?.goals),
     experienceLevel,
     excludeIds,
     targetMuscles: opts.targetMuscles,
+    trainingDaysPerWeek: coachProfile?.training_days_per_week ?? null,
+    priorityGroups: coachProfile?.priority_muscle_groups ?? null,
   };
 
   // Resolved here as well as inside `planWorkout` because the candidate query
   // and the free-exercise-db backfill both run before the planner does.
   // `selectTargetMuscles` is pure, so the two resolutions cannot disagree.
-  const targetMuscles = selectTargetMuscles(muscles, opts.targetMuscles);
+  const targetMuscles = selectTargetMuscles(muscles, opts.targetMuscles, {
+    trainingDaysPerWeek: options.trainingDaysPerWeek,
+    priorityGroups: options.priorityGroups,
+  });
   let candidates = await workoutRecommendationRepository.getCandidateExercises(
     userId,
     targetMuscles
@@ -902,7 +944,7 @@ async function replaceRecommendationExercise(
     limitations: (coachProfile?.limitations ?? []).map((value) =>
       String(value).toLowerCase()
     ),
-    goal: deriveGoal(coachProfile?.goals),
+    goal: deriveGoal(coachProfile?.primary_goal, coachProfile?.goals),
     // The same stated-or-derived level generate used, so the swapped-in
     // exercise gets the set count its neighbours got. The old "level-neutral
     // null" was not neutral: `workingSetCountFor` caps only beginners, so a

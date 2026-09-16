@@ -5,12 +5,15 @@ import {
   EQUIPMENT_PREFERENCE_TIERS,
   isAccessoryMuscle,
   isLowerBodyMuscle,
+  MUSCLE_GROUPS,
+  muscleGroupOf,
   normalizeEquipmentName,
   normalizeMuscleName,
   toCanonicalMuscle,
   type Equipment,
   type EquipmentPreference,
   type Muscle,
+  type MuscleGroup,
 } from "../constants/exerciseTaxonomy.ts";
 import {
   isApparatusAvailable,
@@ -30,6 +33,7 @@ import {
 } from "../constants/exercise.ts";
 import { DEFAULT_SET_TYPE, isWarmupSetType } from "../constants/setTypes.ts";
 import type { ExperienceLevel } from "../constants/experience.ts";
+import { MAX_PRIORITY_MUSCLE_GROUPS } from "../constants/trainingPlan.ts";
 import {
   type IncrementDefaults,
   capLoadKg,
@@ -85,6 +89,38 @@ export const GENERATION_TUNABLES = {
   minTargetMuscles: 2,
   /** Freshness the other half of the body needs to earn the balance swap. */
   balanceSwapFreshness: 0.6,
+  /**
+   * How many muscles one session is built around, by how often the user says
+   * they train. `maxTargetMuscles` is the ceiling and the value used when the
+   * frequency is unstated.
+   *
+   * Breadth per session and frequency trade off against each other: someone
+   * training twice a week has to cover the body in those two sessions, while
+   * someone training six times has room for a narrow session that gives each
+   * muscle enough sets to matter. Five muscles in a six-day week is not a
+   * harder program, it is the same weekly volume spread too thin to drive
+   * anything.
+   *
+   * Entries are the *minimum* frequency the breadth applies from, highest
+   * first. Unstated keeps today's five, so nobody's Up Next changes until
+   * they answer the question.
+   */
+  sessionBreadthByTrainingDays: [
+    { fromTrainingDays: 5, muscles: 3 },
+    { fromTrainingDays: 3, muscles: 4 },
+    { fromTrainingDays: 1, muscles: 5 },
+  ] as readonly { fromTrainingDays: number; muscles: number }[],
+  /**
+   * Added to a priority group's muscles when ranking which to train.
+   *
+   * Applied to the **ordering only**, never to the freshness floor: a priority
+   * group should be reached for first among the muscles that are ready, and
+   * must never drag a muscle that is still sore into a workout. Sized to break
+   * near-ties rather than to override real fatigue — most of the freshness
+   * vector sits at 1.0 for a rested user, and it is exactly those ties this is
+   * meant to settle.
+   */
+  priorityFreshnessBonus: 0.15,
 
   /**
    * Score for a movement the user has performed before.
@@ -452,6 +488,18 @@ export interface GenerationOptions {
    * names: splits are resolved to canonical muscles before they reach here.
    */
   targetMuscles?: readonly string[];
+  /**
+   * `coach_profiles.training_days_per_week`. Narrows how many muscles one
+   * session is built around; see {@link sessionBreadthFor}. Unstated keeps the
+   * five-muscle session this engine produced before the training plan existed.
+   */
+  trainingDaysPerWeek?: number | null;
+  /**
+   * `coach_profiles.priority_muscle_groups`. Reorders which recovered muscles
+   * are reached for first, and nothing else — it cannot lower the freshness
+   * floor.
+   */
+  priorityGroups?: readonly MuscleGroup[] | null;
 }
 
 export interface PlannedExercise {
@@ -558,15 +606,78 @@ function muscleSizeRank(muscle: string): number {
  * evidence to separate two muscles, train the bigger one. Name remains the
  * final term so the order is still total and still machine-independent.
  */
-function rankByFreshness(freshness: readonly MuscleFreshness[]): string[] {
+function rankByFreshness(
+  freshness: readonly MuscleFreshness[],
+  priorityGroups?: ReadonlySet<MuscleGroup>,
+): string[] {
+  const rankScore = (entry: MuscleFreshness): number => {
+    if (!priorityGroups || priorityGroups.size === 0) return entry.freshness;
+    const group = muscleGroupOf(entry.muscle);
+    return group !== null && priorityGroups.has(group)
+      ? entry.freshness + GENERATION_TUNABLES.priorityFreshnessBonus
+      : entry.freshness;
+  };
   return [...freshness]
     .sort(
       (a, b) =>
-        b.freshness - a.freshness ||
+        rankScore(b) - rankScore(a) ||
         muscleSizeRank(a.muscle) - muscleSizeRank(b.muscle) ||
         (a.muscle < b.muscle ? -1 : a.muscle > b.muscle ? 1 : 0),
     )
     .map((entry) => entry.muscle);
+}
+
+/**
+ * The stored training plan, as target selection reads it.
+ *
+ * Distinct from `GenerationOptions.targetMuscles`, which is what the *client*
+ * asked for on this request. A client instruction outranks the plan entirely:
+ * tapping Legs means legs, whatever the profile says.
+ */
+export interface TargetSelectionPlan {
+  /** `coach_profiles.training_days_per_week`. */
+  trainingDaysPerWeek?: number | null;
+  /** `coach_profiles.priority_muscle_groups`. */
+  priorityGroups?: readonly MuscleGroup[] | null;
+}
+
+/**
+ * How many muscles to build one session around, given the stated frequency.
+ *
+ * Unstated, zero, or anything non-finite yields `maxTargetMuscles` — the value
+ * this function had before it existed.
+ */
+export function sessionBreadthFor(
+  trainingDaysPerWeek: number | null | undefined,
+): number {
+  if (
+    typeof trainingDaysPerWeek !== "number" ||
+    !Number.isFinite(trainingDaysPerWeek) ||
+    trainingDaysPerWeek <= 0
+  ) {
+    return GENERATION_TUNABLES.maxTargetMuscles;
+  }
+  for (const band of GENERATION_TUNABLES.sessionBreadthByTrainingDays) {
+    if (trainingDaysPerWeek >= band.fromTrainingDays) {
+      return Math.min(band.muscles, GENERATION_TUNABLES.maxTargetMuscles);
+    }
+  }
+  return GENERATION_TUNABLES.maxTargetMuscles;
+}
+
+/** The priority groups a plan states, deduped and capped. */
+function priorityGroupSet(
+  groups: readonly MuscleGroup[] | null | undefined,
+): ReadonlySet<MuscleGroup> {
+  const set = new Set<MuscleGroup>();
+  for (const group of groups ?? []) {
+    if (set.size >= MAX_PRIORITY_MUSCLE_GROUPS) break;
+    // Validated against the vocabulary, not trusted: the column has no CHECK
+    // constraint, and a group nothing maps to would be a silent no-op that
+    // looks exactly like a working priority.
+    if (MUSCLE_GROUPS.includes(group)) set.add(group);
+  }
+  return set;
 }
 
 /**
@@ -587,10 +698,18 @@ function rankByFreshness(freshness: readonly MuscleFreshness[]): string[] {
  * for being spelled last while neck and forearms each kept a movement.
  *
  * Otherwise: the freshest muscles clearing
- * {@link GENERATION_TUNABLES.minTargetFreshness}, capped at five. If fewer than
- * two clear it the two freshest are taken regardless — someone who trained
- * everything yesterday still wants a workout, and refusing to produce one is
- * worse than producing a light one.
+ * {@link GENERATION_TUNABLES.minTargetFreshness}, capped by
+ * {@link sessionBreadthFor} — five unless the plan states a training frequency
+ * that earns a narrower session. If fewer than two clear the floor the two
+ * freshest are taken regardless — someone who trained everything yesterday
+ * still wants a workout, and refusing to produce one is worse than producing a
+ * light one.
+ *
+ * A stated priority group reorders that ranking and nothing else. It never
+ * lowers the freshness floor: "train chest more often" is a statement about
+ * emphasis, not permission to program a muscle that has not recovered, and a
+ * priority that could override fatigue would quietly make the recovery model
+ * decorative.
  *
  * The balance guard then fixes the failure this scoring makes easy. Freshness
  * is per-muscle, so a heavy leg day leaves the entire upper body at 1.0 and the
@@ -605,6 +724,7 @@ function rankByFreshness(freshness: readonly MuscleFreshness[]): string[] {
 export function selectTargetMuscles(
   freshness: readonly MuscleFreshness[],
   requested?: readonly string[],
+  plan?: TargetSelectionPlan,
 ): string[] {
   // Canonicalized and de-duplicated rather than trusted: the HTTP contract
   // pins the enum, but this is a shared function and the catalog filter it
@@ -630,19 +750,23 @@ export function selectTargetMuscles(
       .map((entry) => entry.muscle);
   }
 
-  const ranked = rankByFreshness(freshness);
+  const priorities = priorityGroupSet(plan?.priorityGroups);
+  const ranked = rankByFreshness(freshness, priorities);
   if (ranked.length === 0) return [];
 
   const byMuscle = new Map(freshness.map((entry) => [entry.muscle, entry]));
+  // True freshness, with no priority bonus: this is the gate, and the bonus
+  // belongs only to the order.
   const scoreOf = (muscle: string): number =>
     byMuscle.get(muscle)?.freshness ?? 0;
 
+  const breadth = sessionBreadthFor(plan?.trainingDaysPerWeek);
   const qualifying = ranked.filter(
     (muscle) => scoreOf(muscle) >= GENERATION_TUNABLES.minTargetFreshness,
   );
   const selected =
     qualifying.length >= GENERATION_TUNABLES.minTargetMuscles
-      ? qualifying.slice(0, GENERATION_TUNABLES.maxTargetMuscles)
+      ? qualifying.slice(0, breadth)
       : ranked.slice(0, GENERATION_TUNABLES.minTargetMuscles);
 
   if (selected.length < GENERATION_TUNABLES.minTargetMuscles) return selected;
@@ -823,8 +947,11 @@ export function isExcludedByLimitations(
  */
 export function isCompound(candidate: CandidateExercise): boolean {
   return (
-    effectiveMechanic(candidate.source, candidate.sourceId, candidate.mechanic) ===
-    "compound"
+    effectiveMechanic(
+      candidate.source,
+      candidate.sourceId,
+      candidate.mechanic,
+    ) === "compound"
   );
 }
 
@@ -1076,7 +1203,10 @@ export function planWorkout(
   candidates: readonly CandidateExercise[],
   options: GenerationOptions,
 ): WorkoutPlan {
-  const targetMuscles = selectTargetMuscles(freshness, options.targetMuscles);
+  const targetMuscles = selectTargetMuscles(freshness, options.targetMuscles, {
+    trainingDaysPerWeek: options.trainingDaysPerWeek,
+    priorityGroups: options.priorityGroups,
+  });
   const excludeIds = new Set(options.excludeIds ?? []);
 
   const eligible = candidates.filter(

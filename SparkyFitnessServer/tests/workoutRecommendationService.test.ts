@@ -319,25 +319,62 @@ beforeEach(() => {
 
 describe('deriveGoal', () => {
   it('reads strength out of prose', () => {
-    expect(deriveGoal('I want to get my squat 1RM up')).toBe('strength');
-    expect(deriveGoal('powerlifting meet in March')).toBe('strength');
+    expect(deriveGoal(null, 'I want to get my squat 1RM up')).toBe('strength');
+    expect(deriveGoal(null, 'powerlifting meet in March')).toBe('strength');
   });
 
   it('reads hypertrophy out of prose', () => {
-    expect(deriveGoal('put on some muscle')).toBe('hypertrophy');
-    expect(deriveGoal('bodybuilding, more size')).toBe('hypertrophy');
+    expect(deriveGoal(null, 'put on some muscle')).toBe('hypertrophy');
+    expect(deriveGoal(null, 'bodybuilding, more size')).toBe('hypertrophy');
   });
 
   it('prefers strength when the answer names both', () => {
     // "build strength and muscle" is a strength answer with the word muscle in
     // it. The rep scheme has to pick one, so the order is the decision.
-    expect(deriveGoal('build strength and muscle')).toBe('strength');
+    expect(deriveGoal(null, 'build strength and muscle')).toBe('strength');
   });
 
   it('falls back to general for silence or something unrelated', () => {
-    expect(deriveGoal(null)).toBe('general');
-    expect(deriveGoal('')).toBe('general');
-    expect(deriveGoal('feel better day to day')).toBe('general');
+    expect(deriveGoal(null, null)).toBe('general');
+    expect(deriveGoal(null, '')).toBe('general');
+    expect(deriveGoal(null, 'feel better day to day')).toBe('general');
+  });
+
+  it('maps every stated goal onto a rep scheme', () => {
+    expect(deriveGoal('strength', null)).toBe('strength');
+    expect(deriveGoal('build_muscle', null)).toBe('hypertrophy');
+    // Training in a deficit is about keeping the muscle you have, which is
+    // hypertrophy work, not the general rep scheme.
+    expect(deriveGoal('lose_fat', null)).toBe('hypertrophy');
+    expect(deriveGoal('recomp', null)).toBe('hypertrophy');
+    expect(deriveGoal('general_fitness', null)).toBe('general');
+  });
+
+  // The column is the answer to the question; the prose is whatever else the
+  // user wanted to say. A stated goal must not be overridable by a stray word
+  // in the notes.
+  it('lets the stated goal beat the prose', () => {
+    expect(deriveGoal('general_fitness', 'powerlifting meet in March')).toBe(
+      'general'
+    );
+    expect(deriveGoal('strength', 'put on some muscle')).toBe('strength');
+  });
+
+  // Every profile written through the AI chat before the questionnaire existed
+  // has prose and no column, and those users must not silently drop to
+  // `general`.
+  it('still reads the prose when no goal is stated', () => {
+    expect(deriveGoal(undefined, 'hypertrophy block')).toBe('hypertrophy');
+  });
+
+  // The column carries no CHECK constraint, so a token this map has no entry
+  // for is reachable. It has to fall through to the prose rather than return
+  // undefined as a WorkoutGoal.
+  it('ignores a goal token it does not recognise', () => {
+    expect(deriveGoal('become_a_bird' as never, 'powerlifting')).toBe(
+      'strength'
+    );
+    expect(deriveGoal('become_a_bird' as never, null)).toBe('general');
   });
 });
 
