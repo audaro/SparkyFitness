@@ -154,6 +154,46 @@ describe('TrainingPlanCard', () => {
     expect(screen.queryByTestId('training-plan-card')).toBeNull();
   });
 
+  // `undefined` is a read in flight or one that failed — never a user with no
+  // plan, since the endpoint answers a row of nulls for that. Opening there
+  // seeds the defaults, and saving would write them over a stored plan the
+  // user never got to see.
+  it('will not open the editor before the profile has been read', () => {
+    mockProfile = undefined;
+    render(<TrainingPlanCard />);
+
+    const open = screen.getByRole('button', {
+      name: 'Set up your training plan',
+    });
+    expect(open).toBeDisabled();
+
+    fireEvent.click(open);
+    expect(screen.queryByRole('button', { name: 'Save my plan' })).toBeNull();
+  });
+
+  // A dose over the contract's bound used to be quietly rewritten to the
+  // maximum, which answers a question about the user's own protocol on their
+  // behalf and reopens showing a figure they never typed.
+  it('refuses an out-of-range dose instead of rewriting it', () => {
+    openEditor();
+    fireEvent.click(screen.getByRole('button', { name: 'On TRT' }));
+    fireEvent.change(screen.getByLabelText('Milligrams per injection'), {
+      target: { value: '5000' },
+    });
+
+    expect(screen.getByTestId('training-plan-dose-error')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save my plan' })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Milligrams per injection'), {
+      target: { value: '250' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save my plan' }));
+
+    expect(mockSavePlan.mock.calls[0][0].enhancement).toMatchObject({
+      testosterone_mg_per_dose: 250,
+    });
+  });
+
   it('sends every answer as one patch', () => {
     openEditor();
 

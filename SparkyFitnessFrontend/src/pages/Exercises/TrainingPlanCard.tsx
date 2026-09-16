@@ -227,7 +227,20 @@ function draftFromProfile(profile: CoachProfile | undefined): PlanDraft {
 function positiveNumberFrom(text: string): number | null {
   const parsed = Number(text);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.min(parsed, MAX_TESTOSTERONE_MG_PER_DOSE);
+  return parsed;
+}
+
+/**
+ * Whether the typed dose is one the contract will accept.
+ *
+ * Deliberately not a clamp. Quietly storing 3000 for a user who typed 5000
+ * answers a question about their own protocol on their behalf and reopens the
+ * form showing a figure they never gave — and it is the one field on this form
+ * that feeds an estimate. An out-of-range dose blocks the save and says so.
+ */
+function doseIsOverMax(text: string): boolean {
+  const parsed = positiveNumberFrom(text);
+  return parsed !== null && parsed > MAX_TESTOSTERONE_MG_PER_DOSE;
 }
 
 /**
@@ -354,6 +367,12 @@ const TrainingPlanCard: React.FC = () => {
   };
 
   const answered = profile !== undefined && profile.plan_completed_at !== null;
+  // `undefined` is a read still in flight or one that failed, not a user with
+  // no plan — the endpoint answers a row of nulls rather than a 404 for that.
+  // Seeding the editor from it would offer the defaults as though they were
+  // the stored answers, and saving would write them over a plan the user never
+  // got to see. The button waits for the read instead of racing it.
+  const profileLoaded = profile !== undefined;
 
   const summaryLine = (): string => {
     const parts: string[] = [];
@@ -392,6 +411,7 @@ const TrainingPlanCard: React.FC = () => {
     const showsInterval =
       !isNatural &&
       (current.ester === 'undecanoate' || current.intervalWeeks !== 1);
+    const overMax = !isNatural && doseIsOverMax(current.doseText);
 
     return (
       <div className="space-y-5">
@@ -646,9 +666,21 @@ const TrainingPlanCard: React.FC = () => {
                   type="number"
                   min={0}
                   max={MAX_TESTOSTERONE_MG_PER_DOSE}
+                  aria-invalid={overMax}
                   value={current.doseText}
                   onChange={(event) => edit({ doseText: event.target.value })}
                 />
+                {overMax && (
+                  <p
+                    className="text-sm text-destructive"
+                    data-testid="training-plan-dose-error"
+                  >
+                    {t('trainingPlan.doseTooHigh', {
+                      max: MAX_TESTOSTERONE_MG_PER_DOSE,
+                      defaultValue: 'Enter {{max}} mg or less per injection.',
+                    })}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="training-plan-ester">
@@ -736,7 +768,7 @@ const TrainingPlanCard: React.FC = () => {
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSave} disabled={isSaving || overMax}>
             {isSaving
               ? t('common.saving', 'Saving…')
               : t('trainingPlan.savePlan', 'Save my plan')}
@@ -777,6 +809,7 @@ const TrainingPlanCard: React.FC = () => {
             </p>
             <Button
               variant={answered ? 'outline' : 'default'}
+              disabled={!profileLoaded}
               onClick={() => setDraft(draftFromProfile(profile))}
             >
               {answered

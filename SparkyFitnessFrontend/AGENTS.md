@@ -117,7 +117,12 @@ card per reading under `pages/Exercises/`. Five rules, each of which has already
   `plan_completed_at`. That stamp is the _only_ thing that says the plan has been answered: a
   profile with some fields filled in is not a completed plan, so never infer completion from the
   fields. The form seeds its draft **once, when the editor opens**, because a background refetch
-  landing mid-edit would otherwise overwrite what is being typed. `limitations` stays literal
+  landing mid-edit would otherwise overwrite what is being typed — and the button that opens it
+  waits for the profile read to land, since `undefined` there is a read in flight or one that
+  failed, never a user with no plan (the endpoint answers a row of nulls for that), so opening
+  early would seed the defaults and save them over a stored plan. The stated dose is **never
+  clamped**: an out-of-range figure blocks the save and says so, because quietly storing the
+  maximum answers a question about the user's own protocol on their behalf. `limitations` stays literal
   English prose (the generator and the chat coach both read it), so only the preset _labels_ are
   localized. The enhancement answer stores a **dose and an interval, never a weekly average** —
   1000 mg every ten weeks is an ordinary undecanoate protocol and would reopen as "100 mg" if
@@ -128,11 +133,17 @@ card per reading under `pages/Exercises/`. Five rules, each of which has already
   (`DELETE /api/weekly-set-targets`). The `PUT` cannot express it: it merges, a jsonb merge cannot
   remove a key, and a target of `0` means "not training this group" rather than "work it out for
   me". The clear runs in the save's `onSuccess`, never beside it — dropping the overrides for a
-  plan that never landed would leave the user with neither.
+  plan that never landed would leave the user with neither. The clear also **cancels the
+  weekly-target reads already in flight**, because the save's own invalidation started one against
+  the still-custom week: started first, it can land last and put the overrides back over a week the
+  server no longer holds them for.
 - **`MuscleGainProjectionCard` renders `total_kg` and does no arithmetic.** A year is not twelve
   weeks times four, and the natural and enhanced components are not additive in any way a client
   could reconstruct, so each horizon is its own request (`muscleGainProjectionKeys.horizon`) with
-  `keepPreviousData` so flipping the toggle cannot unmount the card mid-click. The **year is
+  `keepPreviousData` so flipping the toggle cannot unmount the card mid-click. What that keeps is
+  the _other_ horizon's figure, though, and the buttons have already moved — so the card renders a
+  pending line while `isPlaceholderData` rather than putting twelve weeks of growth under a label
+  reading "1 year". The **year is
   labelled an extrapolation in the card itself** — twelve weeks is about the length of the trials
   the model is anchored on. It shows the total alone: the response says only _whether_ a stated
   dose was part of the estimate, and splitting the components out would put that on a shared

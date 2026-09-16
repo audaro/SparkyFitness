@@ -14,6 +14,7 @@ import type { MuscleGainProjection } from '@/hooks/Exercises/useMuscleGainProjec
 let mockAvailable = true;
 let mockProfile: { plan_completed_at: string | null } | undefined;
 let mockProjection: MuscleGainProjection | undefined;
+let mockIsPlaceholderData = false;
 const mockUseProjection = jest.fn();
 
 jest.mock('react-i18next', () => ({
@@ -48,7 +49,10 @@ jest.mock('@/hooks/Exercises/useCoachProfile', () => ({
 jest.mock('@/hooks/Exercises/useMuscleGainProjection', () => ({
   useMuscleGainProjection: (weeks: number, enabled: boolean) => {
     mockUseProjection(weeks, enabled);
-    return { data: mockProjection };
+    return {
+      data: mockProjection,
+      isPlaceholderData: mockIsPlaceholderData,
+    };
   },
 }));
 
@@ -94,6 +98,7 @@ describe('MuscleGainProjectionCard', () => {
     mockAvailable = true;
     mockProfile = { plan_completed_at: '2026-09-16T10:00:00.000Z' };
     mockProjection = makeProjection();
+    mockIsPlaceholderData = false;
   });
 
   it('opens on twelve weeks, the horizon the model was fitted on', () => {
@@ -148,6 +153,28 @@ describe('MuscleGainProjectionCard', () => {
     expect(
       screen.getByTestId('muscle-gain-projection-extrapolation')
     ).toBeInTheDocument();
+  });
+
+  // `keepPreviousData` is what keeps the card mounted across a horizon change,
+  // but the data it keeps answers the *other* horizon — and the buttons have
+  // already moved, so rendering it puts twelve weeks of growth under a label
+  // reading "1 year".
+  it('waits for the figure rather than showing the other horizon under the new label', () => {
+    mockIsPlaceholderData = true;
+    render(<MuscleGainProjectionCard />);
+
+    fireEvent.click(screen.getByRole('button', { name: '1 year' }));
+
+    // Still mounted — that is what the placeholder data buys.
+    expect(
+      screen.getByTestId('muscle-gain-projection-card')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('muscle-gain-projection-range')
+    ).toHaveTextContent('Working it out…');
+    expect(
+      screen.getByTestId('muscle-gain-projection-range')
+    ).not.toHaveTextContent('+1.2–2.4 kg of lean mass');
   });
 
   // A user who has just answered the questionnaire has not failed at anything,

@@ -27,6 +27,10 @@ export function useMuscleGainProjection(weeks: number, enabled = true) {
 
   return {
     projection: query.data,
+    // True only while the data on hand belongs to a *different* horizon than
+    // the one asked for, which is exactly when a caller must not present it as
+    // the answer to the selected one.
+    isPlaceholderData: query.isPlaceholderData,
     isLoading: query.isLoading,
     isError: query.isError,
     refetch: query.refetch,

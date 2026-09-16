@@ -52,7 +52,7 @@ const MuscleGainProjectionCard: React.FC<Props> = ({ onPress, enabled }) => {
   const { preferences } = usePreferences();
   const weightUnit = normalizeWeightUnit(preferences?.default_weight_unit);
 
-  const { projection, isLoading } = useMuscleGainProjection(
+  const { projection, isPlaceholderData, isLoading } = useMuscleGainProjection(
     HORIZON_WEEKS[horizon],
     enabled,
   );
@@ -113,16 +113,25 @@ const MuscleGainProjectionCard: React.FC<Props> = ({ onPress, enabled }) => {
         />
       </View>
 
+      {/* `keepPreviousData` is what keeps this card mounted across a tap on
+          the other segment, but what it keeps is the *other* horizon's figure
+          — and the control above has already moved, so drawing it would put
+          twelve weeks of growth under a segment reading "1 year". The figure
+          waits; the card does not have to. */}
       <Text
         className="mt-3 text-2xl font-bold text-text-primary"
         testID="exercise-home-projection-range"
       >
-        {t('trainingPlan.projectionRange', {
-          defaultValue: '+{{low}}–{{high}} {{unit}} of lean mass',
-          low: formatKg(range.low_kg),
-          high: formatKg(range.high_kg),
-          unit: weightUnit,
-        })}
+        {isPlaceholderData
+          ? t('trainingPlan.projectionLoading', {
+              defaultValue: 'Working it out…',
+            })
+          : t('trainingPlan.projectionRange', {
+              defaultValue: '+{{low}}–{{high}} {{unit}} of lean mass',
+              low: formatKg(range.low_kg),
+              high: formatKg(range.high_kg),
+              unit: weightUnit,
+            })}
       </Text>
 
       <Text className="mt-1 text-sm text-text-secondary">

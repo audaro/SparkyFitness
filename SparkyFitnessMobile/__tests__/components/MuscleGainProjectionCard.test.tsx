@@ -120,7 +120,12 @@ describe('MuscleGainProjectionCard', () => {
   // Switching horizon must not unmount the card under the finger that switched
   // it: the card hides itself when it has no data, so the previous horizon has
   // to stay on screen until the new one lands.
-  it('keeps the figure on screen while the other horizon loads', async () => {
+  // `keepPreviousData` is what stops the card unmounting under the finger that
+  // tapped the other segment — but the figure it keeps answers the horizon the
+  // user just left, and the segment above has already moved. Showing it would
+  // put twelve weeks of growth under a control reading "1 year", so the card
+  // stays and the number waits.
+  it('stays mounted without claiming the old figure answers the new horizon', async () => {
     const { getByText, getByTestId, findByTestId } = renderCard();
     await findByTestId('exercise-home-projection-range');
 
@@ -130,9 +135,11 @@ describe('MuscleGainProjectionCard', () => {
     );
     fireEvent.press(getByText('1 year'));
 
+    expect(getByTestId('exercise-home-projection-card')).toBeTruthy();
     expect(getByTestId('exercise-home-projection-range').props.children).toBe(
-      '+1.2–2.4 kg of lean mass',
+      'Working it out…',
     );
+
     resolveYear(projection(52, { total_kg: { low_kg: 5, high_kg: 9 } }));
     await waitFor(() =>
       expect(getByTestId('exercise-home-projection-range').props.children).toBe(

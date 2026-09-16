@@ -44,7 +44,10 @@ const MuscleGainProjectionCard: React.FC = () => {
   const planAnswered =
     coachProfile !== undefined && coachProfile.plan_completed_at !== null;
 
-  const { data } = useMuscleGainProjection(weeks, available && planAnswered);
+  const { data, isPlaceholderData } = useMuscleGainProjection(
+    weeks,
+    available && planAnswered
+  );
 
   // Nothing to say, so nothing on screen. Several cases converge here and none
   // wants an error block on a page with plenty else on it: a delegate context,
@@ -92,16 +95,23 @@ const MuscleGainProjectionCard: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
+        {/* `keepPreviousData` keeps the card on screen across a horizon
+            change, but what it keeps is the *other* horizon's figure — and the
+            buttons above have already moved, so rendering it would put twelve
+            weeks of growth under a label reading "1 year". The figure waits;
+            the card does not have to. */}
         <p
           className="text-3xl font-bold tracking-tight"
           data-testid="muscle-gain-projection-range"
         >
-          {t('muscleGainProjection.range', {
-            low: format(range.low_kg),
-            high: format(range.high_kg),
-            unit: weightUnit,
-            defaultValue: '+{{low}}–{{high}} {{unit}} of lean mass',
-          })}
+          {isPlaceholderData
+            ? t('muscleGainProjection.pending', 'Working it out…')
+            : t('muscleGainProjection.range', {
+                low: format(range.low_kg),
+                high: format(range.high_kg),
+                unit: weightUnit,
+                defaultValue: '+{{low}}–{{high}} {{unit}} of lean mass',
+              })}
         </p>
 
         <p className="text-sm text-muted-foreground">

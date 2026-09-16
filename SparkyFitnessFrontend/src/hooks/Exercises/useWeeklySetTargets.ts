@@ -122,6 +122,15 @@ export const useClearWeeklySetTargetsMutation = (
   const { t } = useTranslation();
 
   return useMutation({
+    // The one caller of this clears *because* a plan just saved, and saving a
+    // plan invalidates the weekly targets — so a refetch of the still-custom
+    // week is already in flight when this fires. It was started first and can
+    // land last, putting the hand-set targets back over the cleared week and
+    // leaving the ring claiming overrides the server no longer holds.
+    // Cancelling is what makes the write-through below the last word.
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: weeklySetTargetKeys.all });
+    },
     mutationFn: () => clearWeeklySetTargets(historyWeeks),
     onSuccess: (response) => {
       queryClient.setQueryData(
