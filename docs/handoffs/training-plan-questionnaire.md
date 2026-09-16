@@ -1,48 +1,63 @@
 # Handoff — Training Plan questionnaire, goal-aware weekly targets, muscle-gain projection
 
-*Written 2026-09-15. Branch `main`, HEAD `05c775ab0`. Nothing from this feature is implemented yet.*
+*Updated 2026-09-16. Branch `main`, HEAD `a1f913e68`. **All seven phases are implemented and
+committed. Nothing is pushed.***
 
 ## What this is
 
 Feature request: a questionnaire covering goals, desired physique and training days that tailors
 the "This week" set targets to the answers. Alongside it, an optional enhancement input
-(natural / TRT / enhanced, with a weekly dose) driving a lean-mass projection over a training
-horizon. The natural case is the default and must work on its own.
+(natural / TRT / enhanced, with a stated dose) driving a lean-mass projection over a training
+horizon. The natural case is the default and works on its own.
 
-A blueprint exists and is the spec. **Read it before writing any code:**
+The blueprint is the spec and is deliberately outside the repo, matching the other blueprints in
+`~/fitness/`:
 
     ~/fitness/TRAINING-PLAN-BLUEPRINT.md
 
-It is deliberately outside the repo, matching the other blueprints in `~/fitness/`
-(`AI-COACH-BLUEPRINT.md`, `FITBOD-BLUEPRINT.md`, `EXERCISE-HOME-BLUEPRINT.md`).
+The three questions it left open are answered: **12 weeks with a 1-year toggle**, **Exercise tab
+only** (no Home card), **keep undecanoate and ask for a dose plus an interval**, and the
+questionnaire is **six steps** as drafted.
 
-## Status: drafted, NOT signed off
+## Status: complete, unpushed
 
-The blueprint was written and presented but not yet approved. **Three open questions are
-unanswered** (Part V of the blueprint):
+| Phase | What shipped | Commit |
+| --- | --- | --- |
+| 1 | Five nullable `coach_profiles` columns, Zod contract, `enhancement` stripped from chat context | `d5b567370` |
+| 2 | `deriveDefaultWeeklySetTargets` reads the whole plan | `d10773aac` |
+| 3 | Generation reads the stated plan instead of regex-matching free text | `77274854f` |
+| 4 | `GET /api/coach-profile/projection`, `muscleGainProjection.ts` | `c6a7ed029` |
+| 4a | Dose stored as an amount + interval rather than a weekly average | `9c59d0696` |
+| 5 | Mobile six-step questionnaire, `DELETE /api/weekly-set-targets` | `2233a59ae` |
+| 6 | Mobile projection card on the Exercise tab | `3a99db64b` |
+| 7 | Web parity: `TrainingPlanCard` + `MuscleGainProjectionCard` on `/exercises` | `a1f913e68` |
 
-1. Projection horizon — 12 weeks only, or also 6 and 12 months?
-2. Should the projection card appear on Home as well as Exercise?
-3. Is the `undecanoate` ester needed, or only weekly esters?
-
-None of them block Phases 1-4. Phase 1 is safe to start without answers. Question 1 shapes the
-Phase 4 endpoint signature (`?weeks=` already takes a parameter, so a second horizon is additive).
-Question 2 is Phase 6 only. Question 3 is one entry in a lookup table.
-
-**Do not start Phase 5 or 6 without sign-off on the questionnaire's step list** — that is the
-part most likely to attract design feedback.
+Gate at `a1f913e68`: server `tsc` 0 / 5268 tests + 7 integration; mobile `validate` green (i18n
+audit at zero) / 391 suites / 6355 tests; frontend `validate` green / 121 suites / 1234 tests.
 
 ## Exact next step
 
-**Phase 1 — Schema and contract.** Add five nullable columns to `coach_profiles`:
-`primary_goal`, `physique_target`, `priority_muscle_groups`, `enhancement`, `plan_completed_at`.
-Extend `shared/src/schemas/database/CoachProfiles.zod.ts` and
-`shared/src/schemas/api/CoachProfile.api.zod.ts`, then
-`SparkyFitnessServer/models/coachProfileRepository.ts` (`PROFILE_COLS`, `PATCHABLE_COLS`,
-`JSONB_COLS`). Strip `enhancement` from the chat-context snapshot in
-`SparkyFitnessServer/ai/tools/coachProfileTools.ts`.
+1. **Push.** Eight commits `d5b567370..a1f913e68` are local only. `audaro/SparkyFitness` is
+   public — the commit messages were written in product terms, but re-read them before pushing.
+2. **Answer the questionnaire on a real device** and confirm the ring moves. Nothing here has
+   been exercised against the live account; every verdict so far is from tests.
+3. **Maestro is still dead** (`ExpoVideo` missing from a stale August binary). A QA scenario for
+   the questionnaire needs `npx expo prebuild` + `xcodebuild` first.
 
-Gate: `SparkyFitnessServer` `tsc --noEmit` + jest, plus the shared suite. Commit per phase.
+## Decisions worth not re-litigating
+
+- **The plan's entry points live on the Exercise tab, not in Settings** — a dismissible prompt
+  above the week card while `plan_completed_at` is null, and a permanent Setup row after. The
+  mobile package guide is explicit that training *configuration* belongs on the tab.
+- **`plan_completed_at` is the only signal that the plan was answered.** Never infer it from the
+  fields being non-null.
+- **`DELETE /api/weekly-set-targets` exists because the merge cannot express a clear.** A jsonb
+  `||` cannot remove a key, and `{legs: 0}` means "not training legs this block". Without it,
+  hand-setting one target was a one-way door out of the derived plan.
+- **The projection is withheld until the draft matches the stored plan** (mobile step 6), because
+  the endpoint computes from the stored profile.
+- **A year is labelled an extrapolation wherever it is offered.** Twelve weeks is about the length
+  of the trials the model is anchored on.
 
 ## Verified facts the blueprint rests on (re-checked 2026-09-15)
 
