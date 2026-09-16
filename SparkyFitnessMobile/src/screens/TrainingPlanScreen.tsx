@@ -60,6 +60,14 @@ type TrainingPlanScreenProps = RootStackScreenProps<'TrainingPlan'>;
 
 const TOTAL_STEPS = 6;
 
+/**
+ * The review step, for callers that want to land on it — the Exercise tab's
+ * projection card opens the plan here. Exported so the step number lives in
+ * one place; a seventh question would otherwise move the review out from under
+ * every deep link to it.
+ */
+export const TRAINING_PLAN_REVIEW_STEP = TOTAL_STEPS;
+
 const MIN_TRAINING_DAYS = 1;
 const MAX_TRAINING_DAYS = 7;
 const MIN_SESSION_MINUTES = 20;

@@ -19,6 +19,8 @@ import DateNavigator from '../components/DateNavigator';
 import ExerciseSummary from '../components/ExerciseSummary';
 import HexagonProgressRing from '../components/HexagonProgressRing';
 import Icon from '../components/Icon';
+import MuscleGainProjectionCard from '../components/MuscleGainProjectionCard';
+import { TRAINING_PLAN_REVIEW_STEP } from './TrainingPlanScreen';
 import MuscleRecoveryStrip from '../components/MuscleRecoveryStrip';
 import SettingsRow, { SettingsRowGroup } from '../components/SettingsRow';
 import UpNextCard from '../components/UpNextCard';
@@ -356,6 +358,20 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             )}
           </Pressable>
         )}
+
+        {/* What the week card's targets are worth over a horizon. Under the
+            ring on purpose: it is the reason to close those rings, and it is
+            only honest once the plan behind them has been stated, which is why
+            it takes the completion stamp rather than reading the profile
+            itself. It hides when there is no weigh-in to estimate from. */}
+        <MuscleGainProjectionCard
+          enabled={
+            coachProfile !== undefined && coachProfile.plan_completed_at !== null
+          }
+          onPress={() =>
+            navigation.navigate('TrainingPlan', { initialStep: TRAINING_PLAN_REVIEW_STEP })
+          }
+        />
 
         {/* Per-muscle freshness from GET /api/workout-recommendations/recovery.
             "Now"-based like Up Next above it — today's recovery, not the

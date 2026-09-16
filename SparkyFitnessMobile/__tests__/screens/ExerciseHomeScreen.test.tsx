@@ -37,6 +37,33 @@ jest.mock('../../src/hooks/usePreferences', () => ({
   })),
 }));
 
+jest.mock('../../src/hooks/useMuscleGainProjection', () => ({
+  useMuscleGainProjection: jest.fn(() => ({
+    projection: {
+      horizon_weeks: 12,
+      projection: {
+        natural_kg: { low_kg: 1, high_kg: 2 },
+        enhanced_kg: null,
+        total_kg: { low_kg: 1.2, high_kg: 2.4 },
+        per_month_kg: { low_kg: 0.4, high_kg: 0.8 },
+        at_full_adherence_kg: { low_kg: 1.5, high_kg: 3 },
+        unmodelled: [],
+        sources: ['Bhasin 2001'],
+      },
+      inputs: {
+        sex: 'male',
+        experience_level: 'intermediate',
+        bodyweight_kg: 82,
+        adherence: 0.8,
+        adherence_basis: 'measured',
+        adherence_weeks: 4,
+        enhancement_stated: false,
+      },
+    },
+    isLoading: false,
+  })),
+}));
+
 jest.mock('../../src/hooks/useExerciseImageSource', () => ({
   useExerciseImageSource: jest.fn(() => ({ getImageSource: jest.fn() })),
 }));
@@ -374,6 +401,20 @@ describe('ExerciseHomeScreen', () => {
     expect(
       answered.queryByTestId('exercise-home-training-plan-prompt'),
     ).toBeNull();
+  });
+
+  // The card's whole job is to give the rings a reason, so it has to land on
+  // the step that shows what those rings are worth rather than on question one.
+  it('opens the plan at its review step from the projection card', async () => {
+    const { getByTestId } = renderScreen();
+
+    await waitFor(() =>
+      expect(getByTestId('exercise-home-projection-review')).toBeTruthy(),
+    );
+    fireEvent.press(getByTestId('exercise-home-projection-review'));
+    expect(navigation.navigate).toHaveBeenCalledWith('TrainingPlan', {
+      initialStep: 6,
+    });
   });
 
   it('names the active gym profile in the setup row', async () => {

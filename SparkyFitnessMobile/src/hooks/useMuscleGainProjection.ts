@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   fetchMuscleGainProjection,
   type MuscleGainProjection,
@@ -18,6 +18,11 @@ export function useMuscleGainProjection(weeks: number, enabled = true) {
     queryKey: muscleGainProjectionQueryKey(weeks),
     queryFn: () => fetchMuscleGainProjection(weeks),
     enabled,
+    // The horizon is a control the user flips, and the surfaces that render a
+    // projection hide themselves when there is nothing to draw. Without this,
+    // asking for the year would unmount the card mid-tap and put it back a
+    // moment later somewhere else on the page.
+    placeholderData: keepPreviousData,
   });
 
   return {
