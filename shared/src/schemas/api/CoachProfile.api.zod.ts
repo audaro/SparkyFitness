@@ -183,6 +183,70 @@ export const updateCoachProfileRequestSchema = z
     message: "Provide at least one field to update",
   });
 
+/**
+ * `GET /api/coach-profile/projection`.
+ *
+ * A projection of lean-mass gain over a horizon, plus the inputs it was built
+ * from, so the card can say what it based the estimate on rather than
+ * presenting a number from nowhere.
+ *
+ * The stated dose is deliberately **not** echoed here. The owner's own client
+ * can read it from `GET /api/coach-profile` when it needs to pre-fill the
+ * questionnaire; a projection only needs to say whether a dose was part of the
+ * estimate, and a payload that carries the value is a payload that can end up
+ * in a log or a crash report for no benefit.
+ */
+const projectionRangeSchema = z
+  .object({
+    low_kg: z.number(),
+    high_kg: z.number(),
+  })
+  .strict();
+
+export const muscleGainProjectionResponseSchema = z
+  .object({
+    horizon_weeks: z.number().int().positive(),
+    projection: z
+      .object({
+        /** From training alone. Null when no bodyweight is on file. */
+        natural_kg: projectionRangeSchema.nullable(),
+        /** Attributable to a stated dose, on top of the above. */
+        enhanced_kg: projectionRangeSchema.nullable(),
+        total_kg: projectionRangeSchema.nullable(),
+        per_month_kg: projectionRangeSchema.nullable(),
+        at_full_adherence_kg: projectionRangeSchema.nullable(),
+        /** Why a component above is null, for copy that explains the gap. */
+        unmodelled: z.array(z.string()),
+        sources: z.array(z.string()),
+      })
+      .strict(),
+    inputs: z
+      .object({
+        sex: z.enum(["male", "female"]).nullable(),
+        experience_level: experienceLevelSchema.nullable(),
+        bodyweight_kg: z.number().nullable(),
+        adherence: z.number().min(0).max(1),
+        /**
+         * `measured` means the adherence above is the mean of completed weeks
+         * with something logged in them. `no_history` means there was nothing
+         * to measure and the projection assumes the targets are met — a new
+         * user has not failed, they have not started, and showing them +0.0 kg
+         * would be both discouraging and wrong.
+         */
+        adherence_basis: z.enum(["measured", "no_history"]),
+        /** Completed weeks the adherence was averaged over. */
+        adherence_weeks: z.number().int().min(0),
+        /** Whether a stated dose was part of the estimate. Never the dose. */
+        enhancement_stated: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export type MuscleGainProjectionResponse = z.infer<
+  typeof muscleGainProjectionResponseSchema
+>;
+
 export type CoachProfileResponse = z.infer<typeof coachProfileResponseSchema>;
 export type CoachEnhancement = z.infer<typeof coachEnhancementSchema>;
 export type UpdateCoachProfileRequest = z.infer<

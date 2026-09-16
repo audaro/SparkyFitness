@@ -1,9 +1,15 @@
 import express, { RequestHandler } from 'express';
 import {
   coachProfileResponseSchema,
+  muscleGainProjectionResponseSchema,
   updateCoachProfileRequestSchema,
   type CoachProfileResponse,
 } from '@workspace/shared';
+import muscleGainProjectionService, {
+  DEFAULT_HORIZON_WEEKS,
+  MAX_HORIZON_WEEKS,
+  MIN_HORIZON_WEEKS,
+} from '../services/muscleGainProjectionService.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import checkPermissionMiddleware from '../middleware/checkPermissionMiddleware.js';
 import coachProfileRepository, {
@@ -161,6 +167,75 @@ const updateHandler: RequestHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * @swagger
+ * /coach-profile/projection:
+ *   get:
+ *     summary: Estimated lean-mass gain over a horizon
+ *     tags: [Exercise & Workouts]
+ *     description: |
+ *       An estimate, as a range, of the lean mass the user could gain over `weeks` by training —
+ *       and, when they have stated exogenous testosterone on their profile, from that as well. It
+ *       is assembled from published trials and returns the sources it used; it is not advice, and
+ *       it estimates lean mass rather than scale weight.
+ *
+ *       Adherence is the mean `overall_percent` of the last completed weeks from the same weekly
+ *       set target summary the "This week" ring renders. The current week is excluded because it
+ *       is partial. A user with nothing logged in that window gets `adherence_basis: "no_history"`
+ *       and a projection that assumes the targets are met, rather than a projection of zero.
+ *
+ *       A component that cannot be estimated comes back null with a reason in `unmodelled`: no
+ *       bodyweight on file, no stated dose, or a stated dose with no trial data to estimate it
+ *       from. The stated dose itself is never included in this payload.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: weeks
+ *         schema: { type: integer, default: 12, minimum: 1, maximum: 104 }
+ *         description: Horizon to project over. Out-of-range values are rejected.
+ *     responses:
+ *       200:
+ *         description: The projection, plus the inputs it was built from.
+ *       400:
+ *         description: Invalid `weeks`.
+ *       401:
+ *         description: Unauthenticated.
+ *       403:
+ *         description: Forbidden (not the owner, or no diary permission for the active context).
+ */
+const projectionHandler: RequestHandler = async (req, res, next) => {
+  try {
+    const raw = req.query.weeks;
+    let weeks = DEFAULT_HORIZON_WEEKS;
+    if (raw !== undefined) {
+      // Rejected rather than clamped: a client asking for 500 weeks has a bug,
+      // and silently answering a different question hides it.
+      const parsed = Number(raw);
+      if (
+        !Number.isInteger(parsed) ||
+        parsed < MIN_HORIZON_WEEKS ||
+        parsed > MAX_HORIZON_WEEKS
+      ) {
+        res.status(400).json({
+          error: `weeks must be an integer between ${MIN_HORIZON_WEEKS} and ${MAX_HORIZON_WEEKS}.`,
+        });
+        return;
+      }
+      weeks = parsed;
+    }
+    const projection =
+      await muscleGainProjectionService.getMuscleGainProjection(
+        req.userId,
+        weeks
+      );
+    res.status(200).json(muscleGainProjectionResponseSchema.parse(projection));
+  } catch (error: unknown) {
+    next(error);
+  }
+};
+
+router.get('/projection', projectionHandler);
 router.get('/', getHandler);
 router.patch('/', updateHandler);
 
