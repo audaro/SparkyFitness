@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import {
-  useMessage,
-  useThread,
-  useThreadRuntime,
+  useAui,
+  useAuiState,
   type ToolCallMessagePartComponent,
 } from '@assistant-ui/react';
 import { useTranslation } from 'react-i18next';
@@ -49,8 +48,7 @@ const formatSeconds = (seconds: number | null | undefined): string => {
 };
 
 type ProposalState =
-  | { phase: 'idle' }
-  | { phase: 'accepted'; presetId: string };
+  { phase: 'idle' } | { phase: 'accepted'; presetId: string };
 
 /**
  * Renders the `sparky_propose_workout_preset` tool call as an interactive
@@ -64,9 +62,9 @@ export const WorkoutPresetProposalToolUI: ToolCallMessagePartComponent<
   ProposeWorkoutPresetInput
 > = ({ args, toolCallId }) => {
   const { t } = useTranslation();
-  const threadRuntime = useThreadRuntime();
-  const isLast = useMessage((m) => m.isLast);
-  const isRunning = useThread((th) => th.isRunning);
+  const aui = useAui();
+  const isLast = useAuiState((s) => s.message.isLast);
+  const isRunning = useAuiState((s) => s.thread.isRunning);
   const { user } = useAuth();
   const { weightUnit } = usePreferences();
 
@@ -93,7 +91,7 @@ export const WorkoutPresetProposalToolUI: ToolCallMessagePartComponent<
   const stale = !isLast || isRunning;
 
   const appendUserText = (text: string) => {
-    threadRuntime.append({
+    aui.thread.append({
       role: 'user',
       content: [{ type: 'text', text }],
     });

@@ -80,9 +80,10 @@ const mockFactory = WorkoutLiveActivityFactory as unknown as {
   getInstances: jest.Mock;
 };
 const mockAddLog = addLog as jest.MockedFunction<typeof addLog>;
-const mockAddUserInteractionListener = addUserInteractionListener as jest.MockedFunction<
-  typeof addUserInteractionListener
->;
+const mockAddUserInteractionListener =
+  addUserInteractionListener as jest.MockedFunction<
+    typeof addUserInteractionListener
+  >;
 
 const FIXED_NOW = 1_700_000_000_000;
 const ACTIVE_WORKOUT_URL = 'sparkyfitnessmobile://active-workout';
@@ -90,7 +91,10 @@ const ACTIVE_WORKOUT_URL = 'sparkyfitnessmobile://active-workout';
 const createdInstances: MockInstance[] = [];
 
 function makeInstance(): MockInstance {
-  return { update: jest.fn(async () => undefined), end: jest.fn(async () => undefined) };
+  return {
+    update: jest.fn(async () => undefined),
+    end: jest.fn(async () => undefined),
+  };
 }
 
 function makeSet(id: number, setNumber: number, restTime = 60) {
@@ -109,7 +113,9 @@ function makeSet(id: number, setNumber: number, restTime = 60) {
   };
 }
 
-function makeSession(overrides?: Partial<PresetSessionResponse>): PresetSessionResponse {
+function makeSession(
+  overrides?: Partial<PresetSessionResponse>
+): PresetSessionResponse {
   return {
     type: 'preset',
     id: 'session-1',
@@ -200,7 +206,9 @@ describe('workoutLiveActivity', () => {
     mockFactory.getInstances.mockReset().mockReturnValue([]);
     mockAddLog.mockClear();
     mockAddUserInteractionListener.mockClear();
-    jest.spyOn(useActiveWorkoutStore.persist, 'hasHydrated').mockReturnValue(true);
+    jest
+      .spyOn(useActiveWorkoutStore.persist, 'hasHydrated')
+      .mockReturnValue(true);
     await AsyncStorage.clear();
     await initializeI18n('en');
     if (i18n.resolvedLanguage !== 'en') {
@@ -264,7 +272,7 @@ describe('workoutLiveActivity', () => {
           restStartedAt: FIXED_NOW,
           restEndsAt: FIXED_NOW + 60_000,
           setLine: 'Bench Press · Set 2 of 2',
-        }),
+        })
       );
 
       useActiveWorkoutStore.getState().pauseRest();
@@ -275,13 +283,13 @@ describe('workoutLiveActivity', () => {
           restStartedAt: null,
           restEndsAt: null,
           pausedRemainingLabel: '1:00',
-        }),
+        })
       );
 
       useActiveWorkoutStore.getState().dismissRest();
       await flushPromises();
       expect(instance.update).toHaveBeenLastCalledWith(
-        expect.objectContaining({ phase: 'active', pausedRemainingLabel: null }),
+        expect.objectContaining({ phase: 'active', pausedRemainingLabel: null })
       );
     });
 
@@ -302,7 +310,7 @@ describe('workoutLiveActivity', () => {
           elapsedLabel: '02:05',
           restEndsAt: null,
           setLine: null,
-        }),
+        })
       );
     });
 
@@ -311,12 +319,18 @@ describe('workoutLiveActivity', () => {
 
       useActiveWorkoutStore
         .getState()
-        .startWorkout(makeSession({ exercises: [] }), { createdByLiveStart: true });
+        .startWorkout(makeSession({ exercises: [] }), {
+          createdByLiveStart: true,
+        });
       await flushPromises();
 
       expect(mockFactory.start).toHaveBeenCalledWith(
-        expect.objectContaining({ phase: 'active', setLine: null, elapsedLabel: null }),
-        ACTIVE_WORKOUT_URL,
+        expect.objectContaining({
+          phase: 'active',
+          setLine: null,
+          elapsedLabel: null,
+        }),
+        ACTIVE_WORKOUT_URL
       );
     });
 
@@ -351,7 +365,7 @@ describe('workoutLiveActivity', () => {
       expect(mockFactory.start).toHaveBeenCalledTimes(1);
       expect(mockFactory.start).toHaveBeenCalledWith(
         expect.objectContaining({ workoutName: 'Push Day', phase: 'active' }),
-        ACTIVE_WORKOUT_URL,
+        ACTIVE_WORKOUT_URL
       );
     });
 
@@ -365,7 +379,7 @@ describe('workoutLiveActivity', () => {
 
       expect(mockFactory.start).not.toHaveBeenCalled();
       expect(leftover.update).toHaveBeenCalledWith(
-        expect.objectContaining({ workoutName: 'Push Day' }),
+        expect.objectContaining({ workoutName: 'Push Day' })
       );
       expect(extra.end).toHaveBeenCalledWith('immediate');
 
@@ -373,7 +387,7 @@ describe('workoutLiveActivity', () => {
       useActiveWorkoutStore.getState().completeSet('101');
       await flushPromises();
       expect(leftover.update).toHaveBeenLastCalledWith(
-        expect.objectContaining({ phase: 'resting' }),
+        expect.objectContaining({ phase: 'resting' })
       );
     });
 
@@ -401,7 +415,7 @@ describe('workoutLiveActivity', () => {
       await flushPromises();
       expect(mockFactory.start).not.toHaveBeenCalled();
       expect(leftover.update).toHaveBeenCalledWith(
-        expect.objectContaining({ workoutName: 'Push Day', phase: 'active' }),
+        expect.objectContaining({ workoutName: 'Push Day', phase: 'active' })
       );
     });
 
@@ -417,7 +431,7 @@ describe('workoutLiveActivity', () => {
 
       expect(mockFactory.start).toHaveBeenCalledWith(
         expect.objectContaining({ phase: 'complete', elapsedLabel: '01:00' }),
-        ACTIVE_WORKOUT_URL,
+        ACTIVE_WORKOUT_URL
       );
     });
   });
@@ -431,7 +445,9 @@ describe('workoutLiveActivity', () => {
 
       // Editing a non-active set replaces the session ref but leaves every
       // prop the activity shows untouched.
-      useActiveWorkoutStore.getState().updateSetField('102', { notes: 'heavy' });
+      useActiveWorkoutStore
+        .getState()
+        .updateSetField('102', { notes: 'heavy' });
       await flushPromises();
 
       expect(instance.update).not.toHaveBeenCalled();
@@ -448,14 +464,14 @@ describe('workoutLiveActivity', () => {
       await flushPromises();
       expect(mockAddLog).toHaveBeenCalledWith(
         expect.stringContaining('sync failed'),
-        'ERROR',
+        'ERROR'
       );
 
       // The queue keeps flowing and the failed props are not treated as sent.
       useActiveWorkoutStore.getState().pauseRest();
       await flushPromises();
       expect(instance.update).toHaveBeenLastCalledWith(
-        expect.objectContaining({ phase: 'paused' }),
+        expect.objectContaining({ phase: 'paused' })
       );
     });
 
@@ -475,7 +491,7 @@ describe('workoutLiveActivity', () => {
         expect.objectContaining({
           phase: 'resting',
           restEndsAt: FIXED_NOW + 90_000,
-        }),
+        })
       );
     });
   });
@@ -497,7 +513,7 @@ describe('workoutLiveActivity', () => {
         expect.objectContaining({
           phase: 'resting',
           restEndsAt: FIXED_NOW + 75_000,
-        }),
+        })
       );
     });
 
@@ -514,7 +530,7 @@ describe('workoutLiveActivity', () => {
       await flushPromises();
 
       expect(instance.update).toHaveBeenLastCalledWith(
-        expect.objectContaining({ phase: 'active', restEndsAt: null }),
+        expect.objectContaining({ phase: 'active', restEndsAt: null })
       );
     });
 
@@ -532,7 +548,7 @@ describe('workoutLiveActivity', () => {
           phase: 'resting',
           restEndsAt: FIXED_NOW + 60_000,
           setLine: 'Bench Press · Set 2 of 2',
-        }),
+        })
       );
     });
 
@@ -579,7 +595,9 @@ describe('workoutLiveActivity', () => {
       await flushPromises();
 
       const [props] = mockFactory.start.mock.calls[0];
-      expect(props.appIconUri).toBe('file:///shared/group.test/workout-live-activity-icon.png');
+      expect(props.appIconUri).toBe(
+        'file:///shared/group.test/workout-live-activity-icon.png'
+      );
     });
 
     it('omits the icon uri when no shared container is available', async () => {
@@ -600,7 +618,9 @@ describe('workoutLiveActivity', () => {
       const instance = createdInstances[0];
 
       expect(mockFactory.start).toHaveBeenCalledTimes(1);
-      expect(mockFactory.start.mock.calls[0][0]).toMatchObject({ locale: 'en' });
+      expect(mockFactory.start.mock.calls[0][0]).toMatchObject({
+        locale: 'en',
+      });
 
       await i18n.changeLanguage('pl');
       await flushPromises();
@@ -613,7 +633,7 @@ describe('workoutLiveActivity', () => {
           labels: expect.objectContaining({ rest: 'Odpoczynek' }),
           startedAt: FIXED_NOW,
           phase: 'active',
-        }),
+        })
       );
       expect(instance.end).not.toHaveBeenCalled();
     });
@@ -666,7 +686,7 @@ describe('workoutLiveActivity', () => {
 
       expect(mockFactory.start).not.toHaveBeenCalled();
       expect(leftover.update).toHaveBeenCalledWith(
-        expect.objectContaining({ locale: 'pl' }),
+        expect.objectContaining({ locale: 'pl' })
       );
     });
 
@@ -696,19 +716,21 @@ describe('workoutLiveActivity', () => {
 
       expect(mockAddLog).toHaveBeenCalledWith(
         expect.stringContaining('sync failed'),
-        'ERROR',
+        'ERROR'
       );
 
       // A later real state change still retries the update.
       useActiveWorkoutStore.getState().completeSet('101');
       await flushPromises();
       expect(instance.update).toHaveBeenLastCalledWith(
-        expect.objectContaining({ phase: 'resting' }),
+        expect.objectContaining({ phase: 'resting' })
       );
     });
 
     it('does not show toasts or alerts on update failures', async () => {
-      const alertSpy = jest.spyOn(global, 'alert').mockImplementation(() => undefined);
+      const alertSpy = jest
+        .spyOn(global, 'alert')
+        .mockImplementation(() => undefined);
       await initHydrated();
       useActiveWorkoutStore.getState().startWorkout(makeSession());
       await flushPromises();

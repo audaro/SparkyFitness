@@ -26,6 +26,10 @@ export const FoodVariantSchema = z.object({
   vitamin_c: z.number().optional(),
   calcium: z.number().optional(),
   iron: z.number().optional(),
+  caffeine_mg: z.number().optional(),
+  water_ml: z.number().optional(),
+  alcohol_g: z.number().optional(),
+  abv_percent: z.number().optional(),
   is_default: z.boolean(),
   glycemic_index: z.string().optional(),
   custom_nutrients: z
@@ -66,6 +70,9 @@ export const NormalizedFoodSchema = z.object({
   image_source_url: z.string().nullable().optional(),
   // Local foods returned through this shape carry their stored array.
   images: z.array(z.string()).optional(),
+  // Owner-authored markdown note. Only local foods have one; provider results
+  // arrive without the key, hence optional as well as nullable.
+  notes: z.string().nullable().optional(),
   default_variant: FoodVariantSchema,
   variants: z.array(FoodVariantSchema).optional(),
 });

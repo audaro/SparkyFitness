@@ -20,6 +20,7 @@ import workoutPresetRepository from '../models/workoutPresetRepository.js';
 import workoutPlanTemplateService from '../services/workoutPlanTemplateService.js';
 import workoutPlanTemplateRepository from '../models/workoutPlanTemplateRepository.js';
 import { getResolvedExerciseCaloriesRange } from '../services/exerciseCalorieRangeService.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
 vi.mock('../services/exerciseService', () => ({
   default: {
@@ -103,7 +104,7 @@ vi.mock('../config/logging', () => ({
   log: vi.fn(),
 }));
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 const DB_ERROR_TEXT =
   'Error [DB_ERROR]: A database error occurred.\n\nSuggestion: Do NOT retry the same call — it will fail the same way. Tell the user what failed and stop.';
 const NOT_FOUND_RESOURCE_TEXT =

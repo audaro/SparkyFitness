@@ -1519,8 +1519,7 @@ Actions:
                 );
               }
               let updatedExercises:
-                | ReturnType<typeof toPresetExercises>
-                | undefined;
+                ReturnType<typeof toPresetExercises> | undefined;
               if (args.exercises?.length) {
                 const resolved = await resolvePresetExerciseIds(
                   userId,

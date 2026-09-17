@@ -1,6 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, Platform, Pressable, StatusBar, Text, View } from 'react-native';
+import {
+  Modal,
+  Platform,
+  Pressable,
+  StatusBar,
+  Text,
+  View,
+} from 'react-native';
 import {
   Gesture,
   GestureDetector,
@@ -40,7 +53,8 @@ export const REORDER_ROW_HEIGHT = 64;
 /** Vertical gap between draggable items, carried as in-item bottom margin. */
 export const REORDER_ITEM_GAP = 8;
 
-const LONG_PRESS_MS = 150;
+/** Long press before a reorder drag engages, shared by every reorder surface. */
+export const REORDER_LONG_PRESS_MS = 150;
 const AUTO_SCROLL_EDGE = 80;
 const AUTO_SCROLL_SPEED = 8;
 
@@ -69,10 +83,11 @@ export function computeReorderTargetIndex(
   strides: number[],
   offsets: number[],
   activeIndex: number,
-  translationY: number,
+  translationY: number
 ): number {
   'worklet';
-  const activeCenter = offsets[activeIndex] + strides[activeIndex] / 2 + translationY;
+  const activeCenter =
+    offsets[activeIndex] + strides[activeIndex] / 2 + translationY;
   let target = 0;
   for (let j = 0; j < strides.length; j++) {
     if (j === activeIndex) continue;
@@ -95,7 +110,7 @@ export function computeReorderPreviewShift(
   rowIndex: number,
   activeIndex: number,
   targetIndex: number,
-  stride: number,
+  stride: number
 ): number {
   'worklet';
   if (rowIndex === activeIndex || activeIndex < 0 || targetIndex < 0) {
@@ -108,6 +123,170 @@ export function computeReorderPreviewShift(
     return stride;
   }
   return 0;
+}
+
+/**
+ * Drag geometry for a reorder list whose rows all share one height: the per-row stride
+ * and the running offset of each row's top edge, in the form
+ * `computeReorderTargetIndex` reads them.
+ *
+ * Uniform by construction, so the arrays depend on the row *count* rather than the rows
+ * themselves and stay referentially stable while the list keeps its shape — which matters
+ * because every row's animated style closes over `strides`.
+ */
+export function useReorderRowGeometry(
+  rowCount: number,
+  rowStride: number = REORDER_ROW_HEIGHT
+): { strides: number[]; offsets: number[] } {
+  return useMemo(
+    () => ({
+      strides: Array.from({ length: rowCount }, () => rowStride),
+      offsets: Array.from(
+        { length: rowCount },
+        (_, index) => index * rowStride
+      ),
+    }),
+    [rowCount, rowStride]
+  );
+}
+
+/**
+ * Shared drag-preview animated style for every row of a reorder list:
+ * - the ACTIVE row floats (follows the finger, slight scale, lift shadow);
+ * - every OTHER row springs exactly one row stride toward the drag origin while it sits
+ *   between the active row and the LIVE target index, so the list closes the old gap and
+ *   opens the new one naturally (no stationary hole at the source position).
+ *
+ * Non-draggable rows participate as passive siblings — Meal Types' system anchors, the
+ * Health Trends "Hidden" divider — so the WHOLE list previews the drop rather than only
+ * the part of it that can move.
+ *
+ * During the commit handoff the active row keeps its FINAL translate
+ * (`committingTranslate`) so the drop preview hands off to the reordered render with no
+ * snap-back; the caller's post-render effect clears the shared values only after the new
+ * order has rendered (see `resetReorderDragPreview`).
+ */
+export function useReorderRowPreviewStyle(
+  rowIndex: number,
+  activeDragIndex: SharedValue<number>,
+  panY: SharedValue<number>,
+  committingTranslate: SharedValue<number>,
+  targetIndex: SharedValue<number>,
+  strides: number[]
+) {
+  return useAnimatedStyle(() => {
+    const active = activeDragIndex.value;
+    if (active === rowIndex) {
+      const ty =
+        committingTranslate.value !== 0
+          ? committingTranslate.value
+          : panY.value;
+      return {
+        transform: [{ translateY: ty }, { scale: 1.02 }],
+        zIndex: 10,
+        elevation: 8,
+        shadowOpacity: 0.16,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+      };
+    }
+    // Reanimated applies animated styles as diffs — keys omitted from a later update keep
+    // their last value — so the lift shadow must be zeroed explicitly in every
+    // non-dragged branch.
+    if (active < 0) {
+      return {
+        transform: [{ translateY: 0 }, { scale: 1 }],
+        zIndex: 0,
+        elevation: 0,
+        shadowOpacity: 0,
+      };
+    }
+    const shift = computeReorderPreviewShift(
+      rowIndex,
+      active,
+      targetIndex.value,
+      strides[active]
+    );
+    return {
+      transform: [
+        { translateY: withSpring(shift, { damping: 44, stiffness: 960 }) },
+        { scale: 1 },
+      ],
+      zIndex: 0,
+      elevation: 0,
+      shadowOpacity: 0,
+    };
+  });
+}
+
+/**
+ * The long-press pan that drags one row of a reorder list.
+ *
+ * `onMove` is handed the live UI-thread target — the same value the sibling previews
+ * read — so the committed destination always matches the gap the user saw. Built fresh
+ * each render, because it closes over the row's current index.
+ */
+export function createReorderRowPanGesture({
+  index,
+  activeDragIndex,
+  panY,
+  committingTranslate,
+  targetIndex,
+  onMove,
+}: {
+  index: number;
+  activeDragIndex: SharedValue<number>;
+  panY: SharedValue<number>;
+  committingTranslate: SharedValue<number>;
+  targetIndex: SharedValue<number>;
+  onMove: (fromIndex: number, toIndex: number) => void;
+}) {
+  return Gesture.Pan()
+    .activateAfterLongPress(REORDER_LONG_PRESS_MS)
+    .onStart(() => {
+      activeDragIndex.value = index;
+      panY.value = 0;
+    })
+    .onUpdate((event) => {
+      panY.value = event.translationY;
+    })
+    .onEnd((_event, success) => {
+      const from = activeDragIndex.value;
+      const to = targetIndex.value;
+      // An ACTIVE pan that is cancelled or fails — the app backgrounds, a parent
+      // navigator gesture takes over — lands here too, with `success` false. Only a
+      // real drop may commit: treating a cancellation as one silently reorders the
+      // list, and persists it, on a move the user never finished making.
+      if (success && from >= 0 && from !== to) {
+        // Commit handoff: keep the active row's final translate while the JS reorder
+        // state commits — no snap-back to origin before React re-renders the row at its
+        // destination.
+        committingTranslate.value = panY.value;
+        // Worklet -> JS boundary: onMove must run on the JS thread.
+        runOnJS(onMove)(from, to);
+        return;
+      }
+      activeDragIndex.value = -1;
+      panY.value = 0;
+    });
+}
+
+/**
+ * Releases a frozen drag preview (active row float + sibling shifts) back to idle.
+ *
+ * Called by a REJECTED drop (Meal Types' full-gap case): the gesture already froze the
+ * preview in `onEnd`, so a rejection must clear the shared values or the rows stay stuck
+ * translated. An ACCEPTED move resets through the caller's post-render effect instead, so
+ * the preview hands off to the reordered render with no snap-back.
+ */
+export function resetReorderDragPreview(
+  activeDragIndex: SharedValue<number>,
+  panY: SharedValue<number>,
+  committingTranslate: SharedValue<number>
+): void {
+  committingTranslate.value = 0;
+  activeDragIndex.value = -1;
+  panY.value = 0;
 }
 
 interface ReorderItemRowProps {
@@ -184,7 +363,7 @@ function ReorderItemRow({
       index,
       active,
       targetIndex.value,
-      strides[active],
+      strides[active]
     );
     return {
       transform: [
@@ -200,7 +379,7 @@ function ReorderItemRow({
   const gesture = useMemo(
     () =>
       Gesture.Pan()
-        .activateAfterLongPress(LONG_PRESS_MS)
+        .activateAfterLongPress(REORDER_LONG_PRESS_MS)
         .onStart(() => {
           'worklet';
           activeIndex.value = index;
@@ -243,12 +422,14 @@ function ReorderItemRow({
       targetIndex,
       onCommit,
       setScrollEnabled,
-    ],
+    ]
   );
 
   const rows = item.entryIds.map((entryId) => {
     const exercise = exercisesById.get(entryId);
-    const name = exercise?.exercise_snapshot?.name ?? t('workout.exercise', { defaultValue: 'Exercise' });
+    const name =
+      exercise?.exercise_snapshot?.name ??
+      t('workout.exercise', { defaultValue: 'Exercise' });
     const setCount = exercise?.sets.length ?? 0;
     return (
       <View
@@ -258,14 +439,21 @@ function ReorderItemRow({
         className="flex-row items-center gap-3 px-3"
       >
         {exercise ? (
-          <ExerciseThumb exercise={exercise} getImageSource={getImageSource} size={40} />
+          <ExerciseThumb
+            exercise={exercise}
+            getImageSource={getImageSource}
+            size={40}
+          />
         ) : null}
         <View className="flex-1">
           <Text numberOfLines={1} className="text-base text-text-primary">
             {name}
           </Text>
           <Text className="text-sm text-text-muted">
-            {t('workoutReorder.sets', { defaultValue: '{{count}} sets', count: setCount })}
+            {t('workoutReorder.sets', {
+              defaultValue: '{{count}} sets',
+              count: setCount,
+            })}
           </Text>
         </View>
       </View>
@@ -275,7 +463,10 @@ function ReorderItemRow({
   return (
     <Animated.View
       testID={`reorder-item-${item.key}`}
-      style={[{ marginBottom: REORDER_ITEM_GAP, paddingLeft: isRun ? 10 : 0 }, animatedStyle]}
+      style={[
+        { marginBottom: REORDER_ITEM_GAP, paddingLeft: isRun ? 10 : 0 },
+        animatedStyle,
+      ]}
     >
       {isRun && railColor ? (
         <View
@@ -298,7 +489,9 @@ function ReorderItemRow({
           <View
             testID={`reorder-handle-${item.key}`}
             className="px-4 py-2 justify-center"
-            accessibilityLabel={t('workoutReorder.drag', { defaultValue: 'Drag to reorder' })}
+            accessibilityLabel={t('workoutReorder.drag', {
+              defaultValue: 'Drag to reorder',
+            })}
             accessibilityRole="adjustable"
           >
             <Icon name="reorder-handle" size={24} color={textMuted} />
@@ -331,19 +524,25 @@ function WorkoutReorderList({
   const items = useMemo(
     () =>
       buildExerciseReorderItems(
-        exercises.map((e) => ({ id: e.id, superset_group: e.superset_group ?? null })),
+        exercises.map((e) => ({
+          id: e.id,
+          superset_group: e.superset_group ?? null,
+        }))
       ),
-    [exercises],
+    [exercises]
   );
 
   const exercisesById = useMemo(
     () => new Map(exercises.map((e) => [e.id, e])),
-    [exercises],
+    [exercises]
   );
 
   const railColorByItemKey = useMemo(() => {
     const runs = getSupersetRuns(
-      exercises.map((e) => ({ id: e.id, superset_group: e.superset_group ?? null })),
+      exercises.map((e) => ({
+        id: e.id,
+        superset_group: e.superset_group ?? null,
+      }))
     );
     const colorMap = buildSupersetColorMap(runs, palette);
     const map = new Map<string, string>();
@@ -359,8 +558,11 @@ function WorkoutReorderList({
   // the drag target math. Kept as plain memoized arrays so the worklets can
   // capture them.
   const strides = useMemo(
-    () => items.map((item) => item.entryIds.length * REORDER_ROW_HEIGHT + REORDER_ITEM_GAP),
-    [items],
+    () =>
+      items.map(
+        (item) => item.entryIds.length * REORDER_ROW_HEIGHT + REORDER_ITEM_GAP
+      ),
+    [items]
   );
   const offsets = useMemo(() => {
     const out: number[] = [];
@@ -371,7 +573,10 @@ function WorkoutReorderList({
     }
     return out;
   }, [strides]);
-  const contentHeight = useMemo(() => strides.reduce((sum, s) => sum + s, 0), [strides]);
+  const contentHeight = useMemo(
+    () => strides.reduce((sum, s) => sum + s, 0),
+    [strides]
+  );
 
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const activeIndex = useSharedValue(-1);
@@ -386,11 +591,13 @@ function WorkoutReorderList({
 
   // Effective displacement of the dragged block: pan plus any auto-scroll that
   // happened since the drag began, so target math tracks auto-scroll for free.
-  const ty = useDerivedValue(() => panY.value + (scrollY.value - dragStartScrollY.value));
+  const ty = useDerivedValue(
+    () => panY.value + (scrollY.value - dragStartScrollY.value)
+  );
   const targetIndex = useDerivedValue(() =>
     activeIndex.value < 0
       ? -1
-      : computeReorderTargetIndex(strides, offsets, activeIndex.value, ty.value),
+      : computeReorderTargetIndex(strides, offsets, activeIndex.value, ty.value)
   );
 
   const scrollHandler = useAnimatedScrollHandler((event) => {
@@ -398,7 +605,10 @@ function WorkoutReorderList({
   });
 
   const [scrollEnabled, setScrollEnabled] = useState(true);
-  const setScrollEnabledJS = useCallback((enabled: boolean) => setScrollEnabled(enabled), []);
+  const setScrollEnabledJS = useCallback(
+    (enabled: boolean) => setScrollEnabled(enabled),
+    []
+  );
 
   // Set when a committing drop fires; cleared by the reset effect once the new
   // order has rendered. Guards the effect so it only releases the frozen drag
@@ -406,12 +616,16 @@ function WorkoutReorderList({
   const pendingReset = useRef(false);
   const handleCommit = useCallback(
     (fromItemIndex: number, toItemIndex: number) => {
-      if (fromItemIndex >= 0 && toItemIndex >= 0 && fromItemIndex !== toItemIndex) {
+      if (
+        fromItemIndex >= 0 &&
+        toItemIndex >= 0 &&
+        fromItemIndex !== toItemIndex
+      ) {
         pendingReset.current = true;
         onMoveItem(fromItemIndex, toItemIndex);
       }
     },
-    [onMoveItem],
+    [onMoveItem]
   );
 
   // Release the frozen drag transforms only after the reordered `items` have
@@ -434,10 +648,15 @@ function WorkoutReorderList({
   useAnimatedReaction(
     () => targetIndex.value,
     (curr, prev) => {
-      if (activeIndex.value >= 0 && curr >= 0 && prev != null && curr !== prev) {
+      if (
+        activeIndex.value >= 0 &&
+        curr >= 0 &&
+        prev != null &&
+        curr !== prev
+      ) {
         runOnJS(fireSelectionHaptic)();
       }
-    },
+    }
   );
 
   // Auto-scroll while the pointer is near a viewport edge during a drag.
@@ -449,7 +668,8 @@ function WorkoutReorderList({
     const pointer = pointerAbsY.value;
     let delta = 0;
     if (pointer < frame.pageY + AUTO_SCROLL_EDGE) delta = -AUTO_SCROLL_SPEED;
-    else if (pointer > frame.pageY + frame.height - AUTO_SCROLL_EDGE) delta = AUTO_SCROLL_SPEED;
+    else if (pointer > frame.pageY + frame.height - AUTO_SCROLL_EDGE)
+      delta = AUTO_SCROLL_SPEED;
     if (delta === 0) return;
     const maxScroll = Math.max(0, contentHeight - frame.height);
     const next = Math.min(maxScroll, Math.max(0, scrollY.value + delta));
@@ -457,7 +677,9 @@ function WorkoutReorderList({
   });
 
   const headerTopPad =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) + 8 : insets.top + 8;
+    Platform.OS === 'android'
+      ? (StatusBar.currentHeight ?? 0) + 8
+      : insets.top + 8;
 
   return (
     <Modal
@@ -471,12 +693,16 @@ function WorkoutReorderList({
           className="flex-row items-center justify-between px-4 pb-3 border-b border-border-subtle"
           style={{ paddingTop: headerTopPad }}
         >
-          <Text className="text-lg font-semibold text-text-primary">{t('workoutReorder.title', { defaultValue: 'Reorder exercises' })}</Text>
+          <Text className="text-lg font-semibold text-text-primary">
+            {t('workoutReorder.title', { defaultValue: 'Reorder exercises' })}
+          </Text>
           <Pressable
             onPress={onDone}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityRole="button"
-            accessibilityLabel={t('workoutReorder.doneHint', { defaultValue: 'Done reordering' })}
+            accessibilityLabel={t('workoutReorder.doneHint', {
+              defaultValue: 'Done reordering',
+            })}
           >
             <Text className="text-base font-semibold" style={{ color: accent }}>
               {t('common.done', { defaultValue: 'Done' })}
@@ -489,7 +715,10 @@ function WorkoutReorderList({
           onScroll={scrollHandler}
           scrollEventThrottle={16}
           scrollEnabled={scrollEnabled}
-          contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 24 }}
+          contentContainerStyle={{
+            padding: 12,
+            paddingBottom: insets.bottom + 24,
+          }}
         >
           {items.map((item, index) => (
             <ReorderItemRow

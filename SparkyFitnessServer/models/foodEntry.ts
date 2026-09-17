@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import { getClient } from '../db/poolManager.js';
 import { log } from '../config/logging.js';
 // @ts-expect-error TS(7016): Could not find a declaration file for module 'pg-f... Remove this comment to see the full error message
@@ -5,6 +6,48 @@ import format from 'pg-format';
 import { sanitizeCustomNutrients } from '../utils/foodUtils.js';
 import { toImageArray } from '../utils/imageLocalizer.js';
 import type { FoodEntryInput, FoodEntrySnapshot } from '../types/nutrition.js';
+import {
+  hasExactReviewedFoodEntrySnapshot,
+  sanitizeNotes,
+  type ReviewedFoodEntryFingerprint,
+} from '@workspace/shared';
+
+interface ReviewedFoodEntryCopyInput {
+  targetUserId: string;
+  actingUserId: string;
+  sourceUserId: string;
+  sourceDate: string;
+  sourceMealTypeId: string;
+  targetDate: string;
+  targetMealTypeId: string;
+  reviewedEntries: ReviewedFoodEntryFingerprint[];
+}
+
+interface ReviewedSourceEntry extends FoodEntryInput {
+  id: string;
+  food_entry_meal_id: string | null;
+}
+
+interface SourceMealContainer {
+  id: string;
+  meal_template_id: string | null;
+  entry_time: string | null;
+  name: string;
+  description: string | null;
+  notes: string | null;
+  quantity: number | null;
+  unit: string | null;
+  legacy_serving_unit_math: boolean;
+  entry_total_servings: number | null;
+}
+
+function reviewedCopyConflict() {
+  return Object.assign(
+    new Error('One or more source entries changed. Refresh the family diary.'),
+    { statusCode: 409 }
+  );
+}
+
 /**
  * @swagger
  * components:
@@ -108,6 +151,12 @@ import type { FoodEntryInput, FoodEntrySnapshot } from '../types/nutrition.js';
  *           type: number
  *         iron:
  *           type: number
+ *         caffeine_mg:
+ *           type: number
+ *         water_ml:
+ *           type: number
+ *         alcohol_g:
+ *           type: number
  *         glycemic_index:
  *           type: number
  *         custom_nutrients:
@@ -179,6 +228,9 @@ async function createFoodEntry(
         'vitamin_c',
         'calcium',
         'iron',
+        'caffeine_mg',
+        'water_ml',
+        'alcohol_g',
         'glycemic_index',
         'serving_size',
         'serving_unit',
@@ -224,6 +276,9 @@ async function createFoodEntry(
         vitamin_c: entryData.vitamin_c,
         calcium: entryData.calcium,
         iron: entryData.iron,
+        caffeine_mg: entryData.caffeine_mg,
+        water_ml: entryData.water_ml,
+        alcohol_g: entryData.alcohol_g,
         glycemic_index: entryData.glycemic_index,
         custom_nutrients: entryData.custom_nutrients || {},
         allergens: entryData.allergens || null,
@@ -238,10 +293,10 @@ async function createFoodEntry(
          created_by_user_id, food_name, brand_name, serving_size, serving_unit, calories, protein, carbs, fat,
          saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat, cholesterol, sodium,
          potassium, dietary_fiber, sugars, vitamin_a, vitamin_c, calcium, iron, glycemic_index, custom_nutrients, allergens, traces, updated_by_user_id,
-         source, source_id, entry_time, images
+         source, source_id, entry_time, images, notes, caffeine_mg, water_ml, alcohol_g
        ) VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
-         $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41::jsonb
+         $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41::jsonb, $42, $43, $44, $45
        )
        -- Idempotent re-sync for provider-sourced entries (e.g. Health Connect):
        -- re-ingesting the same record updates it in place. Manual/web entries
@@ -282,7 +337,12 @@ async function createFoodEntry(
            allergens = EXCLUDED.allergens,
            traces = EXCLUDED.traces,
            updated_by_user_id = EXCLUDED.updated_by_user_id,
-           entry_time = EXCLUDED.entry_time
+           entry_time = EXCLUDED.entry_time,
+           caffeine_mg = EXCLUDED.caffeine_mg,
+           water_ml = EXCLUDED.water_ml,
+           alcohol_g = EXCLUDED.alcohol_g
+           -- notes is deliberately absent: it is user-authored, so a provider
+           -- re-sync must never overwrite what the user wrote on this entry.
        RETURNING *`,
       [
         entryData.user_id,
@@ -331,6 +391,12 @@ async function createFoodEntry(
         // per-entry photo the user chose), and meal-component entries have no
         // parent food row to read from, so they fall back to an empty array.
         JSON.stringify(toImageArray(entryData.images ?? snapshot.food_images)),
+        // Per-occurrence note. Never seeded from the parent food's notes: the
+        // food's note is shown alongside this one, not copied into it.
+        sanitizeNotes(entryData.notes) ?? null,
+        snapshot.caffeine_mg,
+        snapshot.water_ml,
+        snapshot.alcohol_g,
       ]
     );
     await client.query('COMMIT');
@@ -357,6 +423,7 @@ async function getFoodEntryById(entryId: string, userId: string) {
         fe.variant_id,
         fe.entry_date,
         fe.entry_time,
+        fe.notes,
         fe.meal_plan_template_id,
         fe.food_entry_meal_id, 
         fe.food_name, 
@@ -379,6 +446,9 @@ async function getFoodEntryById(entryId: string, userId: string) {
         fe.vitamin_c, 
         fe.calcium, 
         fe.iron, 
+        fe.caffeine_mg,
+        fe.water_ml,
+        fe.alcohol_g,
         fe.glycemic_index,
         fe.custom_nutrients,
         fe.allergens,
@@ -473,7 +543,14 @@ async function updateFoodEntry(
         entry_time = $34,
         -- NULL means "key omitted": keep whatever override is already stored.
         -- Clearing the override is done by sending an empty array.
-        images = COALESCE($35::jsonb, images)
+        images = COALESCE($35::jsonb, images),
+        -- Plain assignment like entry_time: the service has already resolved
+        -- "key omitted => keep existing" against the stored row, so whatever
+        -- arrives here is the value the entry should end up with.
+        notes = $36,
+        caffeine_mg = $37,
+        water_ml = $38,
+        alcohol_g = $39
       WHERE id = $30
       RETURNING *`,
       [
@@ -514,6 +591,10 @@ async function updateFoodEntry(
         entryData.images === undefined
           ? null
           : JSON.stringify(toImageArray(entryData.images)),
+        sanitizeNotes(entryData.notes) ?? null,
+        snapshotData.caffeine_mg,
+        snapshotData.water_ml,
+        snapshotData.alcohol_g,
       ]
     );
     return result.rows[0];
@@ -536,6 +617,7 @@ async function getFoodEntriesByDate(userId: string, selectedDate: string) {
         fe.variant_id,
         fe.entry_date,
         fe.entry_time,
+        fe.notes,
         fe.meal_plan_template_id,
         fe.food_entry_meal_id,
         fe.food_name,
@@ -559,6 +641,9 @@ async function getFoodEntriesByDate(userId: string, selectedDate: string) {
         fe.vitamin_c,
         fe.calcium,
         fe.iron,
+        fe.caffeine_mg,
+        fe.water_ml,
+        fe.alcohol_g,
         fe.glycemic_index,
         fe.custom_nutrients,
         fe.source,
@@ -602,6 +687,7 @@ async function getFoodEntriesByDateAndMealType(
         fe.variant_id,
         fe.entry_date,
         fe.entry_time,
+        fe.notes,
         fe.meal_plan_template_id,
         fe.food_entry_meal_id,
         fe.food_name,
@@ -625,6 +711,9 @@ async function getFoodEntriesByDateAndMealType(
         fe.vitamin_c,
         fe.calcium,
         fe.iron,
+        fe.caffeine_mg,
+        fe.water_ml,
+        fe.alcohol_g,
         fe.glycemic_index,
         fe.custom_nutrients,
         f.provider_verified,
@@ -669,6 +758,7 @@ async function getFoodEntriesByDateRange(
         fe.variant_id,
         fe.entry_date,
         fe.entry_time,
+        fe.notes,
         fe.meal_plan_template_id,
         fe.food_entry_meal_id,
         fe.food_name,
@@ -692,6 +782,9 @@ async function getFoodEntriesByDateRange(
         fe.vitamin_c, 
         fe.calcium, 
         fe.iron, 
+        fe.caffeine_mg,
+        fe.water_ml,
+        fe.alcohol_g,
         fe.glycemic_index, 
         fe.custom_nutrients,
         f.provider_verified,
@@ -743,19 +836,277 @@ async function getFoodEntryByDetails(
   }
 }
 
-async function bulkCreateFoodEntries(
-  entriesData: FoodEntryInput[],
-  authenticatedUserId: string
-) {
-  log(
-    'info',
-    `bulkCreateFoodEntries in foodEntry.js: entriesData: ${JSON.stringify(entriesData)}, authenticatedUserId: ${authenticatedUserId}`
-  );
-  // For bulk create, assuming all entries belong to the same user,
-  // and the first entry's user_id can be used for RLS context.
-  const client = await getClient(authenticatedUserId); // User-specific operation
+// Copies a complete, reviewed family meal in one serializable transaction.
+// The source snapshot check belongs next to the writes so an update that races
+// the service's preliminary check cannot leave partially-created containers.
+async function copyReviewedFoodEntriesFromUser({
+  targetUserId,
+  actingUserId,
+  sourceUserId,
+  sourceDate,
+  sourceMealTypeId,
+  targetDate,
+  targetMealTypeId,
+  reviewedEntries,
+}: ReviewedFoodEntryCopyInput) {
+  const client = await getClient(targetUserId, actingUserId);
+  let transactionStarted = false;
+  let releaseError: Error | undefined;
+
   try {
-    const query = `
+    await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+    transactionStarted = true;
+
+    const sourceResult = (await client.query(
+      `SELECT
+        fe.id,
+        fe.food_id,
+        fe.meal_type_id,
+        fe.quantity,
+        fe.unit,
+        fe.entry_date,
+        fe.entry_time,
+        fe.notes,
+        fe.variant_id,
+        fe.meal_plan_template_id,
+        fe.food_entry_meal_id,
+        fe.food_name,
+        fe.brand_name,
+        fe.serving_size,
+        fe.serving_unit,
+        fe.calories,
+        fe.protein,
+        fe.carbs,
+        fe.fat,
+        fe.saturated_fat,
+        fe.polyunsaturated_fat,
+        fe.monounsaturated_fat,
+        fe.trans_fat,
+        fe.cholesterol,
+        fe.sodium,
+        fe.potassium,
+        fe.dietary_fiber,
+        fe.sugars,
+        fe.vitamin_a,
+        fe.vitamin_c,
+        fe.calcium,
+        fe.iron,
+        fe.caffeine_mg,
+        fe.water_ml,
+        fe.alcohol_g,
+        fe.glycemic_index,
+        fe.custom_nutrients
+       FROM food_entries fe
+       WHERE fe.user_id = $1
+         AND fe.entry_date = $2
+         AND fe.meal_type_id = $3
+       FOR SHARE`,
+      [sourceUserId, sourceDate, sourceMealTypeId]
+    )) as { rows: ReviewedSourceEntry[] };
+    const sourceEntries = sourceResult.rows;
+    if (!hasExactReviewedFoodEntrySnapshot(sourceEntries, reviewedEntries)) {
+      throw reviewedCopyConflict();
+    }
+
+    const copiedEntries: unknown[] = [];
+    const targetMealIdBySourceMealId = new Map<string, string>();
+    const existingStandaloneResult = (await client.query(
+      `SELECT food_id, variant_id
+       FROM food_entries
+       WHERE user_id = $1
+         AND meal_type_id = $2
+         AND entry_date = $3
+         AND food_entry_meal_id IS NULL
+         AND food_id IS NOT NULL`,
+      [targetUserId, targetMealTypeId, targetDate]
+    )) as {
+      rows: Array<{ food_id: string | null; variant_id: string | null }>;
+    };
+    const existingStandaloneKeys = new Set(
+      existingStandaloneResult.rows
+        .filter(({ food_id }) => food_id !== null)
+        .map(
+          ({ food_id, variant_id }) =>
+            `${food_id ?? 'null'}:${variant_id ?? 'null'}`
+        )
+    );
+
+    for (const entry of sourceEntries) {
+      let targetFoodEntryMealId: string | null = null;
+      if (entry.food_entry_meal_id) {
+        targetFoodEntryMealId =
+          targetMealIdBySourceMealId.get(entry.food_entry_meal_id) ?? null;
+
+        if (!targetFoodEntryMealId) {
+          const sourceMealResult = (await client.query(
+            `SELECT
+              id,
+              meal_template_id,
+              entry_time,
+              name,
+              description,
+              notes,
+              quantity,
+              unit,
+              legacy_serving_unit_math,
+              entry_total_servings
+             FROM food_entry_meals
+             WHERE id = $1 AND user_id = $2
+             FOR SHARE`,
+            [entry.food_entry_meal_id, sourceUserId]
+          )) as { rows: SourceMealContainer[] };
+          const sourceMeal = sourceMealResult.rows[0];
+          if (!sourceMeal) throw reviewedCopyConflict();
+
+          const targetMealResult = (await client.query(
+            `INSERT INTO food_entry_meals (
+              user_id,
+              meal_template_id,
+              meal_type_id,
+              entry_date,
+              entry_time,
+              name,
+              description,
+              notes,
+              quantity,
+              unit,
+              legacy_serving_unit_math,
+              created_by_user_id,
+              updated_by_user_id,
+              images,
+              entry_total_servings
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+              COALESCE((SELECT images FROM meals WHERE id = $2), '[]'::jsonb),
+              $14
+            )
+            RETURNING id`,
+            [
+              targetUserId,
+              sourceMeal.meal_template_id,
+              targetMealTypeId,
+              targetDate,
+              sourceMeal.entry_time,
+              sourceMeal.name,
+              sourceMeal.description,
+              sourceMeal.notes,
+              sourceMeal.quantity,
+              sourceMeal.unit,
+              sourceMeal.legacy_serving_unit_math,
+              actingUserId,
+              actingUserId,
+              sourceMeal.entry_total_servings,
+            ]
+          )) as { rows: Array<{ id: string }> };
+          targetFoodEntryMealId = targetMealResult.rows[0]?.id ?? null;
+          if (!targetFoodEntryMealId) {
+            throw new Error('Could not create copied meal container.');
+          }
+          targetMealIdBySourceMealId.set(
+            entry.food_entry_meal_id,
+            targetFoodEntryMealId
+          );
+        }
+      } else {
+        const standaloneKey = `${entry.food_id ?? 'null'}:${entry.variant_id ?? 'null'}`;
+        if (
+          entry.food_id !== null &&
+          entry.food_id !== undefined &&
+          existingStandaloneKeys.has(standaloneKey)
+        )
+          continue;
+      }
+
+      const inserted = await client.query(
+        `INSERT INTO food_entries (
+          user_id, food_id, meal_type_id, quantity, unit, entry_date,
+          entry_time, variant_id, meal_plan_template_id, food_entry_meal_id,
+          created_by_user_id, updated_by_user_id, food_name, brand_name,
+          serving_size, serving_unit, calories, protein, carbs, fat,
+          saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
+          cholesterol, sodium, potassium, dietary_fiber, sugars, vitamin_a,
+          vitamin_c, calcium, iron, caffeine_mg, water_ml, alcohol_g,
+          glycemic_index, custom_nutrients, notes
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
+          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39
+        ) RETURNING *`,
+        [
+          targetUserId,
+          entry.food_id,
+          targetMealTypeId,
+          entry.quantity,
+          entry.unit,
+          targetDate,
+          entry.entry_time ?? null,
+          entry.variant_id,
+          null,
+          targetFoodEntryMealId,
+          actingUserId,
+          actingUserId,
+          entry.food_name,
+          entry.brand_name,
+          entry.serving_size,
+          entry.serving_unit,
+          entry.calories,
+          entry.protein,
+          entry.carbs,
+          entry.fat,
+          entry.saturated_fat,
+          entry.polyunsaturated_fat,
+          entry.monounsaturated_fat,
+          entry.trans_fat,
+          entry.cholesterol,
+          entry.sodium,
+          entry.potassium,
+          entry.dietary_fiber,
+          entry.sugars,
+          entry.vitamin_a,
+          entry.vitamin_c,
+          entry.calcium,
+          entry.iron,
+          entry.caffeine_mg,
+          entry.water_ml,
+          entry.alcohol_g,
+          entry.glycemic_index,
+          sanitizeCustomNutrients(entry.custom_nutrients),
+          sanitizeNotes(entry.notes) ?? null,
+        ]
+      );
+      copiedEntries.push(...inserted.rows);
+    }
+
+    await client.query('COMMIT');
+    return copiedEntries;
+  } catch (error) {
+    if (transactionStarted) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        releaseError = rollbackError as Error;
+      }
+    }
+    if ((error as { code?: string }).code === '40001') {
+      throw reviewedCopyConflict();
+    }
+    throw error;
+  } finally {
+    client.release(releaseError);
+  }
+}
+
+/**
+ * Inserts many `food_entries` rows in one statement on a caller-supplied
+ * client. Split out of `bulkCreateFoodEntries` so a transactional caller can
+ * insert entries that reference foods created earlier in the same transaction.
+ * The caller owns BEGIN/COMMIT/ROLLBACK and the client's lifetime.
+ */
+async function bulkCreateFoodEntriesWithClient(
+  client: PoolClient,
+  entriesData: FoodEntryInput[]
+) {
+  const query = `
       INSERT INTO food_entries (
         user_id, 
         food_id, 
@@ -790,51 +1141,74 @@ async function bulkCreateFoodEntries(
         vitamin_c, 
         calcium, 
         iron, 
-        glycemic_index, 
-        custom_nutrients
+        caffeine_mg,
+        water_ml,
+        alcohol_g,
+        glycemic_index,
+        custom_nutrients,
+        notes
       )
       VALUES %L RETURNING *`;
-    const values = entriesData.map((entry: FoodEntryInput) => [
-      entry.user_id,
-      entry.food_id,
-      entry.meal_type_id,
-      entry.quantity,
-      entry.unit,
-      entry.entry_date,
-      entry.entry_time ?? null,
-      entry.variant_id,
-      entry.meal_plan_template_id || null, // meal_plan_template_id can be null
-      entry.food_entry_meal_id || null, // New column value
-      entry.created_by_user_id, // created_by_user_id
-      entry.created_by_user_id, // updated_by_user_id
-      // Snapshot data
-      entry.food_name,
-      entry.brand_name,
-      entry.serving_size,
-      entry.serving_unit,
-      entry.calories,
-      entry.protein,
-      entry.carbs,
-      entry.fat,
-      entry.saturated_fat,
-      entry.polyunsaturated_fat,
-      entry.monounsaturated_fat,
-      entry.trans_fat,
-      entry.cholesterol,
-      entry.sodium,
-      entry.potassium,
-      entry.dietary_fiber,
-      entry.sugars,
-      entry.vitamin_a,
-      entry.vitamin_c,
-      entry.calcium,
-      entry.iron,
-      entry.glycemic_index,
-      entry.custom_nutrients || {},
-    ]);
-    const formattedQuery = format(query, values);
-    const result = await client.query(formattedQuery);
-    return result.rows;
+  const values = entriesData.map((entry: FoodEntryInput) => [
+    entry.user_id,
+    entry.food_id,
+    entry.meal_type_id,
+    entry.quantity,
+    entry.unit,
+    entry.entry_date,
+    entry.entry_time ?? null,
+    entry.variant_id,
+    entry.meal_plan_template_id || null, // meal_plan_template_id can be null
+    entry.food_entry_meal_id || null, // New column value
+    entry.created_by_user_id, // created_by_user_id
+    entry.created_by_user_id, // updated_by_user_id
+    // Snapshot data
+    entry.food_name,
+    entry.brand_name,
+    entry.serving_size,
+    entry.serving_unit,
+    entry.calories,
+    entry.protein,
+    entry.carbs,
+    entry.fat,
+    entry.saturated_fat,
+    entry.polyunsaturated_fat,
+    entry.monounsaturated_fat,
+    entry.trans_fat,
+    entry.cholesterol,
+    entry.sodium,
+    entry.potassium,
+    entry.dietary_fiber,
+    entry.sugars,
+    entry.vitamin_a,
+    entry.vitamin_c,
+    entry.calcium,
+    entry.iron,
+    entry.caffeine_mg,
+    entry.water_ml,
+    entry.alcohol_g,
+    entry.glycemic_index,
+    entry.custom_nutrients || {},
+    sanitizeNotes(entry.notes) ?? null,
+  ]);
+  const formattedQuery = format(query, values);
+  const result = await client.query(formattedQuery);
+  return result.rows;
+}
+
+async function bulkCreateFoodEntries(
+  entriesData: FoodEntryInput[],
+  authenticatedUserId: string
+) {
+  log(
+    'info',
+    `bulkCreateFoodEntries in foodEntry.js: entriesData: ${JSON.stringify(entriesData)}, authenticatedUserId: ${authenticatedUserId}`
+  );
+  // For bulk create, assuming all entries belong to the same user,
+  // and the first entry's user_id can be used for RLS context.
+  const client = await getClient(authenticatedUserId); // User-specific operation
+  try {
+    return await bulkCreateFoodEntriesWithClient(client, entriesData);
   } finally {
     client.release();
   }
@@ -859,6 +1233,7 @@ async function getFoodEntryComponentsByFoodEntryMealId(
         fe.variant_id,
         fe.entry_date,
         fe.entry_time,
+        fe.notes,
         fe.food_entry_meal_id,
         fe.food_name, 
         fe.brand_name, 
@@ -881,6 +1256,9 @@ async function getFoodEntryComponentsByFoodEntryMealId(
         fe.vitamin_c, 
         fe.calcium, 
         fe.iron, 
+        fe.caffeine_mg,
+        fe.water_ml,
+        fe.alcohol_g,
         fe.glycemic_index, 
         fe.custom_nutrients
        FROM food_entries fe
@@ -930,6 +1308,7 @@ async function getFoodEntriesBatch(
         fe.unit,
         fe.entry_date,
         fe.entry_time,
+        fe.notes,
         fe.food_name,
         fe.brand_name, 
         fe.serving_size, 
@@ -951,6 +1330,9 @@ async function getFoodEntriesBatch(
         fe.vitamin_c, 
         fe.calcium, 
         fe.iron, 
+        fe.caffeine_mg,
+        fe.water_ml,
+        fe.alcohol_g,
         fe.glycemic_index,
         fe.custom_nutrients
        FROM food_entries fe
@@ -1059,6 +1441,7 @@ export { getFoodEntriesByDate };
 export { getFoodEntriesByDateAndMealType };
 export { getFoodEntriesByDateRange };
 export { getFoodEntryByDetails };
+export { copyReviewedFoodEntriesFromUser };
 export { bulkCreateFoodEntries };
 export { getFoodEntryById };
 export { getFoodEntryComponentsByFoodEntryMealId };
@@ -1076,6 +1459,7 @@ export default {
   getFoodEntriesByDateAndMealType,
   getFoodEntriesByDateRange,
   getFoodEntryByDetails,
+  copyReviewedFoodEntriesFromUser,
   bulkCreateFoodEntries,
   getFoodEntryById,
   getFoodEntryComponentsByFoodEntryMealId,
@@ -1084,3 +1468,5 @@ export default {
   getRecentFoodEntries,
   getFoodUsage,
 };
+
+export { bulkCreateFoodEntriesWithClient };

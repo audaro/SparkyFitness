@@ -39,6 +39,10 @@ export const createFoodVariant = async (
       vitamin_c: variant.vitamin_c,
       calcium: variant.calcium,
       iron: variant.iron,
+      caffeine_mg: variant.caffeine_mg,
+      water_ml: variant.water_ml,
+      alcohol_g: variant.alcohol_g,
+      abv_percent: variant.abv_percent,
       glycemic_index: variant.glycemic_index,
       is_default: false,
       custom_nutrients: variant.custom_nutrients || {},
@@ -115,6 +119,10 @@ export const saveFood = async (
           vitamin_c: variant.vitamin_c,
           calcium: variant.calcium,
           iron: variant.iron,
+          caffeine_mg: variant.caffeine_mg,
+          water_ml: variant.water_ml,
+          alcohol_g: variant.alcohol_g,
+          abv_percent: variant.abv_percent,
           is_default: variant.is_default || false,
           glycemic_index: variant.glycemic_index,
           custom_nutrients: variant.custom_nutrients || {},
@@ -149,6 +157,10 @@ export const saveFood = async (
         vitamin_c: variant.vitamin_c,
         calcium: variant.calcium,
         iron: variant.iron,
+        caffeine_mg: variant.caffeine_mg,
+        water_ml: variant.water_ml,
+        alcohol_g: variant.alcohol_g,
+        abv_percent: variant.abv_percent,
         is_default: variant.is_default || false, // Pass is_default flag
         glycemic_index: variant.glycemic_index,
         custom_nutrients: variant.custom_nutrients || {}, // Include custom nutrients
@@ -181,6 +193,9 @@ export const saveFood = async (
       is_custom: true,
       is_quick_food: foodData.is_quick_food || false,
       barcode: foodData.barcode,
+      // The update branch spreads foodData, but this object is explicit, so a
+      // new field has to be listed here or it is silently dropped on create.
+      notes: foodData.notes ?? null,
       provider_external_id: foodData.provider_external_id,
       provider_type: foodData.provider_type,
       provider_verified: foodData.provider_verified,
@@ -209,6 +224,10 @@ export const saveFood = async (
       vitamin_c: primaryVariant.vitamin_c,
       calcium: primaryVariant.calcium,
       iron: primaryVariant.iron,
+      caffeine_mg: primaryVariant.caffeine_mg,
+      water_ml: primaryVariant.water_ml,
+      alcohol_g: primaryVariant.alcohol_g,
+      abv_percent: primaryVariant.abv_percent,
       is_default: true, // Explicitly mark as default for new food creation
       glycemic_index: primaryVariant.glycemic_index,
       custom_nutrients: primaryVariant.custom_nutrients || {}, // Include custom nutrients
@@ -243,6 +262,10 @@ export const saveFood = async (
       vitamin_c: variant.vitamin_c,
       calcium: variant.calcium,
       iron: variant.iron,
+      caffeine_mg: variant.caffeine_mg,
+      water_ml: variant.water_ml,
+      alcohol_g: variant.alcohol_g,
+      abv_percent: variant.abv_percent,
       is_default: false, // Explicitly mark as not default for additional variants
       glycemic_index: variant.glycemic_index,
       custom_nutrients: variant.custom_nutrients || {}, // Include custom nutrients

@@ -3,7 +3,6 @@ import { APIError } from 'better-auth/api';
 import pg from 'pg';
 import { log } from './config/logging.js';
 import bcrypt from 'bcryptjs';
-import { promisify } from 'util';
 import { syncUserGroups } from './utils/oidcGroupSync.js';
 import userRepository from './models/userRepository.js';
 import { resolveTwoFactorDisableUserUpdate } from './utils/twoFactorState.js';
@@ -21,9 +20,8 @@ import { sso } from '@better-auth/sso';
 import { expo } from '@better-auth/expo';
 import { expoSsoCookieRelay } from './utils/expoSsoCookieRelay.js';
 import { passkey } from '@better-auth/passkey';
+import { isDemoMode } from './middleware/demoGuardMiddleware.js';
 
-const hashAsync = promisify(bcrypt.hash);
-const compareAsync = promisify(bcrypt.compare);
 const { Pool } = pg;
 /**
  * Gathers and cleans origins from environment variables.
@@ -91,6 +89,32 @@ authPool.on('error', (err) => {
 // Mutation of this array will be visible to Better Auth since it holds the reference
 // @ts-expect-error
 const dynamicTrustedProviders = [];
+/**
+ * Origins of the configured SSO identity providers.
+ *
+ * Better Auth 1.7 validates the OIDC discovery URL -- and every endpoint inside
+ * the discovery document -- against `trustedOrigins` before fetching any of
+ * them (an SSRF guard). An IdP lives on its own domain, so without this the
+ * whole list is rejected with `discovery_untrusted_origin` and SSO sign-in
+ * fails with a 400.
+ *
+ * Kept in the same persistent-reference style as dynamicTrustedProviders, and
+ * refreshed by the same syncTrustedProviders() call, so the getter Better Auth
+ * holds always sees current data.
+ */
+const dynamicTrustedSsoOrigins: string[] = [];
+/**
+ * Origin of a provider URL, or null when it is missing or unparseable.
+ * A bad row must not take down origin resolution for every other provider.
+ */
+function originOf(url: unknown): string | null {
+  if (typeof url !== 'string' || !url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
 // Function to sync trusted providers from database
 async function syncTrustedProviders() {
   try {
@@ -105,6 +129,34 @@ async function syncTrustedProviders() {
       // @ts-expect-error
       dynamicTrustedProviders
     );
+    // Collect each provider's own origin so 1.7's discovery SSRF guard allows
+    // fetching its well-known document and the endpoints that document names.
+    const rows = await oidcProviderRepository.getOidcProviders();
+    const ssoOrigins = new Set<string>();
+    for (const row of rows ?? []) {
+      // getOidcProviders() renames the columns on the way out: the issuer is
+      // `issuer_url` and the endpoints are camelCase. Reading the raw column
+      // names here would silently collect nothing but the discovery origin,
+      // which only happens to work while every endpoint shares one host.
+      for (const candidate of [
+        row?.issuer_url,
+        row?.discoveryEndpoint,
+        row?.authorizationEndpoint,
+        row?.tokenEndpoint,
+        row?.userInfoEndpoint,
+        row?.jwksEndpoint,
+      ]) {
+        const origin = originOf(candidate);
+        if (origin) ssoOrigins.add(origin);
+      }
+    }
+    dynamicTrustedSsoOrigins.length = 0;
+    dynamicTrustedSsoOrigins.push(...ssoOrigins);
+    log(
+      'info',
+      '[AUTH] Synced trusted SSO provider origins:',
+      dynamicTrustedSsoOrigins
+    );
     // @ts-expect-error
     return dynamicTrustedProviders;
   } catch (error) {
@@ -115,6 +167,30 @@ async function syncTrustedProviders() {
 }
 // Initial sync on startup - deferred to SparkyFitnessServer.js after migrations
 // syncTrustedProviders().catch(err => console.error('[AUTH] Startup sync failed:', err));
+/**
+ * Window and attempt cap for the credential-checking auth endpoints.
+ *
+ * Two properties of Better Auth's limiter drive these numbers:
+ *  - the counter increments on *every* response, successes included, so this
+ *    caps total sign-in traffic per IP, not just failures; and
+ *  - the window only resets after a full `window` of silence (each counted
+ *    request refreshes `lastRequest`), so a long window lets a client that
+ *    keeps retrying hold itself blocked.
+ *
+ * Both argue for a short window. 60s also keeps sustained failures under the
+ * threshold an upstream IDS watches for (see the `customRules` comment below),
+ * while self-healing after a minute of quiet. Raise these if your instance
+ * sits behind a shared or carrier-NAT address with many users.
+ */
+const SIGN_IN_WINDOW =
+  Number.parseInt(
+    process.env.SPARKY_FITNESS_SIGN_IN_RATELIMIT_WINDOW ?? '',
+    10
+  ) || 60;
+const SIGN_IN_MAX =
+  Number.parseInt(process.env.SPARKY_FITNESS_SIGN_IN_RATELIMIT_MAX ?? '', 10) ||
+  4;
+
 const apiKeyPlugin = apiKey({
   enableSessionForAPIKeys: true, // Required for getSession to work with API Keys
   rateLimit: {
@@ -215,10 +291,39 @@ const auth = betterAuth({
     enabled: true,
     window: 60,
     max: 100,
+    // Credential checks answer 401, which intrusion-detection tooling reads as
+    // a brute-force signal. A common scenario (CrowdSec's generic 401 rule)
+    // burns an IP after six POST 401s arriving faster than one per 10s. Better
+    // Auth's own default for /sign-in is 3 per 10s -- a tight burst but 18/min
+    // sustained, so a user fumbling their password manager can emit six 401s
+    // in ~20s and get the whole IP banned at the edge for hours.
+    //
+    // Capping sustained rate (4/min) rather than burst is what fixes that: the
+    // 5th attempt in a minute gets a local 429, which such rules do not count,
+    // so failures can never accumulate to the ban threshold. This is stricter
+    // than the default for sustained guessing and no looser for bursts.
+    //
+    // Deliberately short: successes count toward the same budget, so this is a
+    // ceiling on all sign-in traffic from one address. Instances behind a
+    // shared or carrier-NAT IP with many users should raise SIGN_IN_MAX.
+    customRules: {
+      '/sign-in/email': { window: SIGN_IN_WINDOW, max: SIGN_IN_MAX },
+      '/two-factor/*': { window: SIGN_IN_WINDOW, max: SIGN_IN_MAX },
+      '/email-otp/verify-email': { window: SIGN_IN_WINDOW, max: SIGN_IN_MAX },
+    },
   },
   // Email/Password authentication
   emailAndPassword: {
-    enabled: process.env.SPARKY_FITNESS_DISABLE_EMAIL_LOGIN !== 'true',
+    // The demo sandbox signs its user in through auth.api.signInEmail(), an
+    // in-process call that this same flag switches off -- so honouring
+    // DISABLE_EMAIL_LOGIN here takes the demo's one-click button down with it
+    // (400 EMAIL_PASSWORD_DISABLED) while the operator only meant to hide the
+    // password form. Keep the credential backend loaded in demo mode and close
+    // the *public* route instead; SparkyFitnessServer.ts refuses
+    // /api/auth/sign-in/email and /sign-up/email with the identical response
+    // Better Auth would have sent, so nothing outside can tell the difference.
+    enabled:
+      isDemoMode() || process.env.SPARKY_FITNESS_DISABLE_EMAIL_LOGIN !== 'true',
     requireEmailVerification: false,
     minPasswordLength: 8,
     sendResetPassword: async ({ user, url }) => {
@@ -226,8 +331,8 @@ const auth = betterAuth({
     },
     password: {
       // Use bcrypt for compatibility with existing hashes
-      hash: (password) => hashAsync(password, 10),
-      verify: ({ password, hash }) => compareAsync(password, hash),
+      hash: (password) => bcrypt.hash(password, 10),
+      verify: ({ password, hash }) => bcrypt.compare(password, hash),
     },
   },
   // Session configuration
@@ -265,8 +370,12 @@ const auth = betterAuth({
       process.env.SPARKY_FITNESS_EXTRA_TRUSTED_ORIGINS?.includes('http://')
         ? false
         : process.env.SPARKY_FITNESS_FRONTEND_URL?.startsWith('https'),
-    // @ts-expect-error
-    trustProxy: true,
+    // Honour `x-forwarded-host` / `x-forwarded-proto`. Since 1.7 Better Auth
+    // resolves the request origin from the `Host` header and ignores forwarded
+    // headers unless this is set, which breaks sign-in for every deployment
+    // sitting behind nginx (i.e. the default docker-compose setup).
+    // Supersedes the old `trustProxy: true`, which was never a real option.
+    trustedProxyHeaders: true,
     crossSubDomainCookies: {
       enabled: false,
     },
@@ -317,6 +426,27 @@ const auth = betterAuth({
   account: {
     accountLinking: {
       enabled: true,
+      // Better Auth 1.7 refuses to link an SSO identity to an existing user
+      // unless that user's email is already verified locally (it guards against
+      // an attacker pre-registering an unverified account at a victim's address
+      // and capturing their first SSO sign-in).
+      //
+      // SparkyFitness has no email-verification flow to satisfy that gate:
+      // `requireEmailVerification` is false, no verification email is ever sent,
+      // and there is no verify route -- so nothing sets email_verified except
+      // an incidental magic-link or email-OTP sign-in, which itself needs SMTP
+      // that many self-hosted instances never configure. Leaving the gate on
+      // therefore breaks SSO permanently for every existing account rather than
+      // prompting anyone to verify anything.
+      //
+      // The residual risk needs signup to be open on this instance AND the
+      // attacker to register the victim's address before the victim's first SSO
+      // login; SPARKY_FITNESS_DISABLE_SIGNUP closes that off entirely.
+      //
+      // NOTE: deprecated upstream -- the gate becomes unconditional in the next
+      // minor, so real email verification (or auto-verifying on a trusted IdP
+      // assertion) has to land before that upgrade.
+      requireLocalEmailVerified: false,
       // Use a getter to ensure Better Auth always checks the current state of our dynamic list
       get trustedProviders() {
         log(
@@ -358,7 +488,13 @@ const auth = betterAuth({
   // Trust proxy (for Docker/Nginx deployments)
   // NOTE: Better Auth calls this with the raw Request object directly (not a context wrapper)
   trustedOrigins: (request) => {
-    const cleanOrigins = [...getBaseTrustedOrigins(), 'sparkyfitnessmobile://'];
+    const cleanOrigins = [
+      ...getBaseTrustedOrigins(),
+      'sparkyfitnessmobile://',
+      // IdP origins -- required since 1.7 validates OIDC discovery URLs against
+      // this list before fetching them.
+      ...dynamicTrustedSsoOrigins,
+    ];
     const { origin: originHeader, referer: refererHeader } =
       extractRequestHeaders(request);
     // Identify if this is a non-primary origin (IP, extra domain, etc.) or null
@@ -655,7 +791,26 @@ const auth = betterAuth({
         await sendMagicLinkEmail(email, url);
       },
     }),
-    admin(),
+    // The admin plugin contributes its own user/session columns, and those are
+    // separate from the root `user.fields` map above -- without this block it
+    // looks for literal `banReason` / `banExpires` / `impersonatedBy` columns.
+    admin({
+      schema: {
+        user: {
+          fields: {
+            role: 'role',
+            banned: 'banned',
+            banReason: 'ban_reason',
+            banExpires: 'ban_expires',
+          },
+        },
+        session: {
+          fields: {
+            impersonatedBy: 'impersonated_by',
+          },
+        },
+      },
+    }),
     twoFactor({
       issuer:
         process.env.NODE_ENV === 'production'
@@ -676,6 +831,12 @@ const auth = betterAuth({
             backupCodes: 'backup_codes',
             createdAt: 'created_at',
             updatedAt: 'updated_at',
+            // Added in Better Auth 1.7 to back the TOTP lockout / re-enrolment
+            // guard. Every verify reads `lockedUntil` and bumps the counter, so
+            // these are required, not optional extras.
+            verified: 'verified',
+            failedVerificationCount: 'failed_verification_count',
+            lockedUntil: 'locked_until',
           },
         },
       },
@@ -695,6 +856,10 @@ const auth = betterAuth({
         issuer: 'issuer',
         oidcConfig: 'oidc_config', // Added this mapping
         samlConfig: 'saml_config', // Added this mapping
+        // Better Auth 1.7 keys SSO providers to an owning user (and optionally
+        // an organization); without these it looks for literal camelCase columns.
+        userId: 'user_id',
+        organizationId: 'organization_id',
         domain: 'domain',
         additionalConfig: 'additional_config',
         createdAt: 'created_at',

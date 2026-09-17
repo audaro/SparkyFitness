@@ -5,6 +5,8 @@ import goalService from '../services/goalService.js';
 import goalPresetService from '../services/goalPresetService.js';
 import weeklyGoalPlanService from '../services/weeklyGoalPlanService.js';
 import goalRepository from '../models/goalRepository.js';
+import nutrientGoalPreferenceService from '../services/nutrientGoalPreferenceService.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
 vi.mock('../services/goalService', () => ({
   default: {
@@ -31,11 +33,16 @@ vi.mock('../services/weeklyGoalPlanService', () => ({
     updateWeeklyGoalPlan: vi.fn(),
   },
 }));
+vi.mock('../services/nutrientGoalPreferenceService', () => ({
+  default: {
+    getEffectiveGoalTypes: vi.fn(),
+  },
+}));
 vi.mock('../config/logging', () => ({
   log: vi.fn(),
 }));
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 const DB_ERROR_TEXT =
   'Error [DB_ERROR]: A database error occurred.\n\nSuggestion: Do NOT retry the same call — it will fail the same way. Tell the user what failed and stop.';
 
@@ -43,6 +50,9 @@ let tools: ReturnType<typeof buildGoalTools>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(
+    nutrientGoalPreferenceService.getEffectiveGoalTypes
+  ).mockResolvedValue({});
   tools = buildGoalTools('user-1', 'UTC');
 });
 
@@ -150,6 +160,93 @@ describe('sparky_manage_goals', () => {
     });
   });
 
+  // #2115/#1958/#1925: caffeine_mg and alcohol_g were added as first-class
+  // user_goals columns, but this tool never grew parameters for either, so
+  // Sparky could not set a caffeine or alcohol goal on request.
+  it('set_goals persists caffeine_mg and alcohol_g', async () => {
+    vi.mocked(goalService.manageGoalTimeline).mockResolvedValue({
+      message: 'ok',
+    });
+    vi.mocked(goalService.getUserGoals).mockResolvedValue({
+      calories: 2000,
+      protein: 150,
+      carbs: 250,
+      fat: 67,
+      water_goal_ml: 2000,
+    });
+
+    const result = await tools.sparky_manage_goals.execute!(
+      {
+        action: 'set_goals',
+        start_date: '2026-06-15',
+        caffeine_mg: 300,
+        alcohol_g: 20,
+      },
+      opts
+    );
+
+    expect(result).toBe('✅ Goals set successfully starting from 2026-06-15.');
+    expect(goalService.manageGoalTimeline).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ p_caffeine_mg: 300, p_alcohol_g: 20 })
+    );
+  });
+
+  it('infers set_goals when action is omitted and only caffeine_mg or alcohol_g is sent', async () => {
+    vi.mocked(goalService.manageGoalTimeline).mockResolvedValue({
+      message: 'ok',
+    });
+    vi.mocked(goalService.getUserGoals).mockResolvedValue({
+      calories: 2000,
+      protein: 150,
+      carbs: 250,
+      fat: 67,
+      water_goal_ml: 2000,
+    });
+
+    const caffeineOnly = await tools.sparky_manage_goals.execute!(
+      { caffeine_mg: 300 } as any,
+      opts
+    );
+    expect(caffeineOnly).toMatch(/^✅ Goals set successfully/);
+    expect(goalService.manageGoalTimeline).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ p_caffeine_mg: 300 })
+    );
+
+    vi.mocked(goalService.manageGoalTimeline).mockClear();
+
+    const alcoholOnly = await tools.sparky_manage_goals.execute!(
+      { alcohol_g: 20 } as any,
+      opts
+    );
+    expect(alcoholOnly).toMatch(/^✅ Goals set successfully/);
+    expect(goalService.manageGoalTimeline).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ p_alcohol_g: 20 })
+    );
+  });
+
+  it('get_goals renders caffeine_mg and alcohol_g when set', async () => {
+    vi.mocked(goalService.getUserGoals).mockResolvedValue({
+      calories: 2000,
+      protein: 150,
+      carbs: 250,
+      fat: 67,
+      water_goal_ml: 2000,
+      caffeine_mg: 300,
+      alcohol_g: 20,
+    });
+
+    const result = await tools.sparky_manage_goals.execute!(
+      { action: 'get_goals', target_date: '2026-06-01' },
+      opts
+    );
+
+    expect(result).toContain('- **Caffeine:** 300 mg\n');
+    expect(result).toContain('- **Alcohol:** 20 g\n');
+  });
+
   it('set_goals without start_date defaults to today', async () => {
     vi.mocked(goalService.manageGoalTimeline).mockResolvedValue({
       message: 'ok',
@@ -181,7 +278,7 @@ describe('sparky_manage_goals', () => {
       opts
     );
 
-    expect(result).toBe('Error [VALIDATION]: action: Invalid input');
+    expect(result).toMatch(/^Error \[VALIDATION\]: action:/);
   });
 
   it('rejects stray keys (strict per-action schema)', async () => {
@@ -309,7 +406,9 @@ describe('sparky_get_goal_snapshot', () => {
       opts
     );
 
-    expect(result).toBe(JSON.stringify(snapshotFields));
+    expect(result).toBe(
+      JSON.stringify({ ...snapshotFields, goal_directions: {} })
+    );
     expect(goalService.getUserGoals).toHaveBeenCalledWith(
       'user-1',
       '2026-06-01',
@@ -323,12 +422,57 @@ describe('sparky_get_goal_snapshot', () => {
 
     const result = await tools.sparky_get_goal_snapshot.execute!({}, opts);
 
-    expect(result).toBe(JSON.stringify({ calories: 2000 }));
+    expect(result).toBe(
+      JSON.stringify({ calories: 2000, goal_directions: {} })
+    );
     expect(goalService.getUserGoals).toHaveBeenCalledWith(
       'user-1',
       todayInZone('UTC'),
       undefined,
       true
+    );
+  });
+
+  // #2115/#1958/#1925: this tool projects the server's goal object down to
+  // its own hand-enumerated column set (GOAL_SNAPSHOT_FIELDS), separate from
+  // sparky_manage_goals' get_goals action, so it needed the same caffeine_mg
+  // and alcohol_g addition independently.
+  it('includes caffeine_mg and alcohol_g when set', async () => {
+    vi.mocked(goalService.getUserGoals).mockResolvedValue({
+      calories: 2000,
+      caffeine_mg: 300,
+      alcohol_g: 20,
+    });
+
+    const result = await tools.sparky_get_goal_snapshot.execute!({}, opts);
+
+    expect(result).toBe(
+      JSON.stringify({
+        calories: 2000,
+        caffeine_mg: 300,
+        alcohol_g: 20,
+        goal_directions: {},
+      })
+    );
+  });
+
+  it('includes custom goal_directions from nutrientGoalPreferenceService', async () => {
+    vi.mocked(goalService.getUserGoals).mockResolvedValue({ calories: 2000 });
+    vi.mocked(
+      nutrientGoalPreferenceService.getEffectiveGoalTypes
+    ).mockResolvedValue({
+      calories: { goalType: 'target', targetMin: 1800, targetMax: 2200 },
+    });
+
+    const result = await tools.sparky_get_goal_snapshot.execute!({}, opts);
+
+    expect(result).toBe(
+      JSON.stringify({
+        calories: 2000,
+        goal_directions: {
+          calories: { goalType: 'target', targetMin: 1800, targetMax: 2200 },
+        },
+      })
     );
   });
 

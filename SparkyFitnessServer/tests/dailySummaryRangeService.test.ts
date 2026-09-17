@@ -16,6 +16,7 @@ import measurementRepository from '../models/measurementRepository.js';
 import userRepository from '../models/userRepository.js';
 import preferenceRepository from '../models/preferenceRepository.js';
 import foodRepository from '../models/foodMisc.js';
+import * as genericHealthRepository from '../models/genericHealthRepository.js';
 import bmrService from '../services/bmrService.js';
 
 vi.mock('../services/goalService.js', () => ({
@@ -52,6 +53,9 @@ vi.mock('../models/preferenceRepository.js', () => ({
 }));
 vi.mock('../models/foodMisc.js', () => ({
   default: { getDailySupplementTotals: vi.fn() },
+}));
+vi.mock('../models/genericHealthRepository.js', () => ({
+  getHealthConnectTotalCaloriesByDateRange: vi.fn(),
 }));
 vi.mock('../services/bmrService.js', () => ({
   default: { calculateBmr: vi.fn() },
@@ -163,6 +167,9 @@ beforeEach(() => {
   vi.mocked(measurementRepository.getExternalBmrByDateRange).mockResolvedValue(
     new Map()
   );
+  vi.mocked(
+    genericHealthRepository.getHealthConnectTotalCaloriesByDateRange
+  ).mockResolvedValue([]);
 
   // ── per-date path ──
   vi.mocked(goalService.getUserGoals).mockResolvedValue({ calories: GOAL });
@@ -186,11 +193,49 @@ beforeEach(() => {
 
 const runRange = () =>
   getDailySummaryRange({
+    actorUserId: USER,
     targetUserId: USER,
     startDate: '2026-08-08',
     endDate: '2026-08-11',
     includeCheckin: true,
   });
+
+describe('measured BMR is scoped to its own day', () => {
+  /**
+   * Reports read this endpoint while the Diary reads the per-date path. Carrying a
+   * measured BMR forward here made the two disagree about the same day: one
+   * reading on Aug 9 reported `measured` for Aug 10 and 11 as well.
+   */
+  test('applies a measured BMR only on the date it was recorded', async () => {
+    vi.mocked(preferenceRepository.getUserPreferences).mockResolvedValue({
+      ...PREFERENCES,
+      use_external_bmr: true,
+    });
+    vi.mocked(
+      measurementRepository.getCheckInMeasurementsByDateRange
+    ).mockResolvedValue(
+      DATES.map((date) => ({
+        entry_date: date,
+        steps: FIXTURE[date].steps,
+        ...MEASUREMENT,
+        // A single reading, well inside the plausibility band against the 2000
+        // kcal formula estimate the bmrService mock returns.
+        bmr: date === '2026-08-09' ? 2200 : null,
+      })) as never
+    );
+
+    const { days } = await runRange();
+    const byDate = new Map(days.map((d) => [d.date, d]));
+
+    expect(byDate.get('2026-08-09')?.bmr).toBe(2200);
+    expect(byDate.get('2026-08-09')?.bmrSource).toBe('measured');
+
+    for (const date of ['2026-08-10', '2026-08-11'] as const) {
+      expect(byDate.get(date)?.bmrSource).toBe('formula');
+      expect(byDate.get(date)?.bmr).not.toBe(2200);
+    }
+  });
+});
 
 describe('parity with the per-date Diary path', () => {
   /**
@@ -274,6 +319,24 @@ describe('parity with the per-date Diary path', () => {
 });
 
 describe('range mechanics', () => {
+  test('uses the matching Health Connect total for each completed day', async () => {
+    vi.mocked(preferenceRepository.getUserPreferences).mockResolvedValue({
+      ...PREFERENCES,
+      calorie_goal_adjustment_mode: 'tdee',
+      goal_mode: 'maintain',
+    });
+    vi.mocked(
+      genericHealthRepository.getHealthConnectTotalCaloriesByDateRange
+    ).mockResolvedValue([{ entry_date: '2026-08-08', total_calories: 2300 }]);
+
+    const { days } = await runRange();
+    const day = days.find((entry) => entry.date === '2026-08-08');
+
+    expect(day?.tdeeProjection?.source).toBe('health_connect_total');
+    expect(day?.tdeeProjection?.projectedBurn).toBe(2300);
+    expect(day?.goal).toBe(2300);
+  });
+
   test('emits one row per calendar day, including days with nothing logged', async () => {
     const { days } = await runRange();
 
@@ -298,6 +361,7 @@ describe('range mechanics', () => {
    */
   test('issues a fixed number of queries regardless of range length', async () => {
     await getDailySummaryRange({
+      actorUserId: USER,
       targetUserId: USER,
       startDate: '2026-01-01',
       endDate: '2026-03-31', // 90 days
@@ -317,12 +381,16 @@ describe('range mechanics', () => {
     );
     expect(userRepository.getUserProfile).toHaveBeenCalledTimes(1);
     expect(preferenceRepository.getUserPreferences).toHaveBeenCalledTimes(1);
+    expect(
+      genericHealthRepository.getHealthConnectTotalCaloriesByDateRange
+    ).toHaveBeenCalledTimes(1);
     // The per-date step query must never be reached from the ranged path.
     expect(measurementRepository.getStepCaloriesForDate).not.toHaveBeenCalled();
   });
 
   test('withholds check-in derived data when the caller lacks permission', async () => {
     const { days } = await getDailySummaryRange({
+      actorUserId: USER,
       targetUserId: USER,
       startDate: '2026-08-08',
       endDate: '2026-08-11',
@@ -336,6 +404,9 @@ describe('range mechanics', () => {
     expect(
       measurementRepository.getExternalBmrByDateRange
     ).not.toHaveBeenCalled();
+    expect(
+      genericHealthRepository.getHealthConnectTotalCaloriesByDateRange
+    ).not.toHaveBeenCalled();
     // The Aug 8 day was steps-only, so with no checkin access it credits nothing.
     expect(days.find((day) => day.date === '2026-08-08')?.burned).toBe(0);
   });
@@ -347,6 +418,7 @@ describe('range mechanics', () => {
     });
 
     const { days } = await getDailySummaryRange({
+      actorUserId: USER,
       targetUserId: USER,
       startDate: '2026-08-08',
       endDate: '2026-08-09',
@@ -378,6 +450,7 @@ describe('range mechanics', () => {
     ]);
 
     await getDailySummaryRange({
+      actorUserId: USER,
       targetUserId: USER,
       startDate: '2026-08-08',
       endDate: '2026-08-11',
@@ -390,4 +463,72 @@ describe('range mechanics', () => {
       expect(call[2]).toBe(180);
     }
   });
+});
+
+test('step calories use independently carried measurements for each report date', async () => {
+  vi.mocked(measurementRepository.getLatestWeightHeight).mockResolvedValue({
+    weightKg: 120,
+    heightCm: 200,
+  });
+  vi.mocked(
+    measurementRepository.getLatestCheckInMeasurementsOnOrBeforeDate
+  ).mockResolvedValue({ weight: '80', height: '180' });
+  vi.mocked(
+    measurementRepository.getCheckInMeasurementsByDateRange
+  ).mockResolvedValue([
+    { entry_date: '2026-08-11', steps: 10000, weight: 0, height: -1 },
+    { entry_date: '2026-08-09', steps: 10000, weight: '100', height: null },
+    { entry_date: '2026-08-08', steps: 10000 },
+    { entry_date: '2026-08-10', steps: 10000, height: '200' },
+  ]);
+  vi.mocked(
+    exerciseEntryRepository.getDailyExerciseCalorieSplitRange
+  ).mockResolvedValue([]);
+
+  const { days } = await getDailySummaryRange({
+    actorUserId: USER,
+    targetUserId: USER,
+    startDate: '2026-08-08',
+    endDate: '2026-08-11',
+    includeCheckin: true,
+  });
+
+  expect(days.map((day) => [day.date, day.stepCalories])).toEqual([
+    ['2026-08-08', 316],
+    ['2026-08-09', 395],
+    ['2026-08-10', 439],
+    ['2026-08-11', 439],
+  ]);
+});
+
+test('uses the earliest later height until dated measurements are available', async () => {
+  vi.mocked(measurementRepository.getLatestWeightHeight).mockResolvedValue({
+    weightKg: 80,
+    heightCm: 200,
+  });
+  vi.mocked(
+    measurementRepository.getLatestCheckInMeasurementsOnOrBeforeDate
+  ).mockResolvedValue({ weight: '80', height: null });
+  vi.mocked(
+    measurementRepository.getCheckInMeasurementsByDateRange
+  ).mockResolvedValue([
+    { entry_date: '2026-08-08', steps: 10000 },
+    { entry_date: '2026-08-09', steps: 10000, height: '200' },
+    { entry_date: '2026-08-10', steps: 10000, weight: '100' },
+  ]);
+  vi.mocked(
+    exerciseEntryRepository.getDailyExerciseCalorieSplitRange
+  ).mockResolvedValue([]);
+
+  const { days } = await runRange();
+
+  expect(days.map((day) => [day.date, day.stepCalories])).toEqual([
+    ['2026-08-08', 351],
+    ['2026-08-09', 351],
+    ['2026-08-10', 439],
+    ['2026-08-11', 0],
+  ]);
+  expect(
+    measurementRepository.getLatestWeightHeight
+  ).toHaveBeenCalledExactlyOnceWith(USER, '2026-08-08');
 });

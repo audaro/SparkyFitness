@@ -84,6 +84,15 @@ interface InjectionWithPenRow extends InjectionRow {
   } | null;
 }
 
+interface ScheduleRow {
+  id: string;
+  schedule_type_id: string;
+  time_of_day: string | null;
+  dose_amount: number | null;
+  active: boolean | null;
+  prn_reason: string | null;
+}
+
 interface PreProcessedArgs {
   action?: string;
   entry_date?: string;
@@ -149,6 +158,7 @@ const VALID_ACTIONS = [
   'list_injections',
   'create_medication',
   'update_medication',
+  'delete_medication',
   'add_schedule',
   'update_schedule',
   'delete_schedule',
@@ -376,6 +386,7 @@ const MEDICATION_PATCH_FIELDS = [
   'dose_amount',
   'dose_unit',
   'reason_text',
+  'type_id',
   'is_active',
   'is_glp1',
   'is_supplement',
@@ -385,23 +396,24 @@ const MEDICATION_PATCH_FIELDS = [
 export function buildMedicationTools(userId: string, tz: string) {
   return {
     sparky_manage_medications: tool({
-      description: `Medication tracking: list medications, log doses, and view history.
+      description: `Medication tracking: manage medications and schedules, log doses, and view history.
 
 Actions:
 - list_medications(glp1_only?, active_only?)
 - get_medication(medication_id)
+- create_medication(name, display_name?, strength_value?, strength_unit?, dose_amount?, dose_unit?, reason_text?, type_id?, is_active?, is_glp1?, is_supplement?, notes?)
+- update_medication(medication_id?|medication_name?, new_name?, any medication field) — only provided fields change
+- delete_medication(medication_id?|medication_name?) — DESTRUCTIVE: deletes the medication and its schedules. Confirm with the user (sparky_ask_user) before calling, and always pass action explicitly
+- add_schedule(medication_id?|medication_name?, schedule_type_id, time_of_day?, days_of_week?, interval_days?, day_of_month?, cycle_on_days?, cycle_off_days?, with_meal?, prn_reason?, prn_max_per_day?, start_date?, end_date?, dose_amount?) — schedule types: daily, specific_days, every_n_days, cyclic, weekly, monthly, prn, taper
+- update_schedule(schedule_id, any schedule field) — only provided fields change
+- delete_schedule(schedule_id) — DESTRUCTIVE: confirm with the user (sparky_ask_user) before calling
+- list_schedules(medication_id?|medication_name?) — schedules with their IDs
 - log(medication_id?|medication_name?, status?, taken_at?, entry_date?, dosage?, dosage_unit?, notes?)
 - list_entries(medication_id?, from_date?, to_date?)
 - update_entry(entry_id, status?, taken_at?, entry_date?, notes?)
 - delete_entry(entry_id)
 - log_injection(medication_id?|medication_name?, dose_mg?, site?, deduct_pen?, entry_date?, notes?)
 - list_injections(medication_id?, from_date?, to_date?)
-- create_medication(name, display_name?, strength_value?, strength_unit?, dose_amount?, dose_unit?, reason_text?, is_active?, is_glp1?, is_supplement?, notes?)
-- update_medication(medication_id?|medication_name?, new_name?, any medication field) — only provided fields change
-- add_schedule(medication_id?|medication_name?, schedule_type_id, time_of_day?, days_of_week?, interval_days?, day_of_month?, cycle_on_days?, cycle_off_days?, with_meal?, prn_reason?, prn_max_per_day?, start_date?, end_date?, dose_amount?) — schedule types: daily, specific_days, every_n_days, cyclic, weekly, monthly, prn, taper
-- update_schedule(schedule_id, any schedule field) — only provided fields change
-- delete_schedule(schedule_id) — DESTRUCTIVE: confirm with the user (sparky_ask_user) before calling
-- list_schedules(medication_id?|medication_name?) — schedules with their IDs
 - log_symptom(symptom_name, severity? 1-10, severity_label?, body_location?, context_text?, bristol_type? 1-7, medication_id?|medication_name? if a medication is suspected, entry_date?)
 - list_symptoms() — the user's tracked symptom definitions
 - list_symptom_entries(symptom_name?, from_date?, to_date?, limit? (default 20), offset?)`,
@@ -428,7 +440,10 @@ Actions:
                 ? 'list_symptom_entries'
                 : 'log_symptom';
             }
-            // delete_schedule is destructive and is never inferred.
+            // The destructive actions -- delete_medication and
+            // delete_schedule -- are never inferred. A bare schedule_id
+            // means the caller wants to edit that schedule; deleting has
+            // to be asked for by name.
             if (args.schedule_id) {
               return 'update_schedule';
             }
@@ -450,6 +465,7 @@ Actions:
               args.dose_amount !== undefined ||
               args.dose_unit !== undefined ||
               args.reason_text !== undefined ||
+              args.type_id !== undefined ||
               args.is_active !== undefined ||
               args.is_supplement !== undefined ||
               args.is_glp1 !== undefined
@@ -883,6 +899,15 @@ Actions:
               return formatConfirmation(
                 `Schedule updated for ${parent.display_name || parent.name}: ${describeSchedule(updated)}.`
               );
+            }
+            case 'delete_medication': {
+              const medId = args.medication_id!;
+              const ok = await medicationRepository.deleteMedication(
+                userId,
+                medId
+              );
+              if (!ok) return ERRORS.NOT_FOUND('Medication', medId);
+              return formatConfirmation('Medication deleted.');
             }
             case 'delete_schedule': {
               const ok = await medicationRepository.deleteSchedule(

@@ -4,6 +4,8 @@ import { log } from '../config/logging.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 import checkPermissionMiddleware from '../middleware/checkPermissionMiddleware.js';
 import withingsServiceCentral from '../services/withingsService.js';
+import requireSelfActor from '../middleware/requireSelfMiddleware.js';
+import { OAuthStateError } from '../utils/oauthState.js';
 const router = express.Router();
 /**
  * @swagger
@@ -26,7 +28,9 @@ const router = express.Router();
 router.get(
   '/authorize',
   authMiddleware.authenticate,
-  checkPermissionMiddleware('diary'),
+  // Self-only, not checkPermissionMiddleware('diary'): on GET that resolves to
+  // diary_read, which would hand a read-only delegate the owner's client id.
+  requireSelfActor,
   async (req, res) => {
     try {
       const userId = req.userId; // Assuming user ID is available from authentication
@@ -58,62 +62,78 @@ router.get(
  *             type: object
  *             properties:
  *               code: { type: 'string' }
- *               state: { type: 'string' }
+ *               state:
+ *                 type: string
+ *                 description: The single-use nonce issued by /withings/authorize and returned by Withings. Never a user id.
  *               error: { type: 'string', nullable: true }
  *     security:
  *       - cookieAuth: []
  *     responses:
  *       200:
  *         description: Successfully linked.
+ *       400:
+ *         description: Missing authorization code, or the OAuth state was invalid, expired, or already used.
+ *       403:
+ *         description: The state is not bound to the authenticated user.
  */
-router.post(
-  '/callback',
-  authMiddleware.authenticate,
-  checkPermissionMiddleware('diary'),
-  async (req, res) => {
-    try {
-      const { code, state, error } = req.body;
-      // The user is whoever is signed in, never whoever the request claims to
-      // be; `state` is only the CSRF nonce issued by /authorize.
-      const userId = req.userId;
-      if (error) {
-        log('error', `Withings OAuth callback error: ${error}`);
-        return res.status(400).json({ message: 'Withings OAuth error', error });
-      }
-      if (!code) {
-        return res
-          .status(400)
-          .json({ message: 'Authorization code not received.' });
-      }
-      if (!state) {
-        return res.status(400).json({ message: 'OAuth state not received.' });
-      }
-      const tokenExchangeResult = await withingsService.exchangeCodeForTokens(
-        userId,
-        code,
-        state,
-        `${process.env.SPARKY_FITNESS_FRONTEND_URL}/withings/callback`
-      );
-      if (tokenExchangeResult.success) {
-        res
-          .status(200)
-          .json({ message: 'Withings account linked successfully.' });
-      } else {
-        res
-          .status(500)
-          .json({ message: 'Failed to connect Withings account.' });
-      }
-    } catch (error) {
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      log('error', `Error handling Withings OAuth callback: ${error.message}`);
-      res.status(500).json({
-        message: 'Error handling Withings OAuth callback',
-        // @ts-expect-error TS(2571): Object is of type 'unknown'.
-        error: error.message,
-      });
+router.post('/callback', authMiddleware.authenticate, async (req, res) => {
+  try {
+    const { code, state, error } = req.body;
+    if (error) {
+      log('error', `Withings OAuth callback error: ${error}`);
+      return res.status(400).json({ message: 'Withings OAuth error', error });
     }
+    if (!code) {
+      return res
+        .status(400)
+        .json({ message: 'Authorization code not received.' });
+    }
+    // `state` is never treated as a user id. The claim is scoped to the
+    // authenticated actor, so a state issued to another user matches no row and
+    // fails before any token exchange or provider-row write.
+    const actorUserId =
+      req.originalUserId || req.authenticatedUserId || req.userId;
+    const tokenExchangeResult = await withingsService.exchangeCodeForTokens(
+      state,
+      code,
+      `${process.env.SPARKY_FITNESS_FRONTEND_URL}/withings/callback`,
+      actorUserId
+    );
+    // Belt and braces: the claim predicate already guarantees this holds.
+    if (tokenExchangeResult.ownerUserId !== actorUserId) {
+      log(
+        'warn',
+        `Withings callback owner ${tokenExchangeResult.ownerUserId} did not match actor ${actorUserId}.`
+      );
+      return res
+        .status(403)
+        .json({ message: 'Forbidden: OAuth state is not bound to this user.' });
+    }
+    if (tokenExchangeResult.success) {
+      res
+        .status(200)
+        .json({ message: 'Withings account linked successfully.' });
+    } else {
+      res.status(500).json({ message: 'Failed to connect Withings account.' });
+    }
+  } catch (error) {
+    // Every state failure returns one opaque 400 so the response never
+    // reveals which check rejected the value.
+    if (error instanceof OAuthStateError) {
+      log('warn', `Withings OAuth state rejected (${error.reason}).`);
+      return res
+        .status(400)
+        .json({ message: 'Invalid or expired authorization state.' });
+    }
+    // @ts-expect-error TS(2571): Object is of type 'unknown'.
+    log('error', `Error handling Withings OAuth callback: ${error.message}`);
+    res.status(500).json({
+      message: 'Error handling Withings OAuth callback',
+      // @ts-expect-error TS(2571): Object is of type 'unknown'.
+      error: error.message,
+    });
   }
-);
+});
 /**
  * @swagger
  * /withings/sync:

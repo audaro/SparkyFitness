@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, Text, View } from 'react-native';
 import Animated, {
@@ -9,6 +15,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useCSSVariable } from 'uniwind';
+import {
+  evaluateProgression,
+  type ExerciseProgressionConfig,
+  type LastExercisePerformance,
+} from '@workspace/shared';
 import Icon from './Icon';
 import SafeImage from './SafeImage';
 import CompletionCheck from './CompletionCheck';
@@ -25,7 +36,11 @@ import WorkoutNotesField from './WorkoutNotesField';
 import { measureAnchoredMenuTrigger, type AnchorRect } from './AnchoredMenu';
 import { useExerciseStats } from '../hooks/useExerciseStats';
 import type { GetImageSource } from '../hooks/useExerciseImageSource';
-import { distanceFromKm, weightFromKg } from '../utils/unitConversions';
+import {
+  distanceFromKm,
+  weightFromKg,
+  weightToKg,
+} from '../utils/unitConversions';
 import { formatLocalizedNumber } from '../localization';
 import {
   CATEGORY_ICON_MAP,
@@ -34,6 +49,7 @@ import {
   formatDurationSeconds,
   formatVolume,
   getExerciseVolumeKg,
+  isWarmupSetType,
   isDurationModality,
   rendersCardioEffortForm,
   resolveAssumedSetValues,
@@ -43,16 +59,12 @@ import {
   type WorkoutCardSet,
 } from '../utils/workoutSession';
 import { useActiveWorkoutStore } from '../stores/activeWorkoutStore';
-import type { ActiveSetPatch, CompletedSetMap, PrSetMap } from '../stores/activeWorkoutStore';
+import type {
+  ActiveSetPatch,
+  CompletedSetMap,
+  PrSetMap,
+} from '../stores/activeWorkoutStore';
 import type { ActiveWorkoutMetricColumn } from '../stores/appPreferencesStore';
-
-export const METRIC_COLUMN_LABELS: Record<ActiveWorkoutMetricColumn, string> = {
-  rpe: 'RPE',
-  volume: 'Vol',
-  e1rm: '1RM',
-  tenrm: '10RM',
-};
-
 
 /** Working-set numbers per set index; warmup/drop/failure rows repeat the previous number (they render a letter instead). */
 function buildWorkingSetNumbers(sets: WorkoutCardSet[]): number[] {
@@ -188,10 +200,14 @@ interface ActiveWorkoutExerciseCardProps {
   onEditFieldChange?: (
     setId: string,
     field: Exclude<SetInputField, 'rpe'>,
-    text: string,
+    text: string
   ) => void;
   /** Live/edit: rows register their sticky-bar handles here (keyed by render key). */
-  onRegisterAccessoryHandle?: (key: string, handle: SetRowAccessoryHandle | null) => void;
+  onRegisterAccessoryHandle?: (
+    key: string,
+    handle: SetRowAccessoryHandle | null
+  ) => void;
+  onUpdateProgression?: (exerciseId: string, patch: any) => void;
 }
 
 /**
@@ -211,7 +227,8 @@ export function ExerciseThumb({
   const snapshot = exercise.exercise_snapshot;
   const image = snapshot?.images?.[0] ?? null;
   const fallbackIcon =
-    (snapshot?.category && CATEGORY_ICON_MAP[snapshot.category]) || 'exercise-weights';
+    (snapshot?.category && CATEGORY_ICON_MAP[snapshot.category]) ||
+    'exercise-weights';
 
   return (
     <SafeImage
@@ -270,6 +287,7 @@ function ActiveWorkoutExerciseCard({
   onToggleComplete,
   onEditFieldChange,
   onRegisterAccessoryHandle,
+  onUpdateProgression,
 }: ActiveWorkoutExerciseCardProps) {
   const { t } = useTranslation();
   const readOnly = mode === 'view';
@@ -282,16 +300,25 @@ function ActiveWorkoutExerciseCard({
     '--color-pr',
   ]) as [string, string, string, string];
 
-  const name = exercise.exercise_snapshot?.name ?? t('workout.exercise', { defaultValue: 'Exercise' });
+  const name =
+    exercise.exercise_snapshot?.name ??
+    t('workout.exercise', { defaultValue: 'Exercise' });
   const metricColumnLabel = (column: ActiveWorkoutMetricColumn): string => {
     switch (column) {
-      case 'rpe': return t('workout.metricRpe', { defaultValue: 'RPE' });
-      case 'volume': return t('workout.metricVolumeShort', { defaultValue: 'Vol' });
-      case 'e1rm': return t('workout.metricE1rmShort', { defaultValue: '1RM' });
-      case 'tenrm': return t('workout.metricTenrmShort', { defaultValue: '10RM' });
+      case 'rpe':
+        return t('workout.metricRpe', { defaultValue: 'RPE' });
+      case 'volume':
+        return t('workout.metricVolumeShort', { defaultValue: 'Vol' });
+      case 'e1rm':
+        return t('workout.metricE1rmShort', { defaultValue: '1RM' });
+      case 'tenrm':
+        return t('workout.metricTenrmShort', { defaultValue: '10RM' });
     }
   };
-  const unitLabel = weightUnit === 'kg' ? t('workout.kg', { defaultValue: 'kg' }) : t('workout.lbs', { defaultValue: 'lbs' });
+  const unitLabel =
+    weightUnit === 'kg'
+      ? t('workout.kg', { defaultValue: 'kg' })
+      : t('workout.lbs', { defaultValue: 'lbs' });
   // Resolved once per exercise; every row and the column header derive from it.
   const modality = resolveSnapshotModality(exercise.exercise_snapshot);
   const durationLike = isDurationModality(modality);
@@ -303,24 +330,98 @@ function ActiveWorkoutExerciseCard({
   // Never written back to the shared preference.
   const clampedToRpe = durationLike || modality === 'reps_only';
   const effectiveMetricColumn = clampedToRpe ? 'rpe' : metricColumn;
-  // Live and edit fetch the stats baseline with the active/edited session
-  // excluded so its own sets don't pollute it. View mode fetches only when the
-  // owner supplies the viewed session's id to exclude — without it (e.g. the
-  // preset detail view) Best could show the very workout being viewed, so the
-  // fetch is skipped (the hook gates on a null id).
+  // Live, edit, and preview fetch the stats baseline so progression overload evaluates
+  const shouldFetchStats = mode !== 'view' || Boolean(excludePresetEntryId);
   const { data: stats } = useExerciseStats(
-    readOnly && excludePresetEntryId == null ? null : exercise.exercise_id,
+    shouldFetchStats ? exercise.exercise_id : null,
     excludePresetEntryId,
-    sourcePresetId,
+    sourcePresetId
   );
   const lastSet = stats?.lastSet ?? null;
   const bestSet = stats?.bestSet ?? null;
 
   // PREVIOUS column source: the most recent prior session's sets, matched to
-  // the current rows by position (Hevy-style). Older servers omit
-  // recentSessions; `?? []` covers deploy skew (mobile never Zod-parses), so
-  // the column just shows dashes there.
+  // the current rows by position (Hevy-style).
   const previousSessionSets = (stats?.recentSessions ?? [])[0]?.sets;
+
+  // Progression Engine Evaluation
+  const progressionResult = useMemo(() => {
+    if (!exercise.rep_goal && exercise.progression_mode !== 'fixed')
+      return null;
+    // Count only working sets (exclude warmups) using the canonical isWarmupSetType helper
+    const workingSets = exercise.sets.filter(
+      (s) => !isWarmupSetType(s.set_type)
+    );
+    const targetSets = workingSets.length || 3;
+
+    const config: ExerciseProgressionConfig = {
+      progressionMode: (exercise.progression_mode as any) ?? 'rep_goal',
+      targetSets,
+      repGoal: exercise.rep_goal,
+      incrementType: exercise.increment_type ?? 'weight',
+      incrementValue: exercise.increment_value ?? 2.5,
+      equipmentBrand: exercise.equipment_brand ?? null,
+    };
+
+    // Filter out warmup sets from previous session history
+    const workingPreviousSets = (previousSessionSets || []).filter((s) => {
+      const setType =
+        (s as { set_type?: string | null; setType?: string | null }).set_type ??
+        s.setType;
+      return !isWarmupSetType(setType);
+    });
+    const firstWorking = workingPreviousSets[0];
+
+    const lastPerformance: LastExercisePerformance | null =
+      workingPreviousSets.length > 0
+        ? {
+            baseWeight: firstWorking?.weight
+              ? weightFromKg(firstWorking.weight, weightUnit)
+              : 0,
+            sets: workingPreviousSets.map((s, idx) => ({
+              setNumber: idx + 1,
+              reps: s.reps ?? 0,
+              weight: s.weight ? weightFromKg(s.weight, weightUnit) : 0,
+            })),
+          }
+        : null;
+
+    return evaluateProgression(config, lastPerformance);
+  }, [
+    exercise.rep_goal,
+    exercise.progression_mode,
+    exercise.sets,
+    exercise.increment_type,
+    exercise.increment_value,
+    exercise.equipment_brand,
+    previousSessionSets,
+    weightUnit,
+  ]);
+
+  // Apple-style collapsible progression settings (Preset Edit Mode)
+  const [progressionEditorOpen, setProgressionEditorOpen] = useState(false);
+  const [editMode, setEditMode] = useState<
+    'rep_goal' | 'fixed' | 'step_load' | 'manual'
+  >((exercise.progression_mode as any) ?? 'rep_goal');
+  const [editRepGoal, setEditRepGoal] = useState<string>(
+    exercise.rep_goal != null ? String(exercise.rep_goal) : ''
+  );
+  const [editIncrementValue, setEditIncrementValue] = useState<string>(
+    exercise.increment_value != null ? String(exercise.increment_value) : '2.5'
+  );
+  const [editIncrementType, setEditIncrementType] = useState<'weight' | 'reps'>(
+    exercise.increment_type ?? 'weight'
+  );
+  const [editEquipmentBrand, setEditEquipmentBrand] = useState<string>(
+    exercise.equipment_brand ?? ''
+  );
+
+  const handleCommitProgression = useCallback(
+    (patch: any) => {
+      onUpdateProgression?.(exercise.id, patch);
+    },
+    [exercise.id, onUpdateProgression]
+  );
 
   // Assumed (placeholder) weight/reps per row — live only. Resolved from the
   // same sources completion adoption uses in the store, so the gray value a
@@ -329,9 +430,24 @@ function ActiveWorkoutExerciseCard({
   const assumedSetValues = useMemo(
     () =>
       isLive
-        ? resolveAssumedSetValues(exercise.sets, previousSessionSets, plannedSetValues)
+        ? resolveAssumedSetValues(
+            exercise.sets,
+            previousSessionSets,
+            plannedSetValues,
+            progressionResult?.goalAchieved &&
+              progressionResult.status === 'PROGRESSION_WEIGHT_INCREASE'
+              ? weightToKg(progressionResult.suggestedWeight, weightUnit)
+              : null
+          )
         : null,
-    [isLive, exercise.sets, previousSessionSets, plannedSetValues],
+    [
+      isLive,
+      exercise.sets,
+      previousSessionSets,
+      plannedSetValues,
+      progressionResult,
+      weightUnit,
+    ]
   );
 
   // Capture the historical PR baseline once per exercise. The store no-ops
@@ -339,7 +455,7 @@ function ActiveWorkoutExerciseCard({
   // can't clobber it and a re-resolved query is harmless.
   const capturePrBaseline = useActiveWorkoutStore((s) => s.capturePrBaseline);
   const capturePreviousSessionSets = useActiveWorkoutStore(
-    (s) => s.capturePreviousSessionSets,
+    (s) => s.capturePreviousSessionSets
   );
   useEffect(() => {
     // Wait for the query to resolve (data is null/undefined while loading). A
@@ -350,16 +466,22 @@ function ActiveWorkoutExerciseCard({
       exercise.exercise_id,
       stats.bestSet
         ? { weight: stats.bestSet.weight, reps: stats.bestSet.reps }
-        : null,
+        : null
     );
     // The store-side copy placeholder adoption resolves against on complete —
     // captured from the same query the PREVIOUS column renders, so a
     // lock-screen complete adopts exactly what the row shows.
     capturePreviousSessionSets(
       exercise.exercise_id,
-      stats.recentSessions?.[0]?.sets ?? [],
+      stats.recentSessions?.[0]?.sets ?? []
     );
-  }, [isLive, stats, exercise.exercise_id, capturePrBaseline, capturePreviousSessionSets]);
+  }, [
+    isLive,
+    stats,
+    exercise.exercise_id,
+    capturePrBaseline,
+    capturePreviousSessionSets,
+  ]);
 
   // The best set to show on the "Best" line: the historical best, or — once a
   // set this session earns a PR — the better of that and the stamped session
@@ -371,7 +493,8 @@ function ActiveWorkoutExerciseCard({
     for (const s of exercise.sets) {
       if (prSetIds[String(s.id)] !== true || s.weight == null) continue;
       const contender = { weight: s.weight, reps: s.reps };
-      if (best == null || compareSetRecords(contender, best) > 0) best = contender;
+      if (best == null || compareSetRecords(contender, best) > 0)
+        best = contender;
     }
     return best;
   }, [isLive, prSetIds, exercise.sets]);
@@ -379,7 +502,10 @@ function ActiveWorkoutExerciseCard({
   const bestDisplay =
     bestSet != null && bestSet.weight != null
       ? stampedBest != null &&
-        compareSetRecords(stampedBest, { weight: bestSet.weight, reps: bestSet.reps }) > 0
+        compareSetRecords(stampedBest, {
+          weight: bestSet.weight,
+          reps: bestSet.reps,
+        }) > 0
         ? stampedBest
         : { weight: bestSet.weight, reps: bestSet.reps }
       : null;
@@ -393,8 +519,7 @@ function ActiveWorkoutExerciseCard({
 
   // Chip-row calories: an editable field in edit mode (when the form wires a
   // handler), a read-only value in view mode. Live mode shows neither — the
-  // value churns with every autosave recompute. The edit field renders as a
-  // tappable accent chip until activated, matching the screen's other cells.
+  // value churns with every autosave recompute.
   const caloriesField = isEdit && onChangeCalories != null;
   const [caloriesEditing, setCaloriesEditing] = useState(false);
   const caloriesText =
@@ -404,22 +529,21 @@ function ActiveWorkoutExerciseCard({
 
   // Edit-only: seed the first still-empty set from "last time" once, when
   // stats arrive. Weight and reps fill independently — a null lastSet field
-  // must not clobber a value the user already typed (a typed character makes
-  // the mapped field non-null and skips that side). The guard is keyed by
-  // exercise identity, not once-per-mount: a replaced exercise reuses the
-  // card instance and must be able to seed from its own history.
+  // must not clobber a value the user already typed.
   const prefilledExerciseIdRef = useRef<string | null>(null);
   const firstSet = exercise.sets[0];
   const firstSetId = firstSet != null ? String(firstSet.id) : null;
   const firstSetWeightEmpty = firstSet != null && firstSet.weight == null;
   const firstSetRepsEmpty = firstSet != null && firstSet.reps == null;
   useEffect(() => {
-    if (!isEdit || prefilledExerciseIdRef.current === exercise.exercise_id) return;
+    if (!isEdit || prefilledExerciseIdRef.current === exercise.exercise_id)
+      return;
     if (!eligibleForPrefill || !lastSet || firstSetId == null) return;
 
     prefilledExerciseIdRef.current = exercise.exercise_id;
     const patch: ActiveSetPatch = {};
-    if (firstSetWeightEmpty && lastSet.weight != null) patch.weight = lastSet.weight;
+    if (firstSetWeightEmpty && lastSet.weight != null)
+      patch.weight = lastSet.weight;
     if (firstSetRepsEmpty && lastSet.reps != null) patch.reps = lastSet.reps;
     if (Object.keys(patch).length > 0) onCommitField?.(firstSetId, patch);
   }, [
@@ -446,36 +570,23 @@ function ActiveWorkoutExerciseCard({
     transform: [{ rotate: `${rotation.value}deg` }],
   }));
 
-  // The body's slide-in should fire only on user-driven expands: a card that
-  // mounts already expanded (forms default expanded; the live screen mounts
-  // the cursor's card open) renders its body statically. Render-time state
-  // adjust (not an effect) so the flip lands in the same commit as the collapse.
   const [hasRenderedCollapsed, setHasRenderedCollapsed] = useState(!expanded);
   if (!expanded && !hasRenderedCollapsed) setHasRenderedCollapsed(true);
 
   const metricAnchorRef = useRef<View>(null);
   const openMetricMenu = () => {
     measureAnchoredMenuTrigger(metricAnchorRef.current, (anchor) =>
-      onPressMetricHeader(anchor, clampedToRpe),
+      onPressMetricHeader(anchor, clampedToRpe)
     );
   };
 
   const openOverflowMenu = () => onPressOverflow?.(exercise.id);
-  // Live-only long-press opens the same overflow menu (the collapsed row has
-  // no ⋮ of its own, so this is its only entry point).
-  const longPressMenu = isLive && onPressOverflow ? openOverflowMenu : undefined;
+  const longPressMenu =
+    isLive && onPressOverflow ? openOverflowMenu : undefined;
 
-  // Row callbacks that feed set-keyed SCREEN state (focus, note expand) must
-  // hand back render keys, not raw set ids — the screen stores and compares
-  // keys. The row passes raw ids (tap, within-row Next, long-press), so
-  // translate here, once, in stable memoized wrappers: per-row memoization
-  // survives because a wrapper only changes identity when the map or its
-  // handler does (not while typing). When `setRenderKeys` is absent (view/edit)
-  // the translation is identity. Commit/complete/delete callbacks are NOT
-  // wrapped — they must keep passing ids to the store.
   const translateSetKey = useCallback(
     (id: string) => setRenderKeys?.[id] ?? id,
-    [setRenderKeys],
+    [setRenderKeys]
   );
   const onActivateSetKeyed = useMemo(
     () =>
@@ -483,23 +594,30 @@ function ActiveWorkoutExerciseCard({
         ? (id: string, field: Exclude<SetInputField, 'rpe'>) =>
             onActivateSet(translateSetKey(id), field)
         : undefined,
-    [onActivateSet, translateSetKey],
+    [onActivateSet, translateSetKey]
   );
   const onActivateRpeKeyed = useMemo(
-    () => (onActivateRpe ? (id: string) => onActivateRpe(translateSetKey(id)) : undefined),
-    [onActivateRpe, translateSetKey],
+    () =>
+      onActivateRpe
+        ? (id: string) => onActivateRpe(translateSetKey(id))
+        : undefined,
+    [onActivateRpe, translateSetKey]
   );
   const onLongPressSetKeyed = useMemo(
-    () => (onLongPressSet ? (id: string) => onLongPressSet(translateSetKey(id)) : undefined),
-    [onLongPressSet, translateSetKey],
+    () =>
+      onLongPressSet
+        ? (id: string) => onLongPressSet(translateSetKey(id))
+        : undefined,
+    [onLongPressSet, translateSetKey]
   );
 
-  // Exercise thumbnail with a completion badge, shared by the collapsed and
-  // expanded rows so the image stays visible when the card is collapsed. The
-  // done-badge is suppressed in edit mode, where per-set badges convey state.
   const thumb = (
     <View>
-      <ExerciseThumb exercise={exercise} getImageSource={getImageSource} size={42} />
+      <ExerciseThumb
+        exercise={exercise}
+        getImageSource={getImageSource}
+        size={42}
+      />
       {isDone && !isEdit && (
         <View className="absolute" style={{ right: -3, top: -3 }}>
           <CompletionCheck size={15} iconSize={9} />
@@ -510,32 +628,31 @@ function ActiveWorkoutExerciseCard({
 
   if (!expanded) {
     const volumeKg = getExerciseVolumeKg(exercise);
-    // "planned" describes a live workout that hasn't reached the exercise yet;
-    // historical/imported workouts (view mode) and form drafts (edit mode)
-    // never show it. A cardio form card summarizes its effort instead of a
-    // set count.
     const cardioParts: string[] = [];
     if (cardioForm) {
       const firstCardioSet = exercise.sets[0];
       if (firstCardioSet?.duration != null) {
-        cardioParts.push(`${formatLocalizedNumber(firstCardioSet.duration / 60, { maximumFractionDigits: 1 })} min`);
+        cardioParts.push(
+          `${formatLocalizedNumber(firstCardioSet.duration / 60, { maximumFractionDigits: 1 })} min`
+        );
       }
       if (firstCardioSet?.distance != null) {
-        const dist = formatLocalizedNumber(distanceFromKm(firstCardioSet.distance, distanceUnit), { maximumFractionDigits: 2 });
+        const dist = formatLocalizedNumber(
+          distanceFromKm(firstCardioSet.distance, distanceUnit),
+          { maximumFractionDigits: 2 }
+        );
         cardioParts.push(`${dist} ${distanceUnit === 'miles' ? 'mi' : 'km'}`);
       }
     }
-    // Duration tables have no volume, so their collapsed line carries the
-    // summed set duration instead (legacy-aware via effectiveSetDurationSec).
     const totalDurationSec = durationLike
       ? exercise.sets.reduce(
           (sum, s) =>
             sum +
             (effectiveSetDurationSec(
               { duration: s.duration ?? null, reps: s.reps },
-              modality,
+              modality
             ) ?? 0),
-          0,
+          0
         )
       : 0;
     const detail = durationLike
@@ -551,11 +668,6 @@ function ActiveWorkoutExerciseCard({
         ? `${exercise.sets.length} sets${detail}`
         : `${exercise.sets.length} sets`;
 
-    // The root → header row → thumb <Pressable> wrappers mirror the expanded
-    // card exactly so the thumbnail <Image> keeps its position in the tree
-    // across expand/collapse. A divergent structure would remount the image
-    // (a fresh network fetch) and flash it on every toggle. The thumb press
-    // target expands here; the labeled "Expand" affordance is the row body.
     return (
       <View className="border-b border-border-subtle">
         <View className="flex-row items-center gap-3 px-2 py-3">
@@ -566,29 +678,34 @@ function ActiveWorkoutExerciseCard({
           >
             {thumb}
           </Pressable>
-          {/* self-stretch fills the row's content height and hitSlop reaches
-              into the row's py-3 padding, so the expand target spans the whole
-              row height instead of just the text box. The horizontal slop
-              covers the row's own padding/gaps: right reaches through the px-2
-              to the card edge — the 16px chevron sits flush against it, and
-              taps aimed at the icon often land in that strip (the expanded
-              chevron's slopped target trains exactly that spot) — and left
-              covers the gap-3 next to the thumb. */}
           <Pressable
             onPress={() => onToggleExpanded(exercise.id)}
             onLongPress={longPressMenu}
             hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}
             accessibilityRole="button"
-            accessibilityLabel={t('activeWorkout.exercise.expand', { defaultValue: 'Expand {{name}}', name })}
+            accessibilityLabel={t('activeWorkout.exercise.expand', {
+              defaultValue: 'Expand {{name}}',
+              name,
+            })}
             className="flex-1 self-stretch flex-row items-center gap-3"
           >
+            <View className="flex-1">
+              <Text
+                numberOfLines={2}
+                className={`text-base ${isDone ? 'text-text-secondary' : 'text-text-primary'}`}
+              >
+                {name}
+              </Text>
+              {exercise.equipment_brand ? (
+                <Text className="text-xs text-text-muted mt-0.5">
+                  {exercise.equipment_brand}
+                </Text>
+              ) : null}
+            </View>
             <Text
-              numberOfLines={2}
-              className={`flex-1 text-base ${isDone ? 'text-text-secondary' : 'text-text-primary'}`}
+              className="text-sm text-text-muted"
+              style={{ fontVariant: ['tabular-nums'] }}
             >
-              {name}
-            </Text>
-            <Text className="text-sm text-text-muted" style={{ fontVariant: ['tabular-nums'] }}>
               {subtitle}
             </Text>
             <Icon name="chevron-forward" size={16} color={textMuted} />
@@ -603,38 +720,53 @@ function ActiveWorkoutExerciseCard({
   return (
     <View className="border-b border-border-subtle px-2 pt-3 pb-2">
       <View className="flex-row items-center gap-3">
-        {/* Always a <Pressable> so the thumb subtree matches the collapsed
-            render and the <Image> is preserved rather than remounted. Inert
-            (no press, hidden from a11y) when no detail handler is wired. */}
         <Pressable
           onPress={onPressThumb ? () => onPressThumb(exercise.id) : undefined}
           accessible={onPressThumb != null}
           accessibilityRole={onPressThumb != null ? 'button' : undefined}
-          accessibilityLabel={onPressThumb != null ? t('activeWorkout.exercise.viewDetails', { defaultValue: 'View {{name}} details', name }) : undefined}
+          accessibilityLabel={
+            onPressThumb != null
+              ? t('activeWorkout.exercise.viewDetails', {
+                  defaultValue: 'View {{name}} details',
+                  name,
+                })
+              : undefined
+          }
         >
           {thumb}
         </Pressable>
-        {/* self-stretch + justify-center make the whole header-row height
-            tappable (not just the text box), so the collapse target around the
-            name matches the chevron's generous hit area. */}
         <Pressable
           onPress={() => onToggleExpanded(exercise.id)}
           onLongPress={longPressMenu}
           hitSlop={{ top: 10, bottom: 4 }}
           className="flex-1 self-stretch justify-center"
           accessibilityRole="button"
-          accessibilityLabel={t('activeWorkout.exercise.collapse', { defaultValue: 'Collapse {{name}}', name })}
+          accessibilityLabel={t('activeWorkout.exercise.collapse', {
+            defaultValue: 'Collapse {{name}}',
+            name,
+          })}
         >
-          <Text numberOfLines={2} className="text-base font-semibold text-text-primary">
+          <Text
+            numberOfLines={2}
+            className="text-base font-semibold text-text-primary"
+          >
             {name}
           </Text>
+          {exercise.equipment_brand ? (
+            <Text className="text-xs text-text-muted mt-0.5">
+              {exercise.equipment_brand}
+            </Text>
+          ) : null}
         </Pressable>
         {!readOnly && (
           <Pressable
             onPress={openOverflowMenu}
             hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
             accessibilityRole="button"
-            accessibilityLabel={t('activeWorkout.exercise.moreOptions', { defaultValue: 'More options for {{name}}', name })}
+            accessibilityLabel={t('activeWorkout.exercise.moreOptions', {
+              defaultValue: 'More options for {{name}}',
+              name,
+            })}
             className="p-1"
           >
             <Icon name="ellipsis-horizontal" size={18} color={textMuted} />
@@ -644,7 +776,10 @@ function ActiveWorkoutExerciseCard({
           onPress={() => onToggleExpanded(exercise.id)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel={t('activeWorkout.exercise.collapse', { defaultValue: 'Collapse {{name}}', name })}
+          accessibilityLabel={t('activeWorkout.exercise.collapse', {
+            defaultValue: 'Collapse {{name}}',
+            name,
+          })}
           className="p-1"
         >
           <Animated.View style={chevronStyle}>
@@ -653,31 +788,298 @@ function ActiveWorkoutExerciseCard({
         </Pressable>
       </View>
 
-      {/* The revealed body slides down from the header on expand and folds
-          back up on collapse, in step with the host screens' LinearTransition
-          card wrappers. */}
       <Animated.View
         entering={hasRenderedCollapsed ? FadeInDown.duration(200) : undefined}
         exiting={FadeOutUp.duration(150)}
       >
-        {/* Per-exercise note: a subtle line under the name, shown when a note
-            already exists or the card ⋮ "Notes" editor was opened. Editable
-            wherever a commit handler is wired (live + workout forms); view mode
-            shows the saved note as plain text. */}
-        {!readOnly && onCommitExerciseNote != null && (!!exercise.notes || noteEditorOpen) && (
-          <View className="mt-2 px-1">
-            <WorkoutNotesField
-              value={exercise.notes}
-              onCommit={(text) => onCommitExerciseNote(exercise.id, text)}
-              label=""
-              placeholder={t('activeWorkout.exercise.notePlaceholder', { defaultValue: 'Add a note for this exercise…' })}
-              accessibilityLabel={t('activeWorkout.exercise.notesFor', { defaultValue: 'Notes for {{name}}', name })}
-            />
+        {/* Apple-Style Modern Progression Configuration (Preset Edit Mode) */}
+        {isEdit && (
+          <View className="mt-2 mb-1 px-1">
+            <Pressable
+              onPress={() => setProgressionEditorOpen((prev) => !prev)}
+              accessibilityRole="button"
+              accessibilityLabel={t(
+                'activeWorkout.progression.toggleSettings',
+                {
+                  defaultValue: 'Toggle progression settings',
+                }
+              )}
+              className="flex-row items-center justify-between px-3 py-2 rounded-lg bg-surface border border-border-subtle"
+            >
+              <View className="flex-row items-center gap-2 flex-1 mr-2">
+                <Text className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                  {t('activeWorkout.progression.title', {
+                    defaultValue: 'Progression',
+                  })}
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  className="text-xs font-medium text-text-primary flex-1"
+                >
+                  {editMode === 'manual'
+                    ? t('activeWorkout.progression.manualOff', {
+                        defaultValue: 'Manual (Off)',
+                      })
+                    : editMode === 'fixed'
+                      ? t('activeWorkout.progression.fixedSummary', {
+                          defaultValue: 'Fixed Target · +{{value}} {{unit}}',
+                          value: editIncrementValue,
+                          unit: weightUnit,
+                        })
+                      : editMode === 'step_load'
+                        ? t('activeWorkout.progression.stepLoadSummary', {
+                            defaultValue:
+                              'Step-Load · {{reps}} reps · +{{value}} reps',
+                            reps: editRepGoal || '–',
+                            value: editIncrementValue,
+                          })
+                        : t('activeWorkout.progression.repGoalSummary', {
+                            defaultValue:
+                              'Rep Goal · {{reps}} reps · +{{value}} {{unit}}',
+                            reps: editRepGoal || '–',
+                            value: editIncrementValue,
+                            unit: weightUnit,
+                          })}
+                </Text>
+              </View>
+              <Icon
+                name={progressionEditorOpen ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={textMuted}
+              />
+            </Pressable>
+
+            {progressionEditorOpen && (
+              <View className="mt-2 p-3 rounded-xl bg-surface border border-border-subtle gap-3">
+                <View>
+                  <Text className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">
+                    {t('activeWorkout.progression.overloadMode', {
+                      defaultValue: 'Overload Mode',
+                    })}
+                  </Text>
+                  <View className="flex-row bg-raised rounded-lg p-0.5 border border-border-subtle">
+                    {(
+                      [
+                        {
+                          key: 'rep_goal',
+                          label: t('activeWorkout.progression.modeRepGoal', {
+                            defaultValue: 'Rep Goal',
+                          }),
+                        },
+                        {
+                          key: 'fixed',
+                          label: t('activeWorkout.progression.modeFixed', {
+                            defaultValue: 'Fixed',
+                          }),
+                        },
+                        {
+                          key: 'step_load',
+                          label: t('activeWorkout.progression.modeStepLoad', {
+                            defaultValue: 'Step-Load',
+                          }),
+                        },
+                        {
+                          key: 'manual',
+                          label: t('activeWorkout.progression.modeOff', {
+                            defaultValue: 'Off',
+                          }),
+                        },
+                      ] as const
+                    ).map((tab) => {
+                      const isActive = editMode === tab.key;
+                      return (
+                        <Pressable
+                          key={tab.key}
+                          onPress={() => {
+                            setEditMode(tab.key);
+                            const newIncType =
+                              tab.key === 'step_load'
+                                ? 'reps'
+                                : editIncrementType;
+                            setEditIncrementType(newIncType);
+                            handleCommitProgression({
+                              progression_mode: tab.key,
+                              increment_type: newIncType,
+                            });
+                          }}
+                          className={`flex-1 py-1.5 rounded-md items-center justify-center ${
+                            isActive ? 'bg-surface shadow-sm' : ''
+                          }`}
+                        >
+                          <Text
+                            className={`text-xs font-medium ${
+                              isActive
+                                ? 'text-text-primary font-semibold'
+                                : 'text-text-muted'
+                            }`}
+                          >
+                            {tab.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {editMode !== 'manual' && (
+                  <View className="flex-row items-center gap-3">
+                    <View className="flex-1">
+                      <Text className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1">
+                        {editMode === 'fixed'
+                          ? t('activeWorkout.progression.targetRepsPerSet', {
+                              defaultValue: 'Target Reps / Set',
+                            })
+                          : t('activeWorkout.progression.targetRepsTotal', {
+                              defaultValue: 'Target Reps (Total)',
+                            })}
+                      </Text>
+                      <FormInput
+                        value={editRepGoal}
+                        onChangeText={(val) => {
+                          setEditRepGoal(val);
+                          const num = parseInt(val, 10);
+                          handleCommitProgression({
+                            rep_goal: isNaN(num) ? null : num,
+                          });
+                        }}
+                        keyboardType="number-pad"
+                        placeholder={editMode === 'fixed' ? '8' : '75'}
+                        style={{
+                          height: 38,
+                          fontSize: 14,
+                          paddingHorizontal: 10,
+                        }}
+                      />
+                    </View>
+
+                    <View className="flex-1">
+                      <Text className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1">
+                        {editMode === 'step_load' ||
+                        editIncrementType === 'reps'
+                          ? t('activeWorkout.progression.incrementReps', {
+                              defaultValue: 'Increment (Reps)',
+                            })
+                          : t('activeWorkout.progression.incrementWeight', {
+                              defaultValue: 'Increment ({{unit}})',
+                              unit: weightUnit,
+                            })}
+                      </Text>
+                      <FormInput
+                        value={editIncrementValue}
+                        onChangeText={(val) => {
+                          setEditIncrementValue(val);
+                          const num = parseFloat(val);
+                          const incrementInKg =
+                            editIncrementType === 'weight' &&
+                            weightUnit === 'lbs' &&
+                            !isNaN(num)
+                              ? weightToKg(num, 'lbs')
+                              : num;
+                          handleCommitProgression({
+                            increment_value: isNaN(num) ? 2.5 : incrementInKg,
+                          });
+                        }}
+                        keyboardType="decimal-pad"
+                        placeholder={weightUnit === 'lbs' ? '5' : '2.5'}
+                        style={{
+                          height: 38,
+                          fontSize: 14,
+                          paddingHorizontal: 10,
+                        }}
+                      />
+                    </View>
+                  </View>
+                )}
+
+                <View>
+                  <Text className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1">
+                    {t('activeWorkout.progression.equipmentBrand', {
+                      defaultValue: 'Equipment / Machine Brand',
+                    })}
+                  </Text>
+                  <FormInput
+                    value={editEquipmentBrand}
+                    onChangeText={(val) => {
+                      setEditEquipmentBrand(val);
+                      handleCommitProgression({
+                        equipment_brand: val.trim() || null,
+                      });
+                    }}
+                    autoCapitalize="words"
+                    placeholder={t(
+                      'activeWorkout.progression.equipmentBrandPlaceholder',
+                      { defaultValue: 'e.g. Hammer Strength, Cable Stack' }
+                    )}
+                    style={{ height: 38, fontSize: 14, paddingHorizontal: 10 }}
+                  />
+                </View>
+              </View>
+            )}
           </View>
         )}
+
+        {/* Live Progression Overload Banner */}
+        {isLive && progressionResult && (
+          <View className="mt-2.5 mb-1 px-2.5 py-1.5 rounded-lg bg-raised flex-row items-center justify-between border border-border-subtle">
+            <View className="flex-row items-center gap-1.5 flex-1 mr-2">
+              <Icon
+                name={
+                  progressionResult.goalAchieved
+                    ? 'trophy-outline'
+                    : 'exercise-weights'
+                }
+                size={16}
+                color={
+                  progressionResult.goalAchieved ? accentPrimary : textSecondary
+                }
+              />
+              <Text
+                className="text-xs font-medium text-text-primary flex-1"
+                numberOfLines={2}
+              >
+                {progressionResult.message}
+              </Text>
+            </View>
+            {progressionResult.suggestedWeight > 0 && (
+              <View className="px-2 py-0.5 rounded bg-surface">
+                <Text
+                  className="text-xs font-bold"
+                  style={{ color: accentPrimary }}
+                >
+                  {progressionResult.suggestedWeight} {unitLabel}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {!readOnly &&
+          onCommitExerciseNote != null &&
+          (!!exercise.notes || noteEditorOpen) && (
+            <View className="mt-2 px-1">
+              <WorkoutNotesField
+                value={exercise.notes}
+                onCommit={(text) => onCommitExerciseNote(exercise.id, text)}
+                label=""
+                placeholder={t('activeWorkout.exercise.notePlaceholder', {
+                  defaultValue: 'Add a note for this exercise…',
+                })}
+                accessibilityLabel={t('activeWorkout.exercise.notesFor', {
+                  defaultValue: 'Notes for {{name}}',
+                  name,
+                })}
+              />
+            </View>
+          )}
         {readOnly && !!exercise.notes && (
           <View className="mt-2 px-1">
-            <Text className="text-sm text-text-secondary" accessibilityLabel={t('activeWorkout.exercise.notesFor', { defaultValue: 'Notes for {{name}}', name })}>
+            <Text
+              className="text-sm text-text-secondary"
+              accessibilityLabel={t('activeWorkout.exercise.notesFor', {
+                defaultValue: 'Notes for {{name}}',
+                name,
+              })}
+            >
               {exercise.notes}
             </Text>
           </View>
@@ -687,9 +1089,6 @@ function ActiveWorkoutExerciseCard({
           bestDisplay != null ||
           caloriesField ||
           caloriesText != null) && (
-          // flex-wrap + gap-y so the rest chip and "Best" stack gracefully on
-          // narrow screens instead of shifting off the edge. "Last" lives in the
-          // per-set PREVIOUS column, not here.
           <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1 mt-2 mb-1 px-1">
             {showRestChip && !cardioForm && (
               <RestPeriodChip
@@ -699,60 +1098,90 @@ function ActiveWorkoutExerciseCard({
                 onPress={
                   readOnly
                     ? undefined
-                    : () => onPressRestChip?.(exercise.id, exercise.sets[0]?.rest_time ?? null)
+                    : () =>
+                        onPressRestChip?.(
+                          exercise.id,
+                          exercise.sets[0]?.rest_time ?? null
+                        )
                 }
               />
             )}
-            {caloriesField && (caloriesEditing ? (
-              <View className="flex-row items-center gap-1">
-                <Icon name="flame" size={14} color={accentPrimary} />
-                <FormInput
-                  value={exercise.editCaloriesText ?? ''}
-                  onChangeText={(text) => onChangeCalories?.(exercise.id, text)}
-                  onBlur={() => setCaloriesEditing(false)}
-                  keyboardType="decimal-pad"
-                  autoFocus
-                  selectTextOnFocus
-                  placeholder="–"
-                  accessibilityLabel={t('activeWorkout.exercise.caloriesFor', { defaultValue: 'Calories burned for {{name}}', name })}
-                  className="text-center"
-                  style={{
-                    paddingTop: 4,
-                    paddingBottom: 4,
-                    paddingLeft: 6,
-                    paddingRight: 6,
-                    fontSize: 14,
-                    lineHeight: 18,
-                    minWidth: 52,
-                  }}
-                />
-                <Text className="text-sm text-text-secondary">{t('activeWorkout.exercise.caloriesUnit', { defaultValue: 'kcal' })}</Text>
-              </View>
-            ) : (
-              <Pressable
-                onPress={() => setCaloriesEditing(true)}
-                className="flex-row items-center gap-1"
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                accessibilityRole="button"
-                accessibilityLabel={t('activeWorkout.exercise.editCaloriesFor', { defaultValue: 'Edit calories burned for {{name}}', name })}
-              >
-                <Icon name="flame" size={14} color={accentPrimary} />
-                <Text className="text-sm" style={{ color: accentPrimary }}>
-                  {(exercise.editCaloriesText ?? '') !== '' ? exercise.editCaloriesText : '–'} {t('activeWorkout.exercise.caloriesUnit', { defaultValue: 'kcal' })}
-                </Text>
-                <Icon name="chevron-down" size={10} color={accentPrimary} />
-              </Pressable>
-            ))}
+            {caloriesField &&
+              (caloriesEditing ? (
+                <View className="flex-row items-center gap-1">
+                  <Icon name="flame" size={14} color={accentPrimary} />
+                  <FormInput
+                    value={exercise.editCaloriesText ?? ''}
+                    onChangeText={(text) =>
+                      onChangeCalories?.(exercise.id, text)
+                    }
+                    onBlur={() => setCaloriesEditing(false)}
+                    keyboardType="decimal-pad"
+                    autoFocus
+                    selectTextOnFocus
+                    placeholder="–"
+                    accessibilityLabel={t(
+                      'activeWorkout.exercise.caloriesFor',
+                      { defaultValue: 'Calories burned for {{name}}', name }
+                    )}
+                    className="text-center"
+                    style={{
+                      paddingTop: 4,
+                      paddingBottom: 4,
+                      paddingLeft: 6,
+                      paddingRight: 6,
+                      fontSize: 14,
+                      lineHeight: 18,
+                      minWidth: 52,
+                    }}
+                  />
+                  <Text className="text-sm text-text-secondary">
+                    {t('activeWorkout.exercise.caloriesUnit', {
+                      defaultValue: 'kcal',
+                    })}
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => setCaloriesEditing(true)}
+                  className="flex-row items-center gap-1"
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t(
+                    'activeWorkout.exercise.editCaloriesFor',
+                    { defaultValue: 'Edit calories burned for {{name}}', name }
+                  )}
+                >
+                  <Icon name="flame" size={14} color={accentPrimary} />
+                  <Text className="text-sm" style={{ color: accentPrimary }}>
+                    {(exercise.editCaloriesText ?? '') !== ''
+                      ? exercise.editCaloriesText
+                      : '–'}{' '}
+                    {t('activeWorkout.exercise.caloriesUnit', {
+                      defaultValue: 'kcal',
+                    })}
+                  </Text>
+                  <Icon name="chevron-down" size={10} color={accentPrimary} />
+                </Pressable>
+              ))}
             {caloriesText != null && (
               <View className="flex-row items-center">
                 <Icon name="flame" size={14} color={textMuted} />
-                <Text className="text-sm text-text-secondary ml-1">{caloriesText} {t('activeWorkout.exercise.caloriesUnit', { defaultValue: 'kcal' })}</Text>
+                <Text className="text-sm text-text-secondary ml-1">
+                  {caloriesText}{' '}
+                  {t('activeWorkout.exercise.caloriesUnit', {
+                    defaultValue: 'kcal',
+                  })}
+                </Text>
               </View>
             )}
             {bestDisplay != null && (
               <View
                 className="flex-row items-center"
-                accessibilityLabel={t('activeWorkout.exercise.best', { defaultValue: 'Best {{value}}', value: bestText })}
+                accessibilityLabel={t('activeWorkout.exercise.best', {
+                  defaultValue: 'Best {{value}}',
+                  value: bestText,
+                })}
               >
                 <Icon
                   name="trophy-outline"
@@ -781,9 +1210,6 @@ function ActiveWorkoutExerciseCard({
             distanceUnit={distanceUnit}
             assumed={assumedSetValues?.[0] ?? null}
             state={((): SetRowState => {
-              // Same state derivation as the table rows, so the form's log
-              // affordance matches: done check, pulsing cursor ring, or muted
-              // upcoming ring.
               const set = exercise.sets[0];
               if (set == null) return 'upcoming';
               if (completedSetIds[String(set.id)]) return 'done';
@@ -804,10 +1230,6 @@ function ActiveWorkoutExerciseCard({
 
         {!cardioForm && exercise.sets.length > 0 && (
           <View className="flex-row items-center px-1 py-1.5">
-            {/* Duration tables have a single value column; against it the
-                5-column fixed Set/Prev widths read squished, so their content
-                columns share the width equally instead of aligning with
-                neighboring cards. Keep in sync with ActiveWorkoutSetRow. */}
             <Text
               className={`${durationLike ? 'flex-1' : 'w-9'} text-center text-xs font-semibold uppercase text-text-muted`}
             >
@@ -825,12 +1247,11 @@ function ActiveWorkoutExerciseCard({
                 <Text className="flex-1 text-center text-xs font-semibold uppercase text-text-muted">
                   {t('workout.sec', { defaultValue: 'Sec' })}
                 </Text>
-                {/* Read-only cardio tables surface per-set distance (imports,
-                    intervals); live/edit tables keep the single editable Sec
-                    cell, so the column only exists in view mode. */}
                 {readOnly && modality === 'duration_distance' && (
                   <Text className="flex-1 text-center text-xs font-semibold uppercase text-text-muted">
-                    {distanceUnit === 'miles' ? t('workout.mi', { defaultValue: 'mi' }) : t('workout.km', { defaultValue: 'km' })}
+                    {distanceUnit === 'miles'
+                      ? t('workout.mi', { defaultValue: 'mi' })
+                      : t('workout.km', { defaultValue: 'km' })}
                   </Text>
                 )}
               </>
@@ -846,12 +1267,18 @@ function ActiveWorkoutExerciseCard({
                 </Text>
               </>
             )}
-            <View ref={metricAnchorRef} collapsable={false} className="w-14 items-center">
+            <View
+              ref={metricAnchorRef}
+              collapsable={false}
+              className="w-14 items-center"
+            >
               <Pressable
                 onPress={openMetricMenu}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
-                accessibilityLabel={t('activeWorkout.exercise.changeMetric', { defaultValue: 'Change metric column' })}
+                accessibilityLabel={t('activeWorkout.exercise.changeMetric', {
+                  defaultValue: 'Change metric column',
+                })}
                 className="flex-row items-center gap-0.5"
               >
                 <Text
@@ -867,86 +1294,107 @@ function ActiveWorkoutExerciseCard({
           </View>
         )}
 
-        {!cardioForm && exercise.sets.map((set, index) => {
-          const setId = String(set.id);
-          // Stable across an autosave id churn (view/edit: keyed by id). Used for
-          // the React key + focus/expand compares so the row instance — and its
-          // keyboard/draft — survives the set's id being reassigned.
-          const renderKey = setRenderKeys?.[setId] ?? setId;
-          // Edit mode never surfaces 'done' — completed sets stay editable and
-          // show the static completedBadge instead.
-          const state = isEdit
-            ? setId === activeSetId
-              ? 'current'
-              : 'upcoming'
-            : completedSetIds[setId]
-              ? 'done'
-              : setId === activeSetId
+        {!cardioForm &&
+          exercise.sets.map((set, index) => {
+            const setId = String(set.id);
+            const renderKey = setRenderKeys?.[setId] ?? setId;
+            const state = isEdit
+              ? setId === activeSetId
                 ? 'current'
-                : 'upcoming';
-          const nextSet = exercise.sets[index + 1];
-          return (
-            <React.Fragment key={renderKey}>
-              <ActiveWorkoutSetRow
-                set={set}
-                modality={modality}
-                distanceUnit={distanceUnit}
-                renderKey={renderKey}
-                displayNumber={workingSetNumbers[index]}
-                state={state}
-                metricColumn={effectiveMetricColumn}
-                weightUnit={weightUnit}
-                previousSet={readOnly ? undefined : (previousSessionSets?.[index] ?? null)}
-                assumed={assumedSetValues?.[index] ?? null}
-                mode={mode}
-                onComplete={onComplete}
-                onUncomplete={onUncomplete}
-                onCommitField={onCommitField}
-                onDelete={onDeleteSet}
-                onLongPress={onLongPressSetKeyed}
-                onPressSetType={onPressSetType}
-                activeField={activeField}
-                isFocused={isLive && focusedSetKey === renderKey}
-                nextSetId={nextSet != null ? String(nextSet.id) : null}
-                entryId={exercise.id}
-                rpeEditable={rpeEditable}
-                completedBadge={isEdit && !!completedSetIds[setId]}
-                onToggleComplete={onToggleComplete}
-                onActivateSet={onActivateSetKeyed}
-                onActivateRpe={onActivateRpeKeyed}
-                onEditFieldChange={onEditFieldChange}
-                onAddSet={onAddSet}
-                onRegisterAccessoryHandle={onRegisterAccessoryHandle}
-              />
-              {/* Per-set note expand — live and edit, toggled by long-pressing
-                  the set row. View mode shows a saved note as plain text. */}
-              {!readOnly && expandedSetKey === renderKey && onCommitField != null && (
-                <ActiveWorkoutSetDetail set={set} onCommitField={onCommitField} />
-              )}
-              {readOnly && !!set.notes && (
-                <View className="px-1 pb-2">
-                  <Text
-                    className="text-xs text-text-secondary"
-                    accessibilityLabel={t('activeWorkout.exercise.notesForSet', { defaultValue: 'Notes for set {{number}}', number: set.set_number })}
-                  >
-                    {set.notes}
-                  </Text>
-                </View>
-              )}
-            </React.Fragment>
-          );
-        })}
+                : 'upcoming'
+              : completedSetIds[setId]
+                ? 'done'
+                : setId === activeSetId
+                  ? 'current'
+                  : 'upcoming';
+            const nextSet = exercise.sets[index + 1];
+
+            // In preview mode ('view'), display the calculated progression weight if goal was hit
+            const effectiveSet = set;
+
+            return (
+              <React.Fragment key={renderKey}>
+                <ActiveWorkoutSetRow
+                  set={effectiveSet}
+                  modality={modality}
+                  distanceUnit={distanceUnit}
+                  renderKey={renderKey}
+                  displayNumber={workingSetNumbers[index]}
+                  state={state}
+                  metricColumn={effectiveMetricColumn}
+                  weightUnit={weightUnit}
+                  previousSet={
+                    readOnly
+                      ? undefined
+                      : (previousSessionSets?.[index] ?? null)
+                  }
+                  assumed={assumedSetValues?.[index] ?? null}
+                  mode={mode}
+                  onComplete={onComplete}
+                  onUncomplete={onUncomplete}
+                  onCommitField={onCommitField}
+                  onDelete={onDeleteSet}
+                  onLongPress={onLongPressSetKeyed}
+                  onPressSetType={onPressSetType}
+                  activeField={activeField}
+                  isFocused={isLive && focusedSetKey === renderKey}
+                  nextSetId={nextSet != null ? String(nextSet.id) : null}
+                  entryId={exercise.id}
+                  rpeEditable={rpeEditable}
+                  completedBadge={isEdit && !!completedSetIds[setId]}
+                  onToggleComplete={onToggleComplete}
+                  onActivateSet={onActivateSetKeyed}
+                  onActivateRpe={onActivateRpeKeyed}
+                  onEditFieldChange={onEditFieldChange}
+                  onAddSet={onAddSet}
+                  onRegisterAccessoryHandle={onRegisterAccessoryHandle}
+                />
+                {!readOnly &&
+                  expandedSetKey === renderKey &&
+                  onCommitField != null && (
+                    <ActiveWorkoutSetDetail
+                      set={set}
+                      onCommitField={onCommitField}
+                    />
+                  )}
+                {readOnly && !!set.notes && (
+                  <View className="px-1 pb-2">
+                    <Text
+                      className="text-xs text-text-secondary"
+                      accessibilityLabel={t(
+                        'activeWorkout.exercise.notesForSet',
+                        {
+                          defaultValue: 'Notes for set {{number}}',
+                          number: set.set_number,
+                        }
+                      )}
+                    >
+                      {set.notes}
+                    </Text>
+                  </View>
+                )}
+              </React.Fragment>
+            );
+          })}
 
         {!readOnly && !cardioForm && (
           <Pressable
             onPress={() => onAddSet?.(exercise.id)}
             accessibilityRole="button"
-            accessibilityLabel={t('activeWorkout.exercise.addSet', { defaultValue: 'Add set to {{name}}', name })}
+            accessibilityLabel={t('activeWorkout.exercise.addSet', {
+              defaultValue: 'Add set to {{name}}',
+              name,
+            })}
             className="flex-row items-center justify-center gap-1.5 py-2.5 mt-1"
           >
             <Icon name="add" size={15} color={accentPrimary} />
-            <Text className="text-sm font-medium" style={{ color: accentPrimary }}>
-              {t('activeWorkout.exercise.addSetLabel', { defaultValue: 'Add set' })}
+            <Text
+              className="text-sm font-medium"
+              style={{ color: accentPrimary }}
+            >
+              {t('activeWorkout.exercise.addSetLabel', {
+                defaultValue: 'Add set',
+              })}
             </Text>
           </Pressable>
         )}

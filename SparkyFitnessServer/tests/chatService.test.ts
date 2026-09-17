@@ -656,7 +656,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 21\/41 active tools for chatbot \(profile=core/
+          /Loaded 32\/56 active tools for chatbot \(profile=core/
         )
       );
       // The core profile is the mitigation, so no context-window warning.
@@ -738,7 +738,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 41\/41 active tools for chatbot \(profile=full/
+          /Loaded 56\/56 active tools for chatbot \(profile=full/
         )
       );
       // Ollama + full profile is the risky combo, so warn about the 4096 default.
@@ -771,7 +771,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 41\/41 active tools for chatbot \(profile=full/
+          /Loaded 56\/56 active tools for chatbot \(profile=full/
         )
       );
     });
@@ -799,7 +799,7 @@ describe('chatService', () => {
       expect(log).toHaveBeenCalledWith(
         'info',
         expect.stringMatching(
-          /Loaded 41\/41 active tools for chatbot \(profile=full/
+          /Loaded 56\/56 active tools for chatbot \(profile=full/
         )
       );
       // The context-window warning is Ollama-only; cloud providers never see it.
@@ -2511,6 +2511,69 @@ describe('chatService', () => {
       expect(textParts(userMessages[0].content).length).toBeGreaterThan(0);
       // Current turn: image preserved for live vision analysis.
       expect(nonTextParts(userMessages[1].content)).toHaveLength(1);
+      expect(
+        (nonTextParts(userMessages[1].content)[0] as { mediaType?: string })
+          .mediaType
+      ).toBe('image/png');
+    });
+
+    it('maps remote image URLs with detected media types based on extension', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = vi
+        .fn()
+        .mockImplementation(async (url: string | URL | Request) => {
+          const urlStr = typeof url === 'string' ? url : url.toString();
+          if (urlStr.includes('example.com/meal.webp')) {
+            return new Response(new Uint8Array([0x52, 0x49, 0x46, 0x46]), {
+              status: 200,
+              headers: { 'content-type': 'image/webp' },
+            });
+          }
+          return originalFetch(url as RequestInfo, undefined);
+        });
+
+      try {
+        const model = streamModel([
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 't1' },
+          { type: 'text-delta', id: 't1', delta: 'ok' },
+          { type: 'text-end', id: 't1' },
+          {
+            type: 'finish',
+            finishReason: { unified: 'stop', raw: undefined },
+            usage,
+          },
+        ]);
+
+        const { stream } = await chatService.processChatMessageStream(
+          [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Analyze this photo' },
+                {
+                  type: 'image_url',
+                  image_url: { url: 'https://example.com/meal.webp' },
+                },
+              ],
+            },
+          ],
+          'svc-1',
+          activeUserId,
+          actorUserId
+        );
+        await drainStream(stream);
+
+        const prompt = model.doStreamCalls[0].prompt;
+        const userMessage = prompt.find((m) => m.role === 'user');
+        const filePart = (
+          userMessage?.content as Array<{ type: string; mediaType?: string }>
+        ).find((p) => p.type === 'file');
+        expect(filePart).toBeDefined();
+        expect(filePart?.mediaType).toBe('image/webp');
+      } finally {
+        global.fetch = originalFetch;
+      }
     });
 
     it('trims old history to a token budget but always keeps the current turn', async () => {

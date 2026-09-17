@@ -13,12 +13,17 @@ interface UseUpdateFoodEntryOptions {
   onSuccess?: (updatedEntry: FoodEntry) => void;
 }
 
-export function useUpdateFoodEntry({ entryId, entryDate, onSuccess }: UseUpdateFoodEntryOptions) {
+export function useUpdateFoodEntry({
+  entryId,
+  entryDate,
+  onSuccess,
+}: UseUpdateFoodEntryOptions) {
   const queryClient = useQueryClient();
   const normalizedDate = normalizeDate(entryDate);
 
   const mutation = useMutation({
-    mutationFn: (payload: UpdateFoodEntryPayload) => updateFoodEntry(entryId, payload),
+    mutationFn: (payload: UpdateFoodEntryPayload) =>
+      updateFoodEntry(entryId, payload),
     onSuccess: (updatedEntry) => {
       onSuccess?.(updatedEntry);
     },
@@ -28,16 +33,24 @@ export function useUpdateFoodEntry({ entryId, entryDate, onSuccess }: UseUpdateF
         : i18n.t('common.tryAgain', { defaultValue: 'Please try again.' });
       Toast.show({
         type: 'error',
-        text1: i18n.t('foodEntryView.errors.saveFailed', { defaultValue: 'Failed to save changes' }),
+        text1: i18n.t('foodEntryView.errors.saveFailed', {
+          defaultValue: 'Failed to save changes',
+        }),
         text2: message,
       });
     },
   });
 
   const invalidateCache = (newDate?: string) => {
-    queryClient.invalidateQueries({ queryKey: dailySummaryQueryKey(normalizedDate), refetchType: 'all' });
+    queryClient.invalidateQueries({
+      queryKey: dailySummaryQueryKey(normalizedDate),
+      refetchType: 'all',
+    });
     if (newDate && newDate !== normalizedDate) {
-      queryClient.invalidateQueries({ queryKey: dailySummaryQueryKey(newDate), refetchType: 'all' });
+      queryClient.invalidateQueries({
+        queryKey: dailySummaryQueryKey(newDate),
+        refetchType: 'all',
+      });
     }
   };
 

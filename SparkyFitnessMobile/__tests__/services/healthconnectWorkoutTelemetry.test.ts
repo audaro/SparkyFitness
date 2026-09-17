@@ -5,6 +5,7 @@ jest.mock('react-native-health-connect', () => ({
 jest.mock('../../src/services/LogService', () => ({ addLog: jest.fn() }));
 
 import { readFileSync } from 'fs';
+import { dirname, join } from 'node:path';
 
 // Android-specific module: on macOS Jest resolves .ios.ts by default, so this
 // path is required explicitly to be sure we are not testing the iOS provider.
@@ -22,14 +23,15 @@ const { readRecords, requestExerciseRoute } =
     requestExerciseRoute: jest.Mock;
   };
 
-const AsyncStorage =
-  require('@react-native-async-storage/async-storage') as {
-    getItem: jest.Mock;
-    setItem: jest.Mock;
-  };
+const AsyncStorage = require('@react-native-async-storage/async-storage') as {
+  getItem: jest.Mock;
+  setItem: jest.Mock;
+};
 
 const at = (seconds: number): string =>
-  new Date(Date.parse('2026-08-04T09:00:00.000Z') + seconds * 1000).toISOString();
+  new Date(
+    Date.parse('2026-08-04T09:00:00.000Z') + seconds * 1000
+  ).toISOString();
 
 const session = (overrides: Record<string, unknown> = {}) => ({
   startTime: at(0),
@@ -65,20 +67,27 @@ describe('routeNeedsConsent', () => {
     expect(routeNeedsConsent(undefined)).toBe(false);
   });
 
-  it('keeps the library enum string-valued', () => {
-    // Guards patches/react-native-health-connect@3.5.3.patch, which makes this
-    // enum string-valued to match what the native module actually sends. If an
-    // upgrade drops the patch the enum reverts to numeric and comparing against
-    // it stops matching — a silent failure: no consent prompt, so no GPS.
+  it('still receives the consent string the native module sends', () => {
+    // routeNeedsConsent matches on the literal "CONSENT_REQUIRED" that the
+    // Android bridge puts on the wire. The library's own TypeScript declares a
+    // numeric enum instead, which is why comparing against
+    // ExerciseRouteResultType never matches (upstream fix in flight:
+    // matinzd/react-native-health-connect#274). We depend on neither
+    // declaration — only on what actually arrives — so this guards the wire
+    // format rather than the types. If an upgrade ever changes the emitted
+    // string, the consent prompt silently stops firing and GPS goes missing.
     //
-    // Asserted by reading the shipped source rather than importing it: the
-    // package is mocked above, and its untranspiled .ts is not in Jest's
-    // transform scope.
+    // Asserted by reading the shipped Kotlin rather than importing anything:
+    // the package is mocked above.
     const source = readFileSync(
-      require.resolve('react-native-health-connect/src/types/base.types.ts'),
+      join(
+        dirname(require.resolve('react-native-health-connect/package.json')),
+        'android/src/main/java/dev/matinzd/healthconnect/records',
+        'ReactExerciseSessionRecord.kt'
+      ),
       'utf8'
     );
-    expect(source).toContain("CONSENT_REQUIRED = 'CONSENT_REQUIRED'");
+    expect(source).toContain('putString("type", "CONSENT_REQUIRED")');
   });
 });
 
@@ -89,7 +98,12 @@ describe('collectSessionRoute', () => {
         exerciseRoute: {
           type: 'DATA',
           route: [
-            { time: at(0), latitude: 37.7, longitude: -122.4, altitude: { inMeters: 10 } },
+            {
+              time: at(0),
+              latitude: 37.7,
+              longitude: -122.4,
+              altitude: { inMeters: 10 },
+            },
           ],
         },
       }),
@@ -143,7 +157,7 @@ describe('collectSessionRoute', () => {
     requestExerciseRoute.mockImplementation(async () => {
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
-      await new Promise(resolve => setTimeout(resolve, 5));
+      await new Promise((resolve) => setTimeout(resolve, 5));
       inFlight -= 1;
       return [{ time: at(0), latitude: 1, longitude: 2 }];
     });
@@ -276,7 +290,10 @@ describe('prefetchSessionRoutes', () => {
     expect(requestExerciseRoute).toHaveBeenCalledTimes(1);
 
     // The later in-window read consumes the cached points without a dialog.
-    const points = await collectSessionRoute(consentSession('prefetch-1'), true);
+    const points = await collectSessionRoute(
+      consentSession('prefetch-1'),
+      true
+    );
     expect(points).toHaveLength(1);
     expect(requestExerciseRoute).toHaveBeenCalledTimes(1);
   });
@@ -286,9 +303,15 @@ describe('prefetchSessionRoutes', () => {
       records: [
         session({
           metadata: { id: 'prefetch-2' },
-          exerciseRoute: { type: 'DATA', route: [{ time: at(0), latitude: 1, longitude: 2 }] },
+          exerciseRoute: {
+            type: 'DATA',
+            route: [{ time: at(0), latitude: 1, longitude: 2 }],
+          },
         }),
-        session({ metadata: { id: 'prefetch-3' }, exerciseRoute: { type: 'NO_DATA', route: [] } }),
+        session({
+          metadata: { id: 'prefetch-3' },
+          exerciseRoute: { type: 'NO_DATA', route: [] },
+        }),
       ],
     });
 
@@ -347,21 +370,23 @@ describe('collectSessionLaps', () => {
 
 describe('collectSessionTelemetry — heart-rate correlation', () => {
   it('prefers samples from the session own data origin', async () => {
-    readRecords.mockImplementation((type: string, options: { dataOriginFilter?: string[] }) => {
-      if (type === 'HeartRate' && options.dataOriginFilter) {
-        return Promise.resolve({
-          records: [
-            {
-              samples: [
-                { time: at(0), beatsPerMinute: 100 },
-                { time: at(60), beatsPerMinute: 140 },
-              ],
-            },
-          ],
-        });
+    readRecords.mockImplementation(
+      (type: string, options: { dataOriginFilter?: string[] }) => {
+        if (type === 'HeartRate' && options.dataOriginFilter) {
+          return Promise.resolve({
+            records: [
+              {
+                samples: [
+                  { time: at(0), beatsPerMinute: 100 },
+                  { time: at(60), beatsPerMinute: 140 },
+                ],
+              },
+            ],
+          });
+        }
+        return Promise.resolve({ records: [] });
       }
-      return Promise.resolve({ records: [] });
-    });
+    );
 
     const bundle = await collectSessionTelemetry(session(), {
       interactive: false,
@@ -375,13 +400,15 @@ describe('collectSessionTelemetry — heart-rate correlation', () => {
   it('falls back to an unfiltered read when the origin-scoped one is empty', async () => {
     // Common in practice: the session comes from one app and the heart rate
     // from another (Strava session, Wear OS heart rate).
-    readRecords.mockImplementation((type: string, options: { dataOriginFilter?: string[] }) => {
-      if (type !== 'HeartRate') return Promise.resolve({ records: [] });
-      if (options.dataOriginFilter) return Promise.resolve({ records: [] });
-      return Promise.resolve({
-        records: [{ samples: [{ time: at(0), beatsPerMinute: 130 }] }],
-      });
-    });
+    readRecords.mockImplementation(
+      (type: string, options: { dataOriginFilter?: string[] }) => {
+        if (type !== 'HeartRate') return Promise.resolve({ records: [] });
+        if (options.dataOriginFilter) return Promise.resolve({ records: [] });
+        return Promise.resolve({
+          records: [{ samples: [{ time: at(0), beatsPerMinute: 130 }] }],
+        });
+      }
+    );
 
     const bundle = await collectSessionTelemetry(session(), {
       interactive: false,
@@ -391,21 +418,23 @@ describe('collectSessionTelemetry — heart-rate correlation', () => {
   });
 
   it('rejects a fallback read dense enough to be another activity', async () => {
-    readRecords.mockImplementation((type: string, options: { dataOriginFilter?: string[] }) => {
-      if (type !== 'HeartRate') return Promise.resolve({ records: [] });
-      if (options.dataOriginFilter) return Promise.resolve({ records: [] });
-      // ~10 samples/second over a 600s window — far beyond one device's output.
-      return Promise.resolve({
-        records: [
-          {
-            samples: Array.from({ length: 6000 }, (_, i) => ({
-              time: at(i / 10),
-              beatsPerMinute: 130,
-            })),
-          },
-        ],
-      });
-    });
+    readRecords.mockImplementation(
+      (type: string, options: { dataOriginFilter?: string[] }) => {
+        if (type !== 'HeartRate') return Promise.resolve({ records: [] });
+        if (options.dataOriginFilter) return Promise.resolve({ records: [] });
+        // ~10 samples/second over a 600s window — far beyond one device's output.
+        return Promise.resolve({
+          records: [
+            {
+              samples: Array.from({ length: 6000 }, (_, i) => ({
+                time: at(i / 10),
+                beatsPerMinute: 130,
+              })),
+            },
+          ],
+        });
+      }
+    );
 
     const bundle = await collectSessionTelemetry(session(), {
       interactive: false,

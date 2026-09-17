@@ -1,5 +1,12 @@
 export interface FoodDefaultVariant {
   id?: string;
+  /**
+   * Provenance of the variant's nutrition. `ai_estimate` marks values a model
+   * produced — a photo estimate or an AI unit conversion — so the UI can say so
+   * rather than presenting a guess like verified data.
+   */
+  source?: 'manual' | 'ai_estimate' | 'imported';
+  ai_confidence?: 'high' | 'medium' | 'low' | null;
   serving_size: number;
   serving_unit: string;
   /**
@@ -25,6 +32,9 @@ export interface FoodDefaultVariant {
   vitamin_c?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   is_default?: boolean;
   glycemic_index?: string;
   custom_nutrients?: Record<string, string | number>;
@@ -48,6 +58,11 @@ export interface FoodItem {
   // server-relative (`/uploads/foods/<id>/...`); provider images that could not
   // be downloaded stay absolute and are hotlinked.
   images?: string[] | null;
+  /**
+   * Owner-authored markdown reference note. Shown read-only when logging this
+   * food; only the owner can edit it.
+   */
+  notes?: string | null;
   default_variant: FoodDefaultVariant;
 }
 
@@ -114,6 +129,9 @@ export interface FoodVariantDetail {
   vitamin_c?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   is_default?: boolean;
   glycemic_index?: string;
   custom_nutrients?: Record<string, string | number>;

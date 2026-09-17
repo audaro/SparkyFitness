@@ -33,6 +33,9 @@ export interface FoodDisplayValues {
   cholesterol?: number;
   vitaminA?: number;
   vitaminC?: number;
+  caffeineMg?: number;
+  waterMl?: number;
+  alcoholG?: number;
 }
 
 export interface FoodVariantOptionData extends FoodDisplayValues {
@@ -68,7 +71,10 @@ function formatPreciseNumber(value: number, decimals: number): string {
  * separator per the active application locale (EN "1.5" / PL "1,5"). Grouping
  * is disabled so serving quantities keep compact presentation.
  */
-function formatPreciseNumberForDisplay(value: number, decimals: number): string {
+function formatPreciseNumberForDisplay(
+  value: number,
+  decimals: number
+): string {
   const rounded = roundTo(value, decimals);
   if (Object.is(rounded, -0)) {
     return '0';
@@ -92,19 +98,10 @@ export function formatCaloriesForDisplay(value: number): string {
   return formatPreciseNumberForDisplay(value, 4);
 }
 
-export function formatMacroForDisplay(value: number): string {
-  if (!Number.isFinite(value)) return '0';
-  if (Math.abs(value) >= 1) {
-    return formatPreciseNumberForDisplay(value, 1);
-  }
-  return formatPreciseNumberForDisplay(value, 4);
-}
-
-
 export function convertEquivalentVariantQuantity(
   quantity: number,
   fromServingSize: number | undefined,
-  toServingSize: number | undefined,
+  toServingSize: number | undefined
 ): number | undefined {
   if (
     !Number.isFinite(quantity) ||
@@ -148,7 +145,7 @@ export function formatServingSizeDisplay(value: number): string {
 
 export function formatFoodFormNumber(
   value: number | undefined,
-  kind: 'servingSize' | 'calories' | 'nutrient' = 'nutrient',
+  kind: 'servingSize' | 'calories' | 'nutrient' = 'nutrient'
 ): string {
   if (value == null) return '';
 
@@ -170,7 +167,7 @@ export function formatServingDescription(desc: string): string {
 /** Check if a variant represents a standard reference serving (100g or 100ml). */
 export function isReferenceServing(
   serving_size: number,
-  serving_unit: string,
+  serving_unit: string
 ): boolean {
   return (
     serving_size === 100 && (serving_unit === 'g' || serving_unit === 'ml')
@@ -179,7 +176,7 @@ export function isReferenceServing(
 
 /** Check if a variant has a meaningful serving description beyond just a numeric unit string. */
 export function hasMeaningfulDescription(
-  serving_description?: string | null,
+  serving_description?: string | null
 ): boolean {
   return !!(
     serving_description &&
@@ -217,6 +214,9 @@ export function foodInfoToDisplayValues(item: FoodInfoItem): FoodDisplayValues {
     potassium: item.potassium,
     calcium: item.calcium,
     iron: item.iron,
+    caffeineMg: item.caffeineMg,
+    waterMl: item.waterMl,
+    alcoholG: item.alcoholG,
     cholesterol: item.cholesterol,
     vitaminA: item.vitaminA,
     vitaminC: item.vitaminC,
@@ -224,7 +224,7 @@ export function foodInfoToDisplayValues(item: FoodInfoItem): FoodDisplayValues {
 }
 
 export function unitVariantToDisplayValues(
-  variant: FoodUnitVariant,
+  variant: FoodUnitVariant
 ): FoodDisplayValues {
   return {
     servingSize: variant.serving_size,
@@ -242,6 +242,9 @@ export function unitVariantToDisplayValues(
     potassium: variant.potassium,
     calcium: variant.calcium,
     iron: variant.iron,
+    caffeineMg: variant.caffeine_mg,
+    waterMl: variant.water_ml,
+    alcoholG: variant.alcohol_g,
     cholesterol: variant.cholesterol,
     vitaminA: variant.vitamin_a,
     vitaminC: variant.vitamin_c,
@@ -269,12 +272,15 @@ export function foodInfoToUnitVariant(item: FoodInfoItem): FoodUnitVariant {
     vitamin_c: item.vitaminC,
     calcium: item.calcium,
     iron: item.iron,
+    caffeine_mg: item.caffeineMg,
+    water_ml: item.waterMl,
+    alcohol_g: item.alcoholG,
     custom_nutrients: item.customNutrients ?? null,
   };
 }
 
 export function localVariantToUnitVariant(
-  variant: FoodVariantDetail,
+  variant: FoodVariantDetail
 ): FoodUnitVariant {
   return {
     id: variant.id,
@@ -299,6 +305,9 @@ export function localVariantToUnitVariant(
     vitamin_c: variant.vitamin_c,
     calcium: variant.calcium,
     iron: variant.iron,
+    caffeine_mg: variant.caffeine_mg,
+    water_ml: variant.water_ml,
+    alcohol_g: variant.alcohol_g,
     glycemic_index: variant.glycemic_index,
     custom_nutrients: variant.custom_nutrients ?? null,
     // Forward AI provenance so the sheet's `selectedVariant.source` check
@@ -312,7 +321,7 @@ export function localVariantToUnitVariant(
 
 export function externalVariantToUnitVariant(
   variant: ExternalFoodVariant,
-  id?: string,
+  id?: string
 ): FoodUnitVariant {
   return {
     id,
@@ -334,6 +343,9 @@ export function externalVariantToUnitVariant(
     vitamin_c: variant.vitamin_c,
     calcium: variant.calcium,
     iron: variant.iron,
+    caffeine_mg: variant.caffeine_mg,
+    water_ml: variant.water_ml,
+    alcohol_g: variant.alcohol_g,
   };
 }
 
@@ -353,22 +365,24 @@ export function selectDisplayVariant<
 >(
   defaultVariant: T,
   variants?: T[],
-  preferredServing?: ServingIdentity,
+  preferredServing?: ServingIdentity
 ): { displayVariant: T; orderedVariants: T[] | undefined } {
   if (!variants) {
     return { displayVariant: defaultVariant, orderedVariants: undefined };
   }
 
   const requestedVariant = preferredServing
-    ? [defaultVariant, ...variants].find(variant =>
-        isSameVariant(variant, preferredServing),
+    ? [defaultVariant, ...variants].find((variant) =>
+        isSameVariant(variant, preferredServing)
       )
     : undefined;
 
-  const namedVariant =
-    isReferenceServing(defaultVariant.serving_size, defaultVariant.serving_unit)
-      ? variants.find(variant => !isMetricUnit(variant.serving_unit))
-      : undefined;
+  const namedVariant = isReferenceServing(
+    defaultVariant.serving_size,
+    defaultVariant.serving_unit
+  )
+    ? variants.find((variant) => !isMetricUnit(variant.serving_unit))
+    : undefined;
 
   const displayVariant = requestedVariant ?? namedVariant ?? defaultVariant;
   const orderedVariants = [displayVariant];
@@ -376,7 +390,7 @@ export function selectDisplayVariant<
     orderedVariants.push(defaultVariant);
   }
   for (const variant of variants) {
-    if (!orderedVariants.some(existing => isSameVariant(existing, variant))) {
+    if (!orderedVariants.some((existing) => isSameVariant(existing, variant))) {
       orderedVariants.push(variant);
     }
   }
@@ -395,9 +409,9 @@ function isMetricUnit(unit: string | undefined | null): boolean {
 }
 
 function findMetricEquivalent(
-  equivalents?: EquivalentUnit[],
+  equivalents?: EquivalentUnit[]
 ): EquivalentUnit | undefined {
-  return equivalents?.find(eq => isMetricUnit(eq.serving_unit));
+  return equivalents?.find((eq) => isMetricUnit(eq.serving_unit));
 }
 
 export function formatVariantServingLabel(
@@ -405,13 +419,17 @@ export function formatVariantServingLabel(
     FoodDisplayValues,
     'servingSize' | 'servingUnit' | 'calories' | 'servingDescription'
   >,
-  equivalents?: EquivalentUnit[],
+  equivalents?: EquivalentUnit[]
 ): string {
   if (hasMeaningfulDescription(values.servingDescription)) {
     return formatServingDescription(values.servingDescription ?? '');
   }
 
-  const servingLabel = formatLocalizedUnitQuantity(values.servingSize, values.servingUnit, i18n.t);
+  const servingLabel = formatLocalizedUnitQuantity(
+    values.servingSize,
+    values.servingUnit,
+    i18n.t
+  );
   const metricEquivalent = !isMetricUnit(values.servingUnit)
     ? findMetricEquivalent(equivalents)
     : undefined;
@@ -429,7 +447,7 @@ export function formatVariantServingLabel(
  */
 export function formatQuantityUnitLabel(
   values: Pick<FoodDisplayValues, 'servingUnit' | 'servingDescription'>,
-  equivalents?: EquivalentUnit[],
+  equivalents?: EquivalentUnit[]
 ): string {
   if (hasMeaningfulDescription(values.servingDescription)) {
     return formatServingDescription(values.servingDescription ?? '');
@@ -438,7 +456,10 @@ export function formatQuantityUnitLabel(
   const metricEquivalent = !isMetricUnit(values.servingUnit)
     ? findMetricEquivalent(equivalents)
     : undefined;
-  const unitLabel = localizeFoodUnit(formatServingUnit(values.servingUnit), i18n.t);
+  const unitLabel = localizeFoodUnit(
+    formatServingUnit(values.servingUnit),
+    i18n.t
+  );
 
   if (metricEquivalent) {
     return `${unitLabel} (${formatLocalizedUnitQuantity(metricEquivalent.serving_size, metricEquivalent.serving_unit, i18n.t)})`;
@@ -452,7 +473,7 @@ export function formatVariantLabel(
     FoodDisplayValues,
     'servingSize' | 'servingUnit' | 'calories' | 'servingDescription'
   >,
-  equivalents?: EquivalentUnit[],
+  equivalents?: EquivalentUnit[]
 ): string {
   const servingLabel = formatVariantServingLabel(values, equivalents);
   return `${servingLabel} (${formatCaloriesForDisplay(values.calories)} cal)`;
@@ -464,7 +485,7 @@ function getVisibleLocalVariantGroups(groups: VariantGroup[]) {
 
 export function resolveLocalPickerVariantId(
   variants: FoodVariantDetail[] | undefined,
-  selectedVariantId?: string,
+  selectedVariantId?: string
 ): string | undefined {
   if (!selectedVariantId) return undefined;
 
@@ -474,7 +495,7 @@ export function resolveLocalPickerVariantId(
   const selectedGroup = groups.find(
     ({ base, equivalents }) =>
       base.id === selectedVariantId ||
-      equivalents.some((equivalent) => equivalent.id === selectedVariantId),
+      equivalents.some((equivalent) => equivalent.id === selectedVariantId)
   );
 
   if (selectedGroup && visibleGroups.includes(selectedGroup)) {
@@ -485,11 +506,13 @@ export function resolveLocalPickerVariantId(
 }
 
 export function buildLocalVariantOptions(
-  variants?: FoodVariantDetail[],
+  variants?: FoodVariantDetail[]
 ): FoodVariantOptionData[] {
   const localVariants = variants ?? [];
 
-  return getVisibleLocalVariantGroups(groupEquivalentVariants(localVariants)).map(({ base, equivalents }) => {
+  return getVisibleLocalVariantGroups(
+    groupEquivalentVariants(localVariants)
+  ).map(({ base, equivalents }) => {
     const values = {
       servingSize: base.serving_size,
       servingUnit: base.serving_unit,
@@ -515,6 +538,9 @@ export function buildLocalVariantOptions(
       potassium: base.potassium,
       calcium: base.calcium,
       iron: base.iron,
+      caffeineMg: base.caffeine_mg,
+      waterMl: base.water_ml,
+      alcoholG: base.alcohol_g,
       cholesterol: base.cholesterol,
       vitaminA: base.vitamin_a,
       vitaminC: base.vitamin_c,
@@ -527,61 +553,68 @@ type ExternalOptionVariant = FoodVariantDetail & {
 };
 
 export function buildExternalVariantOptions(
-  variants?: ExternalFoodVariant[],
+  variants?: ExternalFoodVariant[]
 ): FoodVariantOptionData[] {
-  const optionVariants: ExternalOptionVariant[] = (variants ?? []).map((variant, index) => ({
-    ...variant,
-    id: `ext-${index}`,
-    food_id: '',
-    dietary_fiber: variant.fiber,
-  }));
+  const optionVariants: ExternalOptionVariant[] = (variants ?? []).map(
+    (variant, index) => ({
+      ...variant,
+      id: `ext-${index}`,
+      food_id: '',
+      dietary_fiber: variant.fiber,
+    })
+  );
 
-  return groupEquivalentVariants(optionVariants).map(({ base, equivalents }) => {
-    const servingDescription = base.serving_description ?? undefined;
-    const values = {
-      servingSize: base.serving_size,
-      servingUnit: base.serving_unit,
-      servingDescription,
-      calories: base.calories,
-    };
-    return {
-      id: base.id,
-      label: formatVariantLabel(values, equivalents),
-      quantityUnitLabel: formatQuantityUnitLabel(values, equivalents),
-      perServingLabel: formatVariantServingLabel(values, equivalents),
-      servingDescription,
-      servingSize: base.serving_size,
-      servingUnit: base.serving_unit,
-      calories: base.calories,
-      protein: base.protein,
-      carbs: base.carbs,
-      fat: base.fat,
-      fiber: base.dietary_fiber,
-      saturatedFat: base.saturated_fat,
-      sodium: base.sodium,
-      sugars: base.sugars,
-      transFat: base.trans_fat,
-      potassium: base.potassium,
-      calcium: base.calcium,
-      iron: base.iron,
-      cholesterol: base.cholesterol,
-      vitaminA: base.vitamin_a,
-      vitaminC: base.vitamin_c,
-    };
-  });
+  return groupEquivalentVariants(optionVariants).map(
+    ({ base, equivalents }) => {
+      const servingDescription = base.serving_description ?? undefined;
+      const values = {
+        servingSize: base.serving_size,
+        servingUnit: base.serving_unit,
+        servingDescription,
+        calories: base.calories,
+      };
+      return {
+        id: base.id,
+        label: formatVariantLabel(values, equivalents),
+        quantityUnitLabel: formatQuantityUnitLabel(values, equivalents),
+        perServingLabel: formatVariantServingLabel(values, equivalents),
+        servingDescription,
+        servingSize: base.serving_size,
+        servingUnit: base.serving_unit,
+        calories: base.calories,
+        protein: base.protein,
+        carbs: base.carbs,
+        fat: base.fat,
+        fiber: base.dietary_fiber,
+        saturatedFat: base.saturated_fat,
+        sodium: base.sodium,
+        sugars: base.sugars,
+        transFat: base.trans_fat,
+        potassium: base.potassium,
+        calcium: base.calcium,
+        iron: base.iron,
+        caffeineMg: base.caffeine_mg,
+        waterMl: base.water_ml,
+        alcoholG: base.alcohol_g,
+        cholesterol: base.cholesterol,
+        vitaminA: base.vitamin_a,
+        vitaminC: base.vitamin_c,
+      };
+    }
+  );
 }
 
 export function buildLocalUnitVariants(
-  variants?: FoodVariantDetail[],
+  variants?: FoodVariantDetail[]
 ): FoodUnitVariant[] {
   return (variants ?? []).map(localVariantToUnitVariant);
 }
 
 export function buildExternalUnitVariants(
-  variants?: ExternalFoodVariant[],
+  variants?: ExternalFoodVariant[]
 ): FoodUnitVariant[] {
   return (variants ?? []).map((variant, index) =>
-    externalVariantToUnitVariant(variant, `ext-${index}`),
+    externalVariantToUnitVariant(variant, `ext-${index}`)
   );
 }
 
@@ -592,8 +625,7 @@ export interface ServingIdentity {
 }
 
 const METRIC_SERVING_UNIT_PATTERN = /^(?:g|kg|ml|l)$/i;
-const METRIC_CONTEXT_PATTERN =
-  /\(\s*(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l)\s*\)\s*$/i;
+const METRIC_CONTEXT_PATTERN = /\(\s*(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l)\s*\)\s*$/i;
 
 export function toPersistedServingUnit(variant: ServingIdentity): string {
   const servingUnit = variant.serving_unit?.trim() || 'serving';
@@ -619,26 +651,26 @@ function normalizeServingUnitKey(servingUnit: string): string {
 
 export function servingVariantKey(variant: ServingIdentity): string {
   return `${variant.serving_size}:${normalizeServingUnitKey(
-    toPersistedServingUnit(variant),
+    toPersistedServingUnit(variant)
   )}`;
 }
 
 export function baseServingVariantKey(variant: ServingIdentity): string {
   const servingUnit = toPersistedServingUnit(variant).replace(
     /\s+\(\s*\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l)\s*\)\s*$/i,
-    '',
+    ''
   );
   return `${variant.serving_size}:${normalizeServingUnitKey(servingUnit)}`;
 }
 
 export function hasDistinctMetricServingContext(
-  variant: ServingIdentity,
+  variant: ServingIdentity
 ): boolean {
   return servingVariantKey(variant) !== baseServingVariantKey(variant);
 }
 
 export function buildCreateFoodVariantInput(
-  variant: FoodUnitVariant,
+  variant: FoodUnitVariant
 ): Omit<CreateFoodVariantPayload, 'food_id'> {
   return {
     serving_size: variant.serving_size,
@@ -657,6 +689,9 @@ export function buildCreateFoodVariantInput(
     potassium: variant.potassium,
     calcium: variant.calcium,
     iron: variant.iron,
+    caffeine_mg: variant.caffeine_mg,
+    water_ml: variant.water_ml,
+    alcohol_g: variant.alcohol_g,
     cholesterol: variant.cholesterol,
     vitamin_a: variant.vitamin_a,
     vitamin_c: variant.vitamin_c,
@@ -673,7 +708,7 @@ export function buildCreateFoodVariantInput(
 
 export function buildCreateFoodVariantPayload(
   foodId: string,
-  variant: FoodUnitVariant,
+  variant: FoodUnitVariant
 ): CreateFoodVariantPayload {
   return {
     food_id: foodId,
@@ -694,8 +729,10 @@ export function resolveFoodDisplayValues({
 }): FoodDisplayValues {
   if (selectedVariantId) {
     const selectedVariant =
-      localVariantOptions.find(variant => variant.id === selectedVariantId) ??
-      externalVariantOptions.find(variant => variant.id === selectedVariantId);
+      localVariantOptions.find((variant) => variant.id === selectedVariantId) ??
+      externalVariantOptions.find(
+        (variant) => variant.id === selectedVariantId
+      );
 
     if (selectedVariant) {
       return selectedVariant;
@@ -745,7 +782,7 @@ export interface VariantGroup<T extends FoodVariantDetail = FoodVariantDetail> {
 
 function hasConflictingMetricServingContext(
   a: ServingIdentity,
-  b: ServingIdentity,
+  b: ServingIdentity
 ): boolean {
   return (
     hasDistinctMetricServingContext(a) &&
@@ -761,9 +798,9 @@ export function groupEquivalentVariants<
   const groups: VariantGroup<T>[] = [];
   for (const variant of variants ?? []) {
     const match = groups.find(
-      g =>
+      (g) =>
         nutritionMatches(g.base, variant) &&
-        !hasConflictingMetricServingContext(g.base, variant),
+        !hasConflictingMetricServingContext(g.base, variant)
     );
     if (match) {
       // Prefer a context-rich persisted serving over its matching legacy row so
@@ -783,10 +820,7 @@ export function groupEquivalentVariants<
       // picker alongside the correct serving.
       if (
         shouldPromoteMetricContext ||
-        (isReferenceServing(
-          match.base.serving_size,
-          match.base.serving_unit,
-        ) &&
+        (isReferenceServing(match.base.serving_size, match.base.serving_unit) &&
           !isReferenceServing(variant.serving_size, variant.serving_unit))
       ) {
         match.equivalents.push(toEquivalentUnit(match.base));
@@ -797,7 +831,7 @@ export function groupEquivalentVariants<
     } else {
       // Fallback: the same persisted serving identity with different nutrition
       // (for example provider rounding) is still one picker option.
-      const sizeMatch = groups.find(g => isSameVariant(g.base, variant));
+      const sizeMatch = groups.find((g) => isSameVariant(g.base, variant));
       if (sizeMatch) {
         const shouldPromoteMetricContext =
           !hasDistinctMetricServingContext(sizeMatch.base) &&
@@ -828,7 +862,7 @@ export interface DiffSiblingRowsResult {
 
 function rowsEqual(
   current: FoodVariantDetail,
-  desired: DesiredSiblingRow,
+  desired: DesiredSiblingRow
 ): boolean {
   if (coerceNumber(current.serving_size) !== coerceNumber(desired.serving_size))
     return false;
@@ -841,7 +875,7 @@ function rowsEqual(
 
 export function diffSiblingRows(
   current: FoodVariantDetail[],
-  desired: DesiredSiblingRow[],
+  desired: DesiredSiblingRow[]
 ): DiffSiblingRowsResult {
   const currentById = new Map<string, FoodVariantDetail>();
   for (const row of current) {
@@ -868,8 +902,8 @@ export function diffSiblingRows(
   }
 
   const deletes = current
-    .filter(row => !desiredIds.has(row.id))
-    .map(row => row.id);
+    .filter((row) => !desiredIds.has(row.id))
+    .map((row) => row.id);
 
   return { creates, updates, deletes };
 }
@@ -877,7 +911,7 @@ export function diffSiblingRows(
 export function applyDisplayValuesToFoodInfo(
   item: FoodInfoItem,
   displayValues: FoodDisplayValues,
-  variantId?: string,
+  variantId?: string
 ): FoodInfoItem {
   return {
     ...item,
@@ -896,6 +930,9 @@ export function applyDisplayValuesToFoodInfo(
     potassium: displayValues.potassium,
     calcium: displayValues.calcium,
     iron: displayValues.iron,
+    caffeineMg: displayValues.caffeineMg,
+    waterMl: displayValues.waterMl,
+    alcoholG: displayValues.alcoholG,
     cholesterol: displayValues.cholesterol,
     vitaminA: displayValues.vitaminA,
     vitaminC: displayValues.vitaminC,
@@ -909,7 +946,11 @@ export function applyDisplayValuesToFoodInfo(
  * on the grid); an on-grid value steps by one increment. Never drops below one
  * increment.
  */
-export function nextQuantity(quantity: number, delta: number, step: number): number {
+export function nextQuantity(
+  quantity: number,
+  delta: number,
+  step: number
+): number {
   const increment = step * 0.5 || 1;
   const boundary =
     delta > 0
@@ -918,4 +959,3 @@ export function nextQuantity(quantity: number, delta: number, step: number): num
   const next = boundary !== quantity ? boundary : quantity + delta * increment;
   return Math.max(increment, next);
 }
-

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildWizardTools } from '../ai/tools/wizardTools.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 
 const tools = buildWizardTools('user-1');
 

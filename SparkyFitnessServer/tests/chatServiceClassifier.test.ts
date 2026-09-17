@@ -3,6 +3,7 @@ import {
   buildEscalationPrepareStep,
   classifyByKeywords,
   getSystemPrompt,
+  hasImageParts,
 } from '../services/chatService.js';
 
 describe('classifyByKeywords', () => {
@@ -74,6 +75,92 @@ describe('classifyByKeywords', () => {
   });
 });
 
+describe('hasImageParts', () => {
+  it('returns true for image part type', () => {
+    expect(
+      hasImageParts({
+        role: 'user',
+        parts: [{ type: 'image', image: 'data:image/png;base64,abc' }],
+      })
+    ).toBe(true);
+  });
+
+  it('returns true for image_url part type', () => {
+    expect(
+      hasImageParts({
+        role: 'user',
+        parts: [
+          {
+            type: 'image_url',
+            image_url: { url: 'https://example.com/a.jpg' },
+          },
+        ],
+      })
+    ).toBe(true);
+  });
+
+  it('returns true for file part with image mediaType or mimeType (web chat attachment)', () => {
+    expect(
+      hasImageParts({
+        role: 'user',
+        parts: [
+          { type: 'text', text: 'i had this breakfast' },
+          {
+            type: 'file',
+            mediaType: 'image/jpeg',
+            url: 'data:image/jpeg;base64,...',
+          },
+        ],
+      })
+    ).toBe(true);
+
+    expect(
+      hasImageParts({
+        role: 'user',
+        parts: [
+          {
+            type: 'file',
+            mimeType: 'image/png',
+            url: 'https://example.com/photo.png',
+          },
+        ],
+      })
+    ).toBe(true);
+  });
+
+  it('returns true for file part with data:image URL even if mimeType is missing', () => {
+    expect(
+      hasImageParts({
+        role: 'user',
+        parts: [{ type: 'file', url: 'data:image/webp;base64,123' }],
+      })
+    ).toBe(true);
+  });
+
+  it('returns false for text-only messages or non-image files', () => {
+    expect(
+      hasImageParts({
+        role: 'user',
+        content: 'i had this breakfast',
+      })
+    ).toBe(false);
+
+    expect(
+      hasImageParts({
+        role: 'user',
+        parts: [
+          { type: 'text', text: 'hello' },
+          {
+            type: 'file',
+            mediaType: 'application/pdf',
+            url: 'data:application/pdf;base64,...',
+          },
+        ],
+      })
+    ).toBe(false);
+  });
+});
+
 describe('getSystemPrompt diary-editing guidance', () => {
   it.each(['core', 'full'] as const)(
     'teaches name-based update_entry/delete_entry in the %s food prompt',
@@ -139,6 +226,19 @@ describe('getSystemPrompt dormant-domain listing', () => {
       'vision',
       'profile',
       'medications',
+      'allergens',
+      'favorites',
+      'meal_plans',
+      'custom_nutrients',
+      'water_containers',
+      'workout_plans',
+      'exercise_stats',
+      'sleep_science',
+      'integrations',
+      'synced_data',
+      'progress_photos',
+      'dashboard',
+      'barcode',
     ]);
     expect(prompt).not.toContain('sparky_enable_tools');
   });
@@ -171,6 +271,19 @@ describe('buildEscalationPrepareStep', () => {
     vision: ['sparky_analyze_food_image'],
     profile: ['sparky_manage_profile'],
     medications: ['sparky_manage_medications'],
+    allergens: ['sparky_manage_allergens'],
+    favorites: ['sparky_manage_favorites'],
+    meal_plans: ['sparky_manage_meal_plans'],
+    custom_nutrients: ['sparky_manage_custom_nutrients'],
+    water_containers: ['sparky_manage_water_containers'],
+    workout_plans: ['sparky_manage_workout_plans'],
+    exercise_stats: ['sparky_get_exercise_stats'],
+    sleep_science: ['sparky_get_sleep_science'],
+    integrations: ['sparky_get_integrations'],
+    synced_data: ['sparky_get_synced_data'],
+    progress_photos: ['sparky_manage_progress_photos'],
+    dashboard: ['sparky_get_dashboard'],
+    barcode: ['sparky_get_barcode'],
   };
   const base = ['sparky_manage_food', 'sparky_enable_tools'];
 

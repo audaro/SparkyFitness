@@ -13,7 +13,8 @@ const mockBottomSheetControls = {
   }),
   dismiss: jest.fn(),
   onDismiss: undefined as (() => void) | undefined,
-  onAnimate: undefined as ((fromIndex: number, toIndex: number) => void) | undefined,
+  onAnimate: undefined as
+    ((fromIndex: number, toIndex: number) => void) | undefined,
 };
 
 jest.mock('@gorhom/bottom-sheet', () => {
@@ -35,15 +36,22 @@ jest.mock('@gorhom/bottom-sheet', () => {
           dismiss: mockBottomSheetControls.dismiss,
         }));
 
-        return React.createElement(View, { testID: 'add-sheet-modal' }, children);
-      },
+        return React.createElement(
+          View,
+          { testID: 'add-sheet-modal' },
+          children
+        );
+      }
     ),
-    BottomSheetView: ({ children }: any) => React.createElement(View, null, children),
+    BottomSheetView: ({ children }: any) =>
+      React.createElement(View, null, children),
     BottomSheetBackdrop: () => null,
   };
 });
 
-function renderAddSheet(overrides: Partial<React.ComponentProps<typeof AddSheet>> = {}) {
+function renderAddSheet(
+  overrides: Partial<React.ComponentProps<typeof AddSheet>> = {}
+) {
   const ref = React.createRef<AddSheetRef>();
   const props = {
     onAddFood: jest.fn(),
@@ -53,6 +61,7 @@ function renderAddSheet(overrides: Partial<React.ComponentProps<typeof AddSheet>
     onSyncHealthData: jest.fn(),
     onBarcodeScan: jest.fn(),
     onAddMeasurements: jest.fn(),
+    onAddProgressPhotos: jest.fn(),
     onAskSparky: jest.fn(),
     ...overrides,
   };
@@ -127,10 +136,29 @@ describe('AddSheet', () => {
     expect(getByText('Measurements')).toBeTruthy();
   });
 
+  it('invokes onAddProgressPhotos when the Progress Photos row is pressed', () => {
+    const onAddProgressPhotos = jest.fn();
+    const onDismissWithoutAction = jest.fn();
+    const { ref, getByText } = renderAddSheet({
+      onAddProgressPhotos,
+      onDismissWithoutAction,
+    });
+
+    act(() => ref.current?.present());
+    fireEvent.press(getByText('Progress Photos'));
+    act(() => mockBottomSheetControls.onDismiss?.());
+
+    expect(onAddProgressPhotos).toHaveBeenCalledTimes(1);
+    expect(onDismissWithoutAction).not.toHaveBeenCalled();
+  });
+
   it('invokes onSyncHealthData when the secondary Sync Health Data row is pressed', () => {
     const onSyncHealthData = jest.fn();
     const onDismissWithoutAction = jest.fn();
-    const { ref, getByText } = renderAddSheet({ onSyncHealthData, onDismissWithoutAction });
+    const { ref, getByText } = renderAddSheet({
+      onSyncHealthData,
+      onDismissWithoutAction,
+    });
 
     act(() => ref.current?.present());
     fireEvent.press(getByText('Sync Health Data'));
@@ -157,9 +185,11 @@ describe('AddSheet', () => {
     expect(props.onLogWorkout).not.toHaveBeenCalled();
   });
 
-
   it('renders Polish labels when the active i18n language is Polish', async () => {
-    const { default: i18n, initializeI18n } = require('../../src/localization/i18n');
+    const {
+      default: i18n,
+      initializeI18n,
+    } = require('../../src/localization/i18n');
     await initializeI18n('en');
     const { ref, getByText } = renderAddSheet();
     await i18n.changeLanguage('pl');

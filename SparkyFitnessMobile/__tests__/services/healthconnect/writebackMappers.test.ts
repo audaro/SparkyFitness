@@ -7,8 +7,10 @@ jest.mock('react-native-health-connect', () => ({
 import {
   foodEntryToNutritionRecord,
   waterMlToHydrationRecord,
+  waterLogEntryToHydrationRecord,
   nutritionClientRecordId,
   waterClientRecordId,
+  waterEntryClientRecordId,
   computeWritebackDates,
 } from '../../../src/services/healthconnect/writebackMappers';
 import type { FoodEntry } from '../../../src/types/foodEntries';
@@ -38,11 +40,17 @@ describe('foodEntryToNutritionRecord', () => {
     expect(record).not.toBeNull();
     expect(record.mealType).toBe(1); // breakfast
     expect(field(record, 'name')).toBe('Oatmeal');
-    expect(field(record, 'energy')).toEqual({ value: 300, unit: 'kilocalories' });
+    expect(field(record, 'energy')).toEqual({
+      value: 300,
+      unit: 'kilocalories',
+    });
     expect(field(record, 'protein')).toEqual({ value: 15, unit: 'grams' });
     // mg/mcg columns are written in their native unit with the value unchanged.
     expect(field(record, 'sodium')).toEqual({ value: 600, unit: 'milligrams' });
-    expect(field(record, 'vitaminA')).toEqual({ value: 120, unit: 'micrograms' });
+    expect(field(record, 'vitaminA')).toEqual({
+      value: 120,
+      unit: 'micrograms',
+    });
   });
 
   it('omits zero / undefined nutrients', () => {
@@ -51,20 +59,49 @@ describe('foodEntryToNutritionRecord', () => {
     expect(field(record, 'cholesterol')).toBeUndefined(); // absent in fixture
   });
 
+  // #1958: caffeine rides the same generic HC_NUTRIENT_COLUMNS loop as every
+  // other nutrient here -- confirm it scales and lands in the native `caffeine` field.
+  it('scales caffeine_mg and writes it in milligrams', () => {
+    const record = foodEntryToNutritionRecord(
+      { ...baseEntry, caffeine_mg: 60 }, // -> 90 mg
+      1000
+    )!;
+    expect(field(record, 'caffeine')).toEqual({
+      value: 90,
+      unit: 'milligrams',
+    });
+  });
+
   it('maps meal types (unknown -> snack=4)', () => {
-    expect(foodEntryToNutritionRecord({ ...baseEntry, meal_type: 'lunch' }, 1)!.mealType).toBe(2);
-    expect(foodEntryToNutritionRecord({ ...baseEntry, meal_type: 'dinner' }, 1)!.mealType).toBe(3);
-    expect(foodEntryToNutritionRecord({ ...baseEntry, meal_type: 'snacks' }, 1)!.mealType).toBe(4);
-    expect(foodEntryToNutritionRecord({ ...baseEntry, meal_type: 'pre-workout' }, 1)!.mealType).toBe(4);
+    expect(
+      foodEntryToNutritionRecord({ ...baseEntry, meal_type: 'lunch' }, 1)!
+        .mealType
+    ).toBe(2);
+    expect(
+      foodEntryToNutritionRecord({ ...baseEntry, meal_type: 'dinner' }, 1)!
+        .mealType
+    ).toBe(3);
+    expect(
+      foodEntryToNutritionRecord({ ...baseEntry, meal_type: 'snacks' }, 1)!
+        .mealType
+    ).toBe(4);
+    expect(
+      foodEntryToNutritionRecord({ ...baseEntry, meal_type: 'pre-workout' }, 1)!
+        .mealType
+    ).toBe(4);
   });
 
   it('returns null when serving_size is 0 (cannot scale)', () => {
-    expect(foodEntryToNutritionRecord({ ...baseEntry, serving_size: 0 }, 1)).toBeNull();
+    expect(
+      foodEntryToNutritionRecord({ ...baseEntry, serving_size: 0 }, 1)
+    ).toBeNull();
   });
 
   it('defers (returns null) when the meal-time anchor is still in the future', () => {
     // Far-future date → anchor is after "now", so HC would reject it; skip this run.
-    expect(foodEntryToNutritionRecord({ ...baseEntry, entry_date: '2099-01-01' }, 1)).toBeNull();
+    expect(
+      foodEntryToNutritionRecord({ ...baseEntry, entry_date: '2099-01-01' }, 1)
+    ).toBeNull();
   });
 
   it('stamps a version-suffixed, prefixed clientRecordId + version', () => {
@@ -78,7 +115,7 @@ describe('foodEntryToNutritionRecord', () => {
   it('sets an end time after the start time (interval record)', () => {
     const record = foodEntryToNutritionRecord(baseEntry, 1)!;
     expect(new Date(field(record, 'endTime')).getTime()).toBeGreaterThan(
-      new Date(field(record, 'startTime')).getTime(),
+      new Date(field(record, 'startTime')).getTime()
     );
   });
 });
@@ -95,19 +132,76 @@ describe('waterMlToHydrationRecord', () => {
 
   it('builds an interval Hydration record in milliliters', () => {
     const record = waterMlToHydrationRecord('2026-06-01', 750, 99)!;
-    expect(field(record, 'volume')).toEqual({ value: 750, unit: 'milliliters' });
-    expect(field(record, 'metadata').clientRecordId).toBe('sparky-water-2026-06-01-99');
+    expect(field(record, 'volume')).toEqual({
+      value: 750,
+      unit: 'milliliters',
+    });
+    expect(field(record, 'metadata').clientRecordId).toBe(
+      'sparky-water-2026-06-01-99'
+    );
     expect(field(record, 'metadata').clientRecordVersion).toBe(99);
     expect(new Date(field(record, 'endTime')).getTime()).toBeGreaterThan(
-      new Date(field(record, 'startTime')).getTime(),
+      new Date(field(record, 'startTime')).getTime()
     );
+  });
+});
+
+// #1939: one record per real ledger row, at its own logged_at timestamp --
+// never the noon anchor waterMlToHydrationRecord uses for the day total.
+describe('waterLogEntryToHydrationRecord', () => {
+  const entry = {
+    id: 'log-1',
+    water_ml: 350,
+    logged_at: '2026-06-01T09:15:00.000Z',
+  };
+
+  it("builds a record at the entry's own timestamp, not a noon anchor", () => {
+    const record = waterLogEntryToHydrationRecord(entry, 99)!;
+    expect(field(record, 'startTime')).toBe('2026-06-01T09:15:00.000Z');
+    expect(field(record, 'volume')).toEqual({
+      value: 350,
+      unit: 'milliliters',
+    });
+  });
+
+  it('never defers -- a real logged_at is never "in the future" the way a noon anchor can be', () => {
+    const futureLoggedEntry = {
+      ...entry,
+      logged_at: '2099-01-01T09:15:00.000Z',
+    };
+    expect(waterLogEntryToHydrationRecord(futureLoggedEntry, 1)).not.toBeNull();
+  });
+
+  it('sets an end time strictly after the start time (interval record)', () => {
+    const record = waterLogEntryToHydrationRecord(entry, 1)!;
+    expect(new Date(field(record, 'endTime')).getTime()).toBeGreaterThan(
+      new Date(field(record, 'startTime')).getTime()
+    );
+  });
+
+  it('stamps a per-entry, version-suffixed clientRecordId', () => {
+    const record = waterLogEntryToHydrationRecord(entry, 42)!;
+    expect(field(record, 'metadata').clientRecordId).toBe(
+      'sparky-water-entry-log-1-42'
+    );
+  });
+
+  it('returns null for an unparseable logged_at', () => {
+    expect(
+      waterLogEntryToHydrationRecord({ ...entry, logged_at: 'not-a-date' }, 1)
+    ).toBeNull();
   });
 });
 
 describe('clientRecordId helpers', () => {
   it('are prefixed and version-suffixed (fresh per write run)', () => {
     expect(nutritionClientRecordId('abc', 7)).toBe('sparky-nutrition-abc-7');
-    expect(waterClientRecordId('2026-06-14', 7)).toBe('sparky-water-2026-06-14-7');
+    expect(waterClientRecordId('2026-06-14', 7)).toBe(
+      'sparky-water-2026-06-14-7'
+    );
+    expect(waterEntryClientRecordId('log-1', 7)).toBe(
+      'sparky-water-entry-log-1-7'
+    );
   });
 });
 
@@ -115,7 +209,10 @@ describe('computeWritebackDates', () => {
   const now = new Date('2026-06-14T10:00:00');
 
   it('defaults to yesterday + today when no cursor', () => {
-    expect(computeWritebackDates(null, now)).toEqual(['2026-06-13', '2026-06-14']);
+    expect(computeWritebackDates(null, now)).toEqual([
+      '2026-06-13',
+      '2026-06-14',
+    ]);
   });
 
   it('extends the window to cover a gap since the last writeback', () => {

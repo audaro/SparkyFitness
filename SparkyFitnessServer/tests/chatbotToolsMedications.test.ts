@@ -3,6 +3,7 @@ import { todayInZone } from '@workspace/shared';
 import { buildMedicationTools } from '../ai/tools/medicationTools.js';
 import medicationRepository from '../models/medicationRepository.js';
 import symptomRepository from '../models/symptomRepository.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
 vi.mock('../models/medicationRepository', () => ({
   default: {
@@ -41,7 +42,7 @@ vi.mock('../config/logging', () => ({
   log: vi.fn(),
 }));
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 
 // Derived from the repository rather than restated, so a column added to the
 // table shows up here as a type error instead of a fixture that has quietly
@@ -338,6 +339,75 @@ describe('medication management', () => {
     expect(result).toBe(
       'Error [VALIDATION]: Multiple medications are named "Metformin" — use medication_id (see list_medications)'
     );
+  });
+});
+
+/**
+ * `delete_medication` came from upstream, where the tool had no schedule
+ * editing and a bare identifier could only mean one thing. Here it sits next
+ * to update_medication and update_schedule, so the tests that matter are the
+ * ones about it never being reached by inference.
+ */
+describe('delete_medication', () => {
+  it('deletes by id and confirms', async () => {
+    vi.mocked(medicationRepository.deleteMedication).mockResolvedValue(true);
+
+    const result = await tools.sparky_manage_medications.execute!(
+      { action: 'delete_medication', medication_id: MED_ID },
+      opts
+    );
+
+    expect(medicationRepository.deleteMedication).toHaveBeenCalledWith(
+      'user-1',
+      MED_ID
+    );
+    expect(result).toBe('✅ Medication deleted.');
+  });
+
+  it('resolves medication_name before deleting', async () => {
+    vi.mocked(medicationRepository.listMedications).mockResolvedValue([
+      metformin,
+    ]);
+    vi.mocked(medicationRepository.deleteMedication).mockResolvedValue(true);
+
+    const result = await tools.sparky_manage_medications.execute!(
+      { action: 'delete_medication', medication_name: 'Metformin' },
+      opts
+    );
+
+    expect(medicationRepository.deleteMedication).toHaveBeenCalledWith(
+      'user-1',
+      MED_ID
+    );
+    expect(result).toBe('✅ Medication deleted.');
+  });
+
+  it('reports a medication that was already gone', async () => {
+    vi.mocked(medicationRepository.deleteMedication).mockResolvedValue(false);
+
+    const result = await tools.sparky_manage_medications.execute!(
+      { action: 'delete_medication', medication_id: MED_ID },
+      opts
+    );
+
+    expect(result).toBe(
+      `Error [NOT_FOUND]: Medication with ID '${MED_ID}' not found.\n\nSuggestion: Check the ID and try again.`
+    );
+  });
+
+  it('is never inferred from a bare medication identifier', async () => {
+    vi.mocked(medicationRepository.listMedications).mockResolvedValue([
+      metformin,
+    ]);
+
+    // No action, and nothing to patch. Whatever this resolves to, it must not
+    // be the destructive one.
+    await tools.sparky_manage_medications.execute!(
+      { medication_id: MED_ID },
+      opts
+    );
+
+    expect(medicationRepository.deleteMedication).not.toHaveBeenCalled();
   });
 });
 

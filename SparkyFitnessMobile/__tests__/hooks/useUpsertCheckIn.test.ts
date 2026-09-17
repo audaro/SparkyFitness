@@ -4,9 +4,17 @@ import { useUpsertCheckIn } from '../../src/hooks/useUpsertCheckIn';
 import { upsertCheckIn } from '../../src/services/api/measurementsApi';
 import { refreshHealthSyncCache } from '../../src/hooks/refreshHealthSyncCache';
 import { addLog } from '../../src/services/LogService';
-import { measurementsQueryKey } from '../../src/hooks/queryKeys';
+import {
+  latestMeasurementsOnOrBeforeQueryKey,
+  latestMeasurementsOnOrBeforeRootQueryKey,
+  measurementsQueryKey,
+} from '../../src/hooks/queryKeys';
 import type { CheckInMeasurement } from '../../src/types/measurements';
-import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import {
+  createTestQueryClient,
+  createQueryWrapper,
+  type QueryClient,
+} from './queryTestUtils';
 
 jest.mock('../../src/services/api/measurementsApi', () => ({
   upsertCheckIn: jest.fn(),
@@ -20,10 +28,11 @@ jest.mock('../../src/services/LogService', () => ({
   addLog: jest.fn(),
 }));
 
-const mockUpsertCheckIn = upsertCheckIn as jest.MockedFunction<typeof upsertCheckIn>;
-const mockRefreshHealthSyncCache = refreshHealthSyncCache as jest.MockedFunction<
-  typeof refreshHealthSyncCache
+const mockUpsertCheckIn = upsertCheckIn as jest.MockedFunction<
+  typeof upsertCheckIn
 >;
+const mockRefreshHealthSyncCache =
+  refreshHealthSyncCache as jest.MockedFunction<typeof refreshHealthSyncCache>;
 const mockAddLog = addLog as jest.MockedFunction<typeof addLog>;
 
 describe('useUpsertCheckIn', () => {
@@ -51,7 +60,11 @@ describe('useUpsertCheckIn', () => {
     });
 
     await waitFor(() => {
-      expect(mockUpsertCheckIn).toHaveBeenCalledWith({ entryDate, weight: 80.5, neck: null });
+      expect(mockUpsertCheckIn).toHaveBeenCalledWith({
+        entryDate,
+        weight: 80.5,
+        neck: null,
+      });
     });
     const vars = mockUpsertCheckIn.mock.calls[0][0];
     expect('waist' in vars).toBe(false);
@@ -59,7 +72,10 @@ describe('useUpsertCheckIn', () => {
   });
 
   test('success writes the server response into the date cache and refreshes health sync caches', async () => {
-    const serverResponse = { entry_date: entryDate, weight: 80.5 } as unknown as CheckInMeasurement;
+    const serverResponse = {
+      entry_date: entryDate,
+      weight: 80.5,
+    } as unknown as CheckInMeasurement;
     mockUpsertCheckIn.mockResolvedValue(serverResponse);
 
     const { result } = renderHook(() => useUpsertCheckIn(), {
@@ -71,7 +87,9 @@ describe('useUpsertCheckIn', () => {
     });
 
     await waitFor(() => {
-      expect(queryClient.getQueryData(measurementsQueryKey(entryDate))).toBe(serverResponse);
+      expect(queryClient.getQueryData(measurementsQueryKey(entryDate))).toBe(
+        serverResponse
+      );
     });
     expect(mockRefreshHealthSyncCache).toHaveBeenCalledWith(queryClient);
   });
@@ -90,9 +108,69 @@ describe('useUpsertCheckIn', () => {
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });
-    expect(mockAddLog).toHaveBeenCalledWith(expect.stringContaining('server unavailable'), 'ERROR');
-    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
-    expect(queryClient.getQueryData(measurementsQueryKey(entryDate))).toBeUndefined();
+    expect(mockAddLog).toHaveBeenCalledWith(
+      expect.stringContaining('server unavailable'),
+      'ERROR'
+    );
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error' })
+    );
+    expect(
+      queryClient.getQueryData(measurementsQueryKey(entryDate))
+    ).toBeUndefined();
     expect(mockRefreshHealthSyncCache).not.toHaveBeenCalled();
+  });
+
+  test('a save invalidates the carry-forward cache for other days too', async () => {
+    // Same `staleTime: Infinity` reasoning as the custom hints: a value saved
+    // for one day can be the newest "on or before" value for a later day, so
+    // that later cached day must be invalidated as well.
+    const otherDay = '2024-06-20';
+    queryClient.setQueryData(
+      latestMeasurementsOnOrBeforeQueryKey(entryDate),
+      {}
+    );
+    queryClient.setQueryData(
+      latestMeasurementsOnOrBeforeQueryKey(otherDay),
+      {}
+    );
+
+    mockUpsertCheckIn.mockResolvedValue({
+      entry_date: entryDate,
+      weight: 80.5,
+    });
+
+    const { result } = renderHook(() => useUpsertCheckIn(), {
+      wrapper: createQueryWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ entryDate, weight: 80.5 });
+    });
+
+    expect(
+      queryClient.getQueryState(latestMeasurementsOnOrBeforeQueryKey(otherDay))
+        ?.isInvalidated
+    ).toBe(true);
+  });
+
+  test('a successful save refreshes the carry-forward suggestions', async () => {
+    const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+    mockUpsertCheckIn.mockResolvedValue({
+      entry_date: entryDate,
+      weight: 80.5,
+    });
+
+    const { result } = renderHook(() => useUpsertCheckIn(), {
+      wrapper: createQueryWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ entryDate, weight: 80.5 });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: latestMeasurementsOnOrBeforeRootQueryKey,
+    });
   });
 });

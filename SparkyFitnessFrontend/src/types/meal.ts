@@ -5,6 +5,8 @@ export interface Meal {
   user_id?: string;
   name: string;
   description?: string;
+  /** Owner-authored markdown reference note, e.g. a recipe. */
+  notes?: string | null;
   is_public?: boolean;
   serving_size?: number;
   serving_unit?: string;
@@ -52,6 +54,9 @@ export interface MealFood {
   vitamin_c?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   glycemic_index?: string;
   custom_nutrients?: Record<string, string | number>;
   serving_size?: number;
@@ -61,6 +66,7 @@ export interface MealFood {
 export interface MealPayload {
   name: string;
   description?: string;
+  notes?: string | null;
   is_public?: boolean;
   serving_size?: number;
   serving_unit?: string;
@@ -94,6 +100,9 @@ export interface MealFoodPayload {
   vitamin_c?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   glycemic_index?: string;
   custom_nutrients?: Record<string, string | number>;
   serving_size?: number;
@@ -139,11 +148,16 @@ export interface FoodEntryMeal {
   entry_time?: string | null;
   name: string;
   description?: string;
+  /** Per-occurrence markdown note; independent of the template's `notes`. */
+  notes?: string | null;
   quantity?: number;
   unit?: string;
   legacy_serving_unit_math?: boolean;
+  entry_total_servings?: number | null;
   /** Images from the meal template this entry was logged from. */
   meal_images?: string[] | null;
+  /** The meal template's own note, shown read-only beside this entry's note. */
+  meal_notes?: string | null;
   /**
    * Per-entry override photos. Apply only to this diary entry and never change
    * the meal template. Empty means "fall back to `meal_images`".
@@ -167,6 +181,9 @@ export interface FoodEntryMeal {
   vitamin_c?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   glycemic_index?: string; // Aggregated glycemic index
   custom_nutrients?: Record<string, string | number>;
 }
@@ -189,6 +206,10 @@ export interface MealTotals {
   vitamin_c: number;
   iron: number;
   calcium: number;
+  caffeine_mg: number;
+  /** Optional: meal totals sum it, day totals deliberately do not. */
+  water_ml?: number;
+  alcohol_g: number;
   custom_nutrients?: Record<string, number>; // Add custom_nutrients support
   [key: string]: number | string | Record<string, number> | null | undefined;
 }

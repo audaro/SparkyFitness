@@ -46,6 +46,9 @@ export const foodEntriesSchema = z.object({
   vitamin_c: z.number().nullable(),
   calcium: z.number().nullable(),
   iron: z.number().nullable(),
+  caffeine_mg: z.number().nullable(),
+  water_ml: z.number().nullable(),
+  alcohol_g: z.number().nullable(),
   glycemic_index: z.string().nullable(),
   updated_by_user_id: userIdSchema.nullable(),
   meal_id: mealsIdSchema.nullable(),
@@ -57,6 +60,7 @@ export const foodEntriesSchema = z.object({
   source: z.string().nullable(),
   source_id: z.string().nullable(),
   images: z.array(z.string()),
+  notes: z.string().nullable(),
 });
 
 export const foodEntriesInitializerSchema = z.object({
@@ -92,6 +96,9 @@ export const foodEntriesInitializerSchema = z.object({
   vitamin_c: z.number().optional().nullable(),
   calcium: z.number().optional().nullable(),
   iron: z.number().optional().nullable(),
+  caffeine_mg: z.number().optional().nullable(),
+  water_ml: z.number().optional().nullable(),
+  alcohol_g: z.number().optional().nullable(),
   glycemic_index: z.string().optional().nullable(),
   updated_by_user_id: userIdSchema.optional().nullable(),
   meal_id: mealsIdSchema.optional().nullable(),
@@ -103,6 +110,7 @@ export const foodEntriesInitializerSchema = z.object({
   source: z.string().optional().nullable(),
   source_id: z.string().optional().nullable(),
   images: z.array(z.string()).optional(),
+  notes: z.string().optional().nullable(),
 });
 
 export const foodEntriesMutatorSchema = z.object({
@@ -138,6 +146,9 @@ export const foodEntriesMutatorSchema = z.object({
   vitamin_c: z.number().optional().nullable(),
   calcium: z.number().optional().nullable(),
   iron: z.number().optional().nullable(),
+  caffeine_mg: z.number().optional().nullable(),
+  water_ml: z.number().optional().nullable(),
+  alcohol_g: z.number().optional().nullable(),
   glycemic_index: z.string().optional().nullable(),
   updated_by_user_id: userIdSchema.optional().nullable(),
   meal_id: mealsIdSchema.optional().nullable(),
@@ -149,8 +160,11 @@ export const foodEntriesMutatorSchema = z.object({
   source: z.string().optional().nullable(),
   source_id: z.string().optional().nullable(),
   images: z.array(z.string()).optional(),
+  notes: z.string().optional().nullable(),
 });
 
 export type FoodEntries = z.infer<typeof foodEntriesSchema>;
-export type FoodEntriesInitializer = z.infer<typeof foodEntriesInitializerSchema>;
+export type FoodEntriesInitializer = z.infer<
+  typeof foodEntriesInitializerSchema
+>;
 export type FoodEntriesMutator = z.infer<typeof foodEntriesMutatorSchema>;

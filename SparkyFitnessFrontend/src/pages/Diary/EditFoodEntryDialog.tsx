@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, SubmitEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,9 @@ import { Check, Sparkles, Clock, CalendarDays, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MarkdownView } from '@/components/ui/MarkdownView';
+import { MarkdownEditor } from '@/components/ui/MarkdownEditor';
+import { diaryEntryImages, usableFoodImages } from '@/utils/foodImages';
 import {
   Select,
   SelectContent,
@@ -39,7 +43,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { DEFAULT_NUTRIENTS } from '@/constants/nutrients';
 import {
   CONFIDENCE_TONES,
-  OVERALL_CONFIDENCE_LABELS,
   type AiConfidence,
   type ConfidenceTone,
   toHourMinute,
@@ -48,6 +51,7 @@ import {
 import { formatServingLabel } from '@/utils/foodServing';
 import FoodEntryImageOverride from './FoodEntryImageOverride';
 import { useEntryImageDraft } from '@/hooks/Diary/useEntryImageDraft';
+import { getAiEstimateLabel } from '@/utils/aiConfidenceLabels';
 
 const AI_PICKER_ICON_TONE_CLASSES: Record<ConfidenceTone, string> = {
   success: 'text-emerald-600 dark:text-emerald-400',
@@ -68,6 +72,7 @@ const EditFoodEntryDialog = ({
   onOpenChange,
   availableMealTypes,
 }: EditFoodEntryDialogProps) => {
+  const { t } = useTranslation();
   const {
     loggingLevel,
     energyUnit,
@@ -86,6 +91,15 @@ const EditFoodEntryDialog = ({
   const [entryTime, setEntryTime] = useState<string>(
     toHourMinute(entry?.entry_time) || ''
   );
+  const [entryNotes, setEntryNotes] = useState<string>(entry?.notes || '');
+
+  // Photos a note may embed: this entry's own override if it has one, else the
+  // parent food's. `diaryEntryImages` already resolves each to a usable src,
+  // and that resolved form is the one to write into the markdown.
+  const entryImageOptions = useMemo(
+    () => diaryEntryImages(entry).map((src) => ({ path: src, src })),
+    [entry]
+  );
 
   const { data: customNutrients } = useCustomNutrients();
   const { data: foodData, isLoading: isLoadingFood } = useFoodView(
@@ -99,6 +113,20 @@ const EditFoodEntryDialog = ({
   // without saving discards them.
   const imageDraft = useEntryImageDraft(entry?.id ?? '', entry?.images, 'food');
   const createFoodVariantMutation = useCreateFoodVariantMutation();
+
+  // The food's own note can reference the food's photos, which
+  // `diaryEntryImages` hides once the entry has an override of its own — so
+  // resolve note references against both sets.
+  const notePhotoCandidates = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...usableFoodImages(entry?.images),
+          ...usableFoodImages(foodData?.images),
+        ])
+      ),
+    [entry?.images, foodData?.images]
+  );
 
   const loading = isLoadingFood || isLoadingVariants;
   const isEditingAllowed = open && !!entry && !entry.meal_id;
@@ -114,55 +142,99 @@ const EditFoodEntryDialog = ({
     }
   }, [open, loading]);
 
+  const isFoodFound = !!foodData;
+
+  const snapshotVariant = useMemo((): FoodVariant | null => {
+    if (!entry) return null;
+    return {
+      id: entry.variant_id || 'snapshot-variant',
+      serving_size: entry.serving_size || 100,
+      serving_unit: entry.unit || 'g',
+      calories: entry.calories ?? 0,
+      protein: entry.protein ?? 0,
+      carbs: entry.carbs ?? 0,
+      fat: entry.fat ?? 0,
+      saturated_fat: entry.saturated_fat ?? 0,
+      polyunsaturated_fat: entry.polyunsaturated_fat ?? 0,
+      monounsaturated_fat: entry.monounsaturated_fat ?? 0,
+      trans_fat: entry.trans_fat ?? 0,
+      cholesterol: entry.cholesterol ?? 0,
+      sodium: entry.sodium ?? 0,
+      potassium: entry.potassium ?? 0,
+      dietary_fiber: entry.dietary_fiber ?? 0,
+      sugars: entry.sugars ?? 0,
+      vitamin_a: entry.vitamin_a ?? 0,
+      vitamin_c: entry.vitamin_c ?? 0,
+      calcium: entry.calcium ?? 0,
+      iron: entry.iron ?? 0,
+      caffeine_mg: entry.caffeine_mg ?? 0,
+      water_ml: entry.water_ml ?? undefined,
+      alcohol_g: entry.alcohol_g ?? 0,
+      glycemic_index: entry.glycemic_index,
+      custom_nutrients:
+        (entry.custom_nutrients as Record<string, string | number>) || {},
+    };
+  }, [entry]);
+
   const variants = useMemo(() => {
-    if (!isEditingAllowed || !foodData || !variantsData || !entry) return [];
+    if (!isEditingAllowed || !entry) return [];
 
-    const defaultVariant =
-      foodData.default_variant || variantsData.find((v) => v.is_default);
+    if (foodData && variantsData) {
+      const defaultVariant =
+        foodData.default_variant || variantsData.find((v) => v.is_default);
 
-    const primaryUnit: FoodVariant = defaultVariant
-      ? {
-          ...defaultVariant,
-          calories: defaultVariant.calories || 0,
-          protein: defaultVariant.protein || 0,
-          carbs: defaultVariant.carbs || 0,
-          fat: defaultVariant.fat || 0,
-          custom_nutrients: defaultVariant.custom_nutrients || {},
-        }
-      : ({
-          id: entry.food_id,
-          serving_size: 100,
-          serving_unit: 'g',
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          custom_nutrients: {},
-        } as FoodVariant);
+      const primaryUnit: FoodVariant = defaultVariant
+        ? {
+            ...defaultVariant,
+            calories: defaultVariant.calories || 0,
+            protein: defaultVariant.protein || 0,
+            carbs: defaultVariant.carbs || 0,
+            fat: defaultVariant.fat || 0,
+            custom_nutrients: defaultVariant.custom_nutrients || {},
+          }
+        : ({
+            id: entry.food_id,
+            serving_size: 100,
+            serving_unit: 'g',
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            custom_nutrients: {},
+          } as FoodVariant);
 
-    const variantsFromDb = variantsData
-      .filter((v) => v.id !== primaryUnit.id)
-      .map((variant) => ({
-        ...variant,
-        calories: variant.calories || 0,
-        protein: variant.protein || 0,
-        carbs: variant.carbs || 0,
-        fat: variant.fat || 0,
-        custom_nutrients: variant.custom_nutrients || {},
-      }));
+      const variantsFromDb = variantsData
+        .filter((v) => v.id !== primaryUnit.id)
+        .map((variant) => ({
+          ...variant,
+          calories: variant.calories || 0,
+          protein: variant.protein || 0,
+          carbs: variant.carbs || 0,
+          fat: variant.fat || 0,
+          custom_nutrients: variant.custom_nutrients || {},
+        }));
 
-    return [primaryUnit, ...variantsFromDb];
-  }, [foodData, variantsData, entry, isEditingAllowed]);
+      return [primaryUnit, ...variantsFromDb];
+    }
+
+    if (snapshotVariant) {
+      return [snapshotVariant];
+    }
+
+    return [];
+  }, [foodData, variantsData, entry, isEditingAllowed, snapshotVariant]);
 
   const selectedVariant = useMemo((): FoodVariant | null => {
-    if (!variants.length) return null;
+    if (!variants.length) return snapshotVariant;
     if (selectedVariantId) {
       return (
-        variants.find((v) => v.id === selectedVariantId) || variants[0] || null
+        variants.find((v) => v.id === selectedVariantId) ||
+        variants[0] ||
+        snapshotVariant
       );
     }
-    return variants[0] || null;
-  }, [variants, selectedVariantId]);
+    return variants[0] || snapshotVariant;
+  }, [variants, selectedVariantId, snapshotVariant]);
 
   const {
     pendingUnit,
@@ -221,20 +293,28 @@ const EditFoodEntryDialog = ({
       }
       setConversionError('');
       try {
-        const savedVariant = await createFoodVariantMutation.mutateAsync({
-          foodId: entry.food_id ?? '',
-          variant: convertedVariant,
-        });
-        const variantWithId: FoodVariant = {
-          ...convertedVariant,
-          ...savedVariant,
-        };
+        let variantWithId: FoodVariant = convertedVariant;
+        if (isFoodFound && entry.food_id) {
+          const savedVariant = await createFoodVariantMutation.mutateAsync({
+            foodId: entry.food_id,
+            variant: convertedVariant,
+          });
+          variantWithId = {
+            ...convertedVariant,
+            ...savedVariant,
+          };
+        }
         const data: FoodEntryUpdateData = {
           quantity,
           unit: variantWithId.serving_unit,
-          variant_id: variantWithId.id || null,
+          variant_id:
+            variantWithId.id === 'default-variant' ||
+            variantWithId.id === 'snapshot-variant'
+              ? null
+              : variantWithId.id || null,
           meal_type_id: mealId,
           entry_time: entryTime || null,
+          notes: entryNotes.trim() || null,
         };
         await updateFoodEntry({
           id: entry.id,
@@ -267,8 +347,12 @@ const EditFoodEntryDialog = ({
         unit: selectedVariant.serving_unit,
         meal_type_id: mealId,
         variant_id:
-          selectedVariant.id === 'default-variant' ? null : selectedVariant.id,
+          selectedVariant.id === 'default-variant' ||
+          selectedVariant.id === 'snapshot-variant'
+            ? entry.variant_id || null
+            : selectedVariant.id,
         entry_time: entryTime || null,
+        notes: entryNotes.trim() || null,
       };
 
       await updateFoodEntry({ id: entry.id, data: updateData });
@@ -298,18 +382,34 @@ const EditFoodEntryDialog = ({
         className="max-w-2xl max-h-[90vh] overflow-y-auto"
       >
         <DialogHeader>
-          <DialogTitle>Edit Food Entry</DialogTitle>
+          <DialogTitle>
+            {t('editFoodEntry.title', 'Edit Food Entry')}
+          </DialogTitle>
           <DialogDescription>
-            Edit the quantity and serving unit for your food entry.
+            {t(
+              'editFoodEntry.description',
+              'Edit the quantity and serving unit for your food entry.'
+            )}
           </DialogDescription>
-          <p className="text-sm text-red-500 mt-2">
-            Note: Updating this entry will use the latest available variant
-            details for the food, not the original snapshot.
-          </p>
+          {isFoodFound ? (
+            <p className="text-sm text-red-500 mt-2">
+              {t(
+                'editFoodEntry.latestVariantNote',
+                'Note: Updating this entry will use the latest available variant details for the food, not the original snapshot.'
+              )}
+            </p>
+          ) : (
+            <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+              {t(
+                'editFoodEntry.deletedFoodNote',
+                'This food is no longer in your food database. Showing details saved in this diary entry.'
+              )}
+            </p>
+          )}
         </DialogHeader>
 
         {loading ? (
-          <div>Loading...</div>
+          <div>{t('dataTable.loading', 'Loading...')}</div>
         ) : (
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
@@ -333,7 +433,9 @@ const EditFoodEntryDialog = ({
 
               <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <Label htmlFor="quantity">Quantity</Label>
+                  <Label htmlFor="quantity">
+                    {t('editFoodEntry.quantity', 'Quantity')}
+                  </Label>
                   <Input
                     id="quantity"
                     type="number"
@@ -346,7 +448,9 @@ const EditFoodEntryDialog = ({
                 </div>
 
                 <div>
-                  <Label htmlFor="unit">Unit</Label>
+                  <Label htmlFor="unit">
+                    {t('editFoodEntry.unit', 'Unit')}
+                  </Label>
                   <div className="flex items-center gap-2">
                     <Select
                       value={dropdownValue}
@@ -366,7 +470,11 @@ const EditFoodEntryDialog = ({
                                     variant.ai_confidence && (
                                       <Sparkles
                                         className={`h-3 w-3 ${AI_PICKER_ICON_TONE_CLASSES[CONFIDENCE_TONES[variant.ai_confidence as AiConfidence]]}`}
-                                        aria-label={`AI estimate (${OVERALL_CONFIDENCE_LABELS[variant.ai_confidence as AiConfidence]} confidence)`}
+                                        aria-label={getAiEstimateLabel(
+                                          t,
+                                          'editFoodEntry',
+                                          variant.ai_confidence as AiConfidence
+                                        )}
                                       />
                                     )}
                                 </span>
@@ -397,7 +505,7 @@ const EditFoodEntryDialog = ({
                         )}
                         <SelectSeparator />
                         <SelectItem value="__custom__">
-                          Custom unit...
+                          {t('editFoodEntry.customUnit', 'Custom unit...')}
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -405,13 +513,19 @@ const EditFoodEntryDialog = ({
                       selectedVariant.ai_confidence && (
                         <Sparkles
                           className={`h-4 w-4 ${AI_PICKER_ICON_TONE_CLASSES[CONFIDENCE_TONES[selectedVariant.ai_confidence as AiConfidence]]}`}
-                          aria-label={`AI estimate (${OVERALL_CONFIDENCE_LABELS[selectedVariant.ai_confidence as AiConfidence]} confidence)`}
+                          aria-label={getAiEstimateLabel(
+                            t,
+                            'editFoodEntry',
+                            selectedVariant.ai_confidence as AiConfidence
+                          )}
                         />
                       )}
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="meal">Meal</Label>
+                  <Label htmlFor="meal">
+                    {t('editFoodEntry.meal', 'Meal')}
+                  </Label>
                   <Select value={mealId} onValueChange={setMealId}>
                     <SelectTrigger>
                       <SelectValue />
@@ -428,17 +542,19 @@ const EditFoodEntryDialog = ({
 
                 <div className="col-span-4 space-y-1 max-w-[280px]">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="entryTime">Time (optional)</Label>
+                    <Label htmlFor="entryTime">
+                      {t('editFoodEntry.timeOptional', 'Time (optional)')}
+                    </Label>
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => setEntryTime('')}
                         disabled={!entryTime}
                         className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium text-muted-foreground shadow-sm hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-40 disabled:pointer-events-none"
-                        title="Clear time"
+                        title={t('editFoodEntry.clearTime', 'Clear time')}
                       >
                         <X className="h-4 w-4" />
-                        Clear
+                        {t('editFoodEntry.clear', 'Clear')}
                       </button>
                       <button
                         type="button"
@@ -449,10 +565,13 @@ const EditFoodEntryDialog = ({
                           );
                         }}
                         className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                        title="Set to current local time"
+                        title={t(
+                          'editFoodEntry.setCurrentTime',
+                          'Set to current local time'
+                        )}
                       >
                         <Clock className="h-4 w-4" />
-                        Now
+                        {t('editFoodEntry.now', 'Now')}
                       </button>
                       {(() => {
                         const selectedMeal = availableMealTypes.find(
@@ -466,10 +585,13 @@ const EditFoodEntryDialog = ({
                               setEntryTime(toHourMinute(defaultTime) || '')
                             }
                             className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                            title={`Set to meal default (${toHourMinute(defaultTime)})`}
+                            title={t('editFoodEntry.setMealDefault', {
+                              time: toHourMinute(defaultTime),
+                              defaultValue: `Set to meal default (${toHourMinute(defaultTime)})`,
+                            })}
                           >
                             <CalendarDays className="h-4 w-4" />
-                            Default
+                            {t('editFoodEntry.default', 'Default')}
                           </button>
                         ) : null;
                       })()}
@@ -488,11 +610,16 @@ const EditFoodEntryDialog = ({
               {pendingUnitIsCustom && (
                 <div className="border rounded-lg p-3 space-y-3 bg-muted/50">
                   <div>
-                    <Label htmlFor="customUnitName">Unit name</Label>
+                    <Label htmlFor="customUnitName">
+                      {t('editFoodEntry.unitName', 'Unit name')}
+                    </Label>
                     <Input
                       id="customUnitName"
                       type="text"
-                      placeholder="e.g. slice, bar, scoop"
+                      placeholder={t(
+                        'editFoodEntry.unitNamePlaceholder',
+                        'e.g. slice, bar, scoop'
+                      )}
                       value={pendingUnit}
                       onChange={(e) => {
                         setPendingUnit(e.target.value);
@@ -511,7 +638,10 @@ const EditFoodEntryDialog = ({
                         type="number"
                         step="0.01"
                         min="0.01"
-                        placeholder="e.g. 1"
+                        placeholder={t(
+                          'editFoodEntry.numberPlaceholder',
+                          'e.g. 1'
+                        )}
                         value={conversionFactor}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -532,7 +662,7 @@ const EditFoodEntryDialog = ({
                     size="sm"
                     onClick={cancelConversion}
                   >
-                    Cancel
+                    {t('common.cancel', 'Cancel')}
                   </Button>
                 </div>
               )}
@@ -543,10 +673,11 @@ const EditFoodEntryDialog = ({
                 autoConversionFactor === null && (
                   <div className="border rounded-lg p-3 space-y-3 bg-muted/50">
                     <p className="text-sm text-muted-foreground">
-                      These units can&apos;t be converted automatically — enter
-                      how many{' '}
-                      <strong>{conversionBaseVariant?.serving_unit}</strong> are
-                      in 1 <strong>{pendingUnit}</strong>.
+                      {t('editFoodEntry.manualConversion', {
+                        baseUnit: conversionBaseVariant?.serving_unit,
+                        unit: pendingUnit,
+                        defaultValue: `These units can't be converted automatically — enter how many ${conversionBaseVariant?.serving_unit} are in 1 ${pendingUnit}.`,
+                      })}
                     </p>
                     <div>
                       <Label htmlFor="conversionFactor">
@@ -558,7 +689,10 @@ const EditFoodEntryDialog = ({
                         type="number"
                         step="0.01"
                         min="0.01"
-                        placeholder="e.g. 1"
+                        placeholder={t(
+                          'editFoodEntry.numberPlaceholder',
+                          'e.g. 1'
+                        )}
                         value={conversionFactor}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -578,7 +712,7 @@ const EditFoodEntryDialog = ({
                       size="sm"
                       onClick={cancelConversion}
                     >
-                      Cancel
+                      {t('common.cancel', 'Cancel')}
                     </Button>
                   </div>
                 )}
@@ -596,13 +730,47 @@ const EditFoodEntryDialog = ({
                 </div>
               )}
 
+              {/*
+                Notes sit below the nutrition figures on purpose: the numbers are
+                what someone opens this dialog to check, and a long recipe above
+                them would push them off-screen.
+              */}
+              {foodData?.notes ? (
+                <div className="space-y-1">
+                  <Label>
+                    {t('editFoodEntry.aboutThisFood', 'About this food')}
+                  </Label>
+                  <div className="rounded-md border bg-muted/40 px-3 py-2 max-h-48 overflow-y-auto">
+                    <MarkdownView images={notePhotoCandidates}>
+                      {foodData.notes}
+                    </MarkdownView>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="space-y-1">
+                <Label htmlFor="entryNotes">
+                  {t(
+                    'editFoodEntry.entryNotes',
+                    'Note for this entry (optional)'
+                  )}
+                </Label>
+                <MarkdownEditor
+                  id="entryNotes"
+                  value={entryNotes}
+                  onChange={setEntryNotes}
+                  rows={3}
+                  imageOptions={entryImageOptions}
+                />
+              </div>
+
               <div className="flex justify-end space-x-2 mt-6">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => onOpenChange(false)}
                 >
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </Button>
                 <Button
                   type="submit"
@@ -615,8 +783,8 @@ const EditFoodEntryDialog = ({
                   }
                 >
                   {createFoodVariantMutation.isPending
-                    ? 'Saving...'
-                    : 'Save Changes'}
+                    ? t('common.saving', 'Saving...')
+                    : t('common.saveChanges', 'Save Changes')}
                 </Button>
               </div>
             </div>

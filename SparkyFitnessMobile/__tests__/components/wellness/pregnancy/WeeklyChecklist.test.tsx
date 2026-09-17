@@ -39,7 +39,9 @@ describe('WeeklyChecklist', () => {
     });
 
     // week 8 falls inside prenatal_vitamin's (4-12) window and first_appt's (6-10) window.
-    const { getByText } = render(<WeeklyChecklist pregnancyId="p1" currentWeek={8} />);
+    const { getByText } = render(
+      <WeeklyChecklist pregnancyId="p1" currentWeek={8} />
+    );
 
     expect(getByText('Book your first prenatal appointment')).toBeTruthy();
     expect(getByText('Start a prenatal vitamin with folic acid')).toBeTruthy();
@@ -48,7 +50,9 @@ describe('WeeklyChecklist', () => {
   it('toggles a template item to completed on press', () => {
     mockUsePregnancyChecklist.mockReturnValue({ items: [], isLoading: false });
 
-    const { getByText } = render(<WeeklyChecklist pregnancyId="p1" currentWeek={8} />);
+    const { getByText } = render(
+      <WeeklyChecklist pregnancyId="p1" currentWeek={8} />
+    );
     fireEvent.press(getByText('Start a prenatal vitamin with folic acid'));
 
     expect(mockToggleAsync).toHaveBeenCalledWith(
@@ -56,7 +60,7 @@ describe('WeeklyChecklist', () => {
         pregnancyId: 'p1',
         templateKey: 'prenatal_vitamin',
         completed: true,
-      }),
+      })
     );
   });
 
@@ -77,17 +81,20 @@ describe('WeeklyChecklist', () => {
       isLoading: false,
     });
 
-    const { getByText, queryByText } = render(<WeeklyChecklist pregnancyId="p1" currentWeek={1} />);
+    const { getByText, queryByText } = render(
+      <WeeklyChecklist pregnancyId="p1" currentWeek={1} />
+    );
 
     expect(getByText('Checklist item')).toBeTruthy();
     expect(queryByText('new_template_v2')).toBeNull();
   });
 
-
   it('shows an empty state when nothing is scheduled for the week', () => {
     mockUsePregnancyChecklist.mockReturnValue({ items: [], isLoading: false });
 
-    const { getByText } = render(<WeeklyChecklist pregnancyId="p1" currentWeek={1} />);
+    const { getByText } = render(
+      <WeeklyChecklist pregnancyId="p1" currentWeek={1} />
+    );
     expect(getByText('Nothing on your checklist for this week.')).toBeTruthy();
   });
 });

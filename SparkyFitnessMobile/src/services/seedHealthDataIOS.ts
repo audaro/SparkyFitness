@@ -2,12 +2,17 @@ import {
   ComparisonPredicateOperator,
   deleteObjects,
   queryWorkoutSamples,
-  requestAuthorization,
   saveWorkoutSample,
   WorkoutActivityType,
   type QuantitySampleForSaving,
 } from '@kingstinct/react-native-healthkit';
 import { addLog } from './LogService';
+import {
+  initHealthConnect,
+  requestHealthPermissions,
+  loadAllEnabledPermissions,
+} from './healthConnectService';
+import type { PermissionRequest } from '../types/healthRecords';
 
 interface SeedResult {
   success: boolean;
@@ -19,6 +24,30 @@ const randomInt = (min: number, max: number): number =>
   Math.floor(Math.random() * (max - min + 1)) + min;
 
 const HEART_RATE_TYPE = 'HKQuantityTypeIdentifierHeartRate' as const;
+
+/**
+ * Requests everything a rich-workout seed needs — Workout write (to save the
+ * workout), Workout read (so the very next sync can read it back — without this,
+ * seeding write-only access left the seeded data invisible to sync even after a
+ * successful seed), and HeartRate write — unioned with everything the user already
+ * has enabled elsewhere, so seeding never looks like it revoked an unrelated
+ * permission. See loadAllEnabledPermissions in healthPermissionSets.ts.
+ */
+const requestRichWorkoutSeedPermissions = async (
+  extra: PermissionRequest[]
+): Promise<boolean> => {
+  // requestHealthPermissions no-ops until HealthKit availability has been checked
+  // once — normally already true by the time a user reaches Dev Tools, but this
+  // makes the seed self-sufficient regardless of navigation order.
+  await initHealthConnect();
+  const existing = await loadAllEnabledPermissions();
+  return requestHealthPermissions([
+    ...existing,
+    { recordType: 'Workout', accessType: 'write' },
+    { recordType: 'Workout', accessType: 'read' },
+    ...extra,
+  ]);
+};
 
 /**
  * HealthKit has no dedup on write — every saveWorkoutSample call creates a
@@ -75,12 +104,18 @@ const deletePriorSeeds = async (tag: string): Promise<void> => {
       workoutTagFilter(tag)
     );
     if (deleted > 0) {
-      addLog(`[seedHealthDataIOS] Deleted ${deleted} prior "${tag}" seed workout(s) and their linked samples/routes.`, 'INFO');
+      addLog(
+        `[seedHealthDataIOS] Deleted ${deleted} prior "${tag}" seed workout(s) and their linked samples/routes.`,
+        'INFO'
+      );
     }
   } catch (error) {
     // Best-effort cleanup — a failure here must not block seeding a new one.
     const message = error instanceof Error ? error.message : String(error);
-    addLog(`[seedHealthDataIOS] Failed to delete prior "${tag}" seeds: ${message}`, 'WARNING');
+    addLog(
+      `[seedHealthDataIOS] Failed to delete prior "${tag}" seeds: ${message}`,
+      'WARNING'
+    );
   }
 };
 
@@ -99,14 +134,14 @@ const deletePriorSeeds = async (tag: string): Promise<void> => {
  */
 export const seedRichWorkoutIOS = async (): Promise<SeedResult> => {
   try {
-    await requestAuthorization({
-      toShare: [
-        'HKWorkoutTypeIdentifier',
-        'HKWorkoutRouteTypeIdentifier',
-        HEART_RATE_TYPE,
-      ],
-      toRead: [],
-    });
+    const granted = await requestRichWorkoutSeedPermissions([
+      { recordType: 'HeartRate', accessType: 'write' },
+      // Distinct from Workout write access — saveWorkoutRoute() throws without this too.
+      { recordType: 'ExerciseRoute', accessType: 'write' },
+    ]);
+    if (!granted) {
+      return { success: false, recordsInserted: 0, error: 'Permission denied' };
+    }
 
     await deletePriorSeeds('rich-workout-walk');
 
@@ -192,10 +227,12 @@ export const seedRichWorkoutIOS = async (): Promise<SeedResult> => {
  */
 export const seedRichStrengthWorkoutIOS = async (): Promise<SeedResult> => {
   try {
-    await requestAuthorization({
-      toShare: ['HKWorkoutTypeIdentifier', HEART_RATE_TYPE],
-      toRead: [],
-    });
+    const granted = await requestRichWorkoutSeedPermissions([
+      { recordType: 'HeartRate', accessType: 'write' },
+    ]);
+    if (!granted) {
+      return { success: false, recordsInserted: 0, error: 'Permission denied' };
+    }
 
     await deletePriorSeeds('rich-strength-workout');
 

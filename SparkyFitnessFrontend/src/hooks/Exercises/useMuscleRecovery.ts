@@ -39,13 +39,11 @@ export const useMuscleRecovery = (enabled: boolean = true) => {
     queryFn: getMuscleRecovery,
     enabled,
     select: (response) =>
-      response.muscles.map(
-        (entry): MuscleRecoveryItem => ({
-          ...entry,
-          percent: freshnessPercent(entry.freshness),
-          tone: freshnessTone(entry.freshness),
-        })
-      ),
+      response.muscles.map((entry): MuscleRecoveryItem => ({
+        ...entry,
+        percent: freshnessPercent(entry.freshness),
+        tone: freshnessTone(entry.freshness),
+      })),
     meta: {
       errorMessage: t(
         'muscleRecovery.loadError',

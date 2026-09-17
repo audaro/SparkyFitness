@@ -2,14 +2,16 @@ import goalService from './goalService.js';
 import foodEntryService from './foodEntryService.js';
 import { getExerciseEntriesByDateV2 } from './exerciseEntryHistoryService.js';
 import measurementRepository from '../models/measurementRepository.js';
+import hydrationTotalsService from './hydrationTotalsService.js';
 import foodRepository from '../models/foodMisc.js';
 import userRepository from '../models/userRepository.js';
 import preferenceRepository from '../models/preferenceRepository.js';
+import * as genericHealthRepository from '../models/genericHealthRepository.js';
 import { log } from '../config/logging.js';
 import {
   computeCalorieBalance,
   extractExerciseStats,
-  resolveDayFraction,
+  resolveDeviceProjectionSnapshot,
   sumFoodEntryCalories,
 } from './calorieBalanceService.js';
 import type { ExerciseSessionResponse } from '@workspace/shared';
@@ -39,14 +41,15 @@ export async function getDailySummary({
     userPreferences,
     measurements,
     supplementTotals,
+    healthConnectTotalRows,
   ] = await Promise.all([
     goalService.getUserGoals(targetUserId, date, undefined, false),
     goalService.getUserGoals(targetUserId, date, undefined, true),
     foodEntryService.getFoodEntriesByDate(actorUserId, targetUserId, date),
     getExerciseEntriesByDateV2(targetUserId, date),
     includeCheckin
-      ? measurementRepository
-          .getWaterIntakeByDate(targetUserId, date)
+      ? hydrationTotalsService
+          .resolveWaterTotalsForDate(targetUserId, actorUserId, date)
           .catch((error: unknown) => {
             log(
               'warn',
@@ -94,6 +97,23 @@ export async function getDailySummary({
         // still alias.
         return resolveSupplementTotals(null);
       }),
+    includeCheckin
+      ? genericHealthRepository
+          .getHealthConnectTotalCaloriesByDateRange(
+            targetUserId,
+            actorUserId,
+            date,
+            date
+          )
+          .catch((error: unknown) => {
+            log(
+              'warn',
+              `Health Connect total-calorie fetch failed for user ${targetUserId} on ${date}:`,
+              error
+            );
+            return [];
+          })
+      : [],
   ]);
 
   // Split once and reuse: the step-calorie query needs `activitySteps` to work out which
@@ -111,21 +131,18 @@ export async function getDailySummary({
       )
     : 0;
 
-  // External BMR override — only when opted in AND checkin data is permitted
-  // (includeCheckin is the route's permission gate; the override must not bypass it).
-  const externalBmr =
-    userPreferences?.use_external_bmr && includeCheckin
-      ? await measurementRepository
-          .getExternalBmrForDate(targetUserId, date)
-          .catch((error: unknown) => {
-            log(
-              'warn',
-              `External BMR fetch failed for user ${targetUserId} on ${date}:`,
-              error
-            );
-            return null;
-          })
-      : null;
+  const healthConnectTotal = healthConnectTotalRows[0];
+  const timezone = userPreferences?.timezone || 'UTC';
+  const deviceProjectionSnapshot = resolveDeviceProjectionSnapshot({
+    date,
+    timezone,
+    deviceTotal: healthConnectTotal
+      ? {
+          totalCalories: healthConnectTotal.total_calories,
+          capturedAt: healthConnectTotal.captured_at,
+        }
+      : null,
+  });
 
   const calorieBalance = computeCalorieBalance({
     eatenCalories:
@@ -138,11 +155,7 @@ export async function getDailySummary({
     userProfile,
     userPreferences,
     measurements,
-    externalBmr,
-    // A past day is finished, so its burn needs no end-of-day projection. Reading the
-    // wall clock here (as this did before) made the same historical day report different
-    // numbers depending on when you opened it.
-    dayFraction: resolveDayFraction(date, userPreferences?.timezone || 'UTC'),
+    ...deviceProjectionSnapshot,
   });
 
   const rawGoalData = goals as Record<string, unknown> | null;
@@ -169,7 +182,17 @@ export async function getDailySummary({
     goals,
     foodEntries,
     exerciseSessions,
-    waterIntake: parseFloat(waterResult?.water_ml) || 0,
+    waterIntake: parseFloat(String(waterResult?.water_ml)) || 0,
+    // Present only when includeCheckin fetched water at all, so a caller that
+    // opted out of checkin data doesn't get a misleading all-zero breakdown.
+    waterIntakeBreakdown: waterResult
+      ? {
+          water_ml: parseFloat(String(waterResult.water_ml)) || 0,
+          manual_ml: parseFloat(String(waterResult.manual_ml)) || 0,
+          ledger_ml: parseFloat(String(waterResult.ledger_ml)) || 0,
+          food_ml: parseFloat(String(waterResult.food_ml)) || 0,
+        }
+      : null,
     stepCalories,
     calorieBalance,
     adjustedGoals: computedAdjustedGoals,

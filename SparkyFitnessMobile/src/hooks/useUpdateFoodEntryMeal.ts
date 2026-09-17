@@ -30,7 +30,8 @@ export function useUpdateFoodEntryMeal({
   const normalizedDate = normalizeDate(entryDate);
 
   const mutation = useMutation({
-    mutationFn: (payload: FoodEntryMealUpdateData) => updateFoodEntryMeal(mealId, payload),
+    mutationFn: (payload: FoodEntryMealUpdateData) =>
+      updateFoodEntryMeal(mealId, payload),
     onSuccess: (meal) => {
       onSuccess?.(meal);
     },
@@ -43,11 +44,19 @@ export function useUpdateFoodEntryMeal({
   });
 
   const invalidateCache = (newDate?: string) => {
-    queryClient.invalidateQueries({ queryKey: dailySummaryQueryKey(normalizedDate), refetchType: 'all' });
+    queryClient.invalidateQueries({
+      queryKey: dailySummaryQueryKey(normalizedDate),
+      refetchType: 'all',
+    });
     if (newDate && newDate !== normalizedDate) {
-      queryClient.invalidateQueries({ queryKey: dailySummaryQueryKey(newDate), refetchType: 'all' });
+      queryClient.invalidateQueries({
+        queryKey: dailySummaryQueryKey(newDate),
+        refetchType: 'all',
+      });
     }
-    queryClient.invalidateQueries({ queryKey: foodEntryMealDetailQueryKey(mealId) });
+    queryClient.invalidateQueries({
+      queryKey: foodEntryMealDetailQueryKey(mealId),
+    });
     invalidateMealUsageCaches(queryClient);
     queryClient.invalidateQueries({ queryKey: [...foodsQueryKey] });
   };

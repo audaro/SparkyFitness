@@ -1,12 +1,7 @@
 import { FormFoodVariant } from '@/utils/foodForm';
 
 export type GlycemicIndex =
-  | 'None'
-  | 'Very Low'
-  | 'Low'
-  | 'Medium'
-  | 'High'
-  | 'Very High';
+  'None' | 'Very Low' | 'Low' | 'Medium' | 'High' | 'Very High';
 
 export interface FoodVariant {
   id?: string;
@@ -30,6 +25,10 @@ export interface FoodVariant {
   vitamin_c?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
+  abv_percent?: number;
   is_default?: boolean;
   is_locked?: boolean;
   glycemic_index?: GlycemicIndex;
@@ -90,10 +89,29 @@ export interface Food {
   is_quick_food?: boolean;
   glycemic_index?: GlycemicIndex;
   custom_nutrients?: Record<string, string | number>; // New field for custom nutrients
+  /**
+   * Owner-authored markdown reference note (how the user orders or prepares
+   * this food, a recipe). Shown read-only when logging the food; only the
+   * owner can edit it.
+   */
+  notes?: string | null;
   // ISO timestamp of when the current user starred this food. Present only on
   // items returned by the favorites endpoint; used to order the Favorites list.
   favorited_at?: string;
 }
+
+/**
+ * What a delete should do to everything pointing at the food.
+ *
+ * - `hide` stops it appearing in search and changes nothing else.
+ * - `delete` removes it from the library and from meals/meal plans, keeping
+ *   diary history (entries carry their own snapshot).
+ * - `delete_with_history` also removes the caller's own diary entries.
+ *
+ * Another user's diary is never affected; if anyone else still references the
+ * food the server hides it instead and says so in `status`.
+ */
+export type FoodDeleteMode = 'hide' | 'delete' | 'delete_with_history';
 
 export interface FoodDeletionImpact {
   foodEntries: FoodEntryDeletionImpact[];
@@ -137,9 +155,11 @@ export interface FoodEntry {
   images?: string[] | null;
   /** The parent food's own images, used as the fallback when no override. */
   food_images?: string[] | null;
-  // Add water_ml to FoodEntry if it's a water entry
-  water_ml?: number;
-
+  /**
+   * Per-occurrence markdown note. Independent of the parent food's `notes`,
+   * which is shown alongside it rather than copied into it.
+   */
+  notes?: string | null;
   // Snapshotted nutrient data
   calories?: number;
   protein?: number;
@@ -158,6 +178,12 @@ export interface FoodEntry {
   vitamin_c?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  // Log-time snapshot of the variant's water content (ml). Falls back to the
+  // entry's logged volume client-side when unset -- see foodVolumeToMl in
+  // utils/nutritionCalculations.ts.
+  water_ml?: number;
+  alcohol_g?: number;
   glycemic_index?: GlycemicIndex;
   serving_size?: number;
   custom_nutrients?: Record<string, string | number>;

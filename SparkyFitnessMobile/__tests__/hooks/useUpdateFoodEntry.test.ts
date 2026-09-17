@@ -14,7 +14,9 @@ jest.mock('../../src/services/LogService', () => ({
   addLog: jest.fn(),
 }));
 
-const mockUpdateFoodEntry = updateFoodEntry as jest.MockedFunction<typeof updateFoodEntry>;
+const mockUpdateFoodEntry = updateFoodEntry as jest.MockedFunction<
+  typeof updateFoodEntry
+>;
 
 describe('useUpdateFoodEntry', () => {
   let queryClient: QueryClient;
@@ -32,8 +34,12 @@ describe('useUpdateFoodEntry', () => {
     mockUpdateFoodEntry.mockResolvedValue({ id: 'entry-1' } as any);
 
     const { result } = renderHook(
-      () => useUpdateFoodEntry({ entryId: 'entry-1', entryDate: '2026-03-01T00:00:00.000Z' }),
-      { wrapper: createQueryWrapper(queryClient) },
+      () =>
+        useUpdateFoodEntry({
+          entryId: 'entry-1',
+          entryDate: '2026-03-01T00:00:00.000Z',
+        }),
+      { wrapper: createQueryWrapper(queryClient) }
     );
 
     await act(async () => {
@@ -41,7 +47,10 @@ describe('useUpdateFoodEntry', () => {
     });
 
     await waitFor(() => {
-      expect(mockUpdateFoodEntry).toHaveBeenCalledWith('entry-1', { quantity: 200, unit: 'g' });
+      expect(mockUpdateFoodEntry).toHaveBeenCalledWith('entry-1', {
+        quantity: 200,
+        unit: 'g',
+      });
     });
   });
 
@@ -50,8 +59,13 @@ describe('useUpdateFoodEntry', () => {
     const onSuccess = jest.fn();
 
     const { result } = renderHook(
-      () => useUpdateFoodEntry({ entryId: 'entry-1', entryDate: '2026-03-01', onSuccess }),
-      { wrapper: createQueryWrapper(queryClient) },
+      () =>
+        useUpdateFoodEntry({
+          entryId: 'entry-1',
+          entryDate: '2026-03-01',
+          onSuccess,
+        }),
+      { wrapper: createQueryWrapper(queryClient) }
     );
 
     await act(async () => {
@@ -68,7 +82,7 @@ describe('useUpdateFoodEntry', () => {
 
     const { result } = renderHook(
       () => useUpdateFoodEntry({ entryId: 'entry-1', entryDate: '2026-03-01' }),
-      { wrapper: createQueryWrapper(queryClient) },
+      { wrapper: createQueryWrapper(queryClient) }
     );
 
     await act(async () => {
@@ -89,7 +103,7 @@ describe('useUpdateFoodEntry', () => {
 
     const { result } = renderHook(
       () => useUpdateFoodEntry({ entryId: 'entry-1', entryDate: '2026-03-01' }),
-      { wrapper: createQueryWrapper(queryClient) },
+      { wrapper: createQueryWrapper(queryClient) }
     );
 
     await act(async () => {
@@ -132,8 +146,12 @@ describe('useUpdateFoodEntry', () => {
     const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
     const { result } = renderHook(
-      () => useUpdateFoodEntry({ entryId: 'entry-1', entryDate: '2026-03-01T00:00:00.000Z' }),
-      { wrapper: createQueryWrapper(queryClient) },
+      () =>
+        useUpdateFoodEntry({
+          entryId: 'entry-1',
+          entryDate: '2026-03-01T00:00:00.000Z',
+        }),
+      { wrapper: createQueryWrapper(queryClient) }
     );
 
     act(() => {
@@ -153,8 +171,12 @@ describe('useUpdateFoodEntry', () => {
     const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
     const { result } = renderHook(
-      () => useUpdateFoodEntry({ entryId: 'entry-1', entryDate: '2026-03-01T00:00:00.000Z' }),
-      { wrapper: createQueryWrapper(queryClient) },
+      () =>
+        useUpdateFoodEntry({
+          entryId: 'entry-1',
+          entryDate: '2026-03-01T00:00:00.000Z',
+        }),
+      { wrapper: createQueryWrapper(queryClient) }
     );
 
     act(() => {

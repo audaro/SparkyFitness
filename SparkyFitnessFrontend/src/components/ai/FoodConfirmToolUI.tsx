@@ -1,7 +1,6 @@
 import {
-  useMessage,
-  useThread,
-  useThreadRuntime,
+  useAui,
+  useAuiState,
   type ToolCallMessagePartComponent,
 } from '@assistant-ui/react';
 import { useTranslation } from 'react-i18next';
@@ -49,9 +48,9 @@ export const FoodConfirmToolUI: ToolCallMessagePartComponent<
   ConfirmFoodInput
 > = ({ args }) => {
   const { t } = useTranslation();
-  const threadRuntime = useThreadRuntime();
-  const isLast = useMessage((m) => m.isLast);
-  const isRunning = useThread((th) => th.isRunning);
+  const aui = useAui();
+  const isLast = useAuiState((s) => s.message.isLast);
+  const isRunning = useAuiState((s) => s.thread.isRunning);
 
   // The tool input streams in as partial JSON — render nothing until at least
   // one candidate is complete enough to be a card.
@@ -65,7 +64,7 @@ export const FoodConfirmToolUI: ToolCallMessagePartComponent<
   const disabled = !isLast || isRunning;
 
   const send = (text: string) => {
-    threadRuntime.append({
+    aui.thread.append({
       role: 'user',
       content: [{ type: 'text', text }],
     });

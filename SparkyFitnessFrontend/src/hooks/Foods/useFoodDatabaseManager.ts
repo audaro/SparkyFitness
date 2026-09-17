@@ -8,7 +8,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from '@/hooks/use-toast';
 import { info } from '@/utils/logging';
 import { useMealTypes } from '@/hooks/Diary/useMealTypes';
+import type { FoodDeleteMode } from '@/types/food';
 import {
+  clockInZone,
   defaultMealTypeForTime,
   todayInZone,
   userHourMinute,
@@ -216,7 +218,7 @@ export function useFoodDatabaseManager() {
       nowTime
     );
     const resolvedMealType = selectedMealType || defaultMeal;
-    const defaultEntryTime = `${String(nowTime.hour).padStart(2, '0')}:${String(nowTime.minute).padStart(2, '0')}`;
+    const defaultEntryTime = clockInZone(timezone);
     const entryTime =
       selectedEntryTime !== undefined ? selectedEntryTime : defaultEntryTime;
     const today = todayInZone(timezone);
@@ -245,10 +247,10 @@ export function useFoodDatabaseManager() {
     setPendingDeletion({ food, impact });
   };
 
-  const handleConfirmDelete = async (force: boolean = false) => {
+  const handleConfirmDelete = async (mode: FoodDeleteMode = 'delete') => {
     if (!pendingDeletion || !activeUserId) return;
-    info(loggingLevel, `confirmDelete called with force: ${force}`);
-    await deleteFood({ foodId: pendingDeletion.food.id, force });
+    info(loggingLevel, `confirmDelete called with mode: ${mode}`);
+    await deleteFood({ foodId: pendingDeletion.food.id, mode });
     setPendingDeletion(null);
   };
 

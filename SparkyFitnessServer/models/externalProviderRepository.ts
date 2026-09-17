@@ -1,12 +1,16 @@
 import { getClient, getSystemClient } from '../db/poolManager.js';
 import { encrypt, decrypt, ENCRYPTION_KEY } from '../security/encryption.js';
 import { log } from '../config/logging.js';
-async function getExternalDataProviders(userId: string) {
-  const client = await getClient(userId); // User-specific operation
+async function getExternalDataProviders(
+  targetUserId: string,
+  authenticatedUserId?: string
+) {
+  const client = await getClient(targetUserId, authenticatedUserId ?? null);
   try {
     const result = await client.query(
       `SELECT edp.id, edp.user_id, edp.provider_name, edp.provider_type, edp.is_active, edp.base_url, 
-              edp.is_public, edp.encrypted_access_token, edp.sync_frequency, edp.sort_order,
+              edp.is_public,
+              edp.encrypted_access_token, edp.sync_frequency, edp.sort_order,
               edp.encrypted_app_id, edp.app_id_iv, edp.app_id_tag,
               edp.encrypted_app_key, edp.app_key_iv, edp.app_key_tag,
               ept.is_strictly_private, ept.categories, ept.required_fields, ept.field_labels, ept.supports_barcode
@@ -16,7 +20,7 @@ async function getExternalDataProviders(userId: string) {
           OR (edp.is_public = TRUE AND edp.is_active = TRUE)
           OR (edp.is_public = FALSE AND edp.is_active = TRUE AND public.has_family_access(edp.user_id, 'share_external_providers') AND ept.is_strictly_private = FALSE)
        ORDER BY edp.sort_order ASC NULLS LAST, edp.created_at DESC`,
-      [userId]
+      [targetUserId]
     );
     // log('debug', `getExternalDataProviders: Raw query results for user ${userId}:`, result.rows);
     const providers = await Promise.all(
@@ -67,8 +71,9 @@ async function getExternalDataProvidersByUserId(
   viewerUserId: string,
   targetUserId: string
 ) {
-  // Use a user-scoped client so RLS policies (based on app.user_id) are applied for the viewer
-  const client = await getClient(viewerUserId);
+  // Keep the requested data owner in app.user_id while RLS evaluates sharing
+  // against the actual logged-in actor in app.authenticated_user_id.
+  const client = await getClient(targetUserId, viewerUserId);
   try {
     const result = await client.query(
       `SELECT
@@ -167,11 +172,6 @@ async function getExternalDataProvidersByUserId(
 async function createExternalDataProvider(providerData: any) {
   const client = await getClient(providerData.user_id); // User-specific operation
   try {
-    log(
-      'debug',
-      'createExternalDataProvider: Received providerData:',
-      providerData
-    );
     const {
       provider_name,
       provider_type,
@@ -212,7 +212,10 @@ async function createExternalDataProvider(providerData: any) {
         token_expires_at, external_user_id,
         encrypted_garth_dump, garth_dump_iv, garth_dump_tag,
         sync_frequency, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, now(), now()) RETURNING id`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, now(), now())
+      RETURNING id, provider_name, provider_type, user_id, is_active,
+                base_url, is_public, sync_frequency, sort_order,
+                token_expires_at, external_user_id, created_at, updated_at`,
       [
         provider_name,
         provider_type,
@@ -311,7 +314,9 @@ async function updateExternalDataProvider(
         sort_order = COALESCE($21, sort_order),
         updated_at = now()
       WHERE id = $17 AND user_id = $22
-      RETURNING *`,
+      RETURNING id, provider_name, provider_type, user_id, is_active,
+                base_url, is_public, sync_frequency, sort_order,
+                token_expires_at, external_user_id, created_at, updated_at`,
       [
         updateData.provider_name,
         updateData.provider_type,
@@ -718,7 +723,8 @@ async function getGlobalExternalDataProviders() {
   try {
     const result = await client.query<GlobalProviderRow>(
       `SELECT edp.id, edp.provider_name, edp.provider_type, edp.is_active, edp.base_url,
-              edp.is_public, edp.sync_frequency, edp.sort_order,
+              edp.is_public,
+              edp.sync_frequency, edp.sort_order,
               edp.encrypted_app_id, edp.app_id_iv, edp.app_id_tag,
               edp.encrypted_app_key, edp.app_key_iv, edp.app_key_tag,
               ept.is_strictly_private, ept.categories, ept.required_fields, ept.field_labels, ept.supports_barcode
@@ -813,7 +819,10 @@ async function createGlobalExternalDataProvider(
         encrypted_app_id, app_id_iv, app_id_tag,
         encrypted_app_key, app_key_iv, app_key_tag,
         sync_frequency, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7, $8, $9, $10, $11, $12, now(), now()) RETURNING id`,
+      ) VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7, $8, $9, $10, $11, $12, now(), now())
+      RETURNING id, provider_name, provider_type, user_id, is_active,
+                base_url, is_public, sync_frequency, sort_order,
+                created_at, updated_at`,
       [
         providerData.provider_name,
         providerData.provider_type,
@@ -881,7 +890,9 @@ async function updateGlobalExternalDataProvider(
         sync_frequency = COALESCE($13, sync_frequency),
         updated_at = now()
       WHERE id = $14 AND is_public = TRUE
-      RETURNING *`,
+      RETURNING id, provider_name, provider_type, user_id, is_active,
+                base_url, is_public, sync_frequency, sort_order,
+                created_at, updated_at`,
       [
         updateData.provider_name,
         updateData.provider_type,

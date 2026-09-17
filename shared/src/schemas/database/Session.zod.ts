@@ -17,6 +17,7 @@ export const sessionSchema = z.object({
   updated_at: z.date(),
   ip_address: z.string().nullable(),
   user_agent: z.string().nullable(),
+  impersonated_by: z.string().nullable(),
   user_id: userIdSchema,
 });
 
@@ -28,6 +29,7 @@ export const sessionInitializerSchema = z.object({
   updated_at: z.date().optional(),
   ip_address: z.string().optional().nullable(),
   user_agent: z.string().optional().nullable(),
+  impersonated_by: z.string().optional().nullable(),
   user_id: userIdSchema,
 });
 
@@ -39,6 +41,7 @@ export const sessionMutatorSchema = z.object({
   updated_at: z.date().optional(),
   ip_address: z.string().optional().nullable(),
   user_agent: z.string().optional().nullable(),
+  impersonated_by: z.string().optional().nullable(),
   user_id: userIdSchema.optional(),
 });
 

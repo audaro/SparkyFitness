@@ -1,7 +1,6 @@
 import {
-  useMessage,
-  useThread,
-  useThreadRuntime,
+  useAui,
+  useAuiState,
   type ToolCallMessagePartComponent,
 } from '@assistant-ui/react';
 import { MIN_ASK_USER_OPTIONS, type AskUserInput } from '@workspace/shared';
@@ -22,9 +21,9 @@ import { cn } from '@/lib/utils';
 export const AskUserToolUI: ToolCallMessagePartComponent<AskUserInput> = ({
   args,
 }) => {
-  const threadRuntime = useThreadRuntime();
-  const isLast = useMessage((m) => m.isLast);
-  const isRunning = useThread((t) => t.isRunning);
+  const aui = useAui();
+  const isLast = useAuiState((s) => s.message.isLast);
+  const isRunning = useAuiState((s) => s.thread.isRunning);
 
   // The tool input streams in as partial JSON, so `options` is briefly absent
   // or half-built. Rendering it early flashes a one-item or empty chip row.
@@ -36,7 +35,7 @@ export const AskUserToolUI: ToolCallMessagePartComponent<AskUserInput> = ({
   const disabled = !isLast || isRunning;
 
   const send = (option: string) => {
-    threadRuntime.append({
+    aui.thread.append({
       role: 'user',
       content: [{ type: 'text', text: option }],
     });

@@ -6,6 +6,7 @@ import goalService from '../../services/goalService.js';
 import goalPresetService from '../../services/goalPresetService.js';
 import weeklyGoalPlanService from '../../services/weeklyGoalPlanService.js';
 import goalRepository from '../../models/goalRepository.js';
+import nutrientGoalPreferenceService from '../../services/nutrientGoalPreferenceService.js';
 import { ERRORS, formatZodError } from './errors.js';
 import {
   DAY_NAMES,
@@ -256,6 +257,8 @@ const GOAL_SNAPSHOT_FIELDS = [
   'vitamin_c',
   'calcium',
   'iron',
+  'caffeine_mg',
+  'alcohol_g',
 ] as const;
 
 // Adjusted goals come from the goal-mode calculation and can carry float noise
@@ -279,7 +282,7 @@ This tool takes a FLAT object with an "action" field. Do NOT nest fields under t
 
 Actions:
 - action: 'get_goals' (fields: target_date?) — returns the goals active on a specific date
-- action: 'set_goals' (fields: start_date, calories?, protein?, carbs?, fat?, water_goal_ml?, weight?) — sets new goals from a start date
+- action: 'set_goals' (fields: start_date, calories?, protein?, carbs?, fat?, water_goal_ml?, weight?, caffeine_mg?, alcohol_g?, ...) — sets new goals from a start date
 - action: 'get_goal_presets' — lists saved goal presets with their targets
 - action: 'create_goal_preset' (fields: preset_name, calories?, protein?, carbs?, fat?, water_goal_ml?, protein_percentage?/carbs_percentage?/fat_percentage? as a full set, other nutrients?) — saves a reusable named goal preset
 - action: 'update_goal_preset' (fields: preset_id?|preset_name?, new_name?, any goal fields) — only provided fields change
@@ -326,7 +329,9 @@ Actions:
               args.fat !== undefined ||
               args.water_goal_ml !== undefined ||
               args.weight !== undefined ||
-              args.start_date !== undefined
+              args.start_date !== undefined ||
+              args.caffeine_mg !== undefined ||
+              args.alcohol_g !== undefined
             ) {
               return 'set_goals';
             }
@@ -409,6 +414,8 @@ Actions:
                 'carbs',
                 'fat',
                 'water_goal_ml',
+                'caffeine_mg',
+                'alcohol_g',
               ] as const;
               for (const field of DISPLAY_FIELDS) {
                 if (goals[field] !== null && goals[field] !== undefined) {
@@ -434,6 +441,14 @@ Actions:
                     case 'fat':
                       label = 'Fat';
                       unit = 'g';
+                      break;
+                    case 'caffeine_mg':
+                      label = 'Caffeine';
+                      unit = ' mg';
+                      break;
+                    case 'alcohol_g':
+                      label = 'Alcohol';
+                      unit = ' g';
                       break;
                     default:
                       label = field;
@@ -495,6 +510,8 @@ Actions:
                 p_vitamin_c: args.vitamin_c ?? existingGoals.vitamin_c,
                 p_calcium: args.calcium ?? existingGoals.calcium,
                 p_iron: args.iron ?? existingGoals.iron,
+                p_caffeine_mg: args.caffeine_mg ?? existingGoals.caffeine_mg,
+                p_alcohol_g: args.alcohol_g ?? existingGoals.alcohol_g,
                 // Preserve custom nutrients if not provided
                 custom_nutrients:
                   args.custom_nutrients ?? existingGoals.custom_nutrients,
@@ -881,18 +898,22 @@ Actions:
         try {
           // adjust=true so the snapshot matches the goal-mode-calculated goal
           // shown on the Diary tab, consistent with the get_goals action above.
-          const goals = (await goalService.getUserGoals(
-            userId,
-            parsed.data.target_date || todayInZone(tz),
-            undefined,
-            true
-          )) as Record<string, unknown>;
+          const [goals, effectiveGoalTypes] = await Promise.all([
+            goalService.getUserGoals(
+              userId,
+              parsed.data.target_date || todayInZone(tz),
+              undefined,
+              true
+            ) as Promise<Record<string, unknown>>,
+            nutrientGoalPreferenceService.getEffectiveGoalTypes(userId),
+          ]);
           const data: Record<string, unknown> = {};
           for (const field of GOAL_SNAPSHOT_FIELDS) {
             if (field in goals) {
               data[field] = roundGoalValue(goals[field]);
             }
           }
+          data['goal_directions'] = effectiveGoalTypes;
           return formatJsonResult(data);
         } catch (error) {
           log('error', '[Goal Tool] sparky_get_goal_snapshot error:', error);

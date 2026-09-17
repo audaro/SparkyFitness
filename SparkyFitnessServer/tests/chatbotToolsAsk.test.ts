@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ASK_USER_TOOL_NAME } from '@workspace/shared';
 import { buildAskTools } from '../ai/tools/askTools.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 
 const validInput = {
   mode: 'ask' as const,

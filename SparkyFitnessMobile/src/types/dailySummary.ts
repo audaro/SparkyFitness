@@ -16,20 +16,26 @@ export interface DailySummary {
   calorieGoal: number;
   caloriesConsumed: number;
   caloriesBurned: number;
-  activeCalories: number;        // From "Active Calories" exercises (watch/tracker)
+  activeCalories: number; // From "Active Calories" exercises (watch/tracker)
   otherExerciseCalories: number; // From all other exercises
-  netCalories: number;           // consumed - burned
-  remainingCalories: number;     // goal - net
+  netCalories: number; // consumed - burned
+  remainingCalories: number; // goal - net
   protein: MacroSummary;
   carbs: MacroSummary;
   fat: MacroSummary;
   fiber: MacroSummary;
-  stepCalories: number;        // Server-computed step calories using stride formula
+  stepCalories: number; // Server-computed step calories using stride formula
   exerciseMinutes: number;
   exerciseMinutesGoal: number;
   exerciseCaloriesGoal: number;
   waterConsumed: number;
   waterGoal: number;
+  /**
+   * The portion of `waterConsumed` folded in from logged food's water content
+   * (#1557, #1629) -- 0 when the user hasn't opted in to add_food_water_to_intake,
+   * or on a server that predates the breakdown.
+   */
+  waterFromFood: number;
   foodEntries: FoodEntry[];
   /**
    * The day's supplement contribution, already folded into the macro and calorie figures

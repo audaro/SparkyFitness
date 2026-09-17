@@ -6,6 +6,7 @@ import MealPercentageManager from '@/components/MealPercentageManager';
 import { Separator } from '@/components/ui/separator';
 
 import { NUTRIENT_CONFIG } from '@/constants/goals';
+import { NON_GOAL_NUTRIENT_KEYS } from '@workspace/shared';
 import { NutrientInput } from './NutrientInput';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { useTranslation } from 'react-i18next';
@@ -46,7 +47,14 @@ export const DailyGoals = ({
   visibleNutrients,
   today,
 }: DailyGoalsProps) => {
-  const { energyUnit, convertEnergy, getEnergyUnitString } = usePreferences();
+  const {
+    energyUnit,
+    convertEnergy,
+    getEnergyUnitString,
+    goalMode,
+    goalModeCalculationMethod,
+    saveAllPreferences,
+  } = usePreferences();
   const { t } = useTranslation();
   const { user } = useAuth();
   const { data: customNutrients } = useCustomNutrients();
@@ -135,6 +143,17 @@ export const DailyGoals = ({
       finalGoals.carbs_percentage = null;
       finalGoals.fat_percentage = null;
     }
+    if (goalModeCalculationMethod === 'adaptive' || goalMode !== 'maintain') {
+      try {
+        await saveAllPreferences({
+          goalMode: 'maintain',
+          goalModeCalculationMethod: 'manual',
+        });
+      } catch (err) {
+        console.error('Failed to reset goal mode to maintain', err);
+        return;
+      }
+    }
     await saveGoalsService({ date: today, goals: finalGoals, cascade: true });
   };
 
@@ -198,7 +217,7 @@ export const DailyGoals = ({
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Macros By</Label>
+              <Label>{t('goals.goalsSettings.macrosBy', 'Macros By')}</Label>
               <RadioGroup
                 value={macroInputType}
                 onValueChange={(v: 'grams' | 'percentages') =>
@@ -209,13 +228,13 @@ export const DailyGoals = ({
                 <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="grams" id="m-g" />
                   <Label htmlFor="m-g" className="text-xs cursor-pointer">
-                    Grams
+                    {t('goals.goalsSettings.grams', 'Grams')}
                   </Label>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="percentages" id="m-p" />
                   <Label htmlFor="m-p" className="text-xs cursor-pointer">
-                    Percentages
+                    {t('goals.goalsSettings.percentages', 'Percentages')}
                   </Label>
                 </div>
               </RadioGroup>
@@ -258,11 +277,14 @@ export const DailyGoals = ({
               <div
                 className={`text-sm font-medium text-right ${isMacroValid ? 'text-green-600' : 'text-destructive'}`}
               >
-                Total: {currentMacroTotal}% {!isMacroValid && '(Must be 100%)'}
+                {t('goals.mealDistribution.total', 'Total')}:{' '}
+                {currentMacroTotal}%{' '}
+                {!isMacroValid &&
+                  `(${t('goals.mealDistribution.mustBe100', 'Must be 100% to save')})`}
               </div>
               <div className="p-3 bg-muted/50 rounded-md text-xs text-muted-foreground grid grid-cols-3 gap-2">
                 <span>
-                  Protein:{' '}
+                  {t('goals.mealDistribution.protein', 'Protein:')}{' '}
                   {calculateGrams(
                     goals.calories,
                     goals.protein_percentage || 0,
@@ -272,7 +294,7 @@ export const DailyGoals = ({
                   g
                 </span>
                 <span>
-                  Carbs:{' '}
+                  {t('goals.mealDistribution.carbs', 'Carbs:')}{' '}
                   {calculateGrams(
                     goals.calories,
                     goals.carbs_percentage || 0,
@@ -282,7 +304,7 @@ export const DailyGoals = ({
                   g
                 </span>
                 <span>
-                  Fat:{' '}
+                  {t('goals.mealDistribution.fat', 'Fat:')}{' '}
                   {calculateGrams(
                     goals.calories,
                     goals.fat_percentage || 0,
@@ -314,7 +336,9 @@ export const DailyGoals = ({
               )
               .map((key) => {
                 // Validate standard or custom nutrient
-                const isStandard = NUTRIENT_CONFIG.some((n) => n.id === key);
+                const isStandard =
+                  NUTRIENT_CONFIG.some((n) => n.id === key) &&
+                  !(NON_GOAL_NUTRIENT_KEYS as readonly string[]).includes(key);
                 const isCustom = customNutrients?.some((cn) => cn.name === key);
 
                 if (!isStandard && !isCustom) return null;

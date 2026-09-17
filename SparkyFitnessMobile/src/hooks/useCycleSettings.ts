@@ -30,25 +30,42 @@ export function useCycleSettings() {
       await queryClient.cancelQueries({ queryKey: cycleSettingsQueryKey });
 
       // Snapshot previous value
-      const previousSettings = queryClient.getQueryData<SharedCycleSettings | null>(cycleSettingsQueryKey);
+      const previousSettings =
+        queryClient.getQueryData<SharedCycleSettings | null>(
+          cycleSettingsQueryKey
+        );
 
       // Optimistically update to new value immediately. An account that has
       // never written cycle settings has no row, so the server answers null and
       // there is nothing to spread: the first write — turning the feature on —
       // would otherwise leave the switch visibly off for a whole round trip.
       // Seeding from the unconfigured defaults gives that tap the same
-      // immediate response every later one gets.
+      // immediate response every later one gets. mark_onboarded and
+      // reset_onboarding are request-only flags, so they stay out of the
+      // cached settings object.
       const base = previousSettings ?? UNCONFIGURED_CYCLE_SETTINGS;
-      queryClient.setQueryData<SharedCycleSettings | null>(cycleSettingsQueryKey, {
+      const { mark_onboarded, reset_onboarding, ...settingsPatch } = newVars;
+      const optimistic: SharedCycleSettings = {
         ...base,
-        ...newVars,
-        onboarded_at: newVars.mark_onboarded ? new Date().toISOString() : base.onboarded_at,
-      });
+        ...settingsPatch,
+        onboarded_at: mark_onboarded
+          ? new Date().toISOString()
+          : reset_onboarding
+            ? null
+            : base.onboarded_at,
+      };
+      queryClient.setQueryData<SharedCycleSettings | null>(
+        cycleSettingsQueryKey,
+        optimistic
+      );
 
       return { previousSettings: previousSettings ?? null };
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<SharedCycleSettings | null>(cycleSettingsQueryKey, data);
+      queryClient.setQueryData<SharedCycleSettings | null>(
+        cycleSettingsQueryKey,
+        data
+      );
     },
     onError: (error, _variables, context) => {
       // Roll back to previous settings on error. `context` is checked rather
@@ -57,13 +74,20 @@ export function useCycleSettings() {
       // snapshot for truthiness would leave a failed first write showing the
       // feature as on.
       if (context) {
-        queryClient.setQueryData<SharedCycleSettings | null>(cycleSettingsQueryKey, context.previousSettings);
+        queryClient.setQueryData<SharedCycleSettings | null>(
+          cycleSettingsQueryKey,
+          context.previousSettings
+        );
       }
       addLog(`Failed to update cycle settings: ${error}`, 'ERROR');
       Toast.show({
         type: 'error',
-        text1: t('cycleSettings.updateFailed', { defaultValue: 'Update failed' }),
-        text2: t('cycleSettings.saveFailed', { defaultValue: 'Could not save cycle settings. Please try again.' }),
+        text1: t('cycleSettings.updateFailed', {
+          defaultValue: 'Update failed',
+        }),
+        text2: t('cycleSettings.saveFailed', {
+          defaultValue: 'Could not save cycle settings. Please try again.',
+        }),
       });
     },
   });

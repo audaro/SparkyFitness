@@ -8,28 +8,15 @@
     // the program. Naming `types` at all switches off automatic @types
     // inclusion, which is why react is listed alongside it; the frontend
     // tsconfig pins its test types the same way.
-    "types": [
-      "jest",
-      "react"
-    ],
+    "types": ["jest", "react"],
     "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@workspace/shared": [
-        "../shared/src/index.ts"
-      ]
+      "@/*": ["./*"],
+      "@workspace/shared": ["../shared/src/index.ts"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx"
-  ],
-  "exclude": [
-    "plugins",
-    "drivers",
-    "reports",
-    "plans",
-    "devdocs"
-  ]
+  // `__tests__` is deliberately NOT excluded: upstream excludes it, this fork
+  // type-checks the suite. Re-excluding it silently drops ~770 files from the
+  // program, which is how they rotted the first time.
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["plugins", "drivers", "reports", "plans", "devdocs"]
 }

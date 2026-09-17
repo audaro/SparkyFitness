@@ -8,11 +8,19 @@ const append = jest.fn();
 const state = { isLast: true, isRunning: false };
 
 jest.mock('@assistant-ui/react', () => ({
-  useThreadRuntime: () => ({ append: (...args: unknown[]) => append(...args) }),
-  useMessage: (selector: (m: { isLast: boolean }) => unknown) =>
-    selector({ isLast: state.isLast }),
-  useThread: (selector: (t: { isRunning: boolean }) => unknown) =>
-    selector({ isRunning: state.isRunning }),
+  useAui: () => ({
+    thread: { append: (...args: unknown[]) => append(...args) },
+  }),
+  useAuiState: (
+    selector: (s: {
+      message: { isLast: boolean };
+      thread: { isRunning: boolean };
+    }) => unknown
+  ) =>
+    selector({
+      message: { isLast: state.isLast },
+      thread: { isRunning: state.isRunning },
+    }),
 }));
 
 jest.mock('react-i18next', () => ({

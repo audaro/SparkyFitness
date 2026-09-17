@@ -18,11 +18,22 @@ import Icon from '../components/Icon';
 import SafeImage from '../components/SafeImage';
 import SegmentedControl, { type Segment } from '../components/SegmentedControl';
 import ExerciseHistoryList from '../components/ExerciseHistoryList';
+import ActionSheet, {
+  type ActionSheetItem,
+  type ActionSheetRef,
+} from '../components/ActionSheet';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
-import { fetchExerciseById } from '../services/api/exerciseApi';
+import {
+  fetchExerciseById,
+  getExerciseDeletionImpact,
+} from '../services/api/exerciseApi';
 import { importExercise } from '../services/api/externalExerciseSearchApi';
 import { getApiErrorMessage } from '../services/api/errors';
-import { exerciseDetailQueryKey, suggestedExercisesQueryKey } from '../hooks/queryKeys';
+import {
+  exerciseDeletionImpactQueryKey,
+  exerciseDetailQueryKey,
+  suggestedExercisesQueryKey,
+} from '../hooks/queryKeys';
 import {
   useExerciseImageSource,
   useImagePairAspectMatch,
@@ -96,17 +107,26 @@ const StatTile: React.FC<{ label: string; value: string; sub?: string }> = ({
 }) => (
   <View className="bg-surface rounded-xl p-3 flex-1">
     <Text className="text-text-secondary text-xs">{label}</Text>
-    <Text className="text-text-primary text-base font-semibold mt-1" numberOfLines={1}>
+    <Text
+      className="text-text-primary text-base font-semibold mt-1"
+      numberOfLines={1}
+    >
       {value}
     </Text>
     {sub ? <Text className="text-text-muted text-xs mt-0.5">{sub}</Text> : null}
   </View>
 );
 
-const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation, route }) => {
-  const { t , i18n: translationI18n } = useTranslation();
-  const dateLocale = translationI18n.language.startsWith('pl') ? 'pl-PL' : 'en-US';
-  const { item, updatedItem, hideWorkoutActions, selectionReturnKey } = route.params;
+const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
+  navigation,
+  route,
+}) => {
+  const { t, i18n: translationI18n } = useTranslation();
+  const dateLocale = translationI18n.language.startsWith('pl')
+    ? 'pl-PL'
+    : 'en-US';
+  const { item, updatedItem, hideWorkoutActions, selectionReturnKey } =
+    route.params;
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const usesNativeHeader = useNativeIOSHeadersActive();
@@ -133,7 +153,8 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
 
   const { preferences } = usePreferences();
   const weightUnit = normalizeWeightUnit(preferences?.default_weight_unit);
-  const distanceUnit = (preferences?.default_distance_unit as 'km' | 'miles') ?? 'km';
+  const distanceUnit =
+    (preferences?.default_distance_unit as 'km' | 'miles') ?? 'km';
   // Same UUID guard as hydration: the stats and history routes 400 on non-UUID
   // ids (e.g. external-provider exercises), so those get no History tab.
   const historyAvailable = isConnected && UUID_REGEX.test(item.id);
@@ -148,7 +169,8 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
   );
 
   const isPublic = !!exercise.sharedWithPublic;
-  const { updateExerciseAsync, isPending: isSharePending } = useUpdateExercise();
+  const { updateExerciseAsync, isPending: isSharePending } =
+    useUpdateExercise();
 
   const handleToggleShare = useCallback(async () => {
     const nextIsPublic = !isPublic;
@@ -161,7 +183,13 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
         navigation.setParams({ updatedItem: updated });
         Toast.show({
           type: 'success',
-          text1: updated.sharedWithPublic ? t('exerciseDetail.sharedPublicly', { defaultValue: 'Exercise shared publicly' }) : t('exerciseDetail.madePrivate', { defaultValue: 'Exercise made private' }),
+          text1: updated.sharedWithPublic
+            ? t('exerciseDetail.sharedPublicly', {
+                defaultValue: 'Exercise shared publicly',
+              })
+            : t('exerciseDetail.madePrivate', {
+                defaultValue: 'Exercise made private',
+              }),
         });
       } catch {
         // useUpdateExercise hook already shows error Toast on failure
@@ -171,11 +199,19 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
     if (nextIsPublic) {
       Alert.alert(
         t('exerciseDetail.makePublicTitle', { defaultValue: 'Make public?' }),
-        t('exerciseDetail.makePublicMessage', { defaultValue: 'This exercise will become visible to all users on this server.' }),
+        t('exerciseDetail.makePublicMessage', {
+          defaultValue:
+            'This exercise will become visible to all users on this server.',
+        }),
         [
-          { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
           {
-            text: t('exerciseDetail.makePublic', { defaultValue: 'Make Public' }),
+            text: t('common.cancel', { defaultValue: 'Cancel' }),
+            style: 'cancel',
+          },
+          {
+            text: t('exerciseDetail.makePublic', {
+              defaultValue: 'Make Public',
+            }),
             onPress: () => void runUpdate(),
           },
         ]
@@ -185,13 +221,47 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
     }
   }, [exercise.id, isPublic, updateExerciseAsync, navigation, t]);
 
-  const { confirmAndDelete, isPending: isDeletePending } = useDeleteExerciseLibrary({
-    exerciseId: exercise.id,
-    onSuccess: () => {
-      Toast.show({ type: 'success', text1: t('exerciseDetail.deleted', { defaultValue: 'Exercise deleted' }) });
-      navigation.goBack();
-    },
+  const { buildDeleteOptions, isPending: isDeletePending } =
+    useDeleteExerciseLibrary({
+      exerciseId: exercise.id,
+      onSuccess: (result) => {
+        if (result?.status !== 'hidden') {
+          Toast.show({
+            type: 'success',
+            text1: t('exerciseDetail.deleted', {
+              defaultValue: 'Exercise deleted',
+            }),
+          });
+        }
+        navigation.goBack();
+      },
+    });
+
+  // Prefetched rather than fetched on tap: ActionSheet owners must have the
+  // items ready before present(), and this decides which options exist at all.
+  // Until it resolves, buildDeleteOptions offers Hide only — assuming nobody
+  // else uses the exercise is the one guess that could damage another person's
+  // presets and plans.
+  const { data: deletionImpact } = useQuery({
+    queryKey: exerciseDeletionImpactQueryKey(exercise.id),
+    queryFn: () => getExerciseDeletionImpact(exercise.id),
+    enabled: canManageExercise && UUID_REGEX.test(exercise.id),
   });
+
+  const deleteSheetRef = useRef<ActionSheetRef>(null);
+  const deleteSheetItems = useMemo<ActionSheetItem[]>(
+    () =>
+      buildDeleteOptions(deletionImpact ?? null).map((option) => ({
+        key: option.mode,
+        label: `${option.label}\n${option.description}`,
+        destructive: option.destructive,
+        onPress: option.onSelect,
+      })),
+    [buildDeleteOptions, deletionImpact]
+  );
+  const handlePressDelete = useCallback(() => {
+    deleteSheetRef.current?.present();
+  }, []);
 
   const { startLiveWorkout, isStarting } = useStartLiveWorkout(navigation);
   const handleStartWorkout = () => {
@@ -203,8 +273,9 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
   const imageSources = useMemo(() => {
     return (exercise.images ?? [])
       .map((path) => (path ? getImageSource(path) : null))
-      .filter((source): source is { uri: string; headers: Record<string, string> } =>
-        source !== null,
+      .filter(
+        (source): source is { uri: string; headers: Record<string, string> } =>
+          source !== null
       );
   }, [exercise.images, getImageSource]);
 
@@ -236,13 +307,21 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
   const primaryMusclesText = formatList(exercise.primary_muscles ?? []);
   const secondaryMusclesText = formatList(exercise.secondary_muscles ?? []);
   const description = exercise.description?.trim() ?? '';
-  const categoryText = localizeExerciseTaxonomyValue(t, 'category', exercise.category);
+  const categoryText = localizeExerciseTaxonomyValue(
+    t,
+    'category',
+    exercise.category
+  );
   const levelText = localizeExerciseTaxonomyValue(t, 'level', exercise.level);
   const forceText = localizeExerciseTaxonomyValue(t, 'force', exercise.force);
-  const mechanicText = localizeExerciseTaxonomyValue(t, 'mechanic', exercise.mechanic);
+  const mechanicText = localizeExerciseTaxonomyValue(
+    t,
+    'mechanic',
+    exercise.mechanic
+  );
   const sourceText = exercise.source ?? '';
   const hasDetails = Boolean(
-    categoryText || levelText || forceText || mechanicText || sourceText,
+    categoryText || levelText || forceText || mechanicText || sourceText
   );
   const instructionSteps = cleanSteps(exercise.instructions);
 
@@ -267,9 +346,22 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
     description.length > 0;
 
   const segments = useMemo(() => {
-    const tabs: Segment<TabKey>[] = [{ key: 'summary', label: t('exerciseDetail.summary', { defaultValue: 'Summary' }) }];
-    if (historyAvailable) tabs.push({ key: 'history', label: t('exerciseDetail.history', { defaultValue: 'History' }) });
-    if (hasHowToContent) tabs.push({ key: 'how-to', label: t('exerciseDetail.howTo', { defaultValue: 'How to' }) });
+    const tabs: Segment<TabKey>[] = [
+      {
+        key: 'summary',
+        label: t('exerciseDetail.summary', { defaultValue: 'Summary' }),
+      },
+    ];
+    if (historyAvailable)
+      tabs.push({
+        key: 'history',
+        label: t('exerciseDetail.history', { defaultValue: 'History' }),
+      });
+    if (hasHowToContent)
+      tabs.push({
+        key: 'how-to',
+        label: t('exerciseDetail.howTo', { defaultValue: 'How to' }),
+      });
     return tabs;
   }, [historyAvailable, hasHowToContent, t]);
 
@@ -281,7 +373,9 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
 
   const swipeGesture = useMemo(() => {
     const selectAdjacentTab = (offset: number) => {
-      const index = segments.findIndex((segment) => segment.key === resolvedTab);
+      const index = segments.findIndex(
+        (segment) => segment.key === resolvedTab
+      );
       const target = segments[index + offset];
       if (target) handleSelectTab(target.key);
     };
@@ -294,7 +388,7 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
       Gesture.Fling()
         .direction(Directions.LEFT)
         .onEnd(() => selectAdjacentTab(1))
-        .runOnJS(true),
+        .runOnJS(true)
     );
   }, [segments, resolvedTab, handleSelectTab]);
 
@@ -302,7 +396,7 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
     (e: { nativeEvent: { position: number } }) => {
       setActiveImageIndex(e.nativeEvent.position);
     },
-    [],
+    []
   );
 
   const descriptionIsLong = description.length > DESCRIPTION_PREVIEW_THRESHOLD;
@@ -310,7 +404,10 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
   const imageFallback = (
     <View className="bg-raised items-center justify-center" style={{ flex: 1 }}>
       <Icon
-        name={(exercise.category && CATEGORY_ICON_MAP[exercise.category]) || 'exercise-weights'}
+        name={
+          (exercise.category && CATEGORY_ICON_MAP[exercise.category]) ||
+          'exercise-weights'
+        }
         size={48}
         color={textMuted}
       />
@@ -332,18 +429,24 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
     ) : imageSources.length === 1 ? (
       <View
         className={`${
-          sourceMayHaveTransparency(imageSources[0].uri) ? 'bg-white' : 'bg-surface'
+          sourceMayHaveTransparency(imageSources[0].uri)
+            ? 'bg-white'
+            : 'bg-surface'
         } rounded-xl overflow-hidden`}
       >
         <SafeImage
           source={imageSources[0]}
           style={{ width: '100%', aspectRatio: IMAGE_ASPECT_RATIO }}
-          contentFit={sourceMayHaveTransparency(imageSources[0].uri) ? 'contain' : 'cover'}
+          contentFit={
+            sourceMayHaveTransparency(imageSources[0].uri) ? 'contain' : 'cover'
+          }
           fallback={imageFallback}
           autoplay={!reducedMotion}
         />
       </View>
-    ) : imageSources.length === 2 && !reducedMotion && pairAspectMatch !== false ? (
+    ) : imageSources.length === 2 &&
+      !reducedMotion &&
+      pairAspectMatch !== false ? (
       <View
         className="bg-surface rounded-xl overflow-hidden"
         style={{ width: '100%', aspectRatio: IMAGE_ASPECT_RATIO }}
@@ -367,12 +470,16 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
             {imageSources.map((source, index) => (
               <View
                 key={`${source.uri}-${index}`}
-                className={sourceMayHaveTransparency(source.uri) ? 'bg-white' : undefined}
+                className={
+                  sourceMayHaveTransparency(source.uri) ? 'bg-white' : undefined
+                }
               >
                 <SafeImage
                   source={source}
                   style={{ width: '100%', height: '100%' }}
-                  contentFit={sourceMayHaveTransparency(source.uri) ? 'contain' : 'cover'}
+                  contentFit={
+                    sourceMayHaveTransparency(source.uri) ? 'contain' : 'cover'
+                  }
                   fallback={imageFallback}
                   autoplay={!reducedMotion}
                 />
@@ -433,7 +540,9 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
       } catch (error) {
         Toast.show({
           type: 'error',
-          text1: t('exerciseDetail.addFailed', { defaultValue: 'Failed to add exercise' }),
+          text1: t('exerciseDetail.addFailed', {
+            defaultValue: 'Failed to add exercise',
+          }),
           text2: getApiErrorMessage(error) ?? undefined,
         });
         selected = null;
@@ -472,8 +581,12 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
             disabled: isSharePending,
             onPress: handleToggleShare,
             accessibilityLabel: isPublic
-              ? t('exerciseDetail.makePrivate', { defaultValue: 'Make private' })
-              : t('exerciseDetail.shareWithPublic', { defaultValue: 'Share with public' }),
+              ? t('exerciseDetail.makePrivate', {
+                  defaultValue: 'Make private',
+                })
+              : t('exerciseDetail.shareWithPublic', {
+                  defaultValue: 'Share with public',
+                }),
             identifier: 'exercise-detail-share',
           } as const,
           {
@@ -481,7 +594,9 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
             label: t('common.edit', { defaultValue: 'Edit' }),
             role: 'secondary',
             onPress: handleEdit,
-            accessibilityLabel: t('exerciseDetail.editExercise', { defaultValue: 'Edit exercise' }),
+            accessibilityLabel: t('exerciseDetail.editExercise', {
+              defaultValue: 'Edit exercise',
+            }),
             identifier: 'exercise-detail-edit',
           } as const,
         ]
@@ -495,7 +610,9 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
             onPress: () => {
               void handleAdd();
             },
-            accessibilityLabel: t('exerciseDetail.addExercise', { defaultValue: 'Add exercise' }),
+            accessibilityLabel: t('exerciseDetail.addExercise', {
+              defaultValue: 'Add exercise',
+            }),
             identifier: 'exercise-detail-add',
           } as const,
         ]
@@ -512,7 +629,10 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
 
   return (
     <GestureDetector gesture={swipeGesture}>
-      <View className="flex-1 bg-background" style={usesNativeHeader ? undefined : { paddingTop: insets.top }}>
+      <View
+        className="flex-1 bg-background"
+        style={usesNativeHeader ? undefined : { paddingTop: insets.top }}
+      >
         {header}
 
         <ScrollView
@@ -547,7 +667,11 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
 
               {instructionSteps.length > 0 ? (
                 <View className="bg-surface rounded-xl p-4">
-                  <Text className="text-text-secondary text-sm mb-2">{t('exerciseDetail.instructions', { defaultValue: 'Instructions' })}</Text>
+                  <Text className="text-text-secondary text-sm mb-2">
+                    {t('exerciseDetail.instructions', {
+                      defaultValue: 'Instructions',
+                    })}
+                  </Text>
                   {instructionSteps.map((step, index) => (
                     <View
                       key={`${index}-${step.slice(0, 12)}`}
@@ -574,7 +698,11 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                   }
                   className="bg-surface rounded-xl p-4"
                 >
-                  <Text className="text-text-secondary text-sm">{t('exerciseDetail.description', { defaultValue: 'Description' })}</Text>
+                  <Text className="text-text-secondary text-sm">
+                    {t('exerciseDetail.description', {
+                      defaultValue: 'Description',
+                    })}
+                  </Text>
                   <Text
                     className="text-text-primary text-base mt-1 leading-6"
                     numberOfLines={
@@ -587,7 +715,11 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                   </Text>
                   {descriptionIsLong ? (
                     <Text className="text-accent-primary text-sm font-medium mt-2">
-                      {descriptionExpanded ? t('common.showLess', { defaultValue: 'Show less' }) : t('exerciseDetail.showMore', { defaultValue: 'Show more' })}
+                      {descriptionExpanded
+                        ? t('common.showLess', { defaultValue: 'Show less' })
+                        : t('exerciseDetail.showMore', {
+                            defaultValue: 'Show more',
+                          })}
                     </Text>
                   ) : null}
                 </TouchableOpacity>
@@ -601,7 +733,10 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                 <View className="flex-row gap-3">
                   {bestSet ? (
                     <StatTile
-                      label={t('exerciseDetail.best', { defaultValue: 'Best ({{unit}})', unit: weightUnit })}
+                      label={t('exerciseDetail.best', {
+                        defaultValue: 'Best ({{unit}})',
+                        unit: weightUnit,
+                      })}
                       value={formatRecentSessionSet(
                         {
                           setNumber: bestSet.setNumber,
@@ -611,14 +746,17 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                         },
                         weightUnit,
                         t,
-                        resolveSnapshotModality(exercise),
+                        resolveSnapshotModality(exercise)
                       )}
                       sub={formatDateLabel(bestSet.entryDate, t, dateLocale)}
                     />
                   ) : null}
                   {lastSet ? (
                     <StatTile
-                      label={t('exerciseDetail.last', { defaultValue: 'Last ({{unit}})', unit: weightUnit })}
+                      label={t('exerciseDetail.last', {
+                        defaultValue: 'Last ({{unit}})',
+                        unit: weightUnit,
+                      })}
                       value={formatRecentSessionSet(
                         {
                           setNumber: lastSet.setNumber,
@@ -628,13 +766,18 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                         },
                         weightUnit,
                         t,
-                        resolveSnapshotModality(exercise),
+                        resolveSnapshotModality(exercise)
                       )}
                       sub={formatDateLabel(lastSet.entryDate, t, dateLocale)}
                     />
                   ) : null}
                   {exercise.calories_per_hour > 0 ? (
-                    <StatTile label={t('exerciseDetail.caloriesPerHour', { defaultValue: 'Cal / hour' })} value={String(exercise.calories_per_hour)} />
+                    <StatTile
+                      label={t('exerciseDetail.caloriesPerHour', {
+                        defaultValue: 'Cal / hour',
+                      })}
+                      value={String(exercise.calories_per_hour)}
+                    />
                   ) : null}
                 </View>
               ) : null}
@@ -645,7 +788,11 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                 <View className="bg-surface rounded-xl p-4">
                   {equipmentText.length > 0 ? (
                     <View>
-                      <Text className="text-text-secondary text-sm">{t('exerciseDetail.equipment', { defaultValue: 'Equipment' })}</Text>
+                      <Text className="text-text-secondary text-sm">
+                        {t('exerciseDetail.equipment', {
+                          defaultValue: 'Equipment',
+                        })}
+                      </Text>
                       <Text className="text-text-primary text-base font-medium mt-1">
                         {equipmentText}
                       </Text>
@@ -653,7 +800,11 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                   ) : null}
                   {primaryMusclesText.length > 0 ? (
                     <View className={equipmentText.length > 0 ? 'mt-3' : ''}>
-                      <Text className="text-text-secondary text-sm">{t('exerciseDetail.primaryMuscles', { defaultValue: 'Primary muscles' })}</Text>
+                      <Text className="text-text-secondary text-sm">
+                        {t('exerciseDetail.primaryMuscles', {
+                          defaultValue: 'Primary muscles',
+                        })}
+                      </Text>
                       <Text className="text-text-primary text-base font-medium mt-1">
                         {primaryMusclesText}
                       </Text>
@@ -662,12 +813,17 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                   {secondaryMusclesText.length > 0 ? (
                     <View
                       className={
-                        equipmentText.length > 0 || primaryMusclesText.length > 0
+                        equipmentText.length > 0 ||
+                        primaryMusclesText.length > 0
                           ? 'mt-3'
                           : ''
                       }
                     >
-                      <Text className="text-text-secondary text-sm">{t('exerciseDetail.secondaryMuscles', { defaultValue: 'Secondary muscles' })}</Text>
+                      <Text className="text-text-secondary text-sm">
+                        {t('exerciseDetail.secondaryMuscles', {
+                          defaultValue: 'Secondary muscles',
+                        })}
+                      </Text>
                       <Text className="text-text-primary text-base font-medium mt-1">
                         {secondaryMusclesText}
                       </Text>
@@ -683,10 +839,14 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                 >
                   <View className="flex-row items-center justify-between">
                     <Text className="text-text-primary text-base font-semibold">
-                      {t('exerciseDetail.details', { defaultValue: 'Exercise details' })}
+                      {t('exerciseDetail.details', {
+                        defaultValue: 'Exercise details',
+                      })}
                     </Text>
                     <Icon
-                      name={detailsExpanded ? 'chevron-down' : 'chevron-forward'}
+                      name={
+                        detailsExpanded ? 'chevron-down' : 'chevron-forward'
+                      }
                       size={18}
                       color={textPrimary}
                     />
@@ -695,7 +855,11 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                     <View className="mt-3">
                       {categoryText ? (
                         <View>
-                          <Text className="text-text-secondary text-sm">{t('exerciseDetail.category', { defaultValue: 'Category' })}</Text>
+                          <Text className="text-text-secondary text-sm">
+                            {t('exerciseDetail.category', {
+                              defaultValue: 'Category',
+                            })}
+                          </Text>
                           <Text className="text-text-primary text-base font-medium mt-1">
                             {categoryText}
                           </Text>
@@ -703,15 +867,25 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                       ) : null}
                       {levelText ? (
                         <View className={categoryText ? 'mt-3' : ''}>
-                          <Text className="text-text-secondary text-sm">{t('exerciseDetail.level', { defaultValue: 'Level' })}</Text>
+                          <Text className="text-text-secondary text-sm">
+                            {t('exerciseDetail.level', {
+                              defaultValue: 'Level',
+                            })}
+                          </Text>
                           <Text className="text-text-primary text-base font-medium mt-1">
                             {levelText}
                           </Text>
                         </View>
                       ) : null}
                       {forceText ? (
-                        <View className={categoryText || levelText ? 'mt-3' : ''}>
-                          <Text className="text-text-secondary text-sm">{t('exerciseDetail.force', { defaultValue: 'Force' })}</Text>
+                        <View
+                          className={categoryText || levelText ? 'mt-3' : ''}
+                        >
+                          <Text className="text-text-secondary text-sm">
+                            {t('exerciseDetail.force', {
+                              defaultValue: 'Force',
+                            })}
+                          </Text>
                           <Text className="text-text-primary text-base font-medium mt-1">
                             {forceText}
                           </Text>
@@ -719,9 +893,15 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                       ) : null}
                       {mechanicText ? (
                         <View
-                          className={categoryText || levelText || forceText ? 'mt-3' : ''}
+                          className={
+                            categoryText || levelText || forceText ? 'mt-3' : ''
+                          }
                         >
-                          <Text className="text-text-secondary text-sm">{t('exerciseDetail.mechanic', { defaultValue: 'Mechanic' })}</Text>
+                          <Text className="text-text-secondary text-sm">
+                            {t('exerciseDetail.mechanic', {
+                              defaultValue: 'Mechanic',
+                            })}
+                          </Text>
                           <Text className="text-text-primary text-base font-medium mt-1">
                             {mechanicText}
                           </Text>
@@ -730,12 +910,19 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
                       {sourceText ? (
                         <View
                           className={
-                            categoryText || levelText || forceText || mechanicText
+                            categoryText ||
+                            levelText ||
+                            forceText ||
+                            mechanicText
                               ? 'mt-3'
                               : ''
                           }
                         >
-                          <Text className="text-text-secondary text-sm">{t('exerciseDetail.source', { defaultValue: 'Source' })}</Text>
+                          <Text className="text-text-secondary text-sm">
+                            {t('exerciseDetail.source', {
+                              defaultValue: 'Source',
+                            })}
+                          </Text>
                           <Text className="text-text-primary text-base font-medium mt-1">
                             {sourceText}
                           </Text>
@@ -747,15 +934,27 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
               ) : null}
               {!hideWorkoutActions && (
                 <>
-                  <Button variant="primary" onPress={handleStartWorkout} disabled={isStarting}>
+                  <Button
+                    variant="primary"
+                    onPress={handleStartWorkout}
+                    disabled={isStarting}
+                  >
                     <Text className="text-white text-base font-semibold">
-                      {isStarting ? t('exerciseDetail.starting', { defaultValue: 'Starting…' }) : t('exerciseDetail.startWorkout', { defaultValue: 'Start Workout' })}
+                      {isStarting
+                        ? t('exerciseDetail.starting', {
+                            defaultValue: 'Starting…',
+                          })
+                        : t('exerciseDetail.startWorkout', {
+                            defaultValue: 'Start Workout',
+                          })}
                     </Text>
                   </Button>
 
                   <Button variant="ghost" onPress={handleLog}>
                     <Text className="text-accent-primary text-base font-semibold">
-                      {t('exerciseDetail.logExercise', { defaultValue: 'Log Exercise' })}
+                      {t('exerciseDetail.logExercise', {
+                        defaultValue: 'Log Exercise',
+                      })}
                     </Text>
                   </Button>
                 </>
@@ -764,15 +963,29 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({ navigation,
               {canManageExercise && (
                 <Button
                   variant="destructive"
-                  onPress={confirmAndDelete}
+                  onPress={handlePressDelete}
                   disabled={isDeletePending}
                 >
-                  {isDeletePending ? t('exerciseDetail.deleting', { defaultValue: 'Deleting...' }) : t('exerciseDetail.deleteExercise', { defaultValue: 'Delete Exercise' })}
+                  {isDeletePending
+                    ? t('exerciseDetail.deleting', {
+                        defaultValue: 'Deleting...',
+                      })
+                    : t('exerciseDetail.deleteExercise', {
+                        defaultValue: 'Delete Exercise',
+                      })}
                 </Button>
               )}
             </>
           )}
         </ScrollView>
+
+        <ActionSheet
+          ref={deleteSheetRef}
+          title={t('exerciseDetail.deleteSheetTitle', {
+            defaultValue: 'Delete exercise',
+          })}
+          items={deleteSheetItems}
+        />
       </View>
     </GestureDetector>
   );

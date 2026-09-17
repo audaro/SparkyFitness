@@ -53,7 +53,9 @@ export const listLogs = async (
   });
 };
 
-export const getLog = async (date: string): Promise<SharedCycleDailyLog | null> => {
+export const getLog = async (
+  date: string
+): Promise<SharedCycleDailyLog | null> => {
   return apiFetch<SharedCycleDailyLog | null>({
     endpoint: `/api/v2/cycle/logs/${encodeURIComponent(date)}`,
     serviceName: 'Cycle API',
@@ -180,7 +182,9 @@ export const deleteTestEntry = async (id: string): Promise<void> => {
   });
 };
 
-export const getFertility = async (date?: string): Promise<FertilityDetails> => {
+export const getFertility = async (
+  date?: string
+): Promise<FertilityDetails> => {
   const queryParams = date ? `?date=${encodeURIComponent(date)}` : '';
   return apiFetch<FertilityDetails>({
     endpoint: `/api/v2/cycle/fertility${queryParams}`,
@@ -205,8 +209,11 @@ export const getExport = async (): Promise<Record<string, unknown>> => {
   });
 };
 
-export const upsertBbt = async (date: string, value: number | null): Promise<void> => {
-  const categories = await apiFetch<{ id: string; name: string }[]>( {
+export const upsertBbt = async (
+  date: string,
+  value: number | null
+): Promise<void> => {
+  const categories = await apiFetch<{ id: string; name: string }[]>({
     endpoint: '/api/measurements/custom-categories',
     serviceName: 'Measurements API',
     operation: 'list custom categories',
@@ -246,14 +253,18 @@ export const upsertBbt = async (date: string, value: number | null): Promise<voi
         serviceName: 'Measurements API',
         operation: 'list custom categories',
       });
-      const existing = refreshed.find((c) => c.name === 'basal_body_temperature');
+      const existing = refreshed.find(
+        (c) => c.name === 'basal_body_temperature'
+      );
       if (!existing) throw error;
       bbtCategory = existing;
     }
   }
 
   if (value === null) {
-    const entries = await apiFetch<{ id: string; category_id: string; entry_date: string }[]>( {
+    const entries = await apiFetch<
+      { id: string; category_id: string; entry_date: string }[]
+    >({
       endpoint: `/api/measurements/custom-entries/${date}`,
       serviceName: 'Measurements API',
       operation: 'list custom entries',

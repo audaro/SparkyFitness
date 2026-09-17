@@ -16,6 +16,14 @@ services:
       GUID: 1000
     volumes:
       - ${DB_PATH:-./postgresql}:/var/lib/postgresql
+    # The server applies migrations at startup, so it must not race Postgres
+    # while it is still initialising.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     # Uncomment the below section to mount the file-based secrets
     #secrets:
     #  - sparkyfitness_db_password
@@ -58,6 +66,7 @@ services:
       # --- Network & CORS ---
       ALLOW_PRIVATE_NETWORK_CORS: ${ALLOW_PRIVATE_NETWORK_CORS:-false}
       ALLOW_PRIVATE_NETWORK_AI: ${ALLOW_PRIVATE_NETWORK_AI:-false}
+      ALLOW_PRIVATE_NETWORK_FOOD_PROVIDERS: ${ALLOW_PRIVATE_NETWORK_FOOD_PROVIDERS:-false}
       SPARKY_FITNESS_EXTRA_TRUSTED_ORIGINS: ${SPARKY_FITNESS_EXTRA_TRUSTED_ORIGINS:-}
 
       # --- Email Settings (optional) ---
@@ -118,7 +127,10 @@ services:
       - sparkyfitness-network # Use the new named network
     restart: always
     depends_on:
-      - sparkyfitness-db # Backend depends on the database being available
+      sparkyfitness-db:
+        # Wait for Postgres to accept connections, not just for the container to
+        # exist -- startup migrations run before the server listens.
+        condition: service_healthy
     volumes:
       - ${SERVER_BACKUP_PATH:-./backup}:/app/SparkyFitnessServer/backup # Mount volume for backups
       - ${SERVER_UPLOADS_PATH:-./uploads}:/app/SparkyFitnessServer/uploads # Mount volume for Profile pictures and excercise images

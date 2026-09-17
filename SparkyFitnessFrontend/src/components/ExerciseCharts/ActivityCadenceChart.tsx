@@ -14,6 +14,7 @@ import ZoomableChart from '@/components/ZoomableChart';
 import { ChartDataPoint } from '@/types/reports';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { formatTimeWithPreference } from '@/utils/timeFormatters';
+import { axisLabelValue } from '@/utils/chartUtils';
 
 interface ActivityCadenceChartProps {
   data: ChartDataPoint[];
@@ -68,7 +69,7 @@ export const ActivityCadenceChart = ({
                       return `${Number(value).toFixed(2)}`;
                     if (xAxisMode === 'timeOfDay')
                       return formatTimeWithPreference(
-                        new Date(value),
+                        new Date(axisLabelValue(value)),
                         timeFormat
                       );
                     return String(value);
@@ -84,7 +85,7 @@ export const ActivityCadenceChart = ({
                   labelFormatter={(value) => {
                     if (xAxisMode === 'timeOfDay')
                       return formatTimeWithPreference(
-                        new Date(value),
+                        new Date(axisLabelValue(value)),
                         timeFormat
                       );
                     if (xAxisMode === 'activityDuration')

@@ -127,9 +127,13 @@ const mockUseExternalProviders = useExternalProviders as jest.MockedFunction<
   typeof useExternalProviders
 >;
 const mockUseExternalExerciseSearch =
-  useExternalExerciseSearch as jest.MockedFunction<typeof useExternalExerciseSearch>;
+  useExternalExerciseSearch as jest.MockedFunction<
+    typeof useExternalExerciseSearch
+  >;
 const mockUseNavigationActionGuard =
-  useNavigationActionGuard as jest.MockedFunction<typeof useNavigationActionGuard>;
+  useNavigationActionGuard as jest.MockedFunction<
+    typeof useNavigationActionGuard
+  >;
 const mockImportExercise = importExercise as jest.MockedFunction<
   typeof importExercise
 >;
@@ -190,9 +194,12 @@ const renderScreen = (extraParams: Record<string, unknown> = {}) => {
   return render(
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider initialMetrics={{ insets, frame }}>
-        <ExerciseSearchScreen navigation={mockNavigation} route={route as any} />
+        <ExerciseSearchScreen
+          navigation={mockNavigation}
+          route={route as any}
+        />
       </SafeAreaProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 };
 
@@ -204,7 +211,10 @@ describe('ExerciseSearchScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     __resetAppPreferencesStoreForTests();
-    mockUseProfile.mockReturnValue({ profile: { id: 'user-1' }, isLoading: false } as any);
+    mockUseProfile.mockReturnValue({
+      profile: { id: 'user-1' },
+      isLoading: false,
+    } as any);
     mockNavigation.isFocused.mockReturnValue(true);
     mockUseServerConnection.mockReturnValue({
       isConnected: true,
@@ -226,9 +236,7 @@ describe('ExerciseSearchScreen', () => {
       isSearchError: false,
     } as any);
     mockUseExternalProviders.mockReturnValue({
-      providers: [
-        { id: 'p1', provider_name: 'Wger', provider_type: 'wger' },
-      ],
+      providers: [{ id: 'p1', provider_name: 'Wger', provider_type: 'wger' }],
       isLoading: false,
       isError: false,
       refetch: jest.fn(),
@@ -268,12 +276,14 @@ describe('ExerciseSearchScreen', () => {
           type: 'SET_PARAMS',
           payload: expect.objectContaining({
             params: expect.objectContaining({
-              selectedExercise: expect.objectContaining({ id: localExercise.id }),
+              selectedExercise: expect.objectContaining({
+                id: localExercise.id,
+              }),
               selectionNonce: expect.any(Number),
             }),
           }),
           source: 'workout-form-key',
-        }),
+        })
       );
       expect(mockNavigation.goBack).toHaveBeenCalled();
     });
@@ -343,13 +353,17 @@ describe('ExerciseSearchScreen', () => {
 
       pressHeaderMenuAction(mockNavigation, 'Mine');
 
-      expect(useAppPreferencesStore.getState().exerciseSearchOwnershipFilter).toBe('mine');
+      expect(
+        useAppPreferencesStore.getState().exerciseSearchOwnershipFilter
+      ).toBe('mine');
       expect(screen.getByText('Bench Press')).toBeTruthy();
       expect(screen.queryByText('Community Squat')).toBeNull();
     });
 
     it('names the filter and offers Show All when it empties the suggestions', () => {
-      useAppPreferencesStore.setState({ exerciseSearchOwnershipFilter: 'public' });
+      useAppPreferencesStore.setState({
+        exerciseSearchOwnershipFilter: 'public',
+      });
 
       const screen = renderScreen();
 
@@ -357,7 +371,9 @@ describe('ExerciseSearchScreen', () => {
 
       fireEvent.press(screen.getByText('Show All'));
 
-      expect(useAppPreferencesStore.getState().exerciseSearchOwnershipFilter).toBe('all');
+      expect(
+        useAppPreferencesStore.getState().exerciseSearchOwnershipFilter
+      ).toBe('all');
       expect(screen.getByText('Bench Press')).toBeTruthy();
     });
   });
@@ -372,7 +388,11 @@ describe('ExerciseSearchScreen', () => {
     });
 
     it('imports and selects on row tap', async () => {
-      const imported = { ...localExercise, id: 'imported-uuid', name: 'Wger Squat' };
+      const imported = {
+        ...localExercise,
+        id: 'imported-uuid',
+        name: 'Wger Squat',
+      };
       mockImportExercise.mockResolvedValue(imported);
       const screen = renderScreen();
       openOnlineTab(screen);
@@ -385,12 +405,14 @@ describe('ExerciseSearchScreen', () => {
             type: 'SET_PARAMS',
             payload: expect.objectContaining({
               params: expect.objectContaining({
-                selectedExercise: expect.objectContaining({ id: 'imported-uuid' }),
+                selectedExercise: expect.objectContaining({
+                  id: 'imported-uuid',
+                }),
               }),
             }),
             source: 'workout-form-key',
-          }),
-        ),
+          })
+        )
       );
       expect(mockImportExercise).toHaveBeenCalledWith('wger', '123');
       expect(mockNavigation.goBack).toHaveBeenCalled();
@@ -426,7 +448,11 @@ describe('ExerciseSearchScreen', () => {
       fireEvent.press(screen.getAllByTestId('exercise-thumbnail')[0]);
 
       expect(mockNavigation.navigate).toHaveBeenCalledWith('ExerciseDetail', {
-        item: expect.objectContaining({ id: '123', name: 'Wger Squat', source: 'wger' }),
+        item: expect.objectContaining({
+          id: '123',
+          name: 'Wger Squat',
+          source: 'wger',
+        }),
         hideWorkoutActions: true,
         selectionReturnKey: 'workout-form-key',
       });
@@ -451,7 +477,10 @@ describe('ExerciseSearchScreen', () => {
     it('disables the info buttons while an import is in flight', async () => {
       let resolveImport!: (exercise: Exercise) => void;
       mockImportExercise.mockImplementation(
-        () => new Promise((resolve) => { resolveImport = resolve; }),
+        () =>
+          new Promise((resolve) => {
+            resolveImport = resolve;
+          })
       );
       const screen = renderScreen();
       openOnlineTab(screen);
@@ -469,7 +498,10 @@ describe('ExerciseSearchScreen', () => {
     it('imports only once on a rapid double tap', async () => {
       let resolveImport!: (exercise: Exercise) => void;
       mockImportExercise.mockImplementation(
-        () => new Promise((resolve) => { resolveImport = resolve; }),
+        () =>
+          new Promise((resolve) => {
+            resolveImport = resolve;
+          })
       );
       const screen = renderScreen();
       openOnlineTab(screen);
@@ -485,7 +517,10 @@ describe('ExerciseSearchScreen', () => {
     });
 
     it('does not select or go back when focus is lost during the import', async () => {
-      mockImportExercise.mockResolvedValue({ ...localExercise, id: 'imported-uuid' });
+      mockImportExercise.mockResolvedValue({
+        ...localExercise,
+        id: 'imported-uuid',
+      });
       mockNavigation.isFocused.mockReturnValue(false);
       const invalidateSpy = jest.fn();
       const screen = renderScreen();
@@ -512,13 +547,19 @@ describe('ExerciseSearchScreen', () => {
 
       await waitFor(() =>
         expect(Toast.show).toHaveBeenCalledWith(
-          expect.objectContaining({ type: 'error', text1: 'Failed to add exercise' }),
-        ),
+          expect.objectContaining({
+            type: 'error',
+            text1: 'Failed to add exercise',
+          })
+        )
       );
       expect(mockNavigation.goBack).not.toHaveBeenCalled();
 
       // The in-flight guard must clear on failure, so a retry can succeed.
-      mockImportExercise.mockResolvedValueOnce({ ...localExercise, id: 'imported-uuid' });
+      mockImportExercise.mockResolvedValueOnce({
+        ...localExercise,
+        id: 'imported-uuid',
+      });
       fireEvent.press(screen.getByText('Wger Squat'));
 
       await waitFor(() => expect(mockNavigation.goBack).toHaveBeenCalled());

@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useMealSearch } from '../../src/hooks/useMealSearch';
 import { mealSearchQueryKey } from '../../src/hooks/queryKeys';
 import { searchMeals } from '../../src/services/api/mealsApi';
@@ -19,6 +19,7 @@ function meal(id: string, name: string): Meal {
     user_id: 'user-1',
     name,
     description: null,
+    notes: null,
     is_public: false,
     serving_size: 1,
     serving_unit: 'serving',
@@ -90,6 +91,7 @@ describe('useMealSearch', () => {
     });
 
     test('fetches when search text changes to 2+ characters', async () => {
+      jest.useFakeTimers();
       mockSearchMeals.mockResolvedValue([]);
 
       const { rerender } = renderHook(
@@ -97,16 +99,17 @@ describe('useMealSearch', () => {
         {
           initialProps: { text: 'a' },
           wrapper: createQueryWrapper(queryClient),
-        },
+        }
       );
 
       expect(mockSearchMeals).not.toHaveBeenCalled();
 
       rerender({ text: 'ab' });
 
-      await waitFor(() => {
-        expect(mockSearchMeals).toHaveBeenCalledWith('ab');
-      });
+      act(() => jest.advanceTimersByTime(300));
+      await act(async () => {});
+
+      expect(mockSearchMeals).toHaveBeenCalledWith('ab');
     });
 
     test('returns search results from response', async () => {

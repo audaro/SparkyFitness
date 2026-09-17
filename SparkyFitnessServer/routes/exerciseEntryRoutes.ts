@@ -10,7 +10,12 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { createUploadMiddleware } from '../middleware/uploadMiddleware.js';
+import {
+  demoGuard,
+  demoUploadGuard,
+} from '../middleware/demoGuardMiddleware.js';
 import { canAccessUserData } from '../utils/permissionUtils.js';
+import { isValidUuid } from '../utils/uuidUtils.js';
 import { fileURLToPath } from 'url';
 import { isEntryTimeString } from '@workspace/shared';
 import { queryString } from '../utils/queryParams.js';
@@ -271,6 +276,7 @@ router.get('/by-date', authenticate, async (req, res, next) => {
 router.post(
   '/',
   authenticate,
+  demoUploadGuard,
   upload.single('image'),
   async (req, res, next) => {
     try {
@@ -699,6 +705,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 router.put(
   '/:id',
   authenticate,
+  demoUploadGuard,
   upload.single('image'),
   async (req, res, next) => {
     const { id } = req.params;
@@ -752,7 +759,7 @@ router.put(
     }
     const uuidRegex =
       /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-    if (!id || !uuidRegex.test(id)) {
+    if (!id || typeof id !== 'string' || !uuidRegex.test(id)) {
       return res.status(400).json({
         error: 'Exercise Entry ID is required and must be a valid UUID.',
       });
@@ -782,8 +789,7 @@ router.put(
       }
       if (
         // @ts-expect-error TS(2571): Object is of type 'unknown'.
-        error.message ===
-        'Exercise entry not found or not authorized to update.'
+        error.message.startsWith('Exercise entry not found')
       ) {
         // @ts-expect-error TS(2571): Object is of type 'unknown'.
         return res.status(404).json({ error: error.message });
@@ -839,7 +845,7 @@ router.put(
  *                   value:
  *                     type: number
  *       400:
- *         description: Exercise ID, start date, or end date is missing.
+ *         description: Exercise ID is missing or not a valid UUID, or start date/end date is missing.
  *       403:
  *         description: User does not have permission to access this resource.
  *       404:
@@ -853,6 +859,14 @@ router.get('/progress/:exerciseId', authenticate, async (req, res, next) => {
   const endDate = queryString(req.query.endDate);
   if (!exerciseId) {
     return res.status(400).json({ error: 'Exercise ID is required.' });
+  }
+  if (!isValidUuid(exerciseId)) {
+    // A caller can end up here with the literal path segment "null" — e.g. a
+    // client deriving its exercise list from exercise_entries, whose
+    // exercise_id is nullable by design for library-deleted exercises. Reject
+    // it as a normal 400 rather than letting an invalid-UUID error from the
+    // database surface as an unhandled 500.
+    return res.status(400).json({ error: 'Invalid exercise ID.' });
   }
   if (!startDate || !endDate) {
     return res.status(400).json({
@@ -930,7 +944,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     }
     if (
       // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      error.message === 'Exercise entry not found or not authorized to delete.'
+      error.message.startsWith('Exercise entry not found')
     ) {
       // @ts-expect-error TS(2571): Object is of type 'unknown'.
       return res.status(404).json({ error: error.message });
@@ -1120,10 +1134,12 @@ const fitUpload = multer({
  *                         type: string
  *       400:
  *         description: No files uploaded, or the upload exceeded size/count limits.
+ *       403:
+ *         description: Demo mode accounts cannot import FIT workout files.
  *       500:
  *         description: Failed to import FIT files.
  */
-router.post('/import-fit', authenticate, (req, res, next) => {
+router.post('/import-fit', authenticate, demoGuard, (req, res, next) => {
   fitUpload.array('files', 10)(req, res, async (uploadError: unknown) => {
     if (uploadError) {
       if (uploadError instanceof multer.MulterError) {

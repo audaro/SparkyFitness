@@ -13,7 +13,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import type { Food, FoodDeletionImpact } from '@/types/food';
+import type { Food, FoodDeletionImpact, FoodDeleteMode } from '@/types/food';
 
 export interface PendingDeletion {
   food: Food;
@@ -22,7 +22,7 @@ export interface PendingDeletion {
 
 interface DeleteFoodDialogProps {
   pendingDeletion: PendingDeletion | null;
-  onConfirm: (force: boolean) => void;
+  onConfirm: (mode: FoodDeleteMode) => void;
   onCancel: () => void;
   mealTypes?: { id: string; name: string }[];
 }
@@ -164,25 +164,54 @@ const DeleteFoodDialog: React.FC<DeleteFoodDialogProps> = ({
           )}
         </div>
 
-        <div className="flex justify-end space-x-2 mt-2">
+        {impact.otherUserReferences === 0 && (
+          <p className="text-sm text-muted-foreground">
+            {impact.mealPlanTemplateAssignmentsCount > 0 ||
+            impact.mealPlansCount > 0
+              ? t(
+                  'foodDatabaseManager.deleteMealPlanKeepsPastHistoryHint',
+                  'This food is used in your meal plans. Deleting it will remove future planned meals from your diary, while preserving your past logged history.'
+                )
+              : impact.foodEntriesCount > 0
+                ? t(
+                    'foodDatabaseManager.deleteKeepsDiaryHint',
+                    'Deleting removes the food from your library, meals and meal plans. Your diary entries keep their name, brand and nutrition.'
+                  )
+                : null}
+          </p>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-2 mt-2">
           <Button variant="outline" onClick={onCancel}>
             {t('foodDatabaseManager.cancel', 'Cancel')}
           </Button>
           {impact.totalReferences === 0 ? (
-            <Button variant="destructive" onClick={() => onConfirm(true)}>
+            <Button variant="destructive" onClick={() => onConfirm('delete')}>
               {t('foodDatabaseManager.delete', 'Delete')}
             </Button>
           ) : impact.otherUserReferences > 0 ? (
-            <Button onClick={() => onConfirm(false)}>
+            // Meals, meal plans and favourites cascade from the library row for
+            // every user, so deleting would strip the food out of other people's
+            // data. Hiding is the only option that leaves them alone.
+            <Button onClick={() => onConfirm('hide')}>
               {t('foodDatabaseManager.hide', 'Hide')}
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={() => onConfirm(false)}>
+              <Button variant="outline" onClick={() => onConfirm('hide')}>
                 {t('foodDatabaseManager.hide', 'Hide')}
               </Button>
-              <Button variant="destructive" onClick={() => onConfirm(true)}>
-                {t('foodDatabaseManager.forceDelete', 'Force Delete')}
+              <Button variant="default" onClick={() => onConfirm('delete')}>
+                {t('foodDatabaseManager.delete', 'Delete')}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => onConfirm('delete_with_history')}
+              >
+                {t(
+                  'foodDatabaseManager.deleteWithHistory',
+                  'Delete including history'
+                )}
               </Button>
             </>
           )}

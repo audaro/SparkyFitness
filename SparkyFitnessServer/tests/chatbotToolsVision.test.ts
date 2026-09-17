@@ -2,6 +2,7 @@ import { vi, beforeEach, describe, expect, it } from 'vitest';
 import { buildVisionTools } from '../ai/tools/visionTools.js';
 import foodPhotoEstimationService from '../services/foodPhotoEstimationService.js';
 import labelScanService from '../services/labelScanService.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
 vi.mock('../services/foodPhotoEstimationService', () => ({
   default: {
@@ -17,7 +18,7 @@ vi.mock('../config/logging', () => ({
   log: vi.fn(),
 }));
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 
 // A syntactically valid base64 JPEG prefix.
 const JPEG_BASE64 = '/9j/4AAQSkZJRgABAQAAAQ==';
@@ -78,6 +79,33 @@ beforeEach(() => {
 });
 
 describe('sparky_analyze_food_image', () => {
+  it('forwards a correction as the description the vision model honours', async () => {
+    vi.mocked(
+      foodPhotoEstimationService.estimateFoodPhotoNutrition
+    ).mockResolvedValue({ success: true, estimate: ESTIMATE });
+
+    await tools.sparky_analyze_food_image.execute!(
+      {
+        image_url: `data:image/png;base64,${PNG_BASE64}`,
+        description: 'ghee roast dosa with chutney and sambar',
+        total_weight: '400 g',
+      },
+      opts
+    );
+
+    // The vision call is a separate request that never sees the chat
+    // transcript. If these do not ride along, re-analysing after a correction
+    // is a byte-identical request and returns the same wrong dish.
+    expect(
+      foodPhotoEstimationService.estimateFoodPhotoNutrition
+    ).toHaveBeenCalledWith({
+      images: [{ base64: PNG_BASE64, mimeType: 'image/png' }],
+      userId: 'user-1',
+      description: 'ghee roast dosa with chutney and sambar',
+      weightSlot: '400 g',
+    });
+  });
+
   it('parses a data: URL and renders the structured estimate', async () => {
     vi.mocked(
       foodPhotoEstimationService.estimateFoodPhotoNutrition
@@ -88,7 +116,10 @@ describe('sparky_analyze_food_image', () => {
       opts
     );
 
-    expect(result).toBe(
+    // The tool returns a structured result now: the model reads `text`, while
+    // `estimate` rides along for the client to render the interactive card.
+    expect(result).toMatchObject({ estimate: ESTIMATE });
+    expect((result as { text: string }).text).toBe(
       '🔬 Food Image Analysis Result:\n\n' +
         '**Grilled chicken with rice and broccoli** (confidence: medium)\n' +
         'Confidence notes: portion depth not visible\n' +
@@ -101,7 +132,8 @@ describe('sparky_analyze_food_image', () => {
         'Total (~350g): 510 kcal | P: 30g | C: 57g | F: 16g | Fiber: 1g | Sugar: 0g\n' +
         '\n' +
         'To improve this estimate, the user could clarify:\n' +
-        '- Was the chicken cooked with oil or butter?'
+        '- Was the chicken cooked with oil or butter?\n\n' +
+        '[Note: The interactive meal card is now displayed to the user. Summarize the detected meal and finish your response. Do NOT call sparky_analyze_food_image again in this turn.]'
     );
     expect(
       foodPhotoEstimationService.estimateFoodPhotoNutrition
@@ -130,7 +162,7 @@ describe('sparky_analyze_food_image', () => {
       opts
     );
 
-    expect(result).toBe(
+    expect((result as { text: string }).text).toBe(
       '🔬 Food Image Analysis Result:\n\n' +
         '**Grilled chicken with rice and broccoli** (confidence: medium)\n' +
         '\n' +
@@ -138,7 +170,8 @@ describe('sparky_analyze_food_image', () => {
         '\n' +
         'Total (~350g): 510 kcal | P: 30g | C: 57g | F: 16g | Fiber: 1g | Sugar: 0g\n' +
         '\n' +
-        'Weight reconciliation: Distributed 350g across items.'
+        'Weight reconciliation: Distributed 350g across items.\n\n' +
+        '[Note: The interactive meal card is now displayed to the user. Summarize the detected meal and finish your response. Do NOT call sparky_analyze_food_image again in this turn.]'
     );
     expect(
       foodPhotoEstimationService.estimateFoodPhotoNutrition
@@ -222,15 +255,37 @@ describe('sparky_analyze_food_image', () => {
     expect(result).toBe('❌ Error analyzing image: boom');
   });
 
-  it('returns a validation error when image_url is missing', async () => {
+  it('reports a missing image instead of calling the provider with nothing', async () => {
+    // image_url is optional: the photo normally arrives on the attached
+    // message. With neither, the turn carried no image at all.
+    const result = await tools.sparky_analyze_food_image.execute!({}, opts);
+
+    expect(result).toBe(
+      '❌ Error analyzing image: No image was provided. Attach the photo to your message and try again.'
+    );
+    expect(
+      foodPhotoEstimationService.estimateFoodPhotoNutrition
+    ).not.toHaveBeenCalled();
+  });
+
+  it('passes the meal slot and day the user named through to the card', async () => {
+    vi.mocked(
+      foodPhotoEstimationService.estimateFoodPhotoNutrition
+    ).mockResolvedValue({ success: true, estimate: ESTIMATE });
+
     const result = await tools.sparky_analyze_food_image.execute!(
-      {} as any,
+      {
+        image_url: `data:image/png;base64,${PNG_BASE64}`,
+        meal_type: 'snacks',
+        entry_date: '2026-08-27',
+      },
       opts
     );
 
-    expect(result).toBe(
-      'Error [VALIDATION]: image_url: Invalid input: expected string, received undefined'
-    );
+    expect(result).toMatchObject({
+      meal_type: 'snacks',
+      entry_date: '2026-08-27',
+    });
   });
 });
 

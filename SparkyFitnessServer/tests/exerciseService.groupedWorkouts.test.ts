@@ -535,6 +535,73 @@ describe('exerciseService grouped workouts', () => {
       );
     };
 
+    it('saves an edit to an exercise whose library row has been deleted', async () => {
+      setupExistingSession();
+      // The library row is gone, so a lookup by id finds nothing. This used to
+      // throw 'Exercise not found for snapshot.' from
+      // prepareExerciseEntryForCreate, which made a preserved workout readable
+      // but permanently uneditable.
+      vi.mocked(exerciseDb.getExerciseById).mockResolvedValue(null);
+
+      await expect(
+        exerciseService.updateGroupedWorkoutSession(
+          'user-1',
+          'actor-1',
+          'preset-entry-1',
+          {
+            exercises: [
+              {
+                id: 'entry-a',
+                exercise_id: null,
+                sort_order: 0,
+                duration_minutes: 30,
+                sets: [{ id: 1, set_number: 1, reps: 12, weight: 100 }],
+              },
+            ],
+          }
+        )
+      ).resolves.toBeDefined();
+
+      const [updateCall] = vi.mocked(
+        exerciseEntryDb._updateExerciseEntryWithClient
+      ).mock.calls;
+      expect(updateCall[3]).toMatchObject({ exercise_id: null });
+      // Nothing to re-snapshot from, so the snapshot columns are left absent
+      // and the model keeps whatever the entry already stores.
+      expect(updateCall[3]).not.toHaveProperty('exercise_name');
+      // Calories likewise: undefined preserves the stored value rather than
+      // zeroing it out.
+      expect(
+        (updateCall[3] as { calories_burned?: number }).calories_burned
+      ).toBeUndefined();
+    });
+
+    it('still rejects an edit naming an exercise id that does not exist', async () => {
+      setupExistingSession();
+      vi.mocked(exerciseDb.getExerciseById).mockResolvedValue(null);
+
+      // A null id means "preserved entry"; a non-null id that resolves to
+      // nothing is a genuine bad request and must not be papered over.
+      await expect(
+        exerciseService.updateGroupedWorkoutSession(
+          'user-1',
+          'actor-1',
+          'preset-entry-1',
+          {
+            exercises: [
+              {
+                id: 'entry-a',
+                exercise_id: 'no-such-exercise',
+                sort_order: 0,
+                duration_minutes: 30,
+                sets: [],
+              },
+            ],
+          }
+        )
+      ).rejects.toThrow('Exercise not found for snapshot.');
+    });
+
     it('updates values via reconcile without deleting existing rows', async () => {
       setupExistingSession();
 

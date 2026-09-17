@@ -2,13 +2,19 @@ import { renderHook, waitFor } from '@testing-library/react-native';
 import { useMealTypes } from '../../src/hooks/useMealTypes';
 import { mealTypesQueryKey } from '../../src/hooks/queryKeys';
 import { fetchMealTypes } from '../../src/services/api/mealTypesApi';
-import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import {
+  createTestQueryClient,
+  createQueryWrapper,
+  type QueryClient,
+} from './queryTestUtils';
 
 jest.mock('../../src/services/api/mealTypesApi', () => ({
   fetchMealTypes: jest.fn(),
 }));
 
-const mockFetchMealTypes = fetchMealTypes as jest.MockedFunction<typeof fetchMealTypes>;
+const mockFetchMealTypes = fetchMealTypes as jest.MockedFunction<
+  typeof fetchMealTypes
+>;
 
 // Full set of meal types used in tests that require all four to be present so
 // getDefaultMealTypeId always finds a name match regardless of the current hour.
@@ -61,7 +67,9 @@ describe('useMealTypes', () => {
 
     expect(result.current.mealTypes).toHaveLength(2);
     expect(result.current.mealTypes.every((mt) => mt.is_visible)).toBe(true);
-    expect(result.current.mealTypes.find((mt) => mt.name === 'Hidden Snack')).toBeUndefined();
+    expect(
+      result.current.mealTypes.find((mt) => mt.name === 'Hidden Snack')
+    ).toBeUndefined();
   });
 
   test('sorts meal types by sort_order ascending', async () => {

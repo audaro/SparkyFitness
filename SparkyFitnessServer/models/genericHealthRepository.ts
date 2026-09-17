@@ -236,7 +236,7 @@ export async function upsertDailyHealthMetrics(
     const res = (await client.query(
       `INSERT INTO daily_health_metrics 
         (user_id, entry_date, source_provider, device_name, total_steps, step_goal, total_distance_meters,
-         floors_ascended, floors_descended, active_calories, bmr_calories, total_calories, highly_active_seconds,
+         floors_ascended, floors_descended, active_calories, bmr_calories, total_calories, total_calories_captured_at, highly_active_seconds,
          active_seconds, sedentary_seconds, moderate_intensity_minutes, vigorous_intensity_minutes, exercise_minutes,
          stand_hours, resting_heart_rate, heart_rate_recovery_1min, vo2_max, fitness_age, lactate_threshold_bpm,
          lactate_threshold_speed_mps, walking_asymmetry_percentage, hill_score, race_prediction_5k_seconds,
@@ -244,7 +244,7 @@ export async function upsertDailyHealthMetrics(
          recovery_time_hours, training_readiness_score, endurance_score, weekly_training_load, acute_training_load,
          chronic_training_load, acwr_ratio, avg_stress_level, max_stress_level, body_battery_charged, body_battery_drained,
          body_battery_highest, body_battery_lowest, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, NOW())
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, NOW())
        ON CONFLICT (user_id, entry_date, source_provider)
        DO UPDATE SET
          device_name = COALESCE(EXCLUDED.device_name, daily_health_metrics.device_name),
@@ -255,7 +255,28 @@ export async function upsertDailyHealthMetrics(
          floors_descended = COALESCE(EXCLUDED.floors_descended, daily_health_metrics.floors_descended),
          active_calories = COALESCE(EXCLUDED.active_calories, daily_health_metrics.active_calories),
          bmr_calories = COALESCE(EXCLUDED.bmr_calories, daily_health_metrics.bmr_calories),
-         total_calories = COALESCE(EXCLUDED.total_calories, daily_health_metrics.total_calories),
+         -- Daily aggregate syncs can finish out of order. Advance the calorie
+         -- snapshot and its capture time together, never independently.
+         total_calories = CASE
+           WHEN EXCLUDED.total_calories IS NOT NULL
+             AND EXCLUDED.total_calories_captured_at IS NOT NULL
+             AND (
+               daily_health_metrics.total_calories_captured_at IS NULL
+               OR EXCLUDED.total_calories_captured_at > daily_health_metrics.total_calories_captured_at
+             )
+           THEN EXCLUDED.total_calories
+           ELSE daily_health_metrics.total_calories
+         END,
+         total_calories_captured_at = CASE
+           WHEN EXCLUDED.total_calories IS NOT NULL
+             AND EXCLUDED.total_calories_captured_at IS NOT NULL
+             AND (
+               daily_health_metrics.total_calories_captured_at IS NULL
+               OR EXCLUDED.total_calories_captured_at > daily_health_metrics.total_calories_captured_at
+             )
+           THEN EXCLUDED.total_calories_captured_at
+           ELSE daily_health_metrics.total_calories_captured_at
+         END,
          highly_active_seconds = COALESCE(EXCLUDED.highly_active_seconds, daily_health_metrics.highly_active_seconds),
          active_seconds = COALESCE(EXCLUDED.active_seconds, daily_health_metrics.active_seconds),
          sedentary_seconds = COALESCE(EXCLUDED.sedentary_seconds, daily_health_metrics.sedentary_seconds),
@@ -303,6 +324,7 @@ export async function upsertDailyHealthMetrics(
         metric.active_calories ?? null,
         metric.bmr_calories ?? null,
         metric.total_calories ?? null,
+        metric.total_calories_captured_at ?? null,
         metric.highly_active_seconds ?? null,
         metric.active_seconds ?? null,
         metric.sedentary_seconds ?? null,
@@ -343,21 +365,207 @@ export async function upsertDailyHealthMetrics(
   }
 }
 
+/**
+ * Retrieves daily wearable health metrics for a date range, carrying forward
+ * the most recent non-null values for episodic metrics (e.g. VO2 max, fitness
+ * age, lactate threshold, hill score, endurance score, race predictions) from
+ * earlier entries with the same user and source provider when dates lack fresh readings.
+ *
+ * @param userId - Target user whose daily health metrics are being requested.
+ * @param actingUserId - Authenticated user making the request (for RLS check).
+ * @param startDate - Range start date string (YYYY-MM-DD).
+ * @param endDate - Range end date string (YYYY-MM-DD).
+ * @returns Array of daily health metric records ordered by entry_date ascending.
+ */
 export async function getDailyHealthMetrics(
   userId: string,
   actingUserId: string,
   startDate: string,
   endDate: string
 ): Promise<DailyHealthMetrics[]> {
-  const client = await getClient(actingUserId);
+  const client = await getClient(userId, actingUserId);
   try {
     const res = (await client.query(
-      `SELECT * FROM daily_health_metrics 
+      `SELECT 
+        dhm.id,
+        dhm.user_id,
+        dhm.entry_date,
+        dhm.source_provider,
+        dhm.device_name,
+        dhm.total_steps,
+        dhm.step_goal,
+        dhm.total_distance_meters,
+        dhm.floors_ascended,
+        dhm.floors_descended,
+        dhm.active_calories,
+        dhm.bmr_calories,
+        dhm.total_calories,
+        dhm.total_calories_captured_at,
+        dhm.highly_active_seconds,
+        dhm.active_seconds,
+        dhm.sedentary_seconds,
+        dhm.moderate_intensity_minutes,
+        dhm.vigorous_intensity_minutes,
+        dhm.exercise_minutes,
+        dhm.stand_hours,
+        dhm.resting_heart_rate,
+        dhm.heart_rate_recovery_1min,
+        COALESCE(
+          dhm.vo2_max,
+          (SELECT vo2_max FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.vo2_max IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS vo2_max,
+        COALESCE(
+          dhm.fitness_age,
+          (SELECT fitness_age FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.fitness_age IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS fitness_age,
+        COALESCE(
+          dhm.lactate_threshold_bpm,
+          (SELECT lactate_threshold_bpm FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.lactate_threshold_bpm IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS lactate_threshold_bpm,
+        COALESCE(
+          dhm.lactate_threshold_speed_mps,
+          (SELECT lactate_threshold_speed_mps FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.lactate_threshold_speed_mps IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS lactate_threshold_speed_mps,
+        COALESCE(
+          dhm.walking_asymmetry_percentage,
+          (SELECT walking_asymmetry_percentage FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.walking_asymmetry_percentage IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS walking_asymmetry_percentage,
+        COALESCE(
+          dhm.hill_score,
+          (SELECT hill_score FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.hill_score IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS hill_score,
+        COALESCE(
+          dhm.race_prediction_5k_seconds,
+          (SELECT race_prediction_5k_seconds FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.race_prediction_5k_seconds IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS race_prediction_5k_seconds,
+        COALESCE(
+          dhm.race_prediction_10k_seconds,
+          (SELECT race_prediction_10k_seconds FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.race_prediction_10k_seconds IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS race_prediction_10k_seconds,
+        COALESCE(
+          dhm.race_prediction_half_marathon_seconds,
+          (SELECT race_prediction_half_marathon_seconds FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.race_prediction_half_marathon_seconds IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS race_prediction_half_marathon_seconds,
+        COALESCE(
+          dhm.race_prediction_marathon_seconds,
+          (SELECT race_prediction_marathon_seconds FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.race_prediction_marathon_seconds IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS race_prediction_marathon_seconds,
+        dhm.recovery_time_hours,
+        dhm.training_readiness_score,
+        COALESCE(
+          dhm.endurance_score,
+          (SELECT endurance_score FROM daily_health_metrics d2
+           WHERE d2.user_id = dhm.user_id
+             AND d2.source_provider = dhm.source_provider
+             AND d2.entry_date < dhm.entry_date
+             AND d2.endurance_score IS NOT NULL
+           ORDER BY d2.entry_date DESC LIMIT 1)
+        ) AS endurance_score,
+        dhm.weekly_training_load,
+        dhm.acute_training_load,
+        dhm.chronic_training_load,
+        dhm.acwr_ratio,
+        dhm.avg_stress_level,
+        dhm.max_stress_level,
+        dhm.body_battery_charged,
+        dhm.body_battery_drained,
+        dhm.body_battery_highest,
+        dhm.body_battery_lowest,
+        dhm.created_at,
+        dhm.updated_at
+       FROM daily_health_metrics dhm
        WHERE user_id = $1 AND entry_date BETWEEN $2 AND $3 
        ORDER BY entry_date ASC`,
       [userId, startDate, endDate]
     )) as { rows: DailyHealthMetrics[] };
     return res.rows;
+  } finally {
+    client.release();
+  }
+}
+
+export interface HealthConnectTotalCaloriesRow {
+  entry_date: string;
+  total_calories: number;
+  captured_at?: Date | string | null;
+}
+
+/**
+ * Returns Health Connect's cumulative total-energy summary for each requested day.
+ * The Android client has already applied Health Connect's native source priority
+ * before upload, so this value must not be combined with other providers here.
+ */
+export async function getHealthConnectTotalCaloriesByDateRange(
+  userId: string,
+  actingUserId: string,
+  startDate: string,
+  endDate: string
+): Promise<HealthConnectTotalCaloriesRow[]> {
+  const client = await getClient(actingUserId);
+  try {
+    const res = await client.query(
+      `SELECT entry_date::text,
+              total_calories::float8,
+              COALESCE(total_calories_captured_at, updated_at, created_at) AS captured_at
+       FROM daily_health_metrics
+       WHERE user_id = $1
+         AND source_provider = 'health_connect'
+         AND total_calories IS NOT NULL
+         AND entry_date BETWEEN $2 AND $3
+       ORDER BY entry_date ASC`,
+      [userId, startDate, endDate]
+    );
+    return res.rows as HealthConnectTotalCaloriesRow[];
   } finally {
     client.release();
   }

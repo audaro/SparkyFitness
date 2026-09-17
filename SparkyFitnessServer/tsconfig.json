@@ -15,7 +15,6 @@
     "noUnusedLocals": true,
     "noImplicitAny": true,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
     "allowImportingTsExtensions": true,
     "paths": {
       "@workspace/shared": ["../shared/src/index.ts"]

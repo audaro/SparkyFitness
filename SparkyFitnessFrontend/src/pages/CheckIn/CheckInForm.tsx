@@ -12,13 +12,22 @@ import { Switch } from '@/components/ui/switch';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { useTranslation } from 'react-i18next';
 import { UnitInput } from '@/components/ui/UnitInput';
-import { CustomCategoriesResponse } from '@workspace/shared';
+import {
+  CustomCategoriesResponse,
+  MIN_MEASURED_BMR_KCAL,
+  MAX_MEASURED_BMR_KCAL,
+} from '@workspace/shared';
 import { CheckInPlaceholders } from '@/types/checkin';
 import { History } from 'lucide-react';
+import {
+  healthMetricLabel,
+  healthMetricUnitLabel,
+} from '@/utils/healthMetricLabels';
 
 interface UseLastButtonProps {
   value: string;
-  lastValue: number | null;
+  // Text custom categories carry a non-numeric value, so this is not number-only.
+  lastValue: number | string | null;
   onAdopt: (value: string) => void;
 }
 
@@ -52,8 +61,10 @@ interface CheckInFormProps {
   muscleMassKg: string;
   boneMassKg: string;
   bodyWaterPercentage: string;
+  bmr: string;
   customCategories: CustomCategoriesResponse[];
   customNotes: Record<string, string>;
+  customPlaceholders: Record<string, number | string | null>;
   customValues: Record<string, string>;
   handleCalculateBodyFat: () => Promise<void>;
   handleSubmit: (e: React.SubmitEvent) => Promise<void>;
@@ -66,6 +77,7 @@ interface CheckInFormProps {
   setMuscleMassKg: (value: string) => void;
   setBoneMassKg: (value: string) => void;
   setBodyWaterPercentage: (value: string) => void;
+  setBmr: (value: string) => void;
   setCustomNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   setCustomValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   setHeight: (value: string) => void;
@@ -87,8 +99,10 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
   muscleMassKg,
   boneMassKg,
   bodyWaterPercentage,
+  bmr,
   customNotes,
   customCategories,
+  customPlaceholders,
   customValues,
   handleCalculateBodyFat,
   handleSubmit,
@@ -101,6 +115,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
   setMuscleMassKg,
   setBoneMassKg,
   setBodyWaterPercentage,
+  setBmr,
   setCustomNotes,
   setCustomValues,
   setHeight,
@@ -354,10 +369,31 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                 placeholder="0.0"
               />
             </div>
+
+            <div>
+              <Label htmlFor="bmr">{t('checkIn.bmr', 'BMR (kcal)')}</Label>
+              <Input
+                id="bmr"
+                type="number"
+                min={MIN_MEASURED_BMR_KCAL}
+                max={MAX_MEASURED_BMR_KCAL}
+                step="1"
+                value={bmr}
+                onChange={(e) => setBmr(e.target.value)}
+                placeholder={
+                  placeholders.bmr ? placeholders.bmr.toString() : 'e.g. 1650'
+                }
+              />
+            </div>
             {/* Custom Categories */}
 
             {/* Custom Categories */}
             {customCategories.map((category) => {
+              const categoryLabel = healthMetricLabel(
+                category.name,
+                category.display_name,
+                t
+              );
               const isConvertible = shouldConvertCustomMeasurement(
                 category.measurement_type
               );
@@ -368,12 +404,32 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                   ? defaultWeightUnit
                   : defaultMeasurementUnit
                 : category.measurement_type;
+              const displayUnit = healthMetricUnitLabel(unitToUse, t);
+              const currentValue = customValues[category.id] || '';
+              // Previous value for this category, offered only while the field
+              // is empty. The server returns manual values only, so a health
+              // sample can never be adopted here.
+              const previousValue = customPlaceholders[category.id] ?? null;
+              const offerPrevious =
+                currentValue === '' && previousValue !== null;
+              const adoptPrevious = () =>
+                setCustomValues((prev) => ({
+                  ...prev,
+                  [category.id]: String(previousValue),
+                }));
 
               return (
                 <div key={category.id}>
-                  <Label htmlFor={`custom-${category.id}`}>
-                    {category.display_name || category.name} ({unitToUse})
-                  </Label>
+                  <div className="mb-1 flex items-center justify-between">
+                    <Label htmlFor={`custom-${category.id}`}>
+                      {categoryLabel} ({displayUnit})
+                    </Label>
+                    <UseLastButton
+                      value={currentValue}
+                      lastValue={offerPrevious ? previousValue : null}
+                      onAdopt={adoptPrevious}
+                    />
+                  </div>
                   {isConvertible && category.data_type === 'numeric' ? (
                     <UnitInput
                       id={`custom-${category.id}`}
@@ -385,7 +441,10 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                           : 'measurement'
                       }
                       unit={unitToUse}
-                      value={customValues[category.id] || ''}
+                      value={currentValue}
+                      placeholderValue={
+                        offerPrevious ? Number(previousValue) : null
+                      }
                       onChange={(val) => {
                         setCustomValues((prev) => ({
                           ...prev,
@@ -402,19 +461,21 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                       step={
                         category.data_type === 'numeric' ? '0.01' : undefined
                       }
-                      value={customValues[category.id] || ''}
+                      value={currentValue}
                       onChange={(e) => {
                         setCustomValues((prev) => ({
                           ...prev,
                           [category.id]: e.target.value,
                         }));
                       }}
-                      placeholder={t('checkIn.enterCustomCategory', {
-                        categoryName: (
-                          category.display_name || category.name
-                        ).toLowerCase(),
-                        defaultValue: `Enter ${(category.display_name || category.name).toLowerCase()}`,
-                      })}
+                      placeholder={
+                        offerPrevious
+                          ? String(previousValue)
+                          : t('checkIn.enterCustomCategory', {
+                              categoryName: categoryLabel.toLowerCase(),
+                              defaultValue: `Enter ${categoryLabel.toLowerCase()}`,
+                            })
+                      }
                     />
                   )}
                   <Input

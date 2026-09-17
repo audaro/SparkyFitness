@@ -29,15 +29,18 @@ vi.mock('../middleware/checkPermissionMiddleware.js', () => ({
 vi.mock('../config/logging.js', () => ({ log: vi.fn() }));
 vi.mock('../integrations/withings/withingsService.js', () => ({
   default: {
-    exchangeCodeForTokens: vi
-      .fn()
-      .mockResolvedValue({ success: true, userId: 'withings-user-1' }),
+    exchangeCodeForTokens: vi.fn().mockResolvedValue({
+      success: true,
+      userId: 'withings-user-1',
+      ownerUserId: 'session-user',
+    }),
   },
 }));
 vi.mock('../services/withingsService.js', () => ({ default: {} }));
 
 import withingsRoutes from '../routes/withingsRoutes.js';
 import withingsIntegrationService from '../integrations/withings/withingsService.js';
+import { OAuthStateError } from '../utils/oauthState.js';
 
 const app = express();
 app.use(express.json());
@@ -47,7 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   authState.signedIn = true;
   vi.mocked(withingsIntegrationService.exchangeCodeForTokens).mockResolvedValue(
-    { success: true, userId: 'withings-user-1' }
+    { success: true, userId: 'withings-user-1', ownerUserId: 'session-user' }
   );
 });
 
@@ -74,22 +77,38 @@ describe('POST /withings/callback', () => {
     expect(
       withingsIntegrationService.exchangeCodeForTokens
     ).toHaveBeenCalledWith(
-      'session-user',
-      'auth-code',
       'issued-nonce',
-      expect.stringContaining('/withings/callback')
+      'auth-code',
+      expect.stringContaining('/withings/callback'),
+      'session-user'
     );
   });
 
-  it('rejects a callback with no state', async () => {
+  // A stateless callback is rejected by `claimOAuthState` inside the exchange,
+  // not by a guard on the route: every state failure — missing, forged,
+  // replayed, expired, or issued to somebody else — has to come back as the
+  // same opaque 400, or the response tells an attacker which check they tripped.
+  it('rejects a callback with no state without binding an account', async () => {
+    vi.mocked(
+      withingsIntegrationService.exchangeCodeForTokens
+    ).mockRejectedValue(
+      new OAuthStateError('missing', 'No OAuth state was supplied.')
+    );
+
     const res = await request(app)
       .post('/withings/callback')
       .send({ code: 'auth-code' });
 
     expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe('Invalid or expired authorization state.');
     expect(
       withingsIntegrationService.exchangeCodeForTokens
-    ).not.toHaveBeenCalled();
+    ).toHaveBeenCalledWith(
+      undefined,
+      'auth-code',
+      expect.stringContaining('/withings/callback'),
+      'session-user'
+    );
   });
 
   it('rejects a callback with no code', async () => {

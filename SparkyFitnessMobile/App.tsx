@@ -19,7 +19,7 @@ import { FoodImageSourceProvider } from './src/components/FoodImageSourceProvide
 import { LightboxProvider } from './src/components/LightboxProvider';
 import { Uniwind, useUniwind, useCSSVariable } from 'uniwind';
 
-import { activeAiServiceSettingQueryKey, queryClient, serverConnectionQueryKey, serverConfigsQueryKey, useSyncHealthData, useCycleMode } from './src/hooks';
+import { activeAiServiceSettingQueryKey, queryClient, serverConnectionQueryKey, serverConfigsQueryKey, useSyncHealthData, useCycleMode, useServerConnection, useWatchCheckInBridge } from './src/hooks';
 import { useAppStartup } from './src/hooks/useAppStartup';
 import { useAppBootstrap } from './src/hooks/useAppBootstrap';
 import { useAppLanguageForegroundSync } from './src/hooks/useAppLanguageForegroundSync';
@@ -32,6 +32,10 @@ import {
   SafeOnboarding,
   SafeFoodsLibrary,
   SafeMealsLibrary,
+  SafeMealPlans,
+  SafeMealPlanForm,
+  SafeWaterContainers,
+  SafeWaterContainerEdit,
   SafeExercisesLibrary,
   SafeWorkoutPresetsLibrary,
   SafeFoodDetail,
@@ -62,15 +66,20 @@ import {
   SafeWorkoutComplete,
   SafeActivityDetail,
   SafeFastingDetail,
+  SafeSleepDetail,
   SafeLogs,
   SafeSync,
   SafeImportHistory,
   SafeMeasurementsAdd,
+  SafeProgressPhotos,
+  SafeProgressPhotoCompare,
+  SafeProgressPhotoTimelapse,
   SafeChat,
   SafeCalorieSettings,
   SafeMealTypeSettings,
   SafeFoodSettings,
   SafeDashboardSettings,
+  SafeHealthTrendsSettings,
   SafeDiarySettings,
   SafeWorkoutSettings,
   SafeMedicationSettings,
@@ -86,6 +95,10 @@ import {
   SafeWhatsNew,
   SafeDailyNutritionDetails,
   SafeNutrientTrends,
+  SafeFamilyMembers,
+  SafeFamilyDiary,
+  SafeFamilyMealDetail,
+  SafeFamilyCopyReview,
   SafeCycleSettings,
   SafeCycleOnboarding,
   SafeCycleHub,
@@ -129,6 +142,26 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const androidModalAnimation =
   Platform.OS === 'android' ? ({ animation: 'slide_from_bottom' } as const) : {};
 
+/**
+ * Renders inside <NavigationContainer> so useServerConnection's
+ * refetch-on-focus (which needs useNavigation) has a navigation context to
+ * attach to. AppContent can't call this directly — it's the component that
+ * creates NavigationContainer, so its own hook calls run before that
+ * context exists, which is what was throwing "Couldn't find a navigation
+ * object" on every render.
+ *
+ * Apple Watch companion: the watch captures weight / body fat locally and
+ * hands them over via WatchConnectivity, because it cannot reach the server
+ * itself (auth lives here). Gated on an active server connection so a
+ * check-in is not rejected and acked as failed while offline — the watch
+ * keeps it queued and retries when the phone is reachable again.
+ */
+function WatchCheckInGate() {
+  const { isConnected: isServerConnected } = useServerConnection();
+  useWatchCheckInBridge(isServerConnected);
+  return null;
+}
+
 function AppContent() {
   const { t } = useTranslation();
   const { theme } = useUniwind();
@@ -161,6 +194,7 @@ function AppContent() {
   const syncMutation = useSyncHealthData();
   const { shouldYieldObserverSync } = useAutoSyncOnOpen({ initialRoute, syncMutation });
   useAppStartup({ shouldYieldObserverSync });
+
   const {
     rememberActiveTab,
     getLastActiveTab,
@@ -170,6 +204,7 @@ function AppContent() {
     handleLogWorkout,
     handleAddActivity,
     handleAddMeasurements,
+    handleAddProgressPhotos,
     handleAskSparky,
     handleOpenCycle,
     handleSyncHealthData,
@@ -292,6 +327,7 @@ function AppContent() {
         }
       }}
     >
+      <WatchCheckInGate />
       <SafeAreaProvider>
         {/* Inside SafeAreaProvider on purpose: the viewer positions its close
             button against the insets, so mounting it at the app root crashes
@@ -346,6 +382,35 @@ function AppContent() {
             )}
           </Stack.Screen>
           <Stack.Screen
+            name="FamilyMembers"
+            component={SafeFamilyMembers}
+            options={createStackScreenOptions(t('familyDiary.title', { defaultValue: 'Family Diaries' }), {
+              headerBackButtonDisplayMode: 'minimal',
+            })}
+          />
+          <Stack.Screen
+            name="FamilyDiary"
+            component={SafeFamilyDiary}
+            options={({ route }) => createStackScreenOptions(
+              route.params.familyUser.displayName.trim() || t('familyDiary.unnamedMember', { defaultValue: 'Family member' }),
+              { headerBackButtonDisplayMode: 'minimal' },
+            )}
+          />
+          <Stack.Screen
+            name="FamilyMealDetail"
+            component={SafeFamilyMealDetail}
+            options={({ route }) => createStackScreenOptions(route.params.mealTypeName, {
+              headerBackButtonDisplayMode: 'minimal',
+            })}
+          />
+          <Stack.Screen
+            name="FamilyCopyReview"
+            component={SafeFamilyCopyReview}
+            options={createStackScreenOptions(t('familyDiary.copyReview', { defaultValue: 'Review copy' }), {
+              headerBackButtonDisplayMode: 'minimal',
+            })}
+          />
+          <Stack.Screen
             name="FoodsLibrary"
             component={SafeFoodsLibrary}
             options={createStackScreenOptions(t('screens.foods', { defaultValue: 'Foods' }), { headerBackTitle: t('navigation.diary', { defaultValue: 'Food' }) })}
@@ -354,6 +419,26 @@ function AppContent() {
             name="MealsLibrary"
             component={SafeMealsLibrary}
             options={createStackScreenOptions(t('screens.meals', { defaultValue: 'Meals' }), { headerBackTitle: t('navigation.diary', { defaultValue: 'Food' }) })}
+          />
+          <Stack.Screen
+            name="MealPlans"
+            component={SafeMealPlans}
+            options={createStackScreenOptions(t('mealPlans.title', { defaultValue: 'Meal plans' }), { headerBackTitle: t('navigation.library', { defaultValue: 'Library' }) })}
+          />
+          <Stack.Screen
+            name="MealPlanForm"
+            component={SafeMealPlanForm}
+            options={createStackScreenOptions(t('mealPlans.title', { defaultValue: 'Meal plans' }), { headerBackTitle: t('common.back', { defaultValue: 'Back' }) })}
+          />
+          <Stack.Screen
+            name="WaterContainers"
+            component={SafeWaterContainers}
+            options={createStackScreenOptions(t('waterContainers.title', { defaultValue: 'Water containers' }), { headerBackTitle: t('navigation.library', { defaultValue: 'Library' }) })}
+          />
+          <Stack.Screen
+            name="WaterContainerEdit"
+            component={SafeWaterContainerEdit}
+            options={createStackScreenOptions(t('waterContainerEdit.editTitle', { defaultValue: 'Edit container' }), { headerBackTitle: t('common.back', { defaultValue: 'Back' }) })}
           />
           <Stack.Screen
             name="ExercisesLibrary"
@@ -600,6 +685,11 @@ function AppContent() {
             }}
           />
           <Stack.Screen
+            name="SleepDetail"
+            component={SafeSleepDetail}
+            options={createStackScreenOptions(t('screens.sleep', { defaultValue: 'Sleep' }), { headerBackTitle: t('navigation.diary', { defaultValue: 'Food' }) })}
+          />
+          <Stack.Screen
             name="Logs"
             component={SafeLogs}
             options={createStackScreenOptions(t('screens.logs', { defaultValue: 'Logs' }), { headerBackTitle: t('navigation.settings', { defaultValue: 'Settings' }) })}
@@ -623,6 +713,21 @@ function AppContent() {
             })}
           />
           <Stack.Screen
+            name="ProgressPhotos"
+            component={SafeProgressPhotos}
+            options={createStackScreenOptions(t('screens.progressPhotos', { defaultValue: 'Progress Photos' }), { headerBackButtonDisplayMode: 'minimal' })}
+          />
+          <Stack.Screen
+            name="ProgressPhotoCompare"
+            component={SafeProgressPhotoCompare}
+            options={createStackScreenOptions(t('screens.progressPhotoCompare', { defaultValue: 'Compare' }), { headerBackButtonDisplayMode: 'minimal' })}
+          />
+          <Stack.Screen
+            name="ProgressPhotoTimelapse"
+            component={SafeProgressPhotoTimelapse}
+            options={createStackScreenOptions(t('screens.progressPhotoTimelapse', { defaultValue: 'Time-lapse' }), { headerBackButtonDisplayMode: 'minimal' })}
+          />
+          <Stack.Screen
             name="CalorieSettings"
             component={SafeCalorieSettings}
             options={createStackScreenOptions(t('screens.calorieSettings', { defaultValue: 'Calorie Settings' }), { headerBackTitle: t('navigation.settings', { defaultValue: 'Settings' }) })}
@@ -641,6 +746,11 @@ function AppContent() {
             name="DashboardSettings"
             component={SafeDashboardSettings}
             options={createStackScreenOptions(t('screens.dashboardSettings', { defaultValue: 'Home Settings' }), { headerBackTitle: t('navigation.settings', { defaultValue: 'Settings' }) })}
+          />
+          <Stack.Screen
+            name="HealthTrendsSettings"
+            component={SafeHealthTrendsSettings}
+            options={createStackScreenOptions(t('screens.healthTrendsSettings', { defaultValue: 'Health Trends' }), { headerBackTitle: t('screens.dashboardSettings', { defaultValue: 'Home Settings' }) })}
           />
           <Stack.Screen
             name="DiarySettings"
@@ -777,7 +887,7 @@ function AppContent() {
             })}
           />
         </Stack.Navigator>
-        <AddSheet ref={addSheetRef} onAddFood={handleAddFood} onStartWorkout={handleStartWorkout} onAddActivity={handleAddActivity} onLogWorkout={handleLogWorkout} onSyncHealthData={handleSyncHealthData} onBarcodeScan={handleBarcodeScan} onAddMeasurements={handleAddMeasurements} onAskSparky={handleAskSparky} onOpenCycle={handleOpenCycle} showCycleCard={cycleEnabled} cycleLabel={cycleSheetLabel} onDismissWithoutAction={handleAddSheetDismissWithoutAction} />
+        <AddSheet ref={addSheetRef} onAddFood={handleAddFood} onStartWorkout={handleStartWorkout} onAddActivity={handleAddActivity} onLogWorkout={handleLogWorkout} onSyncHealthData={handleSyncHealthData} onBarcodeScan={handleBarcodeScan} onAddMeasurements={handleAddMeasurements} onAddProgressPhotos={handleAddProgressPhotos} onAskSparky={handleAskSparky} onOpenCycle={handleOpenCycle} showCycleCard={cycleEnabled} cycleLabel={cycleSheetLabel} onDismissWithoutAction={handleAddSheetDismissWithoutAction} />
         <ReauthModal
           visible={showReauthModal}
           expiredConfigId={expiredConfigId}

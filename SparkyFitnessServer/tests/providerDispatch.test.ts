@@ -616,7 +616,7 @@ describe('dispatchAiRequest — text-only structured request shapes', () => {
     expect(messages[0].content).toBe('Do the thing.');
   });
 
-  it('openai_compatible appends /chat/completions to custom_url and uses json_object with the schema embedded in the prompt', async () => {
+  it('openai_compatible appends /chat/completions to custom_url and uses strict json_schema', async () => {
     const m = mockFetch(openAiBody(JSON.stringify(SAMPLE)));
     await dispatchAiRequest(
       baseRequest({
@@ -628,16 +628,12 @@ describe('dispatchAiRequest — text-only structured request shapes', () => {
     );
     const { url, body } = captured(m);
     expect(url).toBe('https://example.local/v1/chat/completions');
-    expect(body.response_format).toEqual({ type: 'json_object' });
-    // json_object mode does not carry the schema, so the prompt must.
+    expect((body.response_format as { type: string }).type).toBe('json_schema');
     const messages = body.messages as Array<{ content: string }>;
-    expect(messages[0].content).toContain('Do the thing.');
-    expect(messages[0].content).toContain(
-      JSON.stringify(toStrictJsonSchema(SCHEMA))
-    );
+    expect(messages[0].content).toBe('Do the thing.');
   });
 
-  it('custom uses the user-supplied URL as-is and json_object with the schema embedded in the prompt', async () => {
+  it('custom uses the user-supplied URL as-is and strict json_schema', async () => {
     const m = mockFetch(openAiBody(JSON.stringify(SAMPLE)));
     await dispatchAiRequest(
       baseRequest({
@@ -649,11 +645,9 @@ describe('dispatchAiRequest — text-only structured request shapes', () => {
     );
     const { url, body } = captured(m);
     expect(url).toBe('https://example.local/api/foo');
-    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect((body.response_format as { type: string }).type).toBe('json_schema');
     const messages = body.messages as Array<{ content: string }>;
-    expect(messages[0].content).toContain(
-      JSON.stringify(toStrictJsonSchema(SCHEMA))
-    );
+    expect(messages[0].content).toBe('Do the thing.');
   });
 
   it('gemini sends responseMimeType + responseSchema with additionalProperties stripped, propertyOrdering kept', async () => {
@@ -709,7 +703,7 @@ describe('dispatchAiRequest — text-only structured request shapes', () => {
     );
   });
 
-  it('ollama sends the raw schema as format on /api/chat with no auth header', async () => {
+  it('ollama asks for JSON and carries the schema in the prompt', async () => {
     const m = mockFetch(ollamaBody(JSON.stringify(SAMPLE)));
     await dispatchAiRequest(
       baseRequest({
@@ -723,9 +717,29 @@ describe('dispatchAiRequest — text-only structured request shapes', () => {
     );
     const { url, headers, body } = captured(m);
     expect(url).toBe('http://localhost:11434/api/chat');
+    // No key configured, so no Authorization header — one is sent only when
+    // the provider has an api_key (Ollama behind an authenticating proxy).
     expect(headers.Authorization).toBeUndefined();
     expect(body.stream).toBe(false);
-    expect(body.format).toEqual(SCHEMA);
+    // Ollama takes format: 'json' and reads the schema from the prompt.
+    expect(body.format).toBe('json');
+    const message = (body.messages as { content: string }[])[0];
+    expect(message.content).toContain('conforms to this JSON Schema');
+  });
+
+  it('ollama sends a bearer token when the provider has an api key', async () => {
+    const m = mockFetch(ollamaBody(JSON.stringify(SAMPLE)));
+    await dispatchAiRequest(
+      baseRequest({
+        provider: makeProvider({
+          service_type: 'ollama',
+          api_key: 'secret-key',
+          custom_url: 'http://localhost:11434',
+        }),
+        networkPolicy: PRIVATE_NETWORK_POLICY,
+      })
+    );
+    expect(captured(m).headers.Authorization).toBe('Bearer secret-key');
   });
 });
 
@@ -770,8 +784,7 @@ describe('dispatchAiRequest — vision request shapes', () => {
     await dispatchAiRequest(
       baseRequest({
         provider: makeProvider({
-          service_type: 'openai_compatible',
-          custom_url: 'https://example.local/v1',
+          service_type: 'meta',
         }),
         images: [IMG],
       })
@@ -828,7 +841,8 @@ describe('dispatchAiRequest — vision request shapes', () => {
       body.messages as Array<{ images?: string[]; content: string }>
     )[0];
     expect(message.images).toEqual([IMG.base64]);
-    expect(message.content).toBe('Do the thing.');
+    // The structured-output schema is appended to the prompt for Ollama.
+    expect(message.content).toContain('Do the thing.');
   });
 });
 
@@ -1126,6 +1140,32 @@ describe('dispatchAiRequest — fence stripping', () => {
       // text preserves the raw (still-fenced) extracted string.
       expect(result.text).toBe(fenced);
     }
+  });
+
+  it('strips <think> and <thought> reasoning blocks before parsing JSON', async () => {
+    const reasoningText = `<thought>\nAnalyzing the image details and ingredients...\n</thought>\n\`\`\`json\n${JSON.stringify(SAMPLE)}\n\`\`\``;
+    mockFetch(openAiBody(reasoningText));
+    const result = await dispatchAiRequest(
+      baseRequest({
+        jsonSchema: undefined,
+        schemaName: undefined,
+        parseJson: true,
+      })
+    );
+    expect(result).toMatchObject({ ok: true, json: SAMPLE });
+  });
+
+  it('extracts valid JSON object when conversational commentary surrounds the payload', async () => {
+    const conversationalText = `Here is the estimation result:\n${JSON.stringify(SAMPLE)}\nHope this helps!`;
+    mockFetch(openAiBody(conversationalText));
+    const result = await dispatchAiRequest(
+      baseRequest({
+        jsonSchema: undefined,
+        schemaName: undefined,
+        parseJson: true,
+      })
+    );
+    expect(result).toMatchObject({ ok: true, json: SAMPLE });
   });
 });
 
@@ -1701,4 +1741,28 @@ describe('anthropic temperature compatibility', () => {
       expect(captured(m).body.temperature).toBe(0.7);
     }
   );
+});
+
+describe('JSON extraction with multiple balanced candidates', () => {
+  it('extracts the intended JSON result when preceded by commentary objects', async () => {
+    mockFetch({
+      choices: [
+        {
+          message: {
+            content:
+              'Note: {"field":"x"}. Result: {"answer":"ok","nested":{"x":2}}',
+          },
+        },
+      ],
+    });
+    const result = await dispatchAiRequest(
+      baseRequest({
+        parseJson: true,
+      })
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.json).toEqual({ answer: 'ok', nested: { x: 2 } });
+    }
+  });
 });

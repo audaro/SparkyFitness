@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { HORMONE_CURVES, type SharedCycle } from '@workspace/shared';
 import CorrelationCards from './CorrelationCards';
+import { axisLabelValue } from '@/utils/chartUtils';
 
 interface CycleInsightsResult {
   stats: {
@@ -203,7 +204,7 @@ export default function CycleInsights() {
                   <Tooltip
                     contentStyle={{ fontSize: '11px', borderRadius: '8px' }}
                     labelFormatter={(label) =>
-                      `Cycle starting ${new Date(label).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' })}`
+                      `Cycle starting ${new Date(axisLabelValue(label)).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' })}`
                     }
                   />
                   <ReferenceLine

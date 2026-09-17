@@ -86,6 +86,54 @@ describe('foodCoreService.createFood', () => {
     );
     expect(result).toEqual({ ...existingFood, provider_verified: true });
   });
+  // Regression: `hide` (the non-destructive delete) leaves the row in place with
+  // is_quick_food = true, and every search/list query filters those out. The
+  // provider dedupe lookup does NOT filter them, so re-importing the same
+  // product matched the hidden row and returned it untouched -- the food came
+  // back invisible, with no way to restore it from the UI.
+  it('un-hides a food that was hidden when it is imported again', async () => {
+    const existingFood = makeExistingFood({ is_quick_food: true });
+    vi.mocked(foodRepository.findFoodByBarcode).mockResolvedValue(null);
+    vi.mocked(
+      foodRepository.findFoodByProviderExternalId
+    ).mockResolvedValueOnce(existingFood);
+    vi.mocked(foodRepository.updateFood).mockResolvedValue({
+      ...existingFood,
+      is_quick_food: false,
+    });
+
+    const result = await foodCoreService.createFood(
+      TEST_USER_ID,
+      makeFoodData({ barcode: undefined })
+    );
+
+    expect(foodRepository.createFood).not.toHaveBeenCalled();
+    expect(foodRepository.updateFood).toHaveBeenCalledWith(
+      existingFood.id,
+      TEST_USER_ID,
+      expect.objectContaining({ is_quick_food: false })
+    );
+    expect(result).toMatchObject({ is_quick_food: false });
+  });
+
+  it('leaves a hidden food hidden when the save is itself a quick add', async () => {
+    const existingFood = makeExistingFood({ is_quick_food: true });
+    vi.mocked(foodRepository.findFoodByBarcode).mockResolvedValue(null);
+    vi.mocked(
+      foodRepository.findFoodByProviderExternalId
+    ).mockResolvedValueOnce(existingFood);
+
+    const result = await foodCoreService.createFood(
+      TEST_USER_ID,
+      makeFoodData({ barcode: undefined, is_quick_food: true })
+    );
+
+    // A quick add is an explicit "log this once, do not keep it"; it must not
+    // promote the row into the library.
+    expect(foodRepository.updateFood).not.toHaveBeenCalled();
+    expect(result).toEqual(existingFood);
+  });
+
   it('should not refresh provider metadata when an existing food is found only by barcode', async () => {
     const existingFood = makeExistingFood({ provider_verified: false });
     // @ts-expect-error TS(2339): Property 'mockResolvedValue' does not exist on typ... Remove this comment to see the full error message
@@ -239,7 +287,6 @@ describe('foodCoreService.searchFoods provider metadata', () => {
     // @ts-expect-error mocked in test
     preferenceService.getUserPreferences.mockResolvedValue({
       item_display_limit: 10,
-      food_display_limit: 10,
     });
   });
 
@@ -298,6 +345,65 @@ describe('foodCoreService.searchFoods provider metadata', () => {
 
     expect(foodRepository.updateFood).not.toHaveBeenCalled();
     expect(result.searchResults?.[0]).toBe(localFood);
+  });
+
+  // Regression: the search limit used to read `food_display_limit`, a column
+  // renamed to `item_display_limit` by migration 20250720201800. That read was
+  // always undefined, so the preference was ignored and the request's own
+  // number won every time. The two must not be equal here, or the assertion
+  // can't tell the preference from the fallback.
+  it('honours the item_display_limit preference over the request limit', async () => {
+    // @ts-expect-error mocked in test
+    preferenceService.getUserPreferences.mockResolvedValue({
+      item_display_limit: 25,
+    });
+    // @ts-expect-error mocked in test
+    foodRepository.searchFoods.mockResolvedValue([]);
+
+    await foodCoreService.searchFoods(
+      TEST_USER_ID,
+      'local',
+      TEST_USER_ID,
+      false,
+      true,
+      false,
+      10
+    );
+
+    expect(foodRepository.searchFoods).toHaveBeenCalledWith(
+      'local',
+      TEST_USER_ID,
+      false,
+      true,
+      false,
+      25
+    );
+  });
+
+  it('falls back to the request limit when no preference is set', async () => {
+    // @ts-expect-error mocked in test
+    preferenceService.getUserPreferences.mockResolvedValue(null);
+    // @ts-expect-error mocked in test
+    foodRepository.searchFoods.mockResolvedValue([]);
+
+    await foodCoreService.searchFoods(
+      TEST_USER_ID,
+      'local',
+      TEST_USER_ID,
+      false,
+      true,
+      false,
+      10
+    );
+
+    expect(foodRepository.searchFoods).toHaveBeenCalledWith(
+      'local',
+      TEST_USER_ID,
+      false,
+      true,
+      false,
+      10
+    );
   });
 });
 

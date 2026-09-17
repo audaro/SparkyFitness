@@ -3,11 +3,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Alert, View, type ViewStyle } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
-import MealTypeSettingsScreen, {
-  resetMealTypeDragPreview,
-  useMealTypeRowDragPreviewStyle,
-} from '../../src/screens/MealTypeSettingsScreen';
-import { TIME_WHEEL_CONTAINER_HEIGHT, TIME_WHEEL_WRAPPER_HEIGHT } from '../../src/components/MealTypeTimeWheel';
+import MealTypeSettingsScreen from '../../src/screens/MealTypeSettingsScreen';
+import {
+  resetReorderDragPreview,
+  useReorderRowPreviewStyle,
+} from '../../src/components/WorkoutReorderList';
+import {
+  TIME_WHEEL_CONTAINER_HEIGHT,
+  TIME_WHEEL_WRAPPER_HEIGHT,
+} from '../../src/components/MealTypeTimeWheel';
 import * as mealTypesApi from '../../src/services/api/mealTypesApi';
 
 jest.mock('../../src/components/Icon', () => {
@@ -27,7 +31,9 @@ jest.mock('../../src/hooks/useScreenHeader', () => {
   const { Pressable } = require('react-native');
   return {
     useScreenHeader: (config: {
-      right?: { accessibilityLabel?: string; onPress?: () => void } | { accessibilityLabel?: string; onPress?: () => void }[];
+      right?:
+        | { accessibilityLabel?: string; onPress?: () => void }
+        | { accessibilityLabel?: string; onPress?: () => void }[];
     }) => {
       const items = Array.isArray(config.right)
         ? config.right
@@ -42,8 +48,8 @@ jest.mock('../../src/hooks/useScreenHeader', () => {
             key: i,
             accessibilityLabel: item.accessibilityLabel,
             onPress: item.onPress,
-          }),
-        ),
+          })
+        )
       );
     },
   };
@@ -90,7 +96,7 @@ jest.mock('@gorhom/bottom-sheet', () => {
             {children}
           </View>
         ) : null;
-      },
+      }
     ),
     BottomSheetScrollView: ({ children }: any) => <View>{children}</View>,
     BottomSheetView: ({ children }: any) => <View>{children}</View>,
@@ -129,13 +135,13 @@ function DragPreviewHarness({
   const panYValue = useSharedValue(panY);
   const committingTranslate = useSharedValue(committing);
   const targetIndex = useSharedValue(target);
-  const style = useMealTypeRowDragPreviewStyle(
+  const style = useReorderRowPreviewStyle(
     rowIndex,
     activeDragIndex,
     panYValue,
     committingTranslate,
     targetIndex,
-    strideList,
+    strideList
   );
   // A plain View on purpose: under the Reanimated jest mock useAnimatedStyle
   // yields the computed style object, and reading it straight back off the
@@ -147,26 +153,73 @@ function DragPreviewHarness({
 const UNIFORM_STRIDES = [64, 64, 64, 64, 64, 64, 64];
 
 const systemMealTypes = [
-  { id: 'sys-b', name: 'breakfast', sort_order: 10, user_id: null, created_at: '', is_visible: true, show_in_quick_log: true, default_time: '08:00' },
-  { id: 'sys-l', name: 'lunch', sort_order: 20, user_id: null, created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
-  { id: 'sys-d', name: 'dinner', sort_order: 30, user_id: null, created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
-  { id: 'sys-s', name: 'snacks', sort_order: 40, user_id: null, created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
+  {
+    id: 'sys-b',
+    name: 'breakfast',
+    sort_order: 10,
+    user_id: null,
+    created_at: '',
+    is_visible: true,
+    show_in_quick_log: true,
+    default_time: '08:00',
+  },
+  {
+    id: 'sys-l',
+    name: 'lunch',
+    sort_order: 20,
+    user_id: null,
+    created_at: '',
+    is_visible: true,
+    show_in_quick_log: true,
+    default_time: null,
+  },
+  {
+    id: 'sys-d',
+    name: 'dinner',
+    sort_order: 30,
+    user_id: null,
+    created_at: '',
+    is_visible: true,
+    show_in_quick_log: true,
+    default_time: null,
+  },
+  {
+    id: 'sys-s',
+    name: 'snacks',
+    sort_order: 40,
+    user_id: null,
+    created_at: '',
+    is_visible: true,
+    show_in_quick_log: true,
+    default_time: null,
+  },
 ];
 
 const customMealTypes = [
-  { id: 'custom-pw', name: 'Pre-Workout', sort_order: 21, user_id: 'user-1', created_at: '', is_visible: true, show_in_quick_log: false, default_time: '17:30' },
+  {
+    id: 'custom-pw',
+    name: 'Pre-Workout',
+    sort_order: 21,
+    user_id: 'user-1',
+    created_at: '',
+    is_visible: true,
+    show_in_quick_log: false,
+    default_time: '17:30',
+  },
 ];
 
 const allMealTypes = [...systemMealTypes, ...customMealTypes];
 
 function renderScreen(
-  overrides: { mealTypes?: any[]; fetchMock?: () => Promise<any[]> } = {},
+  overrides: { mealTypes?: any[]; fetchMock?: () => Promise<any[]> } = {}
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
   if (overrides.fetchMock) {
-    jest.spyOn(mealTypesApi, 'fetchMealTypes').mockImplementation(overrides.fetchMock);
+    jest
+      .spyOn(mealTypesApi, 'fetchMealTypes')
+      .mockImplementation(overrides.fetchMock);
   } else {
     jest
       .spyOn(mealTypesApi, 'fetchMealTypes')
@@ -176,12 +229,14 @@ function renderScreen(
     queryClient,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <MealTypeSettingsScreen navigation={mockNavigation} route={{ params: {} } as any} />
-      </QueryClientProvider>,
+        <MealTypeSettingsScreen
+          navigation={mockNavigation}
+          route={{ params: {} } as any}
+        />
+      </QueryClientProvider>
     ),
   };
 }
-
 
 /** Opens the edit sheet for a meal type and waits deterministically for it. */
 async function openEditSheet(
@@ -189,11 +244,11 @@ async function openEditSheet(
     getByLabelText: (label: string) => any;
     queryByLabelText: (label: string) => any;
   },
-  name: string,
+  name: string
 ) {
   fireEvent.press(queries.getByLabelText(`Edit ${name}`));
   await waitFor(() =>
-    expect(queries.queryByLabelText(`Quick log ${name}`)).not.toBeNull(),
+    expect(queries.queryByLabelText(`Quick log ${name}`)).not.toBeNull()
   );
 }
 
@@ -248,7 +303,8 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
         default_time: null,
       },
     ];
-    const { findByText, getAllByText, getByText, getByLabelText } = renderScreen({ mealTypes: types });
+    const { findByText, getAllByText, getByText, getByLabelText } =
+      renderScreen({ mealTypes: types });
     // The custom "breakfast" renders its literal lowercase name alongside the
     // system Breakfast anchor (which keeps its canonical label). Accessibility
     // for the custom row stays literal; the system row stays canonical.
@@ -264,7 +320,16 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   it('places a custom in the Lunch gap between Lunch and Dinner (Lunch 2.0 example)', async () => {
     const types = [
       ...systemMealTypes,
-      { id: 'lunch2', name: 'Lunch 2.0', sort_order: 21, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
+      {
+        id: 'lunch2',
+        name: 'Lunch 2.0',
+        sort_order: 21,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
     ];
     const { findByText, getAllByTestId } = renderScreen({ mealTypes: types });
     await findByText('Lunch 2.0');
@@ -317,13 +382,17 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     // is_visible false, so the onSettled refetch reconciles to false too.
     const serverState: any[] = JSON.parse(JSON.stringify(allMealTypes));
     const fetchMock = async () => serverState;
-    const { findByText, getByLabelText, queryClient } = renderScreen({ fetchMock });
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      const idx = serverState.findIndex((mt) => mt.id === id);
-      const updated = { ...serverState[idx], ...data };
-      serverState[idx] = updated;
-      return updated;
+    const { findByText, getByLabelText, queryClient } = renderScreen({
+      fetchMock,
     });
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        const idx = serverState.findIndex((mt) => mt.id === id);
+        const updated = { ...serverState[idx], ...data };
+        serverState[idx] = updated;
+        return updated;
+      });
     await findByText('Pre-Workout');
 
     // 1. Initial state: Switch is ON.
@@ -371,7 +440,7 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     });
     // Exactly one user-facing update error.
     expect(Toast.show).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'error', text1: 'Failed to update' }),
+      expect.objectContaining({ type: 'error', text1: 'Failed to update' })
     );
     await act(async () => {});
   });
@@ -382,21 +451,26 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     // A real server returns a NEW array reference each fetch, which lets the
     // onSettled refetch re-render observers.
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, queryAllByLabelText, queryClient } = renderScreen({ fetchMock });
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      const idx = serverState.findIndex((mt) => mt.id === id);
-      // The server returns the AUTHORITATIVE stored value (e.g. normalized
-      // to 18:45 after the picker committed 17:30), proving the row follows
-      // the server result, not the stale pre-save cache.
-      const updated = { ...serverState[idx], ...data, default_time: '18:45' };
-      serverState[idx] = updated;
-      return updated;
-    });
+    const { findByText, getByLabelText, queryAllByLabelText, queryClient } =
+      renderScreen({ fetchMock });
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        const idx = serverState.findIndex((mt) => mt.id === id);
+        // The server returns the AUTHORITATIVE stored value (e.g. normalized
+        // to 18:45 after the picker committed 17:30), proving the row follows
+        // the server result, not the stale pre-save cache.
+        const updated = { ...serverState[idx], ...data, default_time: '18:45' };
+        serverState[idx] = updated;
+        return updated;
+      });
     await findByText('Pre-Workout');
 
     fireEvent.press(getByLabelText('Default time for Pre-Workout, 17:30'));
     // Wait for the sheet to present, then press Save.
-    await waitFor(() => expect(getByLabelText('Save default time')).toBeTruthy());
+    await waitFor(() =>
+      expect(getByLabelText('Save default time')).toBeTruthy()
+    );
     fireEvent.press(getByLabelText('Save default time'));
 
     // The request fires with the picker's pending HH:MM.
@@ -413,26 +487,28 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
         const pw = cached?.find((mt) => mt.id === 'custom-pw');
         expect(pw?.default_time).toBe('18:45');
       },
-      { timeout: 3000 },
+      { timeout: 3000 }
     );
     // The cache holds 18:45; the rendered row must follow without a manual
     // pull-to-refresh.
     await waitFor(
       () => {
         expect(
-          queryAllByLabelText(/Default time for Pre-Workout, 18:45/).length,
+          queryAllByLabelText(/Default time for Pre-Workout, 18:45/).length
         ).toBe(1);
       },
-      { timeout: 4000 },
+      { timeout: 4000 }
     );
   });
 
   it('null initial time: Save commits exactly the visible wheel value', async () => {
     const { findByText, getByLabelText } = renderScreen();
-    const updateSpy = jest.spyOn(mealTypesApi, 'updateMealType').mockResolvedValue({
-      ...customMealTypes[0],
-      default_time: null,
-    } as any);
+    const updateSpy = jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockResolvedValue({
+        ...customMealTypes[0],
+        default_time: null,
+      } as any);
     await findByText('Pre-Workout');
 
     // Custom-pw has 17:30; open the picker for a type WITHOUT a time (dinner).
@@ -454,7 +530,8 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   });
 
   it('time sheet has a large-wheel layout contract and no Selected summary card', async () => {
-    const { findByText, getByLabelText, getByTestId, queryByText } = renderScreen();
+    const { findByText, getByLabelText, getByTestId, queryByText } =
+      renderScreen();
     await findByText('Pre-Workout');
     fireEvent.press(getByLabelText('Default time for Pre-Workout, 17:30'));
     expect(getByTestId('large-time-wheel')).toBeTruthy();
@@ -480,8 +557,13 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   });
 
   it('create sheet has no Delete, no helper copy, no Selected box — name + large wheel in one flow', async () => {
-    const { findByText, getByLabelText, getByTestId, queryByText, queryByLabelText } =
-      renderScreen();
+    const {
+      findByText,
+      getByLabelText,
+      getByTestId,
+      queryByText,
+      queryByLabelText,
+    } = renderScreen();
     await findByText('Pre-Workout');
     fireEvent.press(getByLabelText('Add meal type'));
     expect(getByTestId('create-time-wheel')).toBeTruthy();
@@ -494,11 +576,31 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   it('reorders a custom across an anchor gap and persists sequential slots with ONE invalidate', async () => {
     const types = [
       ...systemMealTypes,
-      { id: 'brunch', name: 'Brunch', sort_order: 11, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
-      { id: 'l2', name: 'Lunch 2.0', sort_order: 21, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
+      {
+        id: 'brunch',
+        name: 'Brunch',
+        sort_order: 11,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
+      {
+        id: 'l2',
+        name: 'Lunch 2.0',
+        sort_order: 21,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
     ];
     const { findByText, getByLabelText } = renderScreen({ mealTypes: types });
-    const updateSpy = jest.spyOn(mealTypesApi, 'updateMealType').mockResolvedValue({} as any);
+    const updateSpy = jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockResolvedValue({} as any);
     const invalidateSpy = jest.spyOn(Toast, 'show');
     invalidateSpy.mockClear();
 
@@ -509,14 +611,16 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     });
 
     await waitFor(() => {
-      expect(updateSpy).toHaveBeenCalledWith('brunch', { sort_order: expect.any(Number) });
+      expect(updateSpy).toHaveBeenCalledWith('brunch', {
+        sort_order: expect.any(Number),
+      });
       const write = updateSpy.mock.calls[0][1] as any;
       expect(write.sort_order).toBeGreaterThanOrEqual(21);
       expect(write.sort_order).toBeLessThanOrEqual(29);
     });
     // No generic "Failed to update" toast for reorder rows.
     expect(Toast.show).not.toHaveBeenCalledWith(
-      expect.objectContaining({ text1: 'Failed to update' }),
+      expect.objectContaining({ text1: 'Failed to update' })
     );
     await act(async () => {});
   });
@@ -532,9 +636,24 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
       show_in_quick_log: true,
       default_time: null,
     }));
-    const types = [...systemMealTypes, { id: 'brunch', name: 'Brunch', sort_order: 11, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null }, ...fullGap];
+    const types = [
+      ...systemMealTypes,
+      {
+        id: 'brunch',
+        name: 'Brunch',
+        sort_order: 11,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
+      ...fullGap,
+    ];
     const { findByText, getByLabelText } = renderScreen({ mealTypes: types });
-    const updateSpy = jest.spyOn(mealTypesApi, 'updateMealType').mockResolvedValue({} as any);
+    const updateSpy = jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockResolvedValue({} as any);
 
     await findByText('Brunch');
     fireEvent(getByLabelText('Reorder Brunch'), 'accessibilityAction', {
@@ -545,8 +664,10 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
       expect(Toast.show).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'error',
-          text1: expect.stringContaining('No more meal types can be placed between Lunch and Dinner'),
-        }),
+          text1: expect.stringContaining(
+            'No more meal types can be placed between Lunch and Dinner'
+          ),
+        })
       );
     });
     // No partial writes.
@@ -557,23 +678,47 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   it('rapid reorders (deferred): newest order B stays visible and is persisted exactly once', async () => {
     const types = [
       ...systemMealTypes,
-      { id: 'a', name: 'A', sort_order: 11, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
-      { id: 'b', name: 'B', sort_order: 21, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
+      {
+        id: 'a',
+        name: 'A',
+        sort_order: 11,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
+      {
+        id: 'b',
+        name: 'B',
+        sort_order: 21,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
     ];
     const serverState: any[] = JSON.parse(JSON.stringify(types));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, getAllByLabelText } = renderScreen({ fetchMock });
+    const { findByText, getByLabelText, getAllByLabelText } = renderScreen({
+      fetchMock,
+    });
 
     // Deferred promises: first persistence (A) stays pending while B arrives.
     let resolveA!: (v: any) => void;
     let resolveB!: (v: any) => void;
-    const pendingA = new Promise((res) => { resolveA = res; });
-    const pendingB = new Promise((res) => { resolveB = res; });
+    const pendingA = new Promise((res) => {
+      resolveA = res;
+    });
+    const pendingB = new Promise((res) => {
+      resolveB = res;
+    });
     const updateSpy = jest
       .spyOn(mealTypesApi, 'updateMealType')
       .mockImplementation(async (id: string, data: any) => {
         const idx = serverState.findIndex((t) => t.id === id);
-            if (id === 'a') {
+        if (id === 'a') {
           await pendingA;
           serverState[idx] = { ...serverState[idx], ...data };
           return { ...serverState[idx] };
@@ -588,7 +733,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     fireEvent(getByLabelText('Reorder A'), 'accessibilityAction', {
       nativeEvent: { actionName: 'increment' },
     });
-    await waitFor(() => expect(updateSpy.mock.calls.filter((c) => c[0] === 'a').length).toBe(1));
+    await waitFor(() =>
+      expect(updateSpy.mock.calls.filter((c) => c[0] === 'a').length).toBe(1)
+    );
 
     // 2. Drag B up (into b_l) while A is still pending.
     fireEvent(getByLabelText('Reorder B'), 'accessibilityAction', {
@@ -597,17 +744,25 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
 
     // 3. B is visible as the optimistic order (B sits before Lunch).
     await waitFor(() => {
-      expect(getAllByLabelText(/^Default time for B(?:,| )/).length).toBeGreaterThan(0);
+      expect(
+        getAllByLabelText(/^Default time for B(?:,| )/).length
+      ).toBeGreaterThan(0);
     });
 
     // 4. Resolve A's persistence (its snapshot also writes B's l_d slot).
-    await act(async () => { resolveA({}); });
+    await act(async () => {
+      resolveA({});
+    });
     // 5. A's completion must NOT clear B's newer optimistic override.
     await act(async () => {});
-    expect(getAllByLabelText(/^Default time for B(?:,| )/).length).toBeGreaterThan(0);
+    expect(
+      getAllByLabelText(/^Default time for B(?:,| )/).length
+    ).toBeGreaterThan(0);
 
     // 6-7. Allow B's persistence; final list/cache = B (B in b_l, A in l_d).
-    await act(async () => { resolveB({}); });
+    await act(async () => {
+      resolveB({});
+    });
     await act(async () => {});
     await act(async () => {});
     await waitFor(() => {
@@ -642,10 +797,17 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
 
   it('creates a custom type: auto end-of-list slot in d_s, no is_visible in payload, then quick-log follow-up', async () => {
     const { findByText, getByLabelText, getByPlaceholderText } = renderScreen();
-    const createSpy = jest.spyOn(mealTypesApi, 'createMealType').mockResolvedValue({
-      id: 'custom-new', name: 'Dessert', sort_order: 31, user_id: 'user-1',
-    } as any);
-    const updateSpy = jest.spyOn(mealTypesApi, 'updateMealType').mockResolvedValue({} as any);
+    const createSpy = jest
+      .spyOn(mealTypesApi, 'createMealType')
+      .mockResolvedValue({
+        id: 'custom-new',
+        name: 'Dessert',
+        sort_order: 31,
+        user_id: 'user-1',
+      } as any);
+    const updateSpy = jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockResolvedValue({} as any);
 
     await findByText('Pre-Workout');
     fireEvent.press(getByLabelText('Add meal type'));
@@ -660,7 +822,7 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
           // The inline wheel shows a concrete time; untouched Create saves
           // exactly the displayed HH:MM (visual state == payload state).
           default_time: expect.stringMatching(/^\d{2}:\d{2}$/),
-        }),
+        })
       );
       // No is_visible in the base create payload (backend hardcodes TRUE).
       expect((createSpy.mock.calls[0][0] as any).is_visible).toBeUndefined();
@@ -669,7 +831,7 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith(
         'custom-new',
-        expect.objectContaining({ show_in_quick_log: false }),
+        expect.objectContaining({ show_in_quick_log: false })
       );
     });
     // Flush the async create + follow-up + invalidate chain so no setState
@@ -695,19 +857,29 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   });
 
   it('edit custom: name + quick log + time; payload omits is_visible and sort_order', async () => {
-    const { findByText, getByLabelText, queryByLabelText, getByPlaceholderText } = renderScreen();
-    const updateSpy = jest.spyOn(mealTypesApi, 'updateMealType').mockResolvedValue({} as any);
+    const {
+      findByText,
+      getByLabelText,
+      queryByLabelText,
+      getByPlaceholderText,
+    } = renderScreen();
+    const updateSpy = jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockResolvedValue({} as any);
 
     await findByText('Pre-Workout');
     // Visibility lives on the MAIN LIST (mockup placement), not in the sheet.
     fireEvent(getByLabelText('Visible Pre-Workout'), 'valueChange', false);
     await waitFor(() =>
-      expect(updateSpy).toHaveBeenCalledWith('custom-pw', { is_visible: false }),
+      expect(updateSpy).toHaveBeenCalledWith('custom-pw', { is_visible: false })
     );
     updateSpy.mockClear();
 
     await openEditSheet({ getByLabelText, queryByLabelText }, 'Pre-Workout');
-    fireEvent.changeText(getByPlaceholderText('e.g. Lunch 2.0'), 'Pre-Workout 2.0');
+    fireEvent.changeText(
+      getByPlaceholderText('e.g. Lunch 2.0'),
+      'Pre-Workout 2.0'
+    );
     fireEvent.press(getByLabelText('Save meal type'));
 
     await waitFor(() => {
@@ -717,7 +889,7 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
           name: 'Pre-Workout 2.0',
           default_time: '17:30',
           show_in_quick_log: false,
-        }),
+        })
       );
       const payload = updateSpy.mock.calls[0][1] as any;
       expect(payload.sort_order).toBeUndefined();
@@ -728,7 +900,8 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   });
 
   it('system edit: name display-only, no Delete, per-user quick log switch present', async () => {
-    const { findByText, getByLabelText, queryByLabelText, getAllByText } = renderScreen();
+    const { findByText, getByLabelText, queryByLabelText, getAllByText } =
+      renderScreen();
     await findByText('Breakfast');
     // Visibility is on the MAIN LIST for system rows too.
     expect(getByLabelText('Visible Breakfast')).toBeTruthy();
@@ -744,7 +917,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
 
   it('deletes a custom type from the edit sheet with confirmation', async () => {
     const { findByText, getByLabelText, queryByLabelText } = renderScreen();
-    const deleteSpy = jest.spyOn(mealTypesApi, 'deleteMealType').mockResolvedValue(undefined);
+    const deleteSpy = jest
+      .spyOn(mealTypesApi, 'deleteMealType')
+      .mockResolvedValue(undefined);
     const alertSpy = jest.spyOn(Alert, 'alert');
 
     await findByText('Pre-Workout');
@@ -753,7 +928,7 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     expect(alertSpy).toHaveBeenCalledWith(
       'Delete Meal Type',
       "Delete 'Pre-Workout'?",
-      expect.any(Array),
+      expect.any(Array)
     );
     const buttons = alertSpy.mock.calls[0][2] as any[];
     buttons.find((b) => b.style === 'destructive').onPress();
@@ -763,7 +938,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
 
   it('edit time row opens the picker; Save commits HH:MM, Clear commits null, dismiss changes nothing', async () => {
     const { findByText, getByLabelText, getAllByTestId } = renderScreen();
-    const updateSpy = jest.spyOn(mealTypesApi, 'updateMealType').mockResolvedValue({} as any);
+    const updateSpy = jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockResolvedValue({} as any);
 
     await findByText('Pre-Workout');
     // Row time cell on the main list opens the picker directly (existing flow).
@@ -771,7 +948,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     // Save the currently selected value → HH:MM persisted.
     fireEvent.press(getByLabelText('Save default time'));
     await waitFor(() =>
-      expect(updateSpy).toHaveBeenCalledWith('custom-pw', { default_time: '17:30' }),
+      expect(updateSpy).toHaveBeenCalledWith('custom-pw', {
+        default_time: '17:30',
+      })
     );
     updateSpy.mockClear();
 
@@ -779,7 +958,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     fireEvent.press(getByLabelText('Default time for Pre-Workout, 17:30'));
     fireEvent.press(getByLabelText('Clear default time'));
     await waitFor(() =>
-      expect(updateSpy).toHaveBeenCalledWith('custom-pw', { default_time: null }),
+      expect(updateSpy).toHaveBeenCalledWith('custom-pw', {
+        default_time: null,
+      })
     );
     updateSpy.mockClear();
 
@@ -795,12 +976,23 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     const longName = 'Very Long Pre Workout Meal Category Used Before Training';
     const types = [
       ...systemMealTypes,
-      { id: 'custom-long', name: longName, sort_order: 21, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: false, default_time: null },
+      {
+        id: 'custom-long',
+        name: longName,
+        sort_order: 21,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: false,
+        default_time: null,
+      },
     ];
     const { findByText, getByLabelText } = renderScreen({ mealTypes: types });
     await findByText(longName);
     expect(getByLabelText(`Edit ${longName}`)).toBeTruthy();
-    expect(getByLabelText(`Default time for ${longName}, Not set`)).toBeTruthy();
+    expect(
+      getByLabelText(`Default time for ${longName}, Not set`)
+    ).toBeTruthy();
     expect(getByLabelText(`Reorder ${longName}`)).toBeTruthy();
     // Edit sheet exposes quick log + delete.
     fireEvent.press(getByLabelText(`Edit ${longName}`));
@@ -809,7 +1001,8 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   });
 
   it('both the dedicated sheet and the inline Create flow use the shared time wheel', async () => {
-    const { findByText, getByLabelText, getByTestId, queryAllByTestId } = renderScreen();
+    const { findByText, getByLabelText, getByTestId, queryAllByTestId } =
+      renderScreen();
     await findByText('Pre-Workout');
 
     // Dedicated sheet: open the picker from a row time cell.
@@ -830,28 +1023,36 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     // Deferred promises so the two mutations truly overlap.
     const serverState: any[] = JSON.parse(JSON.stringify(allMealTypes));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, queryClient } = renderScreen({ fetchMock });
+    const { findByText, getByLabelText, queryClient } = renderScreen({
+      fetchMock,
+    });
 
     let rejectA!: (e: Error) => void;
     let resolveB!: (v: any) => void;
-    const pendingA = new Promise((_res, rej) => { rejectA = rej; });
-    const pendingB = new Promise((res) => { resolveB = res; });
+    const pendingA = new Promise((_res, rej) => {
+      rejectA = rej;
+    });
+    const pendingB = new Promise((res) => {
+      resolveB = res;
+    });
 
     const callLog: string[] = [];
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      callLog.push(id);
-      const idx = serverState.findIndex((mt) => mt.id === id);
-      const updated = { ...serverState[idx], ...data };
-      if (id === 'sys-b') {
-        await pendingA;
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        callLog.push(id);
+        const idx = serverState.findIndex((mt) => mt.id === id);
+        const updated = { ...serverState[idx], ...data };
+        if (id === 'sys-b') {
+          await pendingA;
+          serverState[idx] = updated;
+          return updated;
+        }
+        // sys-l
+        await pendingB;
         serverState[idx] = updated;
         return updated;
-      }
-      // sys-l
-      await pendingB;
-      serverState[idx] = updated;
-      return updated;
-    });
+      });
 
     await findByText('Breakfast');
     // A: Breakfast visible -> false (pending)
@@ -860,8 +1061,12 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     fireEvent(getByLabelText('Visible Lunch'), 'valueChange', false);
 
     // B succeeds FIRST, then A fails LATE.
-    await act(async () => { resolveB({ ...systemMealTypes[1], is_visible: false }); });
-    await act(async () => { rejectA(new Error('boom')); });
+    await act(async () => {
+      resolveB({ ...systemMealTypes[1], is_visible: false });
+    });
+    await act(async () => {
+      rejectA(new Error('boom'));
+    });
 
     await waitFor(() => {
       const cached = queryClient.getQueryData<any[]>(['mealTypes']);
@@ -878,35 +1083,47 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   it('concurrency: same record + same field — a newer toggle wins over an older late completion', async () => {
     const serverState: any[] = JSON.parse(JSON.stringify(allMealTypes));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, queryClient } = renderScreen({ fetchMock });
+    const { findByText, getByLabelText, queryClient } = renderScreen({
+      fetchMock,
+    });
 
     let resolveA!: (v: any) => void;
     let resolveB!: (v: any) => void;
-    const pendingA = new Promise((res) => { resolveA = res; });
-    const pendingB = new Promise((res) => { resolveB = res; });
-
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      const idx = serverState.findIndex((mt) => mt.id === id);
-      const updated = { ...serverState[idx], ...data };
-      if ((data as any).is_visible === false) {
-        await pendingA; // A: Breakfast -> false (pending)
-        // A was processed by the server BEFORE B, so its late response is a
-        // STALE snapshot — it must not overwrite the server state that B
-        // already advanced to true.
-        return updated;
-      }
-      await pendingB; // B: Breakfast -> true (pending)
-      serverState[idx] = updated;
-      return updated;
+    const pendingA = new Promise((res) => {
+      resolveA = res;
     });
+    const pendingB = new Promise((res) => {
+      resolveB = res;
+    });
+
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        const idx = serverState.findIndex((mt) => mt.id === id);
+        const updated = { ...serverState[idx], ...data };
+        if ((data as any).is_visible === false) {
+          await pendingA; // A: Breakfast -> false (pending)
+          // A was processed by the server BEFORE B, so its late response is a
+          // STALE snapshot — it must not overwrite the server state that B
+          // already advanced to true.
+          return updated;
+        }
+        await pendingB; // B: Breakfast -> true (pending)
+        serverState[idx] = updated;
+        return updated;
+      });
 
     await findByText('Breakfast');
     fireEvent(getByLabelText('Visible Breakfast'), 'valueChange', false); // A
     fireEvent(getByLabelText('Visible Breakfast'), 'valueChange', true); // B
 
     // B succeeds first, A resolves late — A must NOT overwrite B.
-    await act(async () => { resolveB({ ...systemMealTypes[0], is_visible: true }); });
-    await act(async () => { resolveA({ ...systemMealTypes[0], is_visible: false }); });
+    await act(async () => {
+      resolveB({ ...systemMealTypes[0], is_visible: true });
+    });
+    await act(async () => {
+      resolveA({ ...systemMealTypes[0], is_visible: false });
+    });
 
     await waitFor(() => {
       const cached = queryClient.getQueryData<any[]>(['mealTypes']);
@@ -919,35 +1136,52 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   it('concurrency: same record + different fields — both survive adversarial resolution', async () => {
     const serverState: any[] = JSON.parse(JSON.stringify(allMealTypes));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, queryClient } = renderScreen({ fetchMock });
+    const { findByText, getByLabelText, queryClient } = renderScreen({
+      fetchMock,
+    });
 
     let resolveA!: (v: any) => void;
     let resolveB!: (v: any) => void;
-    const pendingA = new Promise((res) => { resolveA = res; });
-    const pendingB = new Promise((res) => { resolveB = res; });
-
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      const idx = serverState.findIndex((mt) => mt.id === id);
-      if ('is_visible' in data) {
-        await pendingA;
-        // A (visibility) is a different field from B (time): the server only
-        // applies is_visible and returns the CURRENT record — it does not
-        // revert default_time (a real server would not undo B's field).
-        serverState[idx] = { ...serverState[idx], is_visible: (data as any).is_visible };
-        return { ...serverState[idx] };
-      }
-      await pendingB;
-      // The server stores the time and returns its AUTHORITATIVE normalized
-      // value (18:45) — the picker's pending HH:MM may differ in tests.
-      serverState[idx] = { ...serverState[idx], ...data, default_time: '18:45' };
-      return { ...serverState[idx], default_time: '18:45' };
+    const pendingA = new Promise((res) => {
+      resolveA = res;
     });
+    const pendingB = new Promise((res) => {
+      resolveB = res;
+    });
+
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        const idx = serverState.findIndex((mt) => mt.id === id);
+        if ('is_visible' in data) {
+          await pendingA;
+          // A (visibility) is a different field from B (time): the server only
+          // applies is_visible and returns the CURRENT record — it does not
+          // revert default_time (a real server would not undo B's field).
+          serverState[idx] = {
+            ...serverState[idx],
+            is_visible: (data as any).is_visible,
+          };
+          return { ...serverState[idx] };
+        }
+        await pendingB;
+        // The server stores the time and returns its AUTHORITATIVE normalized
+        // value (18:45) — the picker's pending HH:MM may differ in tests.
+        serverState[idx] = {
+          ...serverState[idx],
+          ...data,
+          default_time: '18:45',
+        };
+        return { ...serverState[idx], default_time: '18:45' };
+      });
 
     await findByText('Pre-Workout');
     // A: Pre-Workout visibility -> false; B: Pre-Workout default_time -> 18:45
     fireEvent(getByLabelText('Visible Pre-Workout'), 'valueChange', false);
     fireEvent.press(getByLabelText('Default time for Pre-Workout, 17:30'));
-    await waitFor(() => expect(getByLabelText('Save default time')).toBeTruthy());
+    await waitFor(() =>
+      expect(getByLabelText('Save default time')).toBeTruthy()
+    );
     fireEvent.press(getByLabelText('Save default time')); // pending B (server returns 18:45)
 
     // Resolve in adversarial order: B (time) first, then A (visibility).
@@ -955,7 +1189,11 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
       resolveB({ ...customMealTypes[0], default_time: '18:45' });
     });
     await act(async () => {
-      resolveA({ ...customMealTypes[0], is_visible: false, default_time: '17:30' });
+      resolveA({
+        ...customMealTypes[0],
+        is_visible: false,
+        default_time: '17:30',
+      });
     });
 
     await waitFor(() => {
@@ -986,33 +1224,47 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     ];
     const serverState: any[] = JSON.parse(JSON.stringify(types));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, getByTestId, queryAllByLabelText, queryClient } = renderScreen({
+    const {
+      findByText,
+      getByLabelText,
+      getByTestId,
+      queryAllByLabelText,
+      queryClient,
+    } = renderScreen({
       fetchMock,
     });
     let rejectA!: (e: Error) => void;
     let resolveB!: (v: any) => void;
-    const pendingA = new Promise((_res, rej) => { rejectA = rej; });
-    const pendingB = new Promise((res) => { resolveB = res; });
-    let updateCalls = 0;
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      const idx = serverState.findIndex((t) => t.id === id);
-      if (id === 'pw' && (data as any).default_time === '17:30') {
-        updateCalls += 1;
-        if (updateCalls === 1) {
-          await pendingA; // A pending
-          throw new Error('boom'); // A fails late (must NOT restore 16:00)
-        }
-        await pendingB; // B pending (same value)
-        serverState[idx] = { ...serverState[idx], default_time: '17:30' };
-        return { ...serverState[idx] };
-      }
-      return { ...serverState[idx], ...(data as object) } as any;
+    const pendingA = new Promise((_res, rej) => {
+      rejectA = rej;
     });
+    const pendingB = new Promise((res) => {
+      resolveB = res;
+    });
+    let updateCalls = 0;
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        const idx = serverState.findIndex((t) => t.id === id);
+        if (id === 'pw' && (data as any).default_time === '17:30') {
+          updateCalls += 1;
+          if (updateCalls === 1) {
+            await pendingA; // A pending
+            throw new Error('boom'); // A fails late (must NOT restore 16:00)
+          }
+          await pendingB; // B pending (same value)
+          serverState[idx] = { ...serverState[idx], default_time: '17:30' };
+          return { ...serverState[idx] };
+        }
+        return { ...serverState[idx], ...(data as object) } as any;
+      });
 
     await findByText('Pre-Workout');
     fireEvent.press(getByLabelText('Default time for Pre-Workout, 16:00'));
     await waitFor(() => {
-      expect(queryAllByLabelText('Save default time').length).toBeGreaterThan(0);
+      expect(queryAllByLabelText('Save default time').length).toBeGreaterThan(
+        0
+      );
     });
     // Rotate the wheel to 17:30 (the date-picker mock exposes onChange).
     const picker = getByTestId('date-picker');
@@ -1026,7 +1278,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     // so updateCalls stays 1 until A settles.
     fireEvent.press(getByLabelText('Default time for Pre-Workout, 17:30'));
     await waitFor(() => {
-      expect(queryAllByLabelText('Save default time').length).toBeGreaterThan(0);
+      expect(queryAllByLabelText('Save default time').length).toBeGreaterThan(
+        0
+      );
     });
     const picker2 = getByTestId('date-picker');
     fireEvent(picker2, 'change', { date: new Date(2024, 0, 1, 17, 30) });
@@ -1035,9 +1289,13 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     expect(updateCalls).toBe(1); // serialized: B's PUT waits for A
 
     // A fails late → no server write; B's queued request then executes.
-    await act(async () => { rejectA(new Error('boom')); });
+    await act(async () => {
+      rejectA(new Error('boom'));
+    });
     await waitFor(() => expect(updateCalls).toBe(2));
-    await act(async () => { resolveB({ ...types[0], default_time: '17:30' }); });
+    await act(async () => {
+      resolveB({ ...types[0], default_time: '17:30' });
+    });
 
     await waitFor(() => {
       const cached = queryClient.getQueryData<any[]>(['mealTypes']);
@@ -1047,7 +1305,7 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     expect(getByLabelText('Default time for Pre-Workout, 17:30')).toBeTruthy();
     // Exactly one error toast for the failed A.
     expect(Toast.show).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'error', text1: 'Failed to update' }),
+      expect.objectContaining({ type: 'error', text1: 'Failed to update' })
     );
     await act(async () => {});
   });
@@ -1058,22 +1316,31 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     const { findByText, getByLabelText } = renderScreen({ fetchMock });
     let rejectA!: (e: Error) => void;
     let resolveB!: (v: any) => void;
-    const pendingA = new Promise((_res, rej) => { rejectA = rej; });
-    const pendingB = new Promise((res) => { resolveB = res; });
-    let visCalls = 0;
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      if (id === 'sys-b' && (data as any).is_visible === false) {
-        visCalls += 1;
-        if (visCalls === 1) {
-          await pendingA;
-          throw new Error('boom'); // A (false) fails late
-        }
-        await pendingB;
-        serverState.find((m: any) => m.id === 'sys-b')!.is_visible = false;
-        return { ...serverState.find((m: any) => m.id === 'sys-b') };
-      }
-      return { ...serverState.find((m: any) => m.id === id), ...(data as object) } as any;
+    const pendingA = new Promise((_res, rej) => {
+      rejectA = rej;
     });
+    const pendingB = new Promise((res) => {
+      resolveB = res;
+    });
+    let visCalls = 0;
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        if (id === 'sys-b' && (data as any).is_visible === false) {
+          visCalls += 1;
+          if (visCalls === 1) {
+            await pendingA;
+            throw new Error('boom'); // A (false) fails late
+          }
+          await pendingB;
+          serverState.find((m: any) => m.id === 'sys-b')!.is_visible = false;
+          return { ...serverState.find((m: any) => m.id === 'sys-b') };
+        }
+        return {
+          ...serverState.find((m: any) => m.id === id),
+          ...(data as object),
+        } as any;
+      });
 
     await findByText('Breakfast');
     fireEvent(getByLabelText('Visible Breakfast'), 'valueChange', false); // A pending
@@ -1083,7 +1350,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     expect(visCalls).toBe(1); // serialized: B's PUT waits for A
 
     // A fails late → no server write; B's queued request then executes.
-    await act(async () => { rejectA(new Error('boom')); });
+    await act(async () => {
+      rejectA(new Error('boom'));
+    });
     await waitFor(() => expect(visCalls).toBe(2));
     await act(async () => {
       resolveB({ ...serverState.find((m: any) => m.id === 'sys-b') });
@@ -1098,16 +1367,40 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
   it('reorder failure with a NEWER desired order: B stays and is persisted after reconciliation', async () => {
     const types = [
       ...systemMealTypes,
-      { id: 'a', name: 'A', sort_order: 11, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
-      { id: 'b', name: 'B', sort_order: 21, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
+      {
+        id: 'a',
+        name: 'A',
+        sort_order: 11,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
+      {
+        id: 'b',
+        name: 'B',
+        sort_order: 21,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
     ];
     const serverState: any[] = JSON.parse(JSON.stringify(types));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, getAllByLabelText } = renderScreen({ fetchMock });
+    const { findByText, getByLabelText, getAllByLabelText } = renderScreen({
+      fetchMock,
+    });
     let rejectA!: (e: Error) => void;
     let resolveB!: (v: any) => void;
-    const pendingA = new Promise((_res, rej) => { rejectA = rej; });
-    const pendingB = new Promise((res) => { resolveB = res; });
+    const pendingA = new Promise((_res, rej) => {
+      rejectA = rej;
+    });
+    const pendingB = new Promise((res) => {
+      resolveB = res;
+    });
     let aCalls = 0;
     const updateSpy = jest
       .spyOn(mealTypesApi, 'updateMealType')
@@ -1139,13 +1432,17 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     });
 
     // A fails: exactly one reorder error; B remains the desired order.
-    await act(async () => { rejectA(new Error('boom')); });
+    await act(async () => {
+      rejectA(new Error('boom'));
+    });
     await act(async () => {});
     await act(async () => {});
     // B still visible (optimistic override preserved — stale A did not clear it).
-    expect(getAllByLabelText(/^Default time for B(?:,| )/).length).toBeGreaterThan(0);
+    expect(
+      getAllByLabelText(/^Default time for B(?:,| )/).length
+    ).toBeGreaterThan(0);
     const reorderErrors = (Toast.show as jest.Mock).mock.calls.filter(
-      (c) => (c[0] as any)?.text1 === 'Failed to reorder meal types',
+      (c) => (c[0] as any)?.text1 === 'Failed to reorder meal types'
     ).length;
     expect(reorderErrors).toBe(1);
 
@@ -1153,7 +1450,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     // A failed (l_d=[A,B] snapshot) — B's newer desired order is l_d=[B,A]
     // (one decrement moves B up within l_d, before A). B is re-persisted with
     // its canonical slot after reconciliation.
-    await act(async () => { resolveB({}); });
+    await act(async () => {
+      resolveB({});
+    });
     await act(async () => {});
     await act(async () => {});
     await waitFor(() => {
@@ -1176,27 +1475,41 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     // exactly A(false) then B(true) — even if we try to resolve adversarially.
     const serverState: any[] = JSON.parse(JSON.stringify(allMealTypes));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, queryClient } = renderScreen({ fetchMock });
+    const { findByText, getByLabelText, queryClient } = renderScreen({
+      fetchMock,
+    });
 
     let resolveA!: (v: any) => void;
     let resolveB!: (v: any) => void;
-    const gateA = new Promise((res) => { resolveA = res; });
-    const gateB = new Promise((res) => { resolveB = res; });
-    const callLog: string[] = [];
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      callLog.push(`${id}:${(data as any).is_visible}`);
-      const idx = serverState.findIndex((m) => m.id === id);
-      if (callLog.length === 1) {
-        // A executes first (serialized); apply its write only when it completes.
-        await gateA;
-        serverState[idx] = { ...serverState[idx], is_visible: (data as any).is_visible };
-        return { ...serverState[idx] };
-      }
-      // B's PUT only starts AFTER A settled; apply B's write.
-      await gateB;
-      serverState[idx] = { ...serverState[idx], is_visible: (data as any).is_visible };
-      return { ...serverState[idx] };
+    const gateA = new Promise((res) => {
+      resolveA = res;
     });
+    const gateB = new Promise((res) => {
+      resolveB = res;
+    });
+    const callLog: string[] = [];
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        callLog.push(`${id}:${(data as any).is_visible}`);
+        const idx = serverState.findIndex((m) => m.id === id);
+        if (callLog.length === 1) {
+          // A executes first (serialized); apply its write only when it completes.
+          await gateA;
+          serverState[idx] = {
+            ...serverState[idx],
+            is_visible: (data as any).is_visible,
+          };
+          return { ...serverState[idx] };
+        }
+        // B's PUT only starts AFTER A settled; apply B's write.
+        await gateB;
+        serverState[idx] = {
+          ...serverState[idx],
+          is_visible: (data as any).is_visible,
+        };
+        return { ...serverState[idx] };
+      });
 
     await findByText('Breakfast');
     expect(getByLabelText('Visible Breakfast').props.value).toBe(true);
@@ -1211,13 +1524,19 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     });
 
     // Let A's server write commit (false), then B's (true).
-    await act(async () => { resolveA({}); });
+    await act(async () => {
+      resolveA({});
+    });
     await waitFor(() => expect(callLog.length).toBe(2));
-    await act(async () => { resolveB({}); });
+    await act(async () => {
+      resolveB({});
+    });
 
     // Final: newest user intent (true) is the server value, cache, and UI.
     await waitFor(() => {
-      expect(serverState.find((m: any) => m.id === 'sys-b').is_visible).toBe(true);
+      expect(serverState.find((m: any) => m.id === 'sys-b').is_visible).toBe(
+        true
+      );
       const cached = queryClient.getQueryData<any[]>(['mealTypes']);
       expect(cached?.find((m: any) => m.id === 'sys-b').is_visible).toBe(true);
       expect(getByLabelText('Visible Breakfast').props.value).toBe(true);
@@ -1243,31 +1562,51 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     ];
     const serverState: any[] = JSON.parse(JSON.stringify(types));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, getByTestId, queryAllByLabelText, queryClient } = renderScreen({ fetchMock });
+    const {
+      findByText,
+      getByLabelText,
+      getByTestId,
+      queryAllByLabelText,
+      queryClient,
+    } = renderScreen({ fetchMock });
 
     let resolveA!: (v: any) => void;
     let resolveB!: (v: any) => void;
-    const gateA = new Promise((res) => { resolveA = res; });
-    const gateB = new Promise((res) => { resolveB = res; });
-    const callLog: string[] = [];
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      callLog.push((data as any).default_time);
-      const idx = serverState.findIndex((t) => t.id === id);
-      if (callLog.length === 1) {
-        await gateA;
-        serverState[idx] = { ...serverState[idx], default_time: (data as any).default_time };
-        return { ...serverState[idx] };
-      }
-      await gateB;
-      serverState[idx] = { ...serverState[idx], default_time: (data as any).default_time };
-      return { ...serverState[idx] };
+    const gateA = new Promise((res) => {
+      resolveA = res;
     });
+    const gateB = new Promise((res) => {
+      resolveB = res;
+    });
+    const callLog: string[] = [];
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        callLog.push((data as any).default_time);
+        const idx = serverState.findIndex((t) => t.id === id);
+        if (callLog.length === 1) {
+          await gateA;
+          serverState[idx] = {
+            ...serverState[idx],
+            default_time: (data as any).default_time,
+          };
+          return { ...serverState[idx] };
+        }
+        await gateB;
+        serverState[idx] = {
+          ...serverState[idx],
+          default_time: (data as any).default_time,
+        };
+        return { ...serverState[idx] };
+      });
 
     await findByText('Pre-Workout');
     const saveTime = async (hhmm: string) => {
       fireEvent.press(getByLabelText(/Default time for Pre-Workout/));
       await waitFor(() => {
-        expect(queryAllByLabelText('Save default time').length).toBeGreaterThan(0);
+        expect(queryAllByLabelText('Save default time').length).toBeGreaterThan(
+          0
+        );
       });
       const picker = getByTestId('date-picker');
       const [h, m] = hhmm.split(':').map(Number);
@@ -1281,15 +1620,25 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     await act(async () => {});
     expect(callLog.length).toBe(1); // serialized: B's PUT waits for A
 
-    await act(async () => { resolveA({}); });
+    await act(async () => {
+      resolveA({});
+    });
     await waitFor(() => expect(callLog.length).toBe(2));
-    await act(async () => { resolveB({}); });
+    await act(async () => {
+      resolveB({});
+    });
 
     await waitFor(() => {
-      expect(serverState.find((t: any) => t.id === 'pw').default_time).toBe('18:45');
+      expect(serverState.find((t: any) => t.id === 'pw').default_time).toBe(
+        '18:45'
+      );
       const cached = queryClient.getQueryData<any[]>(['mealTypes']);
-      expect(cached?.find((t: any) => t.id === 'pw').default_time).toBe('18:45');
-      expect(getByLabelText('Default time for Pre-Workout, 18:45')).toBeTruthy();
+      expect(cached?.find((t: any) => t.id === 'pw').default_time).toBe(
+        '18:45'
+      );
+      expect(
+        getByLabelText('Default time for Pre-Workout, 18:45')
+      ).toBeTruthy();
     });
     expect(callLog).toEqual(['17:30', '18:45']);
     await act(async () => {});
@@ -1301,22 +1650,30 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     // reconciles to the authoritative server state (true).
     const serverState: any[] = JSON.parse(JSON.stringify(allMealTypes));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, queryClient } = renderScreen({ fetchMock });
+    const { findByText, getByLabelText, queryClient } = renderScreen({
+      fetchMock,
+    });
 
     let rejectA!: (e: Error) => void;
     let rejectB!: (e: Error) => void;
-    const gateA = new Promise((_res, rej) => { rejectA = rej; });
-    const gateB = new Promise((_res, rej) => { rejectB = rej; });
-    const callLog: string[] = [];
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      callLog.push(`${id}:${(data as any).is_visible}`);
-      if (callLog.length === 1) {
-        await gateA;
-        throw new Error('boom A'); // A fails — no server write
-      }
-      await gateB;
-      throw new Error('boom B'); // B fails — no server write
+    const gateA = new Promise((_res, rej) => {
+      rejectA = rej;
     });
+    const gateB = new Promise((_res, rej) => {
+      rejectB = rej;
+    });
+    const callLog: string[] = [];
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        callLog.push(`${id}:${(data as any).is_visible}`);
+        if (callLog.length === 1) {
+          await gateA;
+          throw new Error('boom A'); // A fails — no server write
+        }
+        await gateB;
+        throw new Error('boom B'); // B fails — no server write
+      });
 
     await findByText('Breakfast');
     fireEvent(getByLabelText('Visible Breakfast'), 'valueChange', false); // A
@@ -1325,9 +1682,13 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     await act(async () => {});
     expect(callLog.length).toBe(1); // serialized
 
-    await act(async () => { rejectA(new Error('boom A')); });
+    await act(async () => {
+      rejectA(new Error('boom A'));
+    });
     await waitFor(() => expect(callLog.length).toBe(2));
-    await act(async () => { rejectB(new Error('boom B')); });
+    await act(async () => {
+      rejectB(new Error('boom B'));
+    });
 
     // Both failures → cache reconciles to the original server value (true).
     await waitFor(() => {
@@ -1336,7 +1697,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
       expect(getByLabelText('Visible Breakfast').props.value).toBe(true);
     });
     // Server never received a write (both requests failed before applying).
-    expect(serverState.find((m: any) => m.id === 'sys-b').is_visible).toBe(true);
+    expect(serverState.find((m: any) => m.id === 'sys-b').is_visible).toBe(
+      true
+    );
     await act(async () => {});
   });
 
@@ -1347,7 +1710,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     // server writes remain A(false) then B(true) — NOT B then A.
     const serverState: any[] = JSON.parse(JSON.stringify(allMealTypes));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, queryClient } = renderScreen({ fetchMock });
+    const { findByText, getByLabelText, queryClient } = renderScreen({
+      fetchMock,
+    });
 
     // Delay A's cancelQueries; let B's resolve immediately.
     let releaseCancelA!: () => void;
@@ -1362,13 +1727,18 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     });
 
     const callLog: string[] = [];
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      callLog.push(String((data as any).is_visible));
-      const idx = serverState.findIndex((m) => m.id === id);
-      // Apply the write only when the PUT actually executes (serialized).
-      serverState[idx] = { ...serverState[idx], is_visible: (data as any).is_visible };
-      return { ...serverState[idx] };
-    });
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        callLog.push(String((data as any).is_visible));
+        const idx = serverState.findIndex((m) => m.id === id);
+        // Apply the write only when the PUT actually executes (serialized).
+        serverState[idx] = {
+          ...serverState[idx],
+          is_visible: (data as any).is_visible,
+        };
+        return { ...serverState[idx] };
+      });
 
     await findByText('Breakfast');
     expect(getByLabelText('Visible Breakfast').props.value).toBe(true);
@@ -1384,7 +1754,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     });
 
     // Release A's cancel: A's guarded onMutate must NOT overwrite B's true.
-    await act(async () => { releaseCancelA(); });
+    await act(async () => {
+      releaseCancelA();
+    });
     await act(async () => {});
     expect(getByLabelText('Visible Breakfast').props.value).toBe(true);
 
@@ -1394,7 +1766,9 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
 
     // Final server/cache/UI = true (newest intent).
     await waitFor(() => {
-      expect(serverState.find((m: any) => m.id === 'sys-b').is_visible).toBe(true);
+      expect(serverState.find((m: any) => m.id === 'sys-b').is_visible).toBe(
+        true
+      );
       const cached = queryClient.getQueryData<any[]>(['mealTypes']);
       expect(cached?.find((m: any) => m.id === 'sys-b').is_visible).toBe(true);
       expect(getByLabelText('Visible Breakfast').props.value).toBe(true);
@@ -1418,7 +1792,13 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     ];
     const serverState: any[] = JSON.parse(JSON.stringify(types));
     const fetchMock = async () => JSON.parse(JSON.stringify(serverState));
-    const { findByText, getByLabelText, getByTestId, queryAllByLabelText, queryClient } = renderScreen({ fetchMock });
+    const {
+      findByText,
+      getByLabelText,
+      getByTestId,
+      queryAllByLabelText,
+      queryClient,
+    } = renderScreen({ fetchMock });
 
     let releaseCancelA!: () => void;
     const pendingCancelA = new Promise<void>((resolve) => {
@@ -1432,18 +1812,25 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     });
 
     const callLog: string[] = [];
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      callLog.push((data as any).default_time);
-      const idx = serverState.findIndex((t) => t.id === id);
-      serverState[idx] = { ...serverState[idx], default_time: (data as any).default_time };
-      return { ...serverState[idx] };
-    });
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        callLog.push((data as any).default_time);
+        const idx = serverState.findIndex((t) => t.id === id);
+        serverState[idx] = {
+          ...serverState[idx],
+          default_time: (data as any).default_time,
+        };
+        return { ...serverState[idx] };
+      });
 
     await findByText('Pre-Workout');
     const saveTime = async (hhmm: string) => {
       fireEvent.press(getByLabelText(/Default time for Pre-Workout/));
       await waitFor(() => {
-        expect(queryAllByLabelText('Save default time').length).toBeGreaterThan(0);
+        expect(queryAllByLabelText('Save default time').length).toBeGreaterThan(
+          0
+        );
       });
       const picker = getByTestId('date-picker');
       const [h, m] = hhmm.split(':').map(Number);
@@ -1457,17 +1844,25 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     await waitFor(() => expect(cancelCalls).toBe(2));
     await act(async () => {});
 
-    await act(async () => { releaseCancelA(); });
+    await act(async () => {
+      releaseCancelA();
+    });
     await act(async () => {});
 
     await waitFor(() => expect(callLog.length).toBe(2));
     expect(callLog).toEqual(['17:30', '18:45']);
 
     await waitFor(() => {
-      expect(serverState.find((t: any) => t.id === 'pw').default_time).toBe('18:45');
+      expect(serverState.find((t: any) => t.id === 'pw').default_time).toBe(
+        '18:45'
+      );
       const cached = queryClient.getQueryData<any[]>(['mealTypes']);
-      expect(cached?.find((t: any) => t.id === 'pw').default_time).toBe('18:45');
-      expect(getByLabelText('Default time for Pre-Workout, 18:45')).toBeTruthy();
+      expect(cached?.find((t: any) => t.id === 'pw').default_time).toBe(
+        '18:45'
+      );
+      expect(
+        getByLabelText('Default time for Pre-Workout, 18:45')
+      ).toBeTruthy();
     });
     await act(async () => {});
   });
@@ -1479,16 +1874,21 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     const { findByText, getByLabelText } = renderScreen({ fetchMock });
 
     const callLog: string[] = [];
-    jest.spyOn(mealTypesApi, 'updateMealType').mockImplementation(async (id, data) => {
-      const val = String((data as any).is_visible);
-      callLog.push(val);
-      const idx = serverState.findIndex((m) => m.id === id);
-      if (callLog.length === 1) {
-        throw new Error('boom A'); // A fails
-      }
-      serverState[idx] = { ...serverState[idx], is_visible: (data as any).is_visible };
-      return { ...serverState[idx] };
-    });
+    jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockImplementation(async (id, data) => {
+        const val = String((data as any).is_visible);
+        callLog.push(val);
+        const idx = serverState.findIndex((m) => m.id === id);
+        if (callLog.length === 1) {
+          throw new Error('boom A'); // A fails
+        }
+        serverState[idx] = {
+          ...serverState[idx],
+          is_visible: (data as any).is_visible,
+        };
+        return { ...serverState[idx] };
+      });
 
     await findByText('Breakfast');
     fireEvent(getByLabelText('Visible Breakfast'), 'valueChange', false); // A (will fail)
@@ -1503,7 +1903,6 @@ describe('MealTypeSettingsScreen — unified anchor list', () => {
     });
     await act(async () => {});
   });
-
 });
 
 describe('Meal type time wheel — visible on-device picker (device bugfix)', () => {
@@ -1549,7 +1948,9 @@ describe('Meal type time wheel — visible on-device picker (device bugfix)', ()
     // Save WITHOUT scrolling commits exactly the visible HH:MM.
     fireEvent.press(getByLabelText('Save default time'));
     await waitFor(() => {
-      expect(updateSpy).toHaveBeenCalledWith('sys-l', { default_time: `${hh}:${mm}` });
+      expect(updateSpy).toHaveBeenCalledWith('sys-l', {
+        default_time: `${hh}:${mm}`,
+      });
     });
     await act(async () => {});
   });
@@ -1561,7 +1962,9 @@ describe('Meal type time wheel — visible on-device picker (device bugfix)', ()
       .mockResolvedValue({} as any);
     await findByText('Pre-Workout');
     fireEvent.press(getByLabelText('Default time for Pre-Workout, 17:30'));
-    await waitFor(() => expect(getByLabelText('Save default time')).toBeTruthy());
+    await waitFor(() =>
+      expect(getByLabelText('Save default time')).toBeTruthy()
+    );
     // Scroll the wheel to 18:45 (drive the picker's onChange).
     act(() => {
       getByTestId('date-picker').props.onChange({
@@ -1570,7 +1973,9 @@ describe('Meal type time wheel — visible on-device picker (device bugfix)', ()
     });
     fireEvent.press(getByLabelText('Save default time'));
     await waitFor(() => {
-      expect(updateSpy).toHaveBeenCalledWith('custom-pw', { default_time: '18:45' });
+      expect(updateSpy).toHaveBeenCalledWith('custom-pw', {
+        default_time: '18:45',
+      });
     });
     await act(async () => {});
   });
@@ -1578,13 +1983,17 @@ describe('Meal type time wheel — visible on-device picker (device bugfix)', ()
   it('Create inline wheel uses the same supported sizing; changing it updates submitted default_time', async () => {
     const { findByText, getByLabelText, getByTestId, getByPlaceholderText } =
       renderScreen();
-    const createSpy = jest.spyOn(mealTypesApi, 'createMealType').mockResolvedValue({
-      id: 'custom-new',
-      name: 'Dessert',
-      sort_order: 31,
-      user_id: 'user-1',
-    } as any);
-    const updateSpy = jest.spyOn(mealTypesApi, 'updateMealType').mockResolvedValue({} as any);
+    const createSpy = jest
+      .spyOn(mealTypesApi, 'createMealType')
+      .mockResolvedValue({
+        id: 'custom-new',
+        name: 'Dessert',
+        sort_order: 31,
+        user_id: 'user-1',
+      } as any);
+    const updateSpy = jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockResolvedValue({} as any);
     await findByText('Pre-Workout');
     fireEvent.press(getByLabelText('Add meal type'));
     const picker = getByTestId('date-picker');
@@ -1602,14 +2011,14 @@ describe('Meal type time wheel — visible on-device picker (device bugfix)', ()
     fireEvent.press(getByLabelText('Create meal type'));
     await waitFor(() => {
       expect(createSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Dessert', default_time: '20:15' }),
+        expect.objectContaining({ name: 'Dessert', default_time: '20:15' })
       );
     });
     // Quick log default (off) → follow-up update disables it for the new type.
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith(
         'custom-new',
-        expect.objectContaining({ show_in_quick_log: false }),
+        expect.objectContaining({ show_in_quick_log: false })
       );
     });
     await act(async () => {});
@@ -1623,7 +2032,9 @@ describe('Meal type time wheel — visible on-device picker (device bugfix)', ()
       .mockResolvedValue({} as any);
     await findByText('Pre-Workout');
     fireEvent.press(getByLabelText('Default time for Pre-Workout, 17:30'));
-    await waitFor(() => expect(getByLabelText('Save default time')).toBeTruthy());
+    await waitFor(() =>
+      expect(getByLabelText('Save default time')).toBeTruthy()
+    );
     act(() => {
       getAllByTestId('date-picker')[0].props.onChange({
         date: new Date(2026, 7, 9, 12, 0),
@@ -1657,7 +2068,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={0}
         target={3}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     const style = getByTestId('preview-row').props.style;
     expect(style.transform).toEqual([{ translateY: 129 }, { scale: 1.02 }]);
@@ -1675,7 +2086,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={0}
         target={3}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     expect(row2.getByTestId('preview-row').props.style.transform).toEqual([
       { translateY: -64 },
@@ -1689,7 +2100,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={0}
         target={3}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     expect(row3.getByTestId('preview-row').props.style.transform).toEqual([
       { translateY: -64 },
@@ -1703,7 +2114,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={0}
         target={3}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     expect(row4.getByTestId('preview-row').props.style.transform).toEqual([
       { translateY: 0 },
@@ -1721,7 +2132,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={0}
         target={1}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     expect(row1.getByTestId('preview-row').props.style.transform).toEqual([
       { translateY: 64 },
@@ -1742,7 +2153,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={0}
         target={3}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     expect(lunch.getByTestId('preview-row').props.style.transform).toEqual([
       { translateY: -64 },
@@ -1758,7 +2169,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={0}
         target={4}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     expect(dinner.getByTestId('preview-row').props.style.transform).toEqual([
       { translateY: 0 },
@@ -1777,7 +2188,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={129}
         target={3}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     const style = getByTestId('preview-row').props.style;
     expect(style.transform).toEqual([{ translateY: 129 }, { scale: 1.02 }]);
@@ -1792,7 +2203,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={0}
         target={-1}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     expect(idle.getByTestId('preview-row').props.style.transform).toEqual([
       { translateY: 0 },
@@ -1801,8 +2212,13 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
   });
 
   it('system rows are animated shells with NO drag handle and NO reorder accessibility actions', async () => {
-    const { findByText, getByTestId, getByLabelText, queryByTestId, queryByLabelText } =
-      renderScreen();
+    const {
+      findByText,
+      getByTestId,
+      getByLabelText,
+      queryByTestId,
+      queryByLabelText,
+    } = renderScreen();
     await findByText('Pre-Workout');
     // System row renders (animated shell) with its content.
     expect(getByTestId('meal-type-system-sys-b')).toBeTruthy();
@@ -1841,7 +2257,9 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
       ...fullGap,
     ];
     const { findByText, getByLabelText } = renderScreen({ mealTypes: types });
-    const updateSpy = jest.spyOn(mealTypesApi, 'updateMealType').mockResolvedValue({} as any);
+    const updateSpy = jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockResolvedValue({} as any);
     await findByText('Brunch');
 
     // Screen-level: the rejected drop shows one toast and writes nothing.
@@ -1854,8 +2272,10 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
       expect(Toast.show).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'error',
-          text1: expect.stringContaining('No more meal types can be placed between Lunch and Dinner'),
-        }),
+          text1: expect.stringContaining(
+            'No more meal types can be placed between Lunch and Dinner'
+          ),
+        })
       );
     });
     expect(updateSpy).not.toHaveBeenCalled();
@@ -1869,21 +2289,21 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={129}
         target={3}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     expect(frozen.getByTestId('preview-row').props.style.transform).toEqual([
       { translateY: 129 },
       { scale: 1.02 },
     ]);
-    // resetMealTypeDragPreview is EXACTLY what the rejection path calls; after
+    // resetReorderDragPreview is EXACTLY what the rejection path calls; after
     // it, the row's preview style returns to idle (identity transform).
     const activeDragIndex = { value: 1 };
     const panY = { value: 0 };
     const committingTranslate = { value: 129 };
-    resetMealTypeDragPreview(
+    resetReorderDragPreview(
       activeDragIndex as any,
       panY as any,
-      committingTranslate as any,
+      committingTranslate as any
     );
     expect(committingTranslate.value).toBe(0);
     expect(activeDragIndex.value).toBe(-1);
@@ -1896,7 +2316,7 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
         committing={0}
         target={-1}
         strideList={UNIFORM_STRIDES}
-      />,
+      />
     );
     expect(idle.getByTestId('preview-row').props.style.transform).toEqual([
       { translateY: 0 },
@@ -1908,18 +2328,40 @@ describe('Meal type drag preview — live sibling shift (device bugfix)', () => 
   it('accessibility Move up/down still uses the SAME reorder semantics as the gesture', async () => {
     const types = [
       ...systemMealTypes,
-      { id: 'a', name: 'A', sort_order: 11, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
-      { id: 'b', name: 'B', sort_order: 21, user_id: 'u', created_at: '', is_visible: true, show_in_quick_log: true, default_time: null },
+      {
+        id: 'a',
+        name: 'A',
+        sort_order: 11,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
+      {
+        id: 'b',
+        name: 'B',
+        sort_order: 21,
+        user_id: 'u',
+        created_at: '',
+        is_visible: true,
+        show_in_quick_log: true,
+        default_time: null,
+      },
     ];
     const { findByText, getByLabelText } = renderScreen({ mealTypes: types });
-    const updateSpy = jest.spyOn(mealTypesApi, 'updateMealType').mockResolvedValue({} as any);
+    const updateSpy = jest
+      .spyOn(mealTypesApi, 'updateMealType')
+      .mockResolvedValue({} as any);
     await findByText('A');
     // Move A down (into the Lunch→Dinner gap) via the accessible action.
     fireEvent(getByLabelText('Reorder A'), 'accessibilityAction', {
       nativeEvent: { actionName: 'increment' },
     });
     await waitFor(() => {
-      expect(updateSpy).toHaveBeenCalledWith('a', { sort_order: expect.any(Number) });
+      expect(updateSpy).toHaveBeenCalledWith('a', {
+        sort_order: expect.any(Number),
+      });
       const write = updateSpy.mock.calls[0][1] as any;
       expect(write.sort_order).toBeGreaterThanOrEqual(21);
       expect(write.sort_order).toBeLessThanOrEqual(29);

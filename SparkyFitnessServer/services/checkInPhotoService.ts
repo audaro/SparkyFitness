@@ -1,37 +1,18 @@
 import { getClient } from '../db/poolManager.js';
 import { log } from '../config/logging.js';
+import {
+  resolveUploadPath,
+  resolveUploadPathWithinRoot,
+} from '../utils/uploadsPath.js';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { fileURLToPath } from 'url';
 import { localDateToDay } from '@workspace/shared';
 import type {
   CheckInPhotoResponse,
+  CheckInPhotoWithWeight,
   PhotoType,
 } from '../schemas/checkInPhotoSchemas.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Mirror the uploads-root resolution used elsewhere (SparkyFitnessServer.ts,
-// routes/exerciseRoutes.ts, utils/imageDownloader.ts, services/backupService.ts)
-// so a custom uploads location is honored instead of always writing under
-// SparkyFitnessServer/uploads.
-const baseUploadsDir = process.env.SPARKY_FITNESS_CUSTOM_UPLOADS_DIRECTORY
-  ? path.resolve(process.env.SPARKY_FITNESS_CUSTOM_UPLOADS_DIRECTORY)
-  : path.join(__dirname, '..', 'uploads');
-
-// Stored file_path values are rooted at the logical 'uploads/' directory
-// (e.g. 'uploads/check-in/<user>/<date>/front.jpg') so records stay portable
-// across deployments. Resolve them against the configured uploads root,
-// stripping the leading 'uploads' segment. resolveFilePath('uploads') therefore
-// returns baseUploadsDir, keeping the path-traversal guard in getPhotoFileById
-// correct under a custom uploads directory.
-const resolveFilePath = (relativePath: string) => {
-  const segments = relativePath.split(/[/\\]/).filter(Boolean);
-  if (segments[0] === 'uploads') segments.shift();
-  return path.join(baseUploadsDir, ...segments);
-};
 
 const safeUnlink = async (absolutePath: string) => {
   try {
@@ -103,6 +84,60 @@ export const getPhotoDates = async (userId: string): Promise<string[]> => {
   }
 };
 
+/**
+ * Every progress photo the user can see, newest day first, each paired with the
+ * weight logged on that day. Backs the mobile gallery, the side-by-side
+ * comparison, and the time-lapse player, which would otherwise need one request
+ * per day plus a separate measurements-range call.
+ *
+ * The join is on (user_id, entry_date) rather than the stored
+ * check_in_measurement_id: that FK is only populated if a measurement row
+ * already existed at upload time, so a photo taken before the day's weight was
+ * entered would report no weight forever. check_in_measurements has a unique
+ * index on (user_id, entry_date), so the join cannot fan out rows.
+ *
+ * RLS-scoped through getClient, so a family member only sees what they may
+ * access.
+ */
+/** One row of the gallery join; `pg` types the columns loosely. */
+interface GalleryRow {
+  id: string;
+  entry_date: string | Date;
+  photo_type: PhotoType;
+  weight: number | string | null;
+}
+
+export const getAllPhotosWithWeight = async (
+  userId: string
+): Promise<CheckInPhotoWithWeight[]> => {
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `SELECT p.id, p.entry_date, p.photo_type, m.weight
+       FROM check_in_photos p
+       LEFT JOIN check_in_measurements m
+         ON m.user_id = p.user_id AND m.entry_date = p.entry_date
+       WHERE p.user_id = $1
+       ORDER BY p.entry_date DESC, p.photo_type ASC`,
+      [userId]
+    );
+    return (result.rows as GalleryRow[]).map((r) => ({
+      id: r.id,
+      entry_date:
+        r.entry_date instanceof Date
+          ? localDateToDay(r.entry_date)
+          : String(r.entry_date),
+      photo_type: r.photo_type,
+      // numeric columns come back parsed by the pool's global type parser, but
+      // stay defensive: a null weight must remain null, never NaN.
+      weight:
+        r.weight === null || r.weight === undefined ? null : Number(r.weight),
+    }));
+  } finally {
+    client.release();
+  }
+};
+
 export const upsertPhoto = async (
   userId: string,
   entryDate: string,
@@ -121,7 +156,7 @@ export const upsertPhoto = async (
     entryDate,
     fileName
   );
-  const finalPath = resolveFilePath(relativePath);
+  const finalPath = resolveUploadPath(relativePath);
   // Write to a unique temp file first; only promote it to the final name after
   // the DB commit succeeds. This way a failed upsert never leaves an orphan and
   // never clobbers the existing photo when replacing one with the same name.
@@ -173,7 +208,17 @@ export const upsertPhoto = async (
     // Remove the previous file only when the name changed (e.g. a different
     // extension); a same-name replace was already overwritten by the rename.
     if (oldRelativePath && oldRelativePath !== relativePath) {
-      await safeUnlink(resolveFilePath(oldRelativePath));
+      // Guard the stored path before deleting: unlink is destructive, so a
+      // tampered file_path must not be able to reach outside the uploads root.
+      const oldAbsolute = resolveUploadPathWithinRoot(oldRelativePath);
+      if (oldAbsolute) {
+        await safeUnlink(oldAbsolute);
+      } else {
+        log(
+          'warn',
+          `Refused to delete check-in photo path outside uploads root: ${oldRelativePath}`
+        );
+      }
     }
 
     const r = result.rows[0];
@@ -221,12 +266,8 @@ export const getPhotoFileById = async (
     if (!filePath) {
       return null;
     }
-    const absolute = resolveFilePath(filePath);
-    const uploadsRoot = resolveFilePath('uploads');
-    if (
-      absolute !== uploadsRoot &&
-      !absolute.startsWith(uploadsRoot + path.sep)
-    ) {
+    const absolute = resolveUploadPathWithinRoot(filePath);
+    if (!absolute) {
       log(
         'warn',
         `Rejected check-in photo path outside uploads root: ${filePath}`
@@ -249,7 +290,7 @@ export const getPhotoFileById = async (
 export const deletePhoto = async (
   userId: string,
   photoId: string
-): Promise<void> => {
+): Promise<boolean> => {
   const client = await getClient(userId);
   try {
     const result = await client.query(
@@ -258,9 +299,16 @@ export const deletePhoto = async (
       [photoId, userId]
     );
     if (result.rows.length === 0) {
-      return;
+      return false;
     }
-    const filePath = resolveFilePath(result.rows[0].file_path);
+    const filePath = resolveUploadPathWithinRoot(result.rows[0].file_path);
+    if (!filePath) {
+      log(
+        'warn',
+        `Refused to delete check-in photo path outside uploads root: ${result.rows[0].file_path}`
+      );
+      return true;
+    }
     try {
       await fs.promises.unlink(filePath);
       log('debug', `Deleted check-in photo file: ${filePath}`);
@@ -276,6 +324,7 @@ export const deletePhoto = async (
         );
       }
     }
+    return true;
   } finally {
     client.release();
   }
@@ -284,6 +333,7 @@ export const deletePhoto = async (
 export default {
   getPhotosByDate,
   getPhotoDates,
+  getAllPhotosWithWeight,
   upsertPhoto,
   getPhotoFileById,
   deletePhoto,

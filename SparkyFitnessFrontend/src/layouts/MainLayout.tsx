@@ -91,15 +91,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     try {
       await signOut();
       toast({
-        title: 'Success',
-        description: 'Signed out successfully',
+        title: t('common.success', 'Success'),
+        description: t('auth.signedOut', 'Signed out successfully'),
       });
       navigate('/login'); // Navigate to login page after sign out
     } catch (err) {
       error(loggingLevel, 'MainLayout: Sign out error:', err);
       toast({
-        title: 'Error',
-        description: 'Failed to sign out',
+        title: t('common.error', 'Error'),
+        description: t('auth.signOutFailed', 'Failed to sign out'),
         variant: 'destructive',
       });
     }
@@ -109,10 +109,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     const items: AddCompItem[] = [];
     if (!isActingOnBehalf) {
       // Keep this order consistent with the desktop tab order in availableTabs:
-      // Check-In, Cycle, Medications, Goals. Exercises is not here — it is a
-      // top-level tab of its own now; Foods is, because the food library stopped
-      // being a tab and this is its only entry point away from the Food page.
-      items.push({ value: 'checkin', label: 'Check-In', icon: Activity });
+      // Check-In, Cycle, Medications, Foods, Goals. Exercises is not here — it
+      // is a top-level tab of its own now; Foods is, because the food library
+      // stopped being a tab and this is its only entry point away from the
+      // Food page.
+      items.push({
+        value: 'checkin',
+        label: t('nav.checkin', 'Check-In'),
+        icon: Activity,
+      });
       if (cycleSettings?.enabled) {
         items.push({
           value: 'cycle',
@@ -130,8 +135,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           label: t('nav.medications', 'Medications'),
           icon: Pill,
         },
-        { value: 'foods', label: 'Foods', icon: Utensils },
-        { value: 'goals', label: 'Goals', icon: Target },
+        { value: 'foods', label: t('nav.foods', 'Foods'), icon: Utensils },
+        { value: 'goals', label: t('nav.goals', 'Goals'), icon: Target },
         {
           value: 'foodlog',
           label: t('nav.foodLog', 'Food Log'),
@@ -141,7 +146,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       );
     } else {
       if (hasWritePermission('checkin')) {
-        items.push({ value: 'checkin', label: 'Check-In', icon: Activity });
+        items.push({
+          value: 'checkin',
+          label: t('nav.checkin', 'Check-In'),
+          icon: Activity,
+        });
       }
       if (hasWritePermission('diary')) {
         items.push({
@@ -480,12 +489,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 size="sm"
                 onClick={onStartOnboarding}
                 className="flex items-center gap-2"
-                title="Complete your setup"
+                title={t('onboarding.completeSetup', 'Complete your setup')}
               >
                 <span className="hidden sm:inline">
                   {t('onboarding.completeSetup', 'Complete Setup')}
                 </span>
-                <span className="sm:hidden">Setup</span>
+                <span className="sm:hidden">
+                  {t('onboarding.setupShort', 'Setup')}
+                </span>
               </Button>
             )}
             <GlobalNotificationIcon />
@@ -499,7 +510,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline dark:text-slate-300">
-                Sign Out
+                {t('auth.signOut', 'Sign Out')}
               </span>
             </Button>
           </div>
@@ -629,7 +640,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 className="cursor-pointer underline hover:text-foreground bg-transparent border-0 p-0 text-inherit font-normal text-sm"
                 onClick={onShowNewReleaseDialog}
               >
-                What's New
+                {t('release.whatsNew', "What's New")}
               </button>
             </div>
           </div>
@@ -648,7 +659,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
               className="cursor-pointer underline hover:text-foreground bg-transparent border-0 p-0 text-inherit font-normal text-sm"
               onClick={onShowNewReleaseDialog}
             >
-              What's New
+              {t('release.whatsNew', "What's New")}
             </button>
           </div>
         )}

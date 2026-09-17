@@ -75,6 +75,25 @@ export function deriveAiNetworkPolicy(
   return PUBLIC_ONLY_AI_NETWORK_POLICY;
 }
 
+// Outbound policy for user-configured self-hosted food providers (Mealie,
+// Tandoor, Norish). Mirrors the AI policy: admins may point at a private/LAN
+// address (a single-user self-host IS an admin, so their local recipe server
+// works with no extra config), while a non-admin user on a multi-user server
+// is blocked unless the operator opts in with
+// ALLOW_PRIVATE_NETWORK_FOOD_PROVIDERS=true. Separate from the AI toggle by
+// design (least privilege, matching the existing _CORS / _AI per-concern flags).
+export function deriveFoodProviderNetworkPolicy(
+  isAdmin: boolean
+): AiNetworkPolicy {
+  if (isAdmin) {
+    return { allowPrivateNetwork: true, reason: 'admin' };
+  }
+  if (process.env.ALLOW_PRIVATE_NETWORK_FOOD_PROVIDERS === 'true') {
+    return { allowPrivateNetwork: true, reason: 'env' };
+  }
+  return { allowPrivateNetwork: false, reason: 'public-only' };
+}
+
 function stripIpv6Brackets(hostname: string): string {
   return hostname.startsWith('[') && hostname.endsWith(']')
     ? hostname.slice(1, -1)

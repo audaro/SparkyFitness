@@ -1126,20 +1126,18 @@ async function getAlternatives(
             : 0)
     )
     .slice(0, limit)
-    .map(
-      ({ candidate, score }): AlternativeExercise => ({
-        exercise_id: candidate.id,
-        exercise_name: candidate.name,
-        source: 'local',
-        primary_muscles: candidate.primaryMuscles,
-        secondary_muscles: candidate.secondaryMuscles,
-        equipment: candidate.equipment,
-        images: candidate.images,
-        mechanic: candidate.mechanic,
-        level: candidate.level,
-        score,
-      })
-    );
+    .map(({ candidate, score }): AlternativeExercise => ({
+      exercise_id: candidate.id,
+      exercise_name: candidate.name,
+      source: 'local',
+      primary_muscles: candidate.primaryMuscles,
+      secondary_muscles: candidate.secondaryMuscles,
+      equipment: candidate.equipment,
+      images: candidate.images,
+      mechanic: candidate.mechanic,
+      level: candidate.level,
+      score,
+    }));
 
   if (local.length >= ALTERNATIVE_TUNABLES.minLocalResults) return local;
 

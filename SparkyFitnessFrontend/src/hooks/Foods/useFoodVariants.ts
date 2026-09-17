@@ -10,10 +10,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 export const foodVariantsOptions = (foodId: string) => ({
   queryKey: foodVariantKeys.byFood(foodId),
   queryFn: () => loadFoodVariants(foodId),
+  retry: false,
   enabled: !!foodId,
-  meta: {
-    errorMessage: 'Failed to load food variants.',
-  },
 });
 
 export const useFoodVariants = (foodId: string, isEnabled: boolean = true) => {

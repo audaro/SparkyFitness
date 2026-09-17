@@ -1,14 +1,10 @@
 import bcrypt from 'bcryptjs';
-import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 import userRepository from '../models/userRepository.js';
 import familyAccessRepository from '../models/familyAccessRepository.js';
 import { log } from '../config/logging.js';
 import { canAccessUserData } from '../utils/permissionUtils.js';
 import adminActivityLogRepository from '../models/adminActivityLogRepository.js';
-
-const hashAsync = promisify(bcrypt.hash);
-const compareAsync = promisify(bcrypt.compare);
 /**
  * Gets consistent user data by ID.
  * Used internally by various app services.
@@ -192,7 +188,7 @@ async function updateUserPassword(
 ) {
   try {
     const saltRounds = 10;
-    const hashedPassword = await hashAsync(newPassword, saltRounds);
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
     const success = await userRepository.updateUserPassword(
       authenticatedUserId,
       hashedPassword
@@ -232,7 +228,7 @@ async function updateUserEmail(
       const verified =
         typeof currentPassword === 'string' &&
         currentPassword.length > 0 &&
-        (await compareAsync(currentPassword, passwordHash));
+        (await bcrypt.compare(currentPassword, passwordHash));
       if (!verified) {
         throw Object.assign(new Error('Current password is incorrect.'), {
           statusCode: 401,

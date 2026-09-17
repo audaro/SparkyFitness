@@ -27,6 +27,7 @@ import {
   fetchAuthSettings,
   loginWithOidc,
   loginWithPasskey,
+  notifyIdentityChanged,
   type MfaFactors,
   type AuthSettings,
   type OidcProvider,
@@ -75,7 +76,10 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
 
   // MFA state
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
-  const [mfaFactors, setMfaFactors] = useState<MfaFactors>({ mfaTotpEnabled: false, mfaEmailEnabled: false });
+  const [mfaFactors, setMfaFactors] = useState<MfaFactors>({
+    mfaTotpEnabled: false,
+    mfaEmailEnabled: false,
+  });
   const [mfaMethod, setMfaMethod] = useState<'totp' | 'email'>('totp');
   const [mfaCode, setMfaCode] = useState('');
   const [emailOtpSent, setEmailOtpSent] = useState(false);
@@ -98,7 +102,8 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
       // covers callers without a real config id (e.g. dev tools).
       const sessionConfigs = allConfigs.filter((c) => c.authType === 'session');
       const resolved =
-        (expiredConfigId && sessionConfigs.find((c) => c.id === expiredConfigId)) ||
+        (expiredConfigId &&
+          sessionConfigs.find((c) => c.id === expiredConfigId)) ||
         sessionConfigs[0] ||
         null;
       setConfig(resolved);
@@ -136,7 +141,7 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
       try {
         const settings = await fetchAuthSettings(
           config.url,
-          proxyHeadersToRecord(config.proxyHeaders),
+          proxyHeadersToRecord(config.proxyHeaders)
         );
         if (isMounted) {
           setAuthSettings(settings);
@@ -168,14 +173,42 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
       sessionToken,
       proxyHeaders: config.proxyHeaders,
     });
+    // The configuration keeps its id, but nothing here says the credentials
+    // just entered belong to the account that owned the expired session: the
+    // same server can be signed into as anyone. There is no stored email to
+    // compare against, so announce the change unconditionally — signing back
+    // into the same account costs a refetch, the other case would otherwise
+    // show one person's diary to another.
+    await notifyIdentityChanged();
   };
 
   // --- Sign In ---
 
   const handleSignIn = async () => {
-    if (!currentUrl) { setError(t('auth.errors.noServerSelected', { defaultValue: 'No server selected.' })); return; }
-    if (!email.trim()) { setError(t('auth.errors.emailRequired', { defaultValue: 'Please enter your email.' })); return; }
-    if (!password) { setError(t('auth.errors.passwordRequired', { defaultValue: 'Please enter your password.' })); return; }
+    if (!currentUrl) {
+      setError(
+        t('auth.errors.noServerSelected', {
+          defaultValue: 'No server selected.',
+        })
+      );
+      return;
+    }
+    if (!email.trim()) {
+      setError(
+        t('auth.errors.emailRequired', {
+          defaultValue: 'Please enter your email.',
+        })
+      );
+      return;
+    }
+    if (!password) {
+      setError(
+        t('auth.errors.passwordRequired', {
+          defaultValue: 'Please enter your password.',
+        })
+      );
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -184,13 +217,19 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
       const result = await login(currentUrl, email.trim(), password);
 
       if (result.type === 'mfa_required') {
-        let factors: MfaFactors = { mfaTotpEnabled: true, mfaEmailEnabled: false };
+        let factors: MfaFactors = {
+          mfaTotpEnabled: true,
+          mfaEmailEnabled: false,
+        };
         try {
           factors = await fetchMfaFactors(currentUrl, email.trim());
         } catch (err) {
           // Fallback: assume TOTP only
           const message = err instanceof Error ? err.message : String(err);
-          addLog(`[ReauthModal] Failed to fetch MFA factors, falling back to TOTP: ${message}`, 'WARNING');
+          addLog(
+            `[ReauthModal] Failed to fetch MFA factors, falling back to TOTP: ${message}`,
+            'WARNING'
+          );
         }
         setMfaFactors(factors);
         setMfaMethod(factors.mfaTotpEnabled ? 'totp' : 'email');
@@ -207,7 +246,11 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
       if (err instanceof LoginError) {
         setError(err.message);
       } else {
-        setError(t('auth.errors.connectionRetry', { defaultValue: 'Could not connect to server. Please try again.' }));
+        setError(
+          t('auth.errors.connectionRetry', {
+            defaultValue: 'Could not connect to server. Please try again.',
+          })
+        );
       }
     } finally {
       setLoading(false);
@@ -215,9 +258,20 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
   };
 
   const handlePasskeySignIn = async () => {
-    if (!currentUrl) { setError(t('auth.errors.noServerSelected', { defaultValue: 'No server selected.' })); return; }
+    if (!currentUrl) {
+      setError(
+        t('auth.errors.noServerSelected', {
+          defaultValue: 'No server selected.',
+        })
+      );
+      return;
+    }
     if (!__DEV__ && currentUrl.toLowerCase().startsWith('http://')) {
-      setError(t('auth.errors.httpsRequired', { defaultValue: 'HTTPS is required for server connections.' }));
+      setError(
+        t('auth.errors.httpsRequired', {
+          defaultValue: 'HTTPS is required for server connections.',
+        })
+      );
       return;
     }
 
@@ -231,9 +285,17 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
       onLoginSuccess();
     } catch (err) {
       if (err instanceof Error) {
-        setError(t('auth.errors.generic', { defaultValue: 'Authentication failed. Please try again.' }));
+        setError(
+          t('auth.errors.generic', {
+            defaultValue: 'Authentication failed. Please try again.',
+          })
+        );
       } else {
-        setError(t('auth.errors.generic', { defaultValue: 'Authentication failed. Please try again.' }));
+        setError(
+          t('auth.errors.generic', {
+            defaultValue: 'Authentication failed. Please try again.',
+          })
+        );
       }
     } finally {
       setLoading(false);
@@ -241,9 +303,20 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
   };
 
   const handleOidcLogin = async (providerId: string) => {
-    if (!currentUrl) { setError(t('auth.errors.noServerSelected', { defaultValue: 'No server selected.' })); return; }
+    if (!currentUrl) {
+      setError(
+        t('auth.errors.noServerSelected', {
+          defaultValue: 'No server selected.',
+        })
+      );
+      return;
+    }
     if (!__DEV__ && currentUrl.toLowerCase().startsWith('http://')) {
-      setError(t('auth.errors.httpsRequired', { defaultValue: 'HTTPS is required for server connections.' }));
+      setError(
+        t('auth.errors.httpsRequired', {
+          defaultValue: 'HTTPS is required for server connections.',
+        })
+      );
       return;
     }
 
@@ -260,9 +333,17 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
       }
     } catch (err) {
       if (err instanceof Error) {
-        setError(t('auth.errors.generic', { defaultValue: 'Authentication failed. Please try again.' }));
+        setError(
+          t('auth.errors.generic', {
+            defaultValue: 'Authentication failed. Please try again.',
+          })
+        );
       } else {
-        setError(t('auth.errors.generic', { defaultValue: 'Authentication failed. Please try again.' }));
+        setError(
+          t('auth.errors.generic', {
+            defaultValue: 'Authentication failed. Please try again.',
+          })
+        );
       }
     } finally {
       setLoading(false);
@@ -273,7 +354,14 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
 
   const handleVerifyMfa = async () => {
     const code = mfaCode.trim();
-    if (!code) { setError(t('auth.errors.verificationCodeRequired', { defaultValue: 'Please enter the verification code.' })); return; }
+    if (!code) {
+      setError(
+        t('auth.errors.verificationCodeRequired', {
+          defaultValue: 'Please enter the verification code.',
+        })
+      );
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -310,7 +398,11 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
       if (err instanceof LoginError) {
         setError(err.message);
       } else {
-        setError(t('auth.errors.sendEmailCodeFailed', { defaultValue: 'Failed to send email code. Please try again.' }));
+        setError(
+          t('auth.errors.sendEmailCodeFailed', {
+            defaultValue: 'Failed to send email code. Please try again.',
+          })
+        );
       }
     } finally {
       setLoading(false);
@@ -344,7 +436,9 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
 
   // Email defaults on while settings load so the form doesn't flash empty.
   const hasEmail = !authSettings || authSettings.email.enabled;
-  const oidcProviders = authSettings?.oidc.enabled ? authSettings.oidc.providers : [];
+  const oidcProviders = authSettings?.oidc.enabled
+    ? authSettings.oidc.providers
+    : [];
 
   return (
     <Modal
@@ -369,12 +463,20 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
             {/* Header */}
             <View className="items-center mb-5">
               <Text className="text-[22px] font-bold text-center text-text-primary">
-                {step === 'credentials' ? t('auth.sessionExpiredTitle', { defaultValue: 'Session Expired' }) : t('auth.twoFactorTitle', { defaultValue: 'Two-Factor Authentication' })}
+                {step === 'credentials'
+                  ? t('auth.sessionExpiredTitle', {
+                      defaultValue: 'Session Expired',
+                    })
+                  : t('auth.twoFactorTitle', {
+                      defaultValue: 'Two-Factor Authentication',
+                    })}
               </Text>
               <Button
                 variant="ghost"
                 onPress={handleDismiss}
-                accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+                accessibilityLabel={t('common.close', {
+                  defaultValue: 'Close',
+                })}
                 className="absolute p-2 py-2 px-2 rounded-lg"
                 // Sits in the card's corner padding, clear of long titles.
                 style={{ right: -12, top: -12 }}
@@ -388,7 +490,10 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                 {/* Server label */}
                 {config && (
                   <View className="mb-3">
-                    <Text className="text-sm text-text-muted text-center" numberOfLines={1}>
+                    <Text
+                      className="text-sm text-text-muted text-center"
+                      numberOfLines={1}
+                    >
                       {config.url}
                     </Text>
                   </View>
@@ -398,7 +503,9 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                 {hasEmail && (
                   <>
                     <View className="mb-3">
-                      <Text className="text-sm mb-2 text-text-secondary">{t('auth.email', { defaultValue: 'Email' })}</Text>
+                      <Text className="text-sm mb-2 text-text-secondary">
+                        {t('auth.email', { defaultValue: 'Email' })}
+                      </Text>
                       <FormInput
                         // i18n-audit-ignore-next-line hardcoded-ui-text -- email format example is language-neutral technical input guidance.
                         placeholder="email@example.com"
@@ -410,9 +517,13 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                       />
                     </View>
                     <View className="mb-4">
-                      <Text className="text-sm mb-2 text-text-secondary">{t('auth.password', { defaultValue: 'Password' })}</Text>
+                      <Text className="text-sm mb-2 text-text-secondary">
+                        {t('auth.password', { defaultValue: 'Password' })}
+                      </Text>
                       <FormInput
-                        placeholder={t('auth.passwordPlaceholder', { defaultValue: 'Password' })}
+                        placeholder={t('auth.passwordPlaceholder', {
+                          defaultValue: 'Password',
+                        })}
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry
@@ -425,7 +536,11 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                 {oidcProviders.length > 0 && hasEmail && (
                   <View className="flex-row items-center mb-4">
                     <View className="flex-1 h-px bg-border-subtle" />
-                    <Text className="mx-3 text-xs text-text-muted uppercase">{t('auth.orSignInWith', { defaultValue: 'Or sign in with' })}</Text>
+                    <Text className="mx-3 text-xs text-text-muted uppercase">
+                      {t('auth.orSignInWith', {
+                        defaultValue: 'Or sign in with',
+                      })}
+                    </Text>
                     <View className="flex-1 h-px bg-border-subtle" />
                   </View>
                 )}
@@ -440,9 +555,16 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                       className="w-full flex-row items-center justify-center p-2.5 rounded-lg border border-border-subtle bg-raised"
                     >
                       <View className="flex-row items-center">
-                        <OidcProviderLogo logoUrl={provider.logo_url} serverUrl={currentUrl} />
+                        <OidcProviderLogo
+                          logoUrl={provider.logo_url}
+                          serverUrl={currentUrl}
+                        />
                         <Text className="text-base font-semibold text-text-primary">
-                          {provider.display_name || t('auth.signInWithProvider', { defaultValue: 'Sign in with {{provider}}', provider: provider.id })}
+                          {provider.display_name ||
+                            t('auth.signInWithProvider', {
+                              defaultValue: 'Sign in with {{provider}}',
+                              provider: provider.id,
+                            })}
                         </Text>
                       </View>
                     </Button>
@@ -455,10 +577,16 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                   >
                     <View className="flex-row items-center">
                       <View className="mr-2">
-                        <Icon name="fingerprint" size={20} color={accentPrimary} />
+                        <Icon
+                          name="fingerprint"
+                          size={20}
+                          color={accentPrimary}
+                        />
                       </View>
                       <Text className="text-base font-semibold text-text-primary">
-                        {t('auth.signInWithPasskey', { defaultValue: 'Sign in with Passkey' })}
+                        {t('auth.signInWithPasskey', {
+                          defaultValue: 'Sign in with Passkey',
+                        })}
                       </Text>
                     </View>
                   </Button>
@@ -469,7 +597,11 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                     {/* ErrorBanner's own mb-4 is the banner→button gap. */}
                     <ErrorBanner message={error} />
                     {hasEmail && (
-                      <PrimaryButton label={t('auth.signIn', { defaultValue: 'Sign In' })} onPress={handleSignIn} loading={loading} />
+                      <PrimaryButton
+                        label={t('auth.signIn', { defaultValue: 'Sign In' })}
+                        onPress={handleSignIn}
+                        loading={loading}
+                      />
                     )}
                   </View>
                 )}
@@ -481,7 +613,9 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                     className="mt-2 py-2"
                     textClassName="text-sm"
                   >
-                    {t('auth.useApiKeyInstead', { defaultValue: 'Use API Key Instead' })}
+                    {t('auth.useApiKeyInstead', {
+                      defaultValue: 'Use API Key Instead',
+                    })}
                   </Button>
                 )}
               </>
@@ -498,7 +632,9 @@ const ReauthModal: React.FC<ReauthModalProps> = ({
                 onVerify={handleVerifyMfa}
                 onSendEmailOtp={handleSendEmailOtp}
                 onBack={handleBackToCredentials}
-                onUseApiKey={onSwitchToApiKey ? handleSwitchToApiKey : undefined}
+                onUseApiKey={
+                  onSwitchToApiKey ? handleSwitchToApiKey : undefined
+                }
                 textMuted={textMuted}
               />
             )}

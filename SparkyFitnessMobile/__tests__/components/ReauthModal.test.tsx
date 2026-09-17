@@ -4,6 +4,7 @@ import ReauthModal from '../../src/components/ReauthModal';
 import {
   fetchAuthSettings,
   loginWithOidc,
+  notifyIdentityChanged,
   type AuthSettings,
 } from '../../src/services/api/authService';
 import {
@@ -14,7 +15,8 @@ import {
 
 jest.mock('../../src/services/api/authService', () => ({
   login: jest.fn(),
-  LoginError: jest.requireActual('../../src/services/api/authErrors').LoginError,
+  LoginError: jest.requireActual('../../src/services/api/authErrors')
+    .LoginError,
   clearAuthCookies: jest.fn().mockResolvedValue(undefined),
   fetchMfaFactors: jest.fn(),
   verifyTotp: jest.fn(),
@@ -25,12 +27,14 @@ jest.mock('../../src/services/api/authService', () => ({
   fetchAuthSettings: jest.fn(),
   loginWithOidc: jest.fn(),
   loginWithPasskey: jest.fn(),
+  notifyIdentityChanged: jest.fn(),
 }));
 
 jest.mock('../../src/services/storage', () => ({
   getAllServerConfigs: jest.fn(),
   saveServerConfig: jest.fn().mockResolvedValue(undefined),
-  proxyHeadersToRecord: jest.requireActual('../../src/services/storage').proxyHeadersToRecord,
+  proxyHeadersToRecord: jest.requireActual('../../src/services/storage')
+    .proxyHeadersToRecord,
 }));
 
 jest.mock('../../src/services/LogService', () => ({
@@ -45,10 +49,21 @@ jest.mock('../../src/components/Icon', () => {
   };
 });
 
-const mockFetchAuthSettings = fetchAuthSettings as jest.MockedFunction<typeof fetchAuthSettings>;
-const mockLoginWithOidc = loginWithOidc as jest.MockedFunction<typeof loginWithOidc>;
-const mockGetAllServerConfigs = getAllServerConfigs as jest.MockedFunction<typeof getAllServerConfigs>;
-const mockSaveServerConfig = saveServerConfig as jest.MockedFunction<typeof saveServerConfig>;
+const mockFetchAuthSettings = fetchAuthSettings as jest.MockedFunction<
+  typeof fetchAuthSettings
+>;
+const mockLoginWithOidc = loginWithOidc as jest.MockedFunction<
+  typeof loginWithOidc
+>;
+const mockGetAllServerConfigs = getAllServerConfigs as jest.MockedFunction<
+  typeof getAllServerConfigs
+>;
+const mockSaveServerConfig = saveServerConfig as jest.MockedFunction<
+  typeof saveServerConfig
+>;
+const mockNotifyIdentityChanged = notifyIdentityChanged as jest.MockedFunction<
+  typeof notifyIdentityChanged
+>;
 
 const sessionConfig: ServerConfig = {
   id: 'config-1',
@@ -81,7 +96,9 @@ const defaultProps = {
   onDismiss: jest.fn(),
 };
 
-function renderModal(props: Partial<React.ComponentProps<typeof ReauthModal>> = {}) {
+function renderModal(
+  props: Partial<React.ComponentProps<typeof ReauthModal>> = {}
+) {
   return render(<ReauthModal {...defaultProps} {...props} />);
 }
 
@@ -159,10 +176,16 @@ describe('ReauthModal', () => {
       fireEvent.press(result.getByText('Sign in with Google'));
     });
 
-    expect(mockLoginWithOidc).toHaveBeenCalledWith('https://my-server.com', 'google');
-    expect(mockSaveServerConfig).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'config-1', sessionToken: 'fresh-token' }),
+    expect(mockLoginWithOidc).toHaveBeenCalledWith(
+      'https://my-server.com',
+      'google'
     );
+    expect(mockSaveServerConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'config-1', sessionToken: 'fresh-token' })
+    );
+    // The new session may belong to a different account on the same server,
+    // and the configuration id gives nothing away, so the caches go either way.
+    expect(mockNotifyIdentityChanged).toHaveBeenCalledTimes(1);
     expect(onLoginSuccess).toHaveBeenCalled();
   });
 
@@ -199,7 +222,7 @@ describe('ReauthModal', () => {
     fireEvent.press(result.getByText('Use API Key Instead'));
 
     expect(onSwitchToApiKey).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'config-1' }),
+      expect.objectContaining({ id: 'config-1' })
     );
   });
 

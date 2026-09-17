@@ -188,8 +188,7 @@ router.put('/:id', authenticate, async (req, res, next) => {
     }
     if (
       // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      error.message ===
-      'Workout plan template not found or could not be updated.'
+      error.message.startsWith('Workout plan template not found')
     ) {
       // @ts-expect-error TS(2571): Object is of type 'unknown'.
       return res.status(404).json({ error: error.message });
@@ -243,8 +242,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     }
     if (
       // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      error.message ===
-      'Workout plan template not found or could not be deleted.'
+      error.message.startsWith('Workout plan template not found')
     ) {
       // @ts-expect-error TS(2571): Object is of type 'unknown'.
       return res.status(404).json({ error: error.message });

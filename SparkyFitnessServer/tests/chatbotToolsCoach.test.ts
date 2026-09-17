@@ -3,6 +3,7 @@ import { todayInZone } from '@workspace/shared';
 import { buildCoachTools } from '../ai/tools/coachTools.js';
 import coachRepository from '../models/coachRepository.js';
 import { getResolvedExerciseCaloriesTotal } from '../services/exerciseCalorieRangeService.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
 vi.mock('../models/coachRepository', () => ({
   default: {
@@ -29,7 +30,7 @@ vi.mock('../config/logging', () => ({
   log: vi.fn(),
 }));
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 const DB_ERROR_TEXT =
   'Error [DB_ERROR]: A database error occurred.\n\nSuggestion: Do NOT retry the same call — it will fail the same way. Tell the user what failed and stop.';
 

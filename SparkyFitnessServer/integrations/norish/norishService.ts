@@ -1,4 +1,17 @@
 import { log } from '../../config/logging.js';
+import {
+  type AiNetworkPolicy,
+  createGuardedFetch,
+} from '../../utils/outboundUrlPolicy.js';
+
+// Admins (allowPrivateNetwork) keep plain fetch — identical to the prior
+// behavior. Non-admins get the guarded fetch (private-address lookup guard +
+// redirect:'manual'), closing redirect-to-internal and DNS-rebinding SSRF.
+function resolveFoodFetch(policy?: AiNetworkPolicy): typeof fetch {
+  return policy && !policy.allowPrivateNetwork
+    ? createGuardedFetch(policy)
+    : fetch;
+}
 
 const norishRecipeCache = new Map<
   string,
@@ -88,8 +101,13 @@ export interface SparkyFoodMapping {
 class NorishService {
   accessToken: string;
   baseUrl: string;
+  private networkPolicy?: AiNetworkPolicy;
 
-  constructor(baseUrl?: string | null, apiKey?: string | null) {
+  constructor(
+    baseUrl?: string | null,
+    apiKey?: string | null,
+    networkPolicy?: AiNetworkPolicy
+  ) {
     if (baseUrl) {
       let cleaned = baseUrl.trim();
       if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
@@ -105,6 +123,7 @@ class NorishService {
       this.baseUrl = 'https://norish.example.com/api/v1';
     }
     this.accessToken = apiKey || '';
+    this.networkPolicy = networkPolicy;
   }
 
   async searchRecipes(
@@ -127,7 +146,7 @@ class NorishService {
         authHeaders['x-api-key'] = this.accessToken;
       }
 
-      const response = await fetch(url, {
+      const response = await resolveFoodFetch(this.networkPolicy)(url, {
         method: 'POST',
         headers: {
           ...authHeaders,
@@ -190,7 +209,7 @@ class NorishService {
         authHeaders['x-api-key'] = this.accessToken;
       }
 
-      const response = await fetch(url, {
+      const response = await resolveFoodFetch(this.networkPolicy)(url, {
         method: 'GET',
         headers: {
           ...authHeaders,

@@ -51,10 +51,11 @@ describe('resolveSupplementTotals', () => {
     expect(Object.keys(fixed).sort()).toEqual(
       [...FOOD_VARIANT_NUTRIENT_FIELDS].sort()
     );
-    expect(Object.keys(fixed)).toHaveLength(17);
-    // The seventeen fixed columns plus the open-ended map. Only six catalog micronutrients
-    // have a fixed column, so without this arm a magnesium or vitamin D supplement has
-    // nowhere at all to land.
+    expect(Object.keys(fixed)).toHaveLength(19);
+    // The nineteen fixed columns (seventeen nutrients plus caffeine_mg #1958 and
+    // alcohol_g #1925) plus the open-ended map. Only six catalog micronutrients
+    // have a fixed column, so without this arm a magnesium or vitamin D
+    // supplement has nowhere at all to land.
     expect(custom_nutrients).toEqual({});
   });
 
@@ -62,9 +63,9 @@ describe('resolveSupplementTotals', () => {
     // Callers iterate this without checking. A server predating the custom arm, or a day
     // with no doses, has to read as "contributed nothing" rather than throwing.
     expect(resolveSupplementTotals(undefined).custom_nutrients).toEqual({});
-    expect(
-      resolveSupplementTotals({ calories: 15 }).custom_nutrients
-    ).toEqual({});
+    expect(resolveSupplementTotals({ calories: 15 }).custom_nutrients).toEqual(
+      {}
+    );
   });
 
   it('carries custom nutrient values through', () => {
@@ -189,9 +190,11 @@ describe('addSupplementCustomNutrients', () => {
   });
 
   it('is a no-op for an absent or empty supplement arm', () => {
-    expect(addSupplementCustomNutrients({ Magnesium: 120 }, undefined)).toEqual({
-      Magnesium: 120,
-    });
+    expect(addSupplementCustomNutrients({ Magnesium: 120 }, undefined)).toEqual(
+      {
+        Magnesium: 120,
+      }
+    );
     expect(
       addSupplementCustomNutrients({ Magnesium: 120 }, EMPTY_SUPPLEMENT_TOTALS)
     ).toEqual({ Magnesium: 120 });

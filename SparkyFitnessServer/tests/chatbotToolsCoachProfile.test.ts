@@ -11,6 +11,7 @@ import coachProfileRepository from '../models/coachProfileRepository.js';
 import gymEquipmentProfileRepository from '../models/gymEquipmentProfileRepository.js';
 import type { GymEquipmentProfileRow } from '../models/gymEquipmentProfileRepository.js';
 import { invalidateChatContextInputs } from '../services/chatContextCache.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
 vi.mock('../models/coachProfileRepository', () => ({
   default: {
@@ -34,7 +35,7 @@ vi.mock('../config/logging', () => ({
   log: vi.fn(),
 }));
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 const EXERCISE_ID = '55555555-5555-4555-8555-555555555555';
 
 const fullProfile = {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { CONFIRM_FOOD_TOOL_NAME } from '@workspace/shared';
 import { buildConfirmFoodTools } from '../ai/tools/confirmFoodTools.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 
 const internalCandidate = {
   label: 'Chicken Breast, grilled',

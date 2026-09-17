@@ -1,12 +1,16 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ToolCallOptions } from 'ai';
+import type { ToolExecutionOptions } from 'ai';
 import { buildChatbotTools } from '../tools/index.js';
 import { buildDevTools } from '../tools/devTools.js';
 import { isToolErrorText } from '../tools/errors.js';
 
-// Registry handlers read only rawArgs (no abortSignal/messages), so a stub
-// satisfies the execute() signature.
-const EXEC_STUB: ToolCallOptions = { toolCallId: 'mcp', messages: [] };
+// Registry handlers read only rawArgs (no abortSignal/messages/context), so a
+// stub satisfies the execute() signature.
+const EXEC_STUB: ToolExecutionOptions<Record<string, unknown>> = {
+  toolCallId: 'mcp',
+  messages: [],
+  context: {},
+};
 
 // The slice of an AI-SDK tool() this adapter uses; inputSchema is the bare
 // zod-4 object and execute returns a plain string by the registry contract.
@@ -14,8 +18,11 @@ interface RegistryTool {
   description?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   inputSchema: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  execute?: (args: unknown, options: ToolCallOptions) => Promise<any> | any;
+  execute?: (
+    args: unknown,
+    options: ToolExecutionOptions<Record<string, unknown>>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ) => Promise<any> | any;
 }
 
 // Registers a name->tool map onto an McpServer, reusing each tool's zod-4 schema

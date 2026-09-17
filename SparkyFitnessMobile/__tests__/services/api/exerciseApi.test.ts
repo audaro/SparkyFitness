@@ -1,7 +1,6 @@
 import {
   createExerciseEntry,
   updateExerciseEntry,
-  fetchExerciseEntries,
   fetchExerciseHistory,
   transformExerciseRow,
   fetchSuggestedExercises,
@@ -21,12 +20,16 @@ import {
   calculateOtherExerciseCalories,
   calculateExerciseDuration,
 } from '../../../src/utils/workoutSession';
-import { getActiveServerConfig, ServerConfig } from '../../../src/services/storage';
+import {
+  getActiveServerConfig,
+  ServerConfig,
+} from '../../../src/services/storage';
 import type { ExerciseSessionResponse } from '@workspace/shared';
 
 jest.mock('../../../src/services/storage', () => ({
   getActiveServerConfig: jest.fn(),
-  proxyHeadersToRecord: jest.requireActual('../../../src/services/storage').proxyHeadersToRecord,
+  proxyHeadersToRecord: jest.requireActual('../../../src/services/storage')
+    .proxyHeadersToRecord,
 }));
 
 jest.mock('../../../src/services/LogService', () => ({
@@ -58,7 +61,9 @@ function snapshot(id: string, name: string, category: string) {
 }
 
 /** Helper to build an individual session with sensible defaults */
-function individual(overrides: Partial<ExerciseSessionResponse & { type: 'individual' }> = {}): ExerciseSessionResponse {
+function individual(
+  overrides: Partial<ExerciseSessionResponse & { type: 'individual' }> = {}
+): ExerciseSessionResponse {
   return {
     type: 'individual',
     id: 'i-1',
@@ -81,7 +86,9 @@ function individual(overrides: Partial<ExerciseSessionResponse & { type: 'indivi
 }
 
 /** Helper to build a preset session with sensible defaults */
-function preset(overrides: Partial<ExerciseSessionResponse & { type: 'preset' }> = {}): ExerciseSessionResponse {
+function preset(
+  overrides: Partial<ExerciseSessionResponse & { type: 'preset' }> = {}
+): ExerciseSessionResponse {
   return {
     type: 'preset',
     id: 'p-1',
@@ -260,7 +267,7 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/api/exercises/suggested?limit=5',
-        expect.objectContaining({ method: 'GET' }),
+        expect.objectContaining({ method: 'GET' })
       );
     });
 
@@ -456,17 +463,23 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
           }),
       });
 
-      const result = await updateExercise('ex-1', { name: 'Updated Bench Press' });
+      const result = await updateExercise('ex-1', {
+        name: 'Updated Bench Press',
+      });
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/api/exercises/ex-1',
-        expect.objectContaining({ method: 'PUT' }),
+        expect.objectContaining({ method: 'PUT' })
       );
       const init = mockFetch.mock.calls[0][1] as RequestInit;
       expect((init.body as FormData).get('exerciseData')).toEqual(
-        JSON.stringify({ name: 'Updated Bench Press' }),
+        JSON.stringify({ name: 'Updated Bench Press' })
       );
-      expect(result).toMatchObject({ id: 'ex-1', userId: 'user-1', isCustom: true });
+      expect(result).toMatchObject({
+        id: 'ex-1',
+        userId: 'user-1',
+        isCustom: true,
+      });
     });
 
     it('throws on non-OK response', async () => {
@@ -478,13 +491,13 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
       });
 
       await expect(updateExercise('ex-1', { name: 'X' })).rejects.toThrow(
-        'Server error: 403 - Forbidden',
+        'Server error: 403 - Forbidden'
       );
     });
   });
 
   describe('deleteExerciseFromLibrary', () => {
-    it('sends DELETE to /api/exercises/:id', async () => {
+    it('defaults to mode=delete, which keeps the diary', async () => {
       mockGetActiveServerConfig.mockResolvedValue(testConfig);
       mockFetch.mockResolvedValue({
         ok: true,
@@ -493,11 +506,31 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
 
       await deleteExerciseFromLibrary('ex-1');
 
+      // The default must never be delete_with_history: a caller that forgets to
+      // pass a mode should remove the library row, not destroy logged workouts.
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/exercises/ex-1',
-        expect.objectContaining({ method: 'DELETE' }),
+        'https://example.com/api/exercises/ex-1?mode=delete',
+        expect.objectContaining({ method: 'DELETE' })
       );
     });
+
+    it.each(['hide', 'delete', 'delete_with_history'] as const)(
+      'sends mode=%s when asked for it',
+      async (mode) => {
+        mockGetActiveServerConfig.mockResolvedValue(testConfig);
+        mockFetch.mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(undefined),
+        });
+
+        await deleteExerciseFromLibrary('ex-1', mode);
+
+        expect(mockFetch).toHaveBeenCalledWith(
+          `https://example.com/api/exercises/ex-1?mode=${mode}`,
+          expect.objectContaining({ method: 'DELETE' })
+        );
+      }
+    );
 
     it('throws on 403', async () => {
       mockGetActiveServerConfig.mockResolvedValue(testConfig);
@@ -508,7 +541,7 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
       });
 
       await expect(deleteExerciseFromLibrary('ex-1')).rejects.toThrow(
-        'Server error: 403 - Forbidden',
+        'Server error: 403 - Forbidden'
       );
     });
   });
@@ -520,7 +553,11 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
         entry_date: '2026-03-20',
         exercises: [],
       };
-      const responseData = { id: 'session-1', type: 'preset', name: 'Push Day' };
+      const responseData = {
+        id: 'session-1',
+        type: 'preset',
+        name: 'Push Day',
+      };
       mockGetActiveServerConfig.mockResolvedValue(testConfig);
       mockFetch.mockResolvedValue({
         ok: true,
@@ -534,7 +571,7 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify(payload),
-        }),
+        })
       );
       expect(result).toEqual(responseData);
     });
@@ -543,7 +580,11 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
   describe('updateWorkout', () => {
     it('sends PUT request to /api/exercise-preset-entries/:id', async () => {
       const payload = { name: 'Updated Push Day', exercises: [] };
-      const responseData = { id: 'session-1', type: 'preset', name: 'Updated Push Day' };
+      const responseData = {
+        id: 'session-1',
+        type: 'preset',
+        name: 'Updated Push Day',
+      };
       mockGetActiveServerConfig.mockResolvedValue(testConfig);
       mockFetch.mockResolvedValue({
         ok: true,
@@ -557,7 +598,7 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
         expect.objectContaining({
           method: 'PUT',
           body: JSON.stringify(payload),
-        }),
+        })
       );
       expect(result).toEqual(responseData);
     });
@@ -575,7 +616,7 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/api/exercise-preset-entries/session-1',
-        expect.objectContaining({ method: 'DELETE' }),
+        expect.objectContaining({ method: 'DELETE' })
       );
     });
 
@@ -587,7 +628,9 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
         text: () => Promise.resolve('Not Found'),
       });
 
-      await expect(deleteWorkout('nonexistent')).rejects.toThrow('Server error: 404 - Not Found');
+      await expect(deleteWorkout('nonexistent')).rejects.toThrow(
+        'Server error: 404 - Not Found'
+      );
     });
   });
 
@@ -603,7 +646,7 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/api/exercise-entries/entry-1',
-        expect.objectContaining({ method: 'DELETE' }),
+        expect.objectContaining({ method: 'DELETE' })
       );
     });
 
@@ -616,7 +659,7 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
       });
 
       await expect(deleteExerciseEntry('entry-1')).rejects.toThrow(
-        'Server error: 500 - Internal Server Error',
+        'Server error: 500 - Internal Server Error'
       );
     });
   });
@@ -636,106 +679,13 @@ describe('exerciseApi', () => {
     jest.restoreAllMocks();
   });
 
-  describe('fetchExerciseEntries', () => {
-    const testConfig: ServerConfig = {
-      id: 'test-id',
-      url: 'https://example.com',
-      apiKey: 'test-api-key-12345',
-    };
-
-    const testDate = '2024-06-15';
-
-    test('throws error when no server config exists', async () => {
-      mockGetActiveServerConfig.mockResolvedValue(null);
-
-      await expect(fetchExerciseEntries(testDate)).rejects.toThrow(
-        'Server configuration not found.'
-      );
-    });
-
-    test('sends GET request to /api/v2/exercise-entries/by-date with date param', async () => {
-      mockGetActiveServerConfig.mockResolvedValue(testConfig);
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve([]),
-      });
-
-      await fetchExerciseEntries(testDate);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/v2/exercise-entries/by-date?selectedDate=2024-06-15',
-        expect.objectContaining({
-          method: 'GET',
-          headers: {
-            Authorization: 'Bearer test-api-key-12345',
-
-            'X-Meal-Model-Version': '2',
-          },
-        })
-      );
-    });
-
-    test('removes trailing slash from URL before making request', async () => {
-      mockGetActiveServerConfig.mockResolvedValue({
-        ...testConfig,
-        url: 'https://example.com/',
-      });
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve([]),
-      });
-
-      await fetchExerciseEntries(testDate);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/v2/exercise-entries/by-date?selectedDate=2024-06-15',
-        expect.anything()
-      );
-    });
-
-    test('returns parsed JSON response on success', async () => {
-      const responseData = [{ id: '1', calories_burned: 250 }];
-      mockGetActiveServerConfig.mockResolvedValue(testConfig);
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(responseData),
-      });
-
-      const result = await fetchExerciseEntries(testDate);
-
-      expect(result).toEqual(responseData);
-    });
-
-    test('throws error on non-OK response', async () => {
-      mockGetActiveServerConfig.mockResolvedValue(testConfig);
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve('Internal Server Error'),
-      });
-
-      await expect(fetchExerciseEntries(testDate)).rejects.toThrow(
-        'Server error: 500 - Internal Server Error'
-      );
-    });
-
-    test('rethrows on network failure', async () => {
-      mockGetActiveServerConfig.mockResolvedValue(testConfig);
-      mockFetch.mockRejectedValue(new Error('Network request failed'));
-
-      await expect(fetchExerciseEntries(testDate)).rejects.toThrow(
-        'Network request failed'
-      );
-    });
-  });
-
   describe('transformExerciseRow', () => {
     const baseRow = { id: 'ex-1', name: 'Plank', category: 'isometric' };
 
     it('passes a valid modality through', () => {
-      expect(transformExerciseRow({ ...baseRow, modality: 'duration' }).modality).toBe(
-        'duration',
-      );
+      expect(
+        transformExerciseRow({ ...baseRow, modality: 'duration' }).modality
+      ).toBe('duration');
     });
 
     it('maps an absent modality (pre-modality server) to null', () => {
@@ -743,8 +693,12 @@ describe('exerciseApi', () => {
     });
 
     it('sanitizes a garbage modality value to null', () => {
-      expect(transformExerciseRow({ ...baseRow, modality: 'cardio!!' }).modality).toBeNull();
-      expect(transformExerciseRow({ ...baseRow, modality: 42 }).modality).toBeNull();
+      expect(
+        transformExerciseRow({ ...baseRow, modality: 'cardio!!' }).modality
+      ).toBeNull();
+      expect(
+        transformExerciseRow({ ...baseRow, modality: 42 }).modality
+      ).toBeNull();
     });
   });
 
@@ -862,7 +816,16 @@ describe('exerciseApi', () => {
       mockGetActiveServerConfig.mockResolvedValue(testConfig);
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ sessions: [], pagination: { page: 1, pageSize: 20, totalCount: 0, hasMore: false } }),
+        json: () =>
+          Promise.resolve({
+            sessions: [],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              totalCount: 0,
+              hasMore: false,
+            },
+          }),
       });
 
       await fetchExerciseHistory();
@@ -884,7 +847,16 @@ describe('exerciseApi', () => {
       mockGetActiveServerConfig.mockResolvedValue(testConfig);
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ sessions: [], pagination: { page: 3, pageSize: 10, totalCount: 50, hasMore: true } }),
+        json: () =>
+          Promise.resolve({
+            sessions: [],
+            pagination: {
+              page: 3,
+              pageSize: 10,
+              totalCount: 50,
+              hasMore: true,
+            },
+          }),
       });
 
       await fetchExerciseHistory(3, 10);
@@ -899,7 +871,16 @@ describe('exerciseApi', () => {
       mockGetActiveServerConfig.mockResolvedValue(testConfig);
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ sessions: [], pagination: { page: 1, pageSize: 20, totalCount: 0, hasMore: false } }),
+        json: () =>
+          Promise.resolve({
+            sessions: [],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              totalCount: 0,
+              hasMore: false,
+            },
+          }),
       });
 
       await fetchExerciseHistory(1, 20, 'exercise-uuid-1');

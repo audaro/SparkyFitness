@@ -25,3 +25,20 @@ export async function resolveIsAdmin(
     user?.role || (await userRepository.getUserRole(authenticatedUserId));
   return role === 'admin';
 }
+
+/**
+ * Admin predicate when only the user id is in hand (service/repository layers
+ * that never see req.user). Loads the user's email and role so the
+ * SPARKY_FITNESS_ADMIN_EMAIL override is honored too — passing a null user to
+ * resolveIsAdmin would skip that path and misclassify an email-designated admin
+ * whose role column has not (yet) been promoted.
+ */
+export async function resolveIsAdminByUserId(
+  authenticatedUserId: string
+): Promise<boolean> {
+  if (!authenticatedUserId) {
+    return false;
+  }
+  const user = await userRepository.findUserById(authenticatedUserId);
+  return resolveIsAdmin(user, authenticatedUserId);
+}

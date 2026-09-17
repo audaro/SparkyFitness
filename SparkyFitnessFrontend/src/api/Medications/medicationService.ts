@@ -5,7 +5,6 @@ import type {
 } from '@workspace/shared';
 import type {
   Medication,
-  MedicationDetail,
   MedicationSchedule,
   MedicationPen,
   InjectionEntry,
@@ -28,9 +27,6 @@ export const listMedications = (
   opts?: ListMedicationsOptions
 ): Promise<Medication[]> =>
   apiCall('/v2/medications', { method: 'GET', params: opts });
-
-export const getMedication = (id: string): Promise<MedicationDetail> =>
-  apiCall(`/v2/medications/${id}`, { method: 'GET' });
 
 export const createMedication = (
   body: Partial<Medication> & { name: string }

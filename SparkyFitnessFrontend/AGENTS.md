@@ -33,7 +33,7 @@ pnpm run test:ci
 pnpm run build
 ```
 
-- `pnpm run validate` runs typecheck, lint (`--max-warnings 0`), and Prettier check together.
+- `pnpm run validate` runs typecheck, lint (`--max-warnings 0`), Prettier check, and Knip (`pnpm run knip` for unused files and exports) together.
 - `pnpm test` runs Jest (`ts-jest`, `jsdom`); config is inline in `package.json`, setup in `src/tests/setupTests.ts`.
 - `pnpm run build` runs `validate` first, then `vite build`.
 - CI (`.github/workflows/ci-tests.yml`) runs `pnpm run validate` and `pnpm run test:ci` for this package when its files change; matching those locally means a green PR.
@@ -58,7 +58,7 @@ Features are organized by domain, and the same domain folder name appears in `sr
 - `src/contexts/` - `ActiveUserContext` (family-access acting-user switching), `PreferencesContext`, `ThemeContext`, `WaterContainerContext`, `ChatbotVisibilityContext`, `ChatToolCategoriesContext` (runtime chat tool-category selection, localStorage-backed).
 - `src/layouts/` - `MainLayout.tsx` and `AddComp.tsx`.
 - `src/lib/` - `auth-client.ts` (Better Auth React client), `utils.ts` (`cn`), scanner engines, sleep helpers.
-- `src/services/` - pure calculation helpers (BMR, body composition, nutrient calculation, preferences), not HTTP clients.
+- `src/services/` - pure calculation helpers (BMR, body composition, nutrient calculation), not HTTP clients.
 - `src/utils/` - logging, user preferences, date helpers, misc.
 - `src/tests/` - Jest suites mirroring `components`/`contexts`/`hooks`/`services`/`utils`, plus `test-utils.tsx`.
 - `public/locales/<lng>/translation.json` - i18next resources, loaded over HTTP at runtime.
@@ -260,6 +260,8 @@ for component; the server half is `SparkyFitnessServer/AGENTS.md`.
 - To learn a database table's shape, read `../shared/src/schemas/database/<Table>.zod.ts` - do not read `../db_schema_backup.sql` or the migrations.
 - Auth flows go through `src/lib/auth-client.ts` and `useAuth`; acting-user (family access) state lives in `ActiveUserContext` and affects most data hooks.
 - New UI should reuse `src/components/ui/` primitives and existing shared components before adding new ones.
+- **Cache Invalidation on Library Mutations:** When mutating foods, exercises, presets, or plans, use the domain invalidation hooks from `src/hooks/useInvalidateKeys.ts` (`useExerciseInvalidation`, `useFoodInvalidation`, `useMealInvalidation`, `useDiaryInvalidation`) to invalidate the entire family of dependent query keys including search, presets, templates, and diary daily progress.
+- **Library Deletes & Snapshots:** Deleting foods or exercises uses `mode: 'delete'` which preserves logged diary history (via snapshots) and drops items from presets/plans; only explicit `delete_with_history` deletes diary entries. Empty presets are guarded against starting/logging.
 
 ## Testing and Validation
 
@@ -276,7 +278,7 @@ for component; the server half is `SparkyFitnessServer/AGENTS.md`.
 - Auth/session issue: `src/lib/auth-client.ts`, `src/hooks/useAuth.tsx`, `src/pages/Auth/`, and the server's `auth.ts` if it crosses packages.
 - Family-access/acting-user issue: `src/contexts/ActiveUserContext.tsx` and the hooks consuming it.
 - Chat (Sparky) issue: `src/pages/Chat/`, `src/components/ai/`, `src/api/Chatbot/`.
-- Theme/preferences issue: `src/contexts/ThemeContext.tsx`, `src/contexts/PreferencesContext.tsx`, `src/services/preferenceService.ts`, `src/utils/userPreferences.ts`.
+- Theme/preferences issue: `src/contexts/ThemeContext.tsx`, `src/contexts/PreferencesContext.tsx`, `src/api/Settings/preferences.ts`, `src/utils/userPreferences.ts`.
 - Medication autofill issue (a suggestion missing, a wrong strength, a name that should not have been sent): "Medication Name Search" above, then `src/pages/Medications/MedicationNameCombobox.tsx`, `src/hooks/useMedicationCatalogSearch.ts`, and `AddMedicationDialog.handleNamePick`. Tier 3's _content_ is decided in `shared/src/medications/rxterms.ts` and on the server, not here.
 - Pen/vial inventory issue (a wrong doses-per-vial, a blank concentration): `src/pages/Medications/Glp1InventoryManager.tsx` opens its vial fields from `vialInventoryPrefill` (shared), which derives concentration, volume and doses-per-vial from the reconstitution record on the medication's `custom_fields`. Every field it declines to fill is a refusal, not an omission — an IU vial has no mg/mL, and a dose the vial cannot divide has no dose count — so the fix for a blank box is almost never to invent a default there. **`DEFAULT_PEN_DOSES` / `DEFAULT_VIAL_DOSES` apply only when there is no mix on record at all.** Once there is one, a field the prefill refuses stays empty rather than falling back to the constant: `doses_total` is what the run-out date is computed from, and a plausible number on a vial whose mix was actually measured reads as derived when it is a guess.
 - Beyond-use date: the suggestion is `vialBudGuidance(record.diluent)` (shared), reached through `vialInventoryPrefill(...).bud`, and it is a _suggestion_ — prefilled from the opened date, overwritable, with the assumption it makes spelled out next to the field. It has **three** answers, and the caption must say which one it is giving: `preserved` (28 days, because the mix records a bacteriostatic diluent and the benzyl alcohol is what buys the month), `preservative_free` (**no date at all** — sterile water and saline are good for hours, not days, and the calculator refuses to invent a number rather than suggesting a dangerous one), and `unstated` (28 days from a record saved before the diluent field existed, captioned as the assumption it is). A pen has no mix, so it takes `PEN_BUD_GUIDANCE` — 28 days, `unstated`. Once a BUD is the user's (typed here, or already stored on the row) `budTouched` stops the opened date from recomputing it; do not "fix" that by re-deriving on every change.

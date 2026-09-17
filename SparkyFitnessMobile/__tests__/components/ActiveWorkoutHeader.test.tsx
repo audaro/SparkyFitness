@@ -84,7 +84,7 @@ describe('ActiveWorkoutHeader', () => {
       onAddExercise?: () => void;
       onOpenSettings?: () => void;
       onClearAllSets?: () => void;
-    },
+    }
   ) {
     const progress = buildExerciseProgress(makeSession(), completedSetIds);
     return render(
@@ -101,7 +101,7 @@ describe('ActiveWorkoutHeader', () => {
         onAddExercise={overrides?.onAddExercise}
         onOpenSettings={overrides?.onOpenSettings}
         onClearAllSets={overrides?.onClearAllSets}
-      />,
+      />
     );
   }
 
@@ -148,7 +148,10 @@ describe('ActiveWorkoutHeader', () => {
 
   it('opens the kebab menu and fires onDiscard from Discard workout', () => {
     const onDiscard = jest.fn();
-    const { getByLabelText, getByText } = renderHeaderComponent({}, { onDiscard });
+    const { getByLabelText, getByText } = renderHeaderComponent(
+      {},
+      { onDiscard }
+    );
     fireEvent.press(getByLabelText('Workout menu'));
     fireEvent.press(getByText('Discard workout'));
     expect(onDiscard).toHaveBeenCalledTimes(1);
@@ -156,7 +159,10 @@ describe('ActiveWorkoutHeader', () => {
 
   it('shows Rename workout and fires onRename when provided', () => {
     const onRename = jest.fn();
-    const { getByLabelText, getByText } = renderHeaderComponent({}, { onRename });
+    const { getByLabelText, getByText } = renderHeaderComponent(
+      {},
+      { onRename }
+    );
     fireEvent.press(getByLabelText('Workout menu'));
     fireEvent.press(getByText('Rename workout'));
     expect(onRename).toHaveBeenCalledTimes(1);
@@ -176,7 +182,10 @@ describe('ActiveWorkoutHeader', () => {
 
   it('shows Reorder exercises and fires onReorder when provided', () => {
     const onReorder = jest.fn();
-    const { getByLabelText, getByText } = renderHeaderComponent({}, { onReorder });
+    const { getByLabelText, getByText } = renderHeaderComponent(
+      {},
+      { onReorder }
+    );
     fireEvent.press(getByLabelText('Workout menu'));
     fireEvent.press(getByText('Reorder exercises'));
     expect(onReorder).toHaveBeenCalledTimes(1);
@@ -184,7 +193,10 @@ describe('ActiveWorkoutHeader', () => {
 
   it('shows Add exercise and fires onAddExercise when provided', () => {
     const onAddExercise = jest.fn();
-    const { getByLabelText, getByText } = renderHeaderComponent({}, { onAddExercise });
+    const { getByLabelText, getByText } = renderHeaderComponent(
+      {},
+      { onAddExercise }
+    );
     fireEvent.press(getByLabelText('Workout menu'));
     fireEvent.press(getByText('Add exercise'));
     expect(onAddExercise).toHaveBeenCalledTimes(1);
@@ -199,7 +211,10 @@ describe('ActiveWorkoutHeader', () => {
 
   it('shows Clear all logged sets and fires onClearAllSets when provided', () => {
     const onClearAllSets = jest.fn();
-    const { getByLabelText, getByText } = renderHeaderComponent({}, { onClearAllSets });
+    const { getByLabelText, getByText } = renderHeaderComponent(
+      {},
+      { onClearAllSets }
+    );
     fireEvent.press(getByLabelText('Workout menu'));
     fireEvent.press(getByText('Clear all logged sets'));
     expect(onClearAllSets).toHaveBeenCalledTimes(1);
@@ -207,7 +222,10 @@ describe('ActiveWorkoutHeader', () => {
 
   it('shows Workout settings and fires onOpenSettings when provided', () => {
     const onOpenSettings = jest.fn();
-    const { getByLabelText, getByText } = renderHeaderComponent({}, { onOpenSettings });
+    const { getByLabelText, getByText } = renderHeaderComponent(
+      {},
+      { onOpenSettings }
+    );
     fireEvent.press(getByLabelText('Workout menu'));
     fireEvent.press(getByText('Workout settings'));
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
@@ -229,7 +247,7 @@ describe('ActiveWorkoutHeader', () => {
         onAddExercise: jest.fn(),
         onOpenSettings: jest.fn(),
         onClearAllSets: jest.fn(),
-      },
+      }
     );
     fireEvent.press(getByLabelText('Workout menu'));
     expect(queryAllByTestId('action-sheet-group-spacer')).toHaveLength(3);

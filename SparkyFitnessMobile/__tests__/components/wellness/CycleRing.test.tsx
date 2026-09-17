@@ -1,9 +1,6 @@
 import { render } from '@testing-library/react-native';
 import CycleRing from '../../../src/components/wellness/CycleRing';
 
-
-
-
 describe('CycleRing', () => {
   it('renders correctly with day and labels', () => {
     const { getByText } = render(
@@ -17,7 +14,7 @@ describe('CycleRing', () => {
         centerLabel="Period"
         centerValue="Day 5"
         centerSub="28 day cycle"
-      />,
+      />
     );
 
     expect(getByText('Period')).toBeTruthy();

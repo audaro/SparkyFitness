@@ -4,43 +4,37 @@ import {
   notifySessionExpired,
   setOnNoConfigs,
   notifyNoConfigs,
+  setOnIdentityChanged,
+  notifyIdentityChanged,
   login,
   LoginError,
   fetchMfaFactors,
   verifyTotp,
   sendEmailOtp,
   verifyEmailOtp,
-  logout,
-  clearAuthCookies,
-  requestPasskeyRegistrationTicket,
+  _requestPasskeyRegistrationTicket,
   addPasskey,
   _clearTrustedOriginCache,
   _setTrustedOriginCache,
 } from '../../src/services/api/authService';
-import { clearSessionToken, ServerConfig } from '../../src/services/storage';
+import { ServerConfig } from '../../src/services/storage';
+import * as LogService from '../../src/services/LogService';
 import { TimeoutError } from '../../src/utils/concurrency';
 import * as WebBrowser from 'expo-web-browser';
-
-jest.mock('../../src/services/storage', () => ({
-  clearSessionToken: jest.fn(),
-}));
 
 jest.mock('expo-web-browser', () => ({
   openAuthSessionAsync: jest.fn(),
   getCustomTabsSupportingBrowsersAsync: jest.fn(),
 }));
 
-const mockOpenAuthSession = WebBrowser.openAuthSessionAsync as jest.MockedFunction<
-  typeof WebBrowser.openAuthSessionAsync
->;
+const mockOpenAuthSession =
+  WebBrowser.openAuthSessionAsync as jest.MockedFunction<
+    typeof WebBrowser.openAuthSessionAsync
+  >;
 const mockGetCustomTabsBrowsers =
   WebBrowser.getCustomTabsSupportingBrowsersAsync as jest.MockedFunction<
     typeof WebBrowser.getCustomTabsSupportingBrowsersAsync
   >;
-
-const mockClearSessionToken = clearSessionToken as jest.MockedFunction<
-  typeof clearSessionToken
->;
 
 describe('authService', () => {
   const mockFetch = jest.fn();
@@ -55,6 +49,7 @@ describe('authService', () => {
     // Clear stale callbacks between tests
     setOnSessionExpired(() => {});
     setOnNoConfigs(() => {});
+    setOnIdentityChanged(() => {});
   });
 
   afterEach(() => {
@@ -138,14 +133,55 @@ describe('authService', () => {
     });
   });
 
+  describe('setOnIdentityChanged / notifyIdentityChanged', () => {
+    test('registered callback is awaited', async () => {
+      const order: string[] = [];
+      setOnIdentityChanged(async () => {
+        await Promise.resolve();
+        order.push('handler');
+      });
+
+      await notifyIdentityChanged();
+      order.push('caller');
+
+      // Callers refetch straight after this resolves, so a handler that has
+      // not finished clearing the cookie jar would let the next request out
+      // carrying the previous account's session.
+      expect(order).toEqual(['handler', 'caller']);
+    });
+
+    test('an unregistered handler is reported, not passed over', async () => {
+      const addLogSpy = jest
+        .spyOn(LogService, 'addLog')
+        .mockResolvedValue(undefined);
+      setOnIdentityChanged(undefined as any);
+
+      await expect(notifyIdentityChanged()).resolves.toBeUndefined();
+
+      // The screens that change identity no longer clear anything themselves,
+      // so with nothing registered the previous account's caches survive the
+      // switch and nothing else would say so.
+      expect(addLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('no handler registered'),
+        'ERROR'
+      );
+    });
+  });
+
   // --- login ---
 
   describe('login', () => {
     const serverUrl = 'https://login-test.example.com';
 
     beforeEach(() => {
-      _setTrustedOriginCache('https://login-test.example.com', 'https://login-test.example.com');
-      _setTrustedOriginCache('https://trailing-slash.example.com', 'https://trailing-slash.example.com');
+      _setTrustedOriginCache(
+        'https://login-test.example.com',
+        'https://login-test.example.com'
+      );
+      _setTrustedOriginCache(
+        'https://trailing-slash.example.com',
+        'https://trailing-slash.example.com'
+      );
       _setTrustedOriginCache('http://localhost:3000', 'http://localhost:3000');
     });
 
@@ -213,12 +249,15 @@ describe('authService', () => {
         status: 401,
         text: () =>
           Promise.resolve(
-            JSON.stringify({ message: 'Invalid credentials', code: 'AUTH_FAILED' }),
+            JSON.stringify({
+              message: 'Invalid credentials',
+              code: 'AUTH_FAILED',
+            })
           ),
       });
 
       await expect(login(serverUrl, 'user@test.com', 'wrong')).rejects.toThrow(
-        'Sign-in failed: 401 - Invalid credentials (AUTH_FAILED)',
+        'Sign-in failed: 401 - Invalid credentials (AUTH_FAILED)'
       );
     });
 
@@ -230,7 +269,7 @@ describe('authService', () => {
       });
 
       await expect(login(serverUrl, 'user@test.com', 'pass')).rejects.toThrow(
-        'Sign-in failed: 500 - Internal Server Error',
+        'Sign-in failed: 500 - Internal Server Error'
       );
     });
 
@@ -241,15 +280,14 @@ describe('authService', () => {
       });
 
       await expect(login(serverUrl, 'user@test.com', 'pass')).rejects.toThrow(
-        'Sign-in response did not include a session token.',
+        'Sign-in response did not include a session token.'
       );
     });
 
     test('sends POST to sign-in endpoint with correct body', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () =>
-          Promise.resolve({ token: 't', user: { email: 'u@t.com' } }),
+        json: () => Promise.resolve({ token: 't', user: { email: 'u@t.com' } }),
       });
 
       await login(serverUrl, 'u@t.com', 'p');
@@ -264,22 +302,21 @@ describe('authService', () => {
             Origin: 'https://login-test.example.com',
           },
           body: JSON.stringify({ email: 'u@t.com', password: 'p' }),
-        }),
+        })
       );
     });
 
     test('normalizes trailing slash in server URL', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () =>
-          Promise.resolve({ token: 't', user: { email: 'u@t.com' } }),
+        json: () => Promise.resolve({ token: 't', user: { email: 'u@t.com' } }),
       });
 
       await login('https://trailing-slash.example.com/', 'u@t.com', 'p');
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://trailing-slash.example.com/api/auth/sign-in/email',
-        expect.anything(),
+        expect.anything()
       );
     });
 
@@ -292,7 +329,7 @@ describe('authService', () => {
       });
 
       await expect(login(serverUrl, 'user@test.com', 'pass')).rejects.toThrow(
-        'Sign-in failed: 403 - Account locked',
+        'Sign-in failed: 403 - Account locked'
       );
     });
 
@@ -368,9 +405,9 @@ describe('authService', () => {
     test('propagates network errors', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network request failed'));
 
-      await expect(
-        login(serverUrl, 'user@test.com', 'pass'),
-      ).rejects.toThrow('Network request failed');
+      await expect(login(serverUrl, 'user@test.com', 'pass')).rejects.toThrow(
+        'Network request failed'
+      );
     });
 
     describe('HTTPS enforcement', () => {
@@ -384,8 +421,10 @@ describe('authService', () => {
         (global as any).__DEV__ = false;
 
         await expect(
-          login('http://insecure.example.com', 'u@t.com', 'p'),
-        ).rejects.toThrow('A secure (HTTPS) server URL is required to sign in.');
+          login('http://insecure.example.com', 'u@t.com', 'p')
+        ).rejects.toThrow(
+          'A secure (HTTPS) server URL is required to sign in.'
+        );
 
         expect(mockFetch).not.toHaveBeenCalled();
       });
@@ -445,9 +484,9 @@ describe('authService', () => {
         status: 404,
       });
 
-      await expect(
-        fetchMfaFactors(serverUrl, 'user@test.com'),
-      ).rejects.toThrow('Failed to fetch MFA factors.');
+      await expect(fetchMfaFactors(serverUrl, 'user@test.com')).rejects.toThrow(
+        'Failed to fetch MFA factors.'
+      );
     });
 
     test('encodes email in query parameter', async () => {
@@ -460,7 +499,7 @@ describe('authService', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         `${serverUrl}/api/auth/mfa-factors?email=user%2Bspecial%40test.com`,
-        expect.objectContaining({ credentials: 'omit' }),
+        expect.objectContaining({ credentials: 'omit' })
       );
     });
   });
@@ -485,7 +524,9 @@ describe('authService', () => {
     test('returns session token and user on success', async () => {
       const serverUrl = 'https://totp-success.example.com';
       mockFetch
-        .mockResolvedValueOnce(mockAuthSettingsResponse('https://auth.example.com'))
+        .mockResolvedValueOnce(
+          mockAuthSettingsResponse('https://auth.example.com')
+        )
         .mockResolvedValueOnce(mockSuccessVerifyResponse());
 
       const result = await verifyTotp(serverUrl, '123456');
@@ -503,10 +544,13 @@ describe('authService', () => {
         .mockResolvedValueOnce({
           ok: false,
           status: 400,
-          text: () => Promise.resolve(JSON.stringify({ message: 'Invalid code' })),
+          text: () =>
+            Promise.resolve(JSON.stringify({ message: 'Invalid code' })),
         });
 
-      await expect(verifyTotp(serverUrl, '000000')).rejects.toThrow('Invalid code');
+      await expect(verifyTotp(serverUrl, '000000')).rejects.toThrow(
+        'Invalid code'
+      );
     });
 
     test('carries the server code through the MFA verify path too', async () => {
@@ -539,7 +583,7 @@ describe('authService', () => {
         });
 
       await expect(verifyTotp(serverUrl, '123456')).rejects.toThrow(
-        'Verification response did not include a session token.',
+        'Verification response did not include a session token.'
       );
     });
 
@@ -547,7 +591,7 @@ describe('authService', () => {
       const serverUrl = 'https://totp-origin.example.com';
       mockFetch
         .mockResolvedValueOnce(
-          mockAuthSettingsResponse('https://trusted.example.com'),
+          mockAuthSettingsResponse('https://trusted.example.com')
         )
         .mockResolvedValueOnce(mockSuccessVerifyResponse());
 
@@ -558,7 +602,7 @@ describe('authService', () => {
         expect.objectContaining({
           Origin: 'https://trusted.example.com',
           'Content-Type': 'application/json',
-        }),
+        })
       );
     });
 
@@ -574,7 +618,7 @@ describe('authService', () => {
       expect(verifyCall[1].headers).toEqual(
         expect.objectContaining({
           Origin: 'https://totp-settings-fail.example.com',
-        }),
+        })
       );
     });
 
@@ -590,7 +634,7 @@ describe('authService', () => {
       expect(verifyCall[1].headers).toEqual(
         expect.objectContaining({
           Origin: 'https://totp-fallback.example.com',
-        }),
+        })
       );
     });
   });
@@ -639,13 +683,11 @@ describe('authService', () => {
       await sendEmailOtp(serverUrl);
 
       const sendCall = mockFetch.mock.calls[1];
-      expect(sendCall[0]).toBe(
-        `${serverUrl}/api/auth/two-factor/send-otp`,
-      );
+      expect(sendCall[0]).toBe(`${serverUrl}/api/auth/two-factor/send-otp`);
       expect(sendCall[1].headers).toEqual(
         expect.objectContaining({
           Origin: 'https://my-auth.example.com',
-        }),
+        })
       );
     });
   });
@@ -692,7 +734,7 @@ describe('authService', () => {
         });
 
       await expect(verifyEmailOtp(serverUrl, '000000')).rejects.toThrow(
-        'Code expired',
+        'Code expired'
       );
     });
 
@@ -709,28 +751,68 @@ describe('authService', () => {
         });
 
       await expect(verifyEmailOtp(serverUrl, '123456')).rejects.toThrow(
-        'Verification response did not include a session token.',
+        'Verification response did not include a session token.'
       );
-    });
-  });
-
-  // --- logout ---
-
-  describe('logout', () => {
-    test('clears session token and cookies for the given config ID', async () => {
-      mockClearSessionToken.mockResolvedValueOnce();
-
-      await logout('config-99');
-
-      expect(mockClearSessionToken).toHaveBeenCalledWith('config-99');
     });
   });
 
   // --- clearAuthCookies ---
 
   describe('clearAuthCookies', () => {
-    test('resolves when NativeModules.Networking is undefined', async () => {
-      await expect(clearAuthCookies()).resolves.toBeUndefined();
+    // `networkingModule` is read once at import, so each case installs its own
+    // fake and loads the service fresh against it.
+    // isolateModules rather than resetModules: the latter empties the registry
+    // the rest of this file is still holding references into, which breaks the
+    // mocks of tests that run afterwards.
+    const loadWithNetworking = (
+      networking: unknown
+    ): (() => Promise<boolean>) => {
+      let clear!: () => Promise<boolean>;
+      jest.isolateModules(() => {
+        const rn = require('react-native');
+        rn.NativeModules.Networking = networking;
+        clear = require('../../src/services/api/authService').clearAuthCookies;
+      });
+      return clear;
+    };
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test('reports failure when NativeModules.Networking is missing', async () => {
+      await expect(loadWithNetworking(undefined)()).resolves.toBe(false);
+    });
+
+    test('treats an already-empty jar as cleared', async () => {
+      // Android's callback reports whether anything was *removed*, so an empty
+      // jar answers false. Being called at all is the success signal; reading
+      // that boolean as failure would cry wolf on every clean switch.
+      const clear = loadWithNetworking({
+        clearCookies: (cb: (result: boolean) => void) => cb(false),
+      });
+      await expect(clear()).resolves.toBe(true);
+    });
+
+    test('reports failure when the native call throws', async () => {
+      const clear = loadWithNetworking({
+        clearCookies: () => {
+          throw new Error('no cookie manager');
+        },
+      });
+      await expect(clear()).resolves.toBe(false);
+    });
+
+    test('gives up instead of hanging when the callback never fires', async () => {
+      // ForwardingCookieHandler is `cookieManager?.removeAllCookies`, and
+      // cookieManager is null when the WebView provider is missing: the call
+      // does nothing and never calls back. Without a deadline this would stall
+      // the identity change awaiting it forever.
+      jest.useFakeTimers();
+      const clear = loadWithNetworking({ clearCookies: () => {} });
+      const pending = clear();
+      jest.advanceTimersByTime(3_000);
+      await expect(pending).resolves.toBe(false);
     });
   });
 
@@ -778,7 +860,7 @@ describe('authService', () => {
     });
   });
 
-  describe('requestPasskeyRegistrationTicket', () => {
+  describe('_requestPasskeyRegistrationTicket', () => {
     it('POSTs to register-ticket with Bearer and returns the ticket', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -786,7 +868,7 @@ describe('authService', () => {
         json: async () => ({ ticket: 'ticket-abc' }),
       });
 
-      const ticket = await requestPasskeyRegistrationTicket(
+      const ticket = await _requestPasskeyRegistrationTicket(
         'https://s.com',
         'sess-tok'
       );
@@ -806,8 +888,11 @@ describe('authService', () => {
       });
 
       await expect(
-        requestPasskeyRegistrationTicket('https://s.com', 'tok')
-      ).rejects.toMatchObject({ message: 'SESSION_NOT_FRESH', statusCode: 403 });
+        _requestPasskeyRegistrationTicket('https://s.com', 'tok')
+      ).rejects.toMatchObject({
+        message: 'SESSION_NOT_FRESH',
+        statusCode: 403,
+      });
     });
 
     it('throws on non-OK responses', async () => {
@@ -817,7 +902,7 @@ describe('authService', () => {
         json: async () => ({ message: 'boom' }),
       });
       await expect(
-        requestPasskeyRegistrationTicket('https://s.com', 'tok')
+        _requestPasskeyRegistrationTicket('https://s.com', 'tok')
       ).rejects.toThrow('boom');
     });
   });
@@ -881,11 +966,17 @@ describe('authService', () => {
     };
 
     const setPlatform = (os: string) => {
-      Object.defineProperty(Platform, 'OS', { get: () => os, configurable: true });
+      Object.defineProperty(Platform, 'OS', {
+        get: () => os,
+        configurable: true,
+      });
     };
 
     afterEach(() => {
-      Object.defineProperty(Platform, 'OS', { get: () => originalOS, configurable: true });
+      Object.defineProperty(Platform, 'OS', {
+        get: () => originalOS,
+        configurable: true,
+      });
     });
 
     it('overrides a non-allowlisted default browser with an installed allowlisted one', async () => {
@@ -925,7 +1016,9 @@ describe('authService', () => {
 
     it('falls back to the default browser when the lookup fails', async () => {
       setPlatform('android');
-      mockGetCustomTabsBrowsers.mockRejectedValueOnce(new Error('no custom tabs'));
+      mockGetCustomTabsBrowsers.mockRejectedValueOnce(
+        new Error('no custom tabs')
+      );
       mintTicketAndSucceed();
 
       await addPasskey('https://s.com', 'tok', 'My Phone');

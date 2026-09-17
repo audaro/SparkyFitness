@@ -1,0 +1,57 @@
+{
+  "medications": {
+    "mealRelation": {
+      "awayFromMeals": "远离进餐时间"
+    }
+  },
+  "common": {
+    "back": "返回",
+    "close": "关闭",
+    "date": "日期",
+    "delete": "删除",
+    "edit": "编辑",
+    "error": "错误",
+    "loading": "正在加载...",
+    "next": "下一步",
+    "save": "保存",
+    "success": "成功"
+  },
+  "workout": {
+    "calories": "卡路里",
+    "distance": "距离",
+    "reps": "次数"
+  },
+  "healthMetrics": {
+    "basalBodyTemperature": "基础体温",
+    "basalMetabolicRate": "基础代谢率",
+    "bloodAlcoholContent": "血液酒精含量",
+    "bloodGlucose": "血糖",
+    "bloodOxygenSaturation": "血氧饱和度",
+    "bloodPressure": "血压",
+    "bodyFat": "体脂",
+    "bodyTemperature": "体温",
+    "boneMass": "骨量",
+    "cyclingPedalingCadence": "骑行踏频",
+    "distance": "距离",
+    "elevationGained": "爬升高度",
+    "floorsClimbed": "爬楼层数",
+    "heartRate": "心率",
+    "height": "身高",
+    "hydration": "水分",
+    "leanBodyMass": "瘦体重",
+    "nutrition": "营养",
+    "power": "功率",
+    "respiratoryRate": "呼吸率",
+    "restingHeartRate": "静息心率",
+    "sleepSession": "睡眠时段",
+    "speed": "速度",
+    "stepsCadence": "步频",
+    "stress": "压力",
+    "weight": "体重",
+    "appleExerciseTime": "Apple 运动时间",
+    "appleMoveTime": "Apple 活动时间",
+    "appleStandTime": "Apple 站立时间",
+    "steps": "步数",
+    "totalCalories": "总热量"
+  }
+}

@@ -74,10 +74,17 @@ const MFASettings = () => {
     try {
       switch (pendingAction) {
         case 'enableTotp': {
+          // `method` is required since Better Auth 1.7, and the response is a
+          // union discriminated on it -- `totpURI`/`backupCodes` only exist on
+          // the "totp" branch, so it has to be narrowed before they are read.
           const enableRes = await authClient.twoFactor.enable({
             password: confirmPassword,
+            method: 'totp',
           });
           if (enableRes.error) throw enableRes.error;
+          if (enableRes.data.method !== 'totp') {
+            throw new Error('Expected a TOTP enrolment response.');
+          }
           setOtpAuthUrl(enableRes.data.totpURI);
           setRecoveryCodes(enableRes.data.backupCodes);
           toast({ title: 'Success', description: 'Scan QR code to verify.' });

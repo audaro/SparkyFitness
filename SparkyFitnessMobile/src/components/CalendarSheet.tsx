@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import { useCSSVariable } from 'uniwind';
@@ -7,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { toLocalDateString } from '../utils/dateUtils';
 import Icon from './Icon';
 import { sheetContainer, useSheetBackdrop } from './ui/sheetChrome';
+import { useMarkedDayComponent } from './calendarMarkedDays';
 import {
   useCalendarPresentation,
   getCalendarWeekdayShortNames,
@@ -21,6 +29,12 @@ export interface CalendarSheetRef {
 interface CalendarSheetProps {
   selectedDate: string;
   onSelectDate: (date: string) => void;
+  /**
+   * Calendar days (YYYY-MM-DD) to flag with a dot, e.g. days that already have
+   * a progress photo. Optional: without it the picker renders the library's own
+   * day cell, so existing callers are untouched.
+   */
+  markedDates?: string[];
 }
 
 interface CalendarContentProps extends CalendarSheetProps {
@@ -46,13 +60,30 @@ const CalendarContent = ({
   textSecondary,
   textMuted,
   accentPrimary,
+  markedDates,
 }: CalendarContentProps) => {
   const { appLocale, presentation } = useCalendarPresentation();
   const { t } = useTranslation();
-  const weekdayLabels = useMemo(() => getCalendarWeekdayShortNames(appLocale), [appLocale]);
-  const monthLabels = useMemo(() => getCalendarMonthNames(appLocale), [appLocale]);
+  const weekdayLabels = useMemo(
+    () => getCalendarWeekdayShortNames(appLocale),
+    [appLocale]
+  );
+  const monthLabels = useMemo(
+    () => getCalendarMonthNames(appLocale),
+    [appLocale]
+  );
+  const markedDayComponent = useMarkedDayComponent({
+    markedDates,
+    textPrimary,
+    textMuted,
+    accentPrimary,
+  });
+
   const [initialYear, initialMonth] = selectedDate.split('-').map(Number);
-  const [visible, setVisible] = useState({ year: initialYear, month: initialMonth - 1 });
+  const [visible, setVisible] = useState({
+    year: initialYear,
+    month: initialMonth - 1,
+  });
   // react-native-ui-datepicker only honours `initialView` on mount. The parent
   // tracks `pickerView` ('day' | 'month' | 'year') as logical UI state and a
   // separate `pickerMountVersion` token that increments ONLY when the user
@@ -70,22 +101,26 @@ const CalendarContent = ({
     setPickerMountVersion((v) => v + 1);
   }, []);
 
-  const shiftVisible = useCallback((delta: number) => {
-    setVisible((prev) => {
-      // In the month grid prev/next moves by year; in the day grid by month.
-      const step = pickerView === 'month' || pickerView === 'year' ? 12 * delta : delta;
-      const date = new Date(prev.year, prev.month + step, 1);
-      return { year: date.getFullYear(), month: date.getMonth() };
-    });
-    // The chevron always returns to the day grid so accessibility labels and
-    // subsequent navigation reflect month (not year) stepping. This also covers
-    // the case where the library internally returned to day view after the
-    // user tapped the already-selected month/year, which does NOT fire
-    // onMonthChange/onYearChange (see react-native-ui-datepicker v3.1.2).
-    // Only logical state is reset — the mount token is NOT bumped so the picker
-    // is not forced back into the month/year grid.
-    setPickerView('day');
-  }, [pickerView]);
+  const shiftVisible = useCallback(
+    (delta: number) => {
+      setVisible((prev) => {
+        // In the month grid prev/next moves by year; in the day grid by month.
+        const step =
+          pickerView === 'month' || pickerView === 'year' ? 12 * delta : delta;
+        const date = new Date(prev.year, prev.month + step, 1);
+        return { year: date.getFullYear(), month: date.getMonth() };
+      });
+      // The chevron always returns to the day grid so accessibility labels and
+      // subsequent navigation reflect month (not year) stepping. This also covers
+      // the case where the library internally returned to day view after the
+      // user tapped the already-selected month/year, which does NOT fire
+      // onMonthChange/onYearChange (see react-native-ui-datepicker v3.1.2).
+      // Only logical state is reset — the mount token is NOT bumped so the picker
+      // is not forced back into the month/year grid.
+      setPickerView('day');
+    },
+    [pickerView]
+  );
 
   const [sy, sm, sd] = selectedDate.split('-').map(Number);
   const selectedDateValue = new Date(sy, sm - 1, sd);
@@ -94,7 +129,7 @@ const CalendarContent = ({
       if (!date) return;
       onSelectDate(toLocalDateString(new Date(date as string | number | Date)));
     },
-    [onSelectDate],
+    [onSelectDate]
   );
   const handleMonthChange = useCallback((value: number) => {
     setVisible((prev) => {
@@ -122,8 +157,19 @@ const CalendarContent = ({
 
   return (
     <BottomSheetView className="pb-safe-or-5 px-2">
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
-        <Pressable onPress={() => shiftVisible(-1)} hitSlop={12} accessibilityLabel={prevLabel}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingVertical: 8,
+        }}
+      >
+        <Pressable
+          onPress={() => shiftVisible(-1)}
+          hitSlop={12}
+          accessibilityLabel={prevLabel}
+        >
           <Icon name="chevron-back" size={18} color={textPrimary} />
         </Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -142,13 +188,24 @@ const CalendarContent = ({
               }
             }}
             hitSlop={6}
-            accessibilityLabel={t('cycleCalendar.selectMonth', { defaultValue: 'Select month' })}
+            accessibilityLabel={t('cycleCalendar.selectMonth', {
+              defaultValue: 'Select month',
+            })}
           >
-            <Text style={{ color: textPrimary, fontSize: 16, fontWeight: '600', textTransform: 'capitalize' }}>
+            <Text
+              style={{
+                color: textPrimary,
+                fontSize: 16,
+                fontWeight: '600',
+                textTransform: 'capitalize',
+              }}
+            >
               {monthLabels[visible.month] ?? ''}
             </Text>
           </Pressable>
-          <Text style={{ color: textPrimary, fontSize: 16, fontWeight: '600' }}>{' '}</Text>
+          <Text style={{ color: textPrimary, fontSize: 16, fontWeight: '600' }}>
+            {' '}
+          </Text>
           <Pressable
             onPress={() => {
               if (pickerView === 'year') {
@@ -162,14 +219,22 @@ const CalendarContent = ({
               }
             }}
             hitSlop={6}
-            accessibilityLabel={t('cycleCalendar.selectYear', { defaultValue: 'Select year' })}
+            accessibilityLabel={t('cycleCalendar.selectYear', {
+              defaultValue: 'Select year',
+            })}
           >
-            <Text style={{ color: textPrimary, fontSize: 16, fontWeight: '600' }}>
+            <Text
+              style={{ color: textPrimary, fontSize: 16, fontWeight: '600' }}
+            >
               {visible.year}
             </Text>
           </Pressable>
         </View>
-        <Pressable onPress={() => shiftVisible(1)} hitSlop={12} accessibilityLabel={nextLabel}>
+        <Pressable
+          onPress={() => shiftVisible(1)}
+          hitSlop={12}
+          accessibilityLabel={nextLabel}
+        >
           <Icon name="chevron-forward" size={18} color={textPrimary} />
         </Pressable>
       </View>
@@ -192,16 +257,25 @@ const CalendarContent = ({
         // stays the same, preventing a stale 'month'/'year' remount.
         key={`calendar-${presentation.locale}-${presentation.firstDayOfWeek}-${visible.month}-${visible.year}-${pickerMountVersion}`}
         components={{
+          ...markedDayComponent,
           Weekday: (weekday) => (
             <View style={{ minWidth: 30 }}>
-              <Text style={{ color: textSecondary, fontSize: 12, textAlign: 'center' }}>
+              <Text
+                style={{
+                  color: textSecondary,
+                  fontSize: 12,
+                  textAlign: 'center',
+                }}
+              >
                 {weekdayLabels[weekday.index] ?? weekday.name.short}
               </Text>
             </View>
           ),
           Month: (month) => (
             <View style={{ paddingVertical: 4, alignItems: 'center' }}>
-              <Text style={{ color: textPrimary, fontSize: 14 }}>{monthLabels[month.index] ?? month.name.full}</Text>
+              <Text style={{ color: textPrimary, fontSize: 14 }}>
+                {monthLabels[month.index] ?? month.name.full}
+              </Text>
             </View>
           ),
         }}
@@ -227,11 +301,16 @@ const CalendarContent = ({
 };
 
 const CalendarSheet = React.forwardRef<CalendarSheetRef, CalendarSheetProps>(
-  ({ selectedDate, onSelectDate }, ref) => {
+  ({ selectedDate, onSelectDate, markedDates }, ref) => {
     const bottomSheetRef = useRef<BottomSheetModal>(null);
-    const [surfaceBg, textMuted, accentPrimary, textPrimary, textSecondary] = useCSSVariable([
-      '--color-surface', '--color-text-muted', '--color-accent-primary', '--color-text-primary', '--color-text-secondary',
-    ]) as [string, string, string, string, string];
+    const [surfaceBg, textMuted, accentPrimary, textPrimary, textSecondary] =
+      useCSSVariable([
+        '--color-surface',
+        '--color-text-muted',
+        '--color-accent-primary',
+        '--color-text-primary',
+        '--color-text-secondary',
+      ]) as [string, string, string, string, string];
     const renderBackdrop = useSheetBackdrop();
 
     useImperativeHandle(ref, () => ({
@@ -267,10 +346,11 @@ const CalendarSheet = React.forwardRef<CalendarSheetRef, CalendarSheetProps>(
           textSecondary={textSecondary}
           textMuted={textMuted}
           accentPrimary={accentPrimary}
+          markedDates={markedDates}
         />
       </BottomSheetModal>
     );
-  },
+  }
 );
 
 CalendarSheet.displayName = 'CalendarSheet';

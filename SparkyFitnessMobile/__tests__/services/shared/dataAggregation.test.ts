@@ -30,7 +30,12 @@ describe('aggregateByDay', () => {
       { value: 6.0, type: 'running_speed', date: '2024-01-16', unit: 'm/s', source: 'HealthKit' },
     ];
 
-    const result = aggregateByDay(records, 'running_speed', 'm/s', 'min-max-avg');
+    const result = aggregateByDay(
+      records,
+      'running_speed',
+      'm/s',
+      'min-max-avg'
+    );
 
     expect(result).toHaveLength(6);
 
@@ -50,7 +55,12 @@ describe('aggregateByDay', () => {
       { value: 3.5, type: 'running_speed', date: '2024-01-15', unit: 'm/s', source: 'HealthKit' },
     ];
 
-    const result = aggregateByDay(records, 'running_speed', 'm/s', 'min-max-avg');
+    const result = aggregateByDay(
+      records,
+      'running_speed',
+      'm/s',
+      'min-max-avg'
+    );
 
     expect(result).toHaveLength(3);
     expect(result[0]).toEqual({ value: 3.5, type: 'running_speed_min', date: '2024-01-15', unit: 'm/s', source: 'HealthKit' });
@@ -107,8 +117,22 @@ describe('aggregateByDay', () => {
 describe('timezone metadata propagation', () => {
   test('aggregateByDay propagates record_timezone from input records', () => {
     const records: TransformedRecord[] = [
-      { value: 100, type: 'step', date: '2024-01-15', unit: 'count', source: 'HealthKit', record_timezone: 'Asia/Tokyo' },
-      { value: 200, type: 'step', date: '2024-01-15', unit: 'count', source: 'HealthKit', record_timezone: 'Asia/Tokyo' },
+      {
+        value: 100,
+        type: 'step',
+        date: '2024-01-15',
+        unit: 'count',
+        source: 'HealthKit',
+        record_timezone: 'Asia/Tokyo',
+      },
+      {
+        value: 200,
+        type: 'step',
+        date: '2024-01-15',
+        unit: 'count',
+        source: 'HealthKit',
+        record_timezone: 'Asia/Tokyo',
+      },
     ];
     const result = aggregateByDay(records, 'step', 'count', 'sum');
     expect(result).toHaveLength(1);
@@ -117,7 +141,14 @@ describe('timezone metadata propagation', () => {
 
   test('aggregateByDay propagates record_utc_offset_minutes from input records', () => {
     const records: TransformedRecord[] = [
-      { value: 72, type: 'weight', date: '2024-01-15', unit: 'kg', source: 'Health Connect', record_utc_offset_minutes: 540 },
+      {
+        value: 72,
+        type: 'weight',
+        date: '2024-01-15',
+        unit: 'kg',
+        source: 'Health Connect',
+        record_utc_offset_minutes: 540,
+      },
     ];
     const result = aggregateByDay(records, 'weight', 'kg', 'last');
     expect(result).toHaveLength(1);
@@ -126,7 +157,13 @@ describe('timezone metadata propagation', () => {
 
   test('aggregateByDay omits timezone fields when not present on input', () => {
     const records: TransformedRecord[] = [
-      { value: 100, type: 'step', date: '2024-01-15', unit: 'count', source: 'HealthKit' },
+      {
+        value: 100,
+        type: 'step',
+        date: '2024-01-15',
+        unit: 'count',
+        source: 'HealthKit',
+      },
     ];
     const result = aggregateByDay(records, 'step', 'count', 'sum');
     expect(result).toHaveLength(1);

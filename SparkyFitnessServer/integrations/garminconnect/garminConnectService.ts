@@ -9,7 +9,7 @@ import {
   GarminJwtPayload,
   GarminTokenPayload,
   GarminLoginResponseDto,
-} from 'types/garmin.ts';
+} from '../../types/garmin.js';
 import { addDays } from '@workspace/shared';
 
 const GARMIN_MICROSERVICE_URL =

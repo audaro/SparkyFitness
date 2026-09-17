@@ -59,16 +59,7 @@ jest.mock('@/hooks/Diary/useFoodEntries', () => ({
     mutateAsync: jest.fn(),
     isPending: false,
   }),
-  useClearFoodEntryImageMutation: () => ({
-    mutateAsync: jest.fn(),
-    isPending: false,
-  }),
-  // The override control is shared with logged meals, so it calls both pairs.
   useSetFoodEntryMealImagesMutation: () => ({
-    mutateAsync: jest.fn(),
-    isPending: false,
-  }),
-  useClearFoodEntryMealImageMutation: () => ({
     mutateAsync: jest.fn(),
     isPending: false,
   }),
@@ -294,6 +285,76 @@ describe('EditFoodEntryDialog', () => {
       expect(
         screen.getByRole('button', { name: /1 Whole \(200g\)/i })
       ).toBeInTheDocument();
+    });
+  });
+
+  it('shows deleted food notice and uses snapshot details when food is deleted or not found', async () => {
+    mockFoodData = null;
+    mockVariantsData = [];
+
+    const deletedFoodEntry: FoodEntry = {
+      id: 'entry-deleted',
+      food_id: 'deleted-food-id',
+      meal_type: 'Breakfast',
+      meal_type_id: 'meal-1',
+      quantity: 100,
+      unit: 'g',
+      variant_id: 'var-1',
+      food_name: 'Deleted Idli',
+      brand_name: 'Deep',
+      serving_size: 100,
+      calories: 141,
+      protein: 3.5,
+      carbs: 28.2,
+      fat: 1.8,
+      entry_date: '2026-09-12',
+    };
+
+    const mockOnOpenChange = jest.fn();
+
+    render(
+      <EditFoodEntryDialog
+        entry={deletedFoodEntry}
+        open={true}
+        onOpenChange={mockOnOpenChange}
+        availableMealTypes={mealTypes}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Deleted Idli')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Deep')).toBeInTheDocument();
+
+    // Verify deleted food note is shown instead of latestVariantNote
+    expect(
+      screen.getByText(
+        /This food is no longer in your food database\. Showing details saved in this diary entry\./i
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        /Note: Updating this entry will use the latest available variant details/i
+      )
+    ).not.toBeInTheDocument();
+
+    // Verify nutrient grid is rendered using snapshot data
+    expect(screen.getByTestId('nutrient-grid')).toBeInTheDocument();
+
+    // Form can be saved with snapshot variant
+    fireEvent.click(screen.getByRole('button', { name: /Save Changes/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateFoodEntry).toHaveBeenCalledWith({
+        id: 'entry-deleted',
+        data: expect.objectContaining({
+          quantity: 100,
+          unit: 'g',
+          meal_type_id: 'meal-1',
+        }),
+      });
+      expect(mockOnOpenChange).toHaveBeenCalledWith(false);
     });
   });
 });

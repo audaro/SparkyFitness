@@ -68,6 +68,9 @@ const medicationEditFields = {
     .max(500)
     .optional()
     .describe('Why the medication is taken'),
+  type_id: uuidSchema
+    .optional()
+    .describe('Medication type UUID (tablet, capsule, injection, ...)'),
   is_active: z
     .boolean()
     .optional()
@@ -319,6 +322,19 @@ const updateMedicationSchema = z
   })
   .strict();
 
+const deleteMedicationSchema = z
+  .object({
+    action: z.literal('delete_medication'),
+    medication_id: uuidSchema
+      .optional()
+      .describe('UUID of the medication to delete (or use medication_name)'),
+    medication_name: z
+      .string()
+      .optional()
+      .describe('Name of the medication (alternative to medication_id)'),
+  })
+  .strict();
+
 const addScheduleSchema = z
   .object({
     action: z.literal('add_schedule'),
@@ -450,6 +466,7 @@ export const manageMedicationsSchema = z
     listInjectionsSchema,
     createMedicationSchema,
     updateMedicationSchema,
+    deleteMedicationSchema,
     addScheduleSchema,
     updateScheduleSchema,
     deleteScheduleSchema,
@@ -464,6 +481,7 @@ export const manageMedicationsSchema = z
         data.action === 'log' ||
         data.action === 'log_injection' ||
         data.action === 'update_medication' ||
+        data.action === 'delete_medication' ||
         data.action === 'add_schedule' ||
         data.action === 'list_schedules'
       ) {
@@ -489,6 +507,7 @@ export const manageMedicationsInput = z.object({
       'list_injections',
       'create_medication',
       'update_medication',
+      'delete_medication',
       'add_schedule',
       'update_schedule',
       'delete_schedule',
@@ -581,6 +600,13 @@ export const manageMedicationsInput = z.object({
     .string()
     .optional()
     .describe('Default dose unit (create/update_medication)'),
+  type_id: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      'Medication form: pill, tablet, capsule, liquid, injection, patch, inhaler, drops, cream, suppository, other'
+    ),
   reason_text: z
     .string()
     .optional()

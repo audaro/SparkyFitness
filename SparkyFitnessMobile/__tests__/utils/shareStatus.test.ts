@@ -18,10 +18,26 @@ describe('filterByOwnership', () => {
   const mineCamel = { id: 'mine-camel', userId: CURRENT_USER };
   const family = { id: 'family', user_id: 'user-2' };
   const familyCamel = { id: 'family-camel', userId: 'user-2' };
-  const publicSnake = { id: 'public-snake', user_id: 'user-2', is_public: true };
-  const publicShared = { id: 'public-shared', user_id: 'user-2', shared_with_public: true };
-  const publicCamel = { id: 'public-camel', userId: 'user-2', sharedWithPublic: true };
-  const ownPublic = { id: 'own-public', user_id: CURRENT_USER, is_public: true };
+  const publicSnake = {
+    id: 'public-snake',
+    user_id: 'user-2',
+    is_public: true,
+  };
+  const publicShared = {
+    id: 'public-shared',
+    user_id: 'user-2',
+    shared_with_public: true,
+  };
+  const publicCamel = {
+    id: 'public-camel',
+    userId: 'user-2',
+    sharedWithPublic: true,
+  };
+  const ownPublic = {
+    id: 'own-public',
+    user_id: CURRENT_USER,
+    is_public: true,
+  };
   const noOwner = { id: 'no-owner' };
   const items: ShareItem[] = [mine, mineCamel, family, familyCamel, publicSnake, publicShared, publicCamel, ownPublic, noOwner];
 
@@ -31,10 +47,14 @@ describe('filterByOwnership', () => {
 
   it('keeps only items owned by the current user for mine, in either casing', () => {
     const result = filterByOwnership(items, 'mine', CURRENT_USER);
-    expect(result.map((item) => item.id)).toEqual(['mine', 'mine-camel', 'own-public']);
+    expect(result.map((item) => item.id)).toEqual([
+      'mine',
+      'mine-camel',
+      'own-public',
+    ]);
   });
 
-  it('keeps only other users\' non-public items with an owner for family', () => {
+  it("keeps only other users' non-public items with an owner for family", () => {
     const result = filterByOwnership(items, 'family', CURRENT_USER);
     expect(result.map((item) => item.id)).toEqual(['family', 'family-camel']);
   });

@@ -60,6 +60,45 @@ Generators by domain: `create_owner_policy` (owner-only), `create_shared_owner_p
 
 ---
 
+## Library Deletes & Diary Preservation
+
+### ❌ WRONG: Deleting diary entries when a library item is deleted
+
+```typescript
+async function deleteExercise(exerciseId: string, userId: string) {
+  // WRONG: This destroys the user's historical workout logs!
+  await client.query('DELETE FROM exercise_entries WHERE exercise_id = $1', [exerciseId]);
+  await client.query('DELETE FROM exercises WHERE id = $1', [exerciseId]);
+}
+```
+
+**Result:** Historical workouts and meals vanish from the user's calendar.
+
+### ✅ RIGHT: Entries are snapshots with nullable FKs; cascade templates only
+
+```typescript
+// exercise_entries and food_entries are self-contained snapshots (ON DELETE SET NULL).
+// Standard delete preserves past logs, cascades templates, and cleans up future plans:
+async function deleteExerciseAndDependencies(exerciseId: string, userId: string, today?: string) {
+  // 1. Clean up future scheduled workout plan entries (entry_date >= today)
+  if (today) {
+    await client.query(
+      'DELETE FROM exercise_entries WHERE exercise_id = $1 AND user_id = $2 AND entry_date >= $3 AND workout_plan_assignment_id IS NOT NULL',
+      [exerciseId, userId, today]
+    );
+  }
+  // 2. Cascade workout plan templates and presets
+  await client.query('DELETE FROM workout_plan_template_assignments WHERE exercise_id = $1', [exerciseId]);
+  await client.query('DELETE FROM workout_preset_exercises WHERE exercise_id = $1', [exerciseId]);
+  // 3. Delete library row (past diary entries retain snapshot data with exercise_id = NULL)
+  await client.query('DELETE FROM exercises WHERE id = $1 AND user_id = $2', [exerciseId, userId]);
+}
+```
+
+**Pattern:** Historical logs survive; templates cascade; future scheduled plan items are cleaned up; force delete (`delete_with_history`) is an explicit separate user choice.
+
+---
+
 ## React Query (Frontend & Mobile)
 
 ### ❌ WRONG: Mutation doesn't invalidate the cache

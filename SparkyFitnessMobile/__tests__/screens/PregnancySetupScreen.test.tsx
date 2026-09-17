@@ -42,7 +42,7 @@ function renderScreen(pregnancy?: any) {
   return render(
     <Wrapper>
       <PregnancySetupScreen navigation={navigation} route={route} />
-    </Wrapper>,
+    </Wrapper>
   );
 }
 
@@ -65,7 +65,7 @@ describe('PregnancySetupScreen', () => {
 
     await waitFor(() => {
       expect(Toast.show).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'error', text1: 'Check the dates' }),
+        expect.objectContaining({ type: 'error', text1: 'Check the dates' })
       );
     });
     expect(mockCreateAsync).not.toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe('PregnancySetupScreen', () => {
           due_date_basis: 'manual',
           due_date: dueDate,
           status: 'active',
-        }),
+        })
       );
     });
     expect(mockUpdateAsync).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe('PregnancySetupScreen', () => {
 
     await waitFor(() => {
       expect(mockUpdateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'preg-1' }),
+        expect.objectContaining({ id: 'preg-1' })
       );
     });
     expect(mockCreateAsync).not.toHaveBeenCalled();

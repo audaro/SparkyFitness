@@ -31,6 +31,8 @@ export const goalPresetsSchema = z.object({
   vitamin_c: z.number().nullable(),
   calcium: z.number().nullable(),
   iron: z.number().nullable(),
+  caffeine_mg: z.number().nullable(),
+  alcohol_g: z.number().nullable(),
   target_exercise_calories_burned: z.number().nullable(),
   target_exercise_duration_minutes: z.number().nullable(),
   protein_percentage: z.number().nullable(),
@@ -43,6 +45,7 @@ export const goalPresetsSchema = z.object({
   dinner_percentage: z.number().nullable(),
   snacks_percentage: z.number().nullable(),
   custom_nutrients: z.unknown().nullable(),
+  custom_meal_percentages: z.unknown().nullable().optional(),
 });
 
 export const goalPresetsInitializerSchema = z.object({
@@ -67,6 +70,8 @@ export const goalPresetsInitializerSchema = z.object({
   vitamin_c: z.number().optional().nullable(),
   calcium: z.number().optional().nullable(),
   iron: z.number().optional().nullable(),
+  caffeine_mg: z.number().optional().nullable(),
+  alcohol_g: z.number().optional().nullable(),
   target_exercise_calories_burned: z.number().optional().nullable(),
   target_exercise_duration_minutes: z.number().optional().nullable(),
   protein_percentage: z.number().optional().nullable(),
@@ -79,6 +84,7 @@ export const goalPresetsInitializerSchema = z.object({
   dinner_percentage: z.number().optional().nullable(),
   snacks_percentage: z.number().optional().nullable(),
   custom_nutrients: z.unknown().optional().nullable(),
+  custom_meal_percentages: z.unknown().optional().nullable(),
 });
 
 export const goalPresetsMutatorSchema = z.object({
@@ -103,6 +109,8 @@ export const goalPresetsMutatorSchema = z.object({
   vitamin_c: z.number().optional().nullable(),
   calcium: z.number().optional().nullable(),
   iron: z.number().optional().nullable(),
+  caffeine_mg: z.number().optional().nullable(),
+  alcohol_g: z.number().optional().nullable(),
   target_exercise_calories_burned: z.number().optional().nullable(),
   target_exercise_duration_minutes: z.number().optional().nullable(),
   protein_percentage: z.number().optional().nullable(),
@@ -115,8 +123,11 @@ export const goalPresetsMutatorSchema = z.object({
   dinner_percentage: z.number().optional().nullable(),
   snacks_percentage: z.number().optional().nullable(),
   custom_nutrients: z.unknown().optional().nullable(),
+  custom_meal_percentages: z.unknown().optional().nullable(),
 });
 
 export type GoalPresets = z.infer<typeof goalPresetsSchema>;
-export type GoalPresetsInitializer = z.infer<typeof goalPresetsInitializerSchema>;
+export type GoalPresetsInitializer = z.infer<
+  typeof goalPresetsInitializerSchema
+>;
 export type GoalPresetsMutator = z.infer<typeof goalPresetsMutatorSchema>;

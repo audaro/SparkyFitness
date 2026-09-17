@@ -7,7 +7,9 @@ jest.mock('@react-navigation/native', () => ({
   useFocusEffect: jest.fn(),
 }));
 
-const mockUseFocusEffect = useFocusEffect as jest.MockedFunction<typeof useFocusEffect>;
+const mockUseFocusEffect = useFocusEffect as jest.MockedFunction<
+  typeof useFocusEffect
+>;
 
 describe('useRefetchOnFocus', () => {
   let focusCallback: (() => void) | undefined;

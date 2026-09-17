@@ -2,6 +2,7 @@
  * Unit conversion utilities.
  * All server-side storage is in metric (kg, cm).
  */
+import { formatLocalizedNumber } from '../localization';
 
 const LBS_TO_KG = 0.45359237;
 const KG_TO_LBS = 1 / LBS_TO_KG;
@@ -37,9 +38,10 @@ export function kgToStonesLbs(kg: number): { stones: number; lbs: number } {
   const totalLbs = kgToLbs(kg);
   // Snap to the nearest whole pound when within float-precision tolerance,
   // so e.g. 6.35029 kg splits cleanly into 1st 0lb instead of 0st 13.999...lb.
-  const rounded = Math.abs(totalLbs - Math.round(totalLbs)) < 1e-6
-    ? Math.round(totalLbs)
-    : totalLbs;
+  const rounded =
+    Math.abs(totalLbs - Math.round(totalLbs)) < 1e-6
+      ? Math.round(totalLbs)
+      : totalLbs;
   const stones = Math.floor(rounded / LBS_PER_STONE);
   const lbs = rounded - stones * LBS_PER_STONE;
   return { stones, lbs };
@@ -48,6 +50,36 @@ export function kgToStonesLbs(kg: number): { stones: number; lbs: number } {
 /** Combine stones + lbs into a single kg value. */
 export function stonesLbsToKg(stones: number, lbs: number): number {
   return lbsToKg(stones * LBS_PER_STONE + lbs);
+}
+
+/** How the user has chosen to see weights. Server storage is always kg. */
+export type WeightDisplayMode = 'kg' | 'lbs' | 'st_lbs';
+
+/** One decimal place, trailing zero dropped ("82.5", "82"). */
+const roundForDisplay = (value: number): string =>
+  String(Math.round(value * 10) / 10);
+
+/**
+ * Formats a stored (kg) weight in the user's display unit, with the unit
+ * suffix. Shared by the measurement tiles and the progress-photo screens so
+ * the same weight never reads differently in two places.
+ */
+export function formatWeightDisplay(
+  kg: number,
+  mode: WeightDisplayMode
+): string {
+  if (mode === 'st_lbs') {
+    const { stones, lbs } = kgToStonesLbs(kg);
+    // Round the pounds before reading the stone off them. 63.5 kg sits 13.99 lb
+    // into its stone, which displays as "14lb" - by definition the next stone -
+    // so an unrounded split renders the impossible "9st 14lb" for "10st 0lb".
+    const roundedLbs = Math.round(lbs * 10) / 10;
+    if (roundedLbs === LBS_PER_STONE) {
+      return `${stones + 1}st 0lb`;
+    }
+    return `${stones}st ${roundForDisplay(roundedLbs)}lb`;
+  }
+  return `${roundForDisplay(weightFromKg(kg, mode))} ${mode}`;
 }
 
 export function kmToMiles(km: number): number {
@@ -91,9 +123,10 @@ export function cmToFeetInches(cm: number): { feet: number; inches: number } {
   const totalInches = cmToInches(cm);
   // Snap to the nearest whole inch when within float-precision tolerance,
   // so e.g. 152.4 cm splits cleanly into 5'0" instead of 4'11.999...".
-  const rounded = Math.abs(totalInches - Math.round(totalInches)) < 1e-6
-    ? Math.round(totalInches)
-    : totalInches;
+  const rounded =
+    Math.abs(totalInches - Math.round(totalInches)) < 1e-6
+      ? Math.round(totalInches)
+      : totalInches;
   const feet = Math.floor(rounded / INCHES_PER_FOOT);
   const inches = rounded - feet * INCHES_PER_FOOT;
   return { feet, inches };
@@ -112,7 +145,53 @@ export const WATER_UNIT_LABELS: Record<string, string> = {
   liter: 'L',
 };
 
+const ML_PER_FLUID_OUNCE = 29.5735;
+const ML_PER_LITER = 1000;
+
+/**
+ * Water is stored in millilitres server-side; every surface that shows it converts to the
+ * user's `water_display_unit` at its own edge. An unrecognised unit falls back to ml so a
+ * new server-side unit renders a plausible number instead of nothing.
+ */
+export function volumeFromMl(milliliters: number, unit: string): number {
+  switch (unit) {
+    case 'oz':
+      return milliliters / ML_PER_FLUID_OUNCE;
+    case 'liter':
+      return milliliters / ML_PER_LITER;
+    default:
+      return milliliters;
+  }
+}
+
+/** Decimal places a volume is shown to, per unit — ml is whole, oz one place, litres two. */
+function volumeDecimalsForUnit(unit: string): number {
+  if (unit === 'oz') return 1;
+  if (unit === 'liter') return 2;
+
+  return 0;
+}
+
+/** A converted volume as display text in the app locale. */
+export function formatVolumeForUnit(value: number, unit: string): string {
+  // formatLocalizedNumber keeps thousands grouping and the app locale's
+  // decimal separator; maximumFractionDigits alone strips trailing zeros.
+  return formatLocalizedNumber(value, {
+    maximumFractionDigits: volumeDecimalsForUnit(unit),
+  });
+}
+
 /** Volume per serving, accounting for servings_per_container. */
-export function getServingVolume(container: { volume: number; servings_per_container?: number | null }): number {
+export function getServingVolume(container: {
+  volume: number;
+  servings_per_container?: number | null;
+  linked_food_id?: string | null;
+}): number | null {
+  // A container linked to a food carries volume 0 on purpose: its amount lives
+  // on the food, and a volume there would mean "the glass holds more than the
+  // food". Dividing that by servings yields 0, which the gauge then reported as
+  // "0 ml per container" with a +/- that appeared to add nothing. Null says
+  // "not measured in millilitres" so callers can describe the press instead.
+  if (container.linked_food_id) return null;
   return container.volume / (container.servings_per_container || 1);
 }

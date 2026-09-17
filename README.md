@@ -30,9 +30,8 @@
 
 # SparkyFitness
 
-A self-hosted, privacy-first alternative to MyFitnessPal. Track nutrition, exercise, body metrics, and health data while keeping full control of your data.
-<img width="1280" height="600" alt="image" src="https://github.com/user-attachments/assets/67a5fb86-cc98-42ce-aa1e-ded7c57647c9" />
-
+A self-hosted, privacy-first alternative to MyFitnessPal, Flo, Hevy, Shotsy & more. Track nutrition, exercise, body metrics, and health data while keeping full control of your data.
+<img width="5120" height="2880" alt="image" src="https://github.com/user-attachments/assets/d8b09f48-cb4d-41a6-b678-ac93e551f257" />
 
 
 SparkyFitness is a self-hosted fitness tracking platform made up of:
@@ -197,10 +196,15 @@ For full installation guides, configuration options, and development docs, pleas
 
 ## Translations
 
-**[Weblate Translations](https://hosted.weblate.org/engage/sparkyfitness)**
 
-<a href="https://hosted.weblate.org/engage/sparkyfitness/">
-<img src="https://hosted.weblate.org/widget/sparkyfitness/sparkyfitness-translations/multi-auto.svg" alt="Translation status" />
+**[Weblate Translations](https://weblate.sparkyfitness.com/engage/sparkyfitness)**
+
+<a href="http://weblate.sparkyfitness.com/engage/sparkyfitness/"><img src="http://weblate.sparkyfitness.com/widget/sparkyfitness/svg-badge.svg" alt="Translation status"></a>
+
+
+
+<a href="https://weblate.sparkyfitness.com/engage/sparkyfitness">
+<img src="http://weblate.sparkyfitness.com/widget/sparkyfitness/multi-auto.svg" alt="Translation status" />
 </a>
 
 ## Repository activity

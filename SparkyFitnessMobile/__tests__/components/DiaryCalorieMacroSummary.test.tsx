@@ -31,6 +31,7 @@ function buildSummary(overrides: Partial<DailySummary> = {}): DailySummary {
     exerciseCaloriesGoal: 0,
     waterConsumed: 0,
     waterGoal: 2500,
+    waterFromFood: 0,
     foodEntries: [],
     exerciseEntries: [],
     calorieBalance: {
@@ -53,7 +54,9 @@ function buildSummary(overrides: Partial<DailySummary> = {}): DailySummary {
   };
 }
 
-function renderWidget(props: Partial<React.ComponentProps<typeof DiaryCalorieMacroSummary>> = {}) {
+function renderWidget(
+  props: Partial<React.ComponentProps<typeof DiaryCalorieMacroSummary>> = {}
+) {
   return render(
     <DiaryCalorieMacroSummary
       summary={buildSummary()}
@@ -61,7 +64,7 @@ function renderWidget(props: Partial<React.ComponentProps<typeof DiaryCalorieMac
       customNutrientKeys={[]}
       customNutrients={[]}
       {...props}
-    />,
+    />
   );
 }
 
@@ -77,10 +80,18 @@ describe('DiaryCalorieMacroSummary', () => {
   });
 
   it('renders only the calorie row when collapsed (default)', () => {
-    useAppPreferencesStore.setState({ diarySummaryVisible: true, diarySummaryExpanded: false });
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: false,
+    });
     const { getByText, queryByText } = renderWidget({
       summary: buildSummary({
-        calorieBalance: { ...buildSummary().calorieBalance, eaten: 500, goal: 2000, remaining: 1500 },
+        calorieBalance: {
+          ...buildSummary().calorieBalance,
+          eaten: 500,
+          goal: 2000,
+          remaining: 1500,
+        },
       }),
     });
     expect(getByText('Summary')).toBeTruthy();
@@ -91,7 +102,10 @@ describe('DiaryCalorieMacroSummary', () => {
   });
 
   it('reveals the macro pill grid when diarySummaryExpanded is true', () => {
-    useAppPreferencesStore.setState({ diarySummaryVisible: true, diarySummaryExpanded: true });
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: true,
+    });
     const { getByText } = renderWidget();
     expect(getByText('Protein')).toBeTruthy();
     expect(getByText('Carbs')).toBeTruthy();
@@ -100,10 +114,18 @@ describe('DiaryCalorieMacroSummary', () => {
   });
 
   it('shows "over" instead of "remaining" when remaining is negative', () => {
-    useAppPreferencesStore.setState({ diarySummaryVisible: true, diarySummaryExpanded: false });
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: false,
+    });
     const { getByText } = renderWidget({
       summary: buildSummary({
-        calorieBalance: { ...buildSummary().calorieBalance, eaten: 2500, goal: 2000, remaining: -500 },
+        calorieBalance: {
+          ...buildSummary().calorieBalance,
+          eaten: 2500,
+          goal: 2000,
+          remaining: -500,
+        },
       }),
     });
     expect(getByText(/over/)).toBeTruthy();
@@ -113,22 +135,89 @@ describe('DiaryCalorieMacroSummary', () => {
     // Simulates a dynamic/TDEE calorie mode where remaining includes an
     // exercise credit, so it diverges from a naive goal - eaten calculation
     // (2000 - 500 would be 1500, but the server-computed remaining is 1800).
-    useAppPreferencesStore.setState({ diarySummaryVisible: true, diarySummaryExpanded: false });
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: false,
+    });
     const { getByText, queryByText } = renderWidget({
       summary: buildSummary({
-        calorieBalance: { ...buildSummary().calorieBalance, eaten: 500, goal: 2000, remaining: 1800 },
+        calorieBalance: {
+          ...buildSummary().calorieBalance,
+          eaten: 500,
+          goal: 2000,
+          remaining: 1800,
+        },
       }),
     });
     expect(getByText(/1,800/)).toBeTruthy();
     expect(queryByText(/1,500/)).toBeNull();
   });
 
+  it('shows the projected Health Connect TDEE and Goal Mode target', () => {
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: false,
+    });
+    const { getByText } = renderWidget({
+      summary: buildSummary({
+        calorieBalance: {
+          ...buildSummary().calorieBalance,
+          goal: 2160,
+          remaining: 1660,
+          tdeeProjection: {
+            projectedBurn: 2400,
+            baselineBurn: 2400,
+            adjustment: 160,
+            targetCalories: 2160,
+            source: 'health_connect_total',
+          },
+        },
+      }),
+    });
+
+    expect(getByText('Projected TDEE: 2,400 kcal')).toBeTruthy();
+    expect(getByText('Goal Mode target: 2,160 kcal')).toBeTruthy();
+    expect(getByText('Health Connect total calories')).toBeTruthy();
+  });
+
+  it('supports the prior-server projection shape during rolling upgrades', () => {
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: false,
+    });
+    const { getByText } = renderWidget({
+      summary: buildSummary({
+        calorieBalance: {
+          ...buildSummary().calorieBalance,
+          goal: 2160,
+          tdeeProjection: {
+            projectedBurn: 2400,
+            baselineBurn: 2200,
+            adjustment: 160,
+          } as unknown as NonNullable<
+            DailySummary['calorieBalance']['tdeeProjection']
+          >,
+        },
+      }),
+    });
+
+    expect(getByText('Goal Mode target: 2,160 kcal')).toBeTruthy();
+    expect(getByText('Device projection')).toBeTruthy();
+  });
+
   it('still renders the calorie row (without a goal bar/suffix) when no goal is configured', () => {
-    useAppPreferencesStore.setState({ diarySummaryVisible: true, diarySummaryExpanded: false });
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: false,
+    });
     const { getByText, queryByText, toJSON } = renderWidget({
       summary: buildSummary({
         calorieGoal: 0,
-        calorieBalance: { ...buildSummary().calorieBalance, eaten: 300, goal: 0 },
+        calorieBalance: {
+          ...buildSummary().calorieBalance,
+          eaten: 300,
+          goal: 0,
+        },
       }),
     });
     expect(toJSON()).not.toBeNull();
@@ -137,9 +226,15 @@ describe('DiaryCalorieMacroSummary', () => {
   });
 
   it('shows total carbs labeled "Carbs" when showNetCarbs is false', () => {
-    useAppPreferencesStore.setState({ diarySummaryVisible: true, diarySummaryExpanded: true });
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: true,
+    });
     const { getByText, queryByText } = renderWidget({
-      summary: buildSummary({ carbs: { consumed: 50, goal: 250 }, fiber: { consumed: 15, goal: 30 } }),
+      summary: buildSummary({
+        carbs: { consumed: 50, goal: 250 },
+        fiber: { consumed: 15, goal: 30 },
+      }),
       showNetCarbs: false,
     });
     expect(getByText('Carbs')).toBeTruthy();
@@ -147,9 +242,15 @@ describe('DiaryCalorieMacroSummary', () => {
   });
 
   it('swaps to Net Carbs (carbs - fiber) when showNetCarbs is true', () => {
-    useAppPreferencesStore.setState({ diarySummaryVisible: true, diarySummaryExpanded: true });
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: true,
+    });
     const { getByText, queryByText } = renderWidget({
-      summary: buildSummary({ carbs: { consumed: 50, goal: 250 }, fiber: { consumed: 15, goal: 30 } }),
+      summary: buildSummary({
+        carbs: { consumed: 50, goal: 250 },
+        fiber: { consumed: 15, goal: 30 },
+      }),
       showNetCarbs: true,
     });
     expect(getByText('Net Carbs')).toBeTruthy();
@@ -157,7 +258,10 @@ describe('DiaryCalorieMacroSummary', () => {
   });
 
   it('renders custom nutrient pills up to the provided customNutrientKeys list', () => {
-    useAppPreferencesStore.setState({ diarySummaryVisible: true, diarySummaryExpanded: true });
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: true,
+    });
     const customNutrients: UserCustomNutrient[] = [
       { id: '1', name: 'Omega-3', unit: 'mg' },
       { id: '2', name: 'Magnesium', unit: 'mg' },
@@ -175,8 +279,14 @@ describe('DiaryCalorieMacroSummary', () => {
   });
 
   it('renders no custom nutrient pills when customNutrientKeys is empty', () => {
-    useAppPreferencesStore.setState({ diarySummaryVisible: true, diarySummaryExpanded: true });
-    const { queryByText } = renderWidget({ customNutrientKeys: [], customNutrients: [] });
+    useAppPreferencesStore.setState({
+      diarySummaryVisible: true,
+      diarySummaryExpanded: true,
+    });
+    const { queryByText } = renderWidget({
+      customNutrientKeys: [],
+      customNutrients: [],
+    });
     expect(queryByText('Omega-3')).toBeNull();
   });
 });

@@ -3,7 +3,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import DiaryScreen from '../../src/screens/DiaryScreen';
 import { useDailySummary } from '../../src/hooks';
 import { EMPTY_SUPPLEMENT_TOTALS } from '@workspace/shared';
-import { createTestQueryClient, createQueryWrapper } from '../hooks/queryTestUtils';
+import {
+  createTestQueryClient,
+  createQueryWrapper,
+} from '../hooks/queryTestUtils';
 
 jest.mock('../../src/hooks', () => ({
   useServerConnection: () => ({ isConnected: true }),
@@ -13,8 +16,19 @@ jest.mock('../../src/hooks', () => ({
   useMealTypes: () => ({ mealTypes: [], isLoading: false, isError: false }),
   // The library half of the tab; irrelevant to whether the day reads as empty.
   useFavorites: () => ({ favoriteFoods: [], favoriteMeals: [] }),
-  useFoods: () => ({ recentFoods: [], isLoading: false, isError: false, refetch: jest.fn() }),
-  useRecentMeals: () => ({ recentMeals: [], isLoading: false, isError: false, refetch: jest.fn() }),
+  useFoods: () => ({
+    recentFoods: [],
+    isLoading: false,
+    isError: false,
+    refetch: jest.fn(),
+  }),
+  useRecentMeals: () => ({
+    recentMeals: [],
+    isLoading: false,
+    isError: false,
+    refetch: jest.fn(),
+  }),
+  useFamilyUsers: () => ({ data: [] }),
 }));
 
 jest.mock('../../src/hooks/useNavigationActionGuard', () => ({
@@ -28,6 +42,25 @@ jest.mock('../../src/hooks/useMeasurements', () => ({
   useMeasurements: () => ({ measurements: null, customMeasurements: [] }),
 }));
 
+// This suite is about supplement-driven emptiness, so sleep is settled and empty. Without
+// the mock the real query stays pending against the test client, and the screen's loading
+// gate would hide the day these cases are asserting on.
+jest.mock('../../src/hooks/useSleepDay', () => ({
+  useSleepDay: () => ({
+    wakeUp: null,
+    naps: [],
+    bedTime: null,
+    isLoading: false,
+    isError: false,
+    isForbidden: false,
+    refetch: jest.fn(),
+  }),
+}));
+
+jest.mock('../../src/hooks/useCheckInPhotos', () => ({
+  useCheckInPhotoDates: () => ({ dates: [], isLoading: false }),
+  useCheckInPhotosByDate: () => ({ photos: [], isLoading: false }),
+}));
 jest.mock('../../src/hooks/usePreferences', () => ({
   usePreferences: () => ({ preferences: null }),
 }));
@@ -130,14 +163,14 @@ const renderDiary = () => {
   const Wrapper = createQueryWrapper(createTestQueryClient());
   return render(
     <Wrapper>
-    <SafeAreaProvider
-      initialMetrics={{
-        frame: { x: 0, y: 0, width: 390, height: 844 },
-        insets: { top: 0, left: 0, right: 0, bottom: 0 },
-      }}
-    >
-      <DiaryScreen navigation={mockNavigation} route={{} as never} />
-    </SafeAreaProvider>
+      <SafeAreaProvider
+        initialMetrics={{
+          frame: { x: 0, y: 0, width: 390, height: 844 },
+          insets: { top: 0, left: 0, right: 0, bottom: 0 },
+        }}
+      >
+        <DiaryScreen navigation={mockNavigation} route={{} as never} />
+      </SafeAreaProvider>
     </Wrapper>
   );
 };

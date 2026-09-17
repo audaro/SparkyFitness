@@ -2,7 +2,9 @@ import { WorkoutPresetSet } from './workout';
 
 export interface ExerciseEntry {
   id: string;
-  exercise_id: string;
+  // Null once the underlying library exercise is deleted; the entry keeps its
+  // own snapshot (name, calories) and still renders.
+  exercise_id: string | null;
   duration_minutes: number;
   calories_burned: number;
   entry_date: string;
@@ -44,6 +46,8 @@ export interface FoodEntryUpdateData {
   variant_id?: string | null;
   meal_type_id?: string;
   entry_time?: string | null;
+  /** undefined leaves the stored note alone; null clears it. */
+  notes?: string | null;
 }
 
 export interface FoodDiaryImportRow {

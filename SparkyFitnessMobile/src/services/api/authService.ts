@@ -4,7 +4,7 @@ import { createAuthClient } from 'better-auth/client';
 import { expoClient } from '@better-auth/expo/client';
 import { ssoClient } from '@better-auth/sso/client';
 import * as WebBrowser from 'expo-web-browser';
-import { clearSessionToken, ServerConfig } from '../storage';
+import { ServerConfig } from '../storage';
 import { addLog } from '../LogService';
 import { normalizeUrl } from '../../utils/serverUrl';
 import { getErrorMessage } from '../../utils/errors';
@@ -13,6 +13,7 @@ import {
   CONNECTION_CHECK_TIMEOUT_MS,
   DEFAULT_API_TIMEOUT_MS,
   fetchWithTimeout,
+  withTimeout,
 } from '../../utils/concurrency';
 
 // Re-exported so existing `import { LoginError } from '.../authService'` call
@@ -78,8 +79,46 @@ export const notifyNoConfigs = (): void => {
   onNoConfigsCallback?.();
 };
 
+let onIdentityChangedCallback: (() => void | Promise<void>) | null = null;
+
+export const setOnIdentityChanged = (cb: () => void | Promise<void>): void => {
+  onIdentityChangedCallback = cb;
+};
+
+/**
+ * The account whose data the app is showing is no longer the one it was:
+ * a different active server, a session replaced through the reauth modal, or
+ * the active configuration deleted.
+ *
+ * Callers only announce it. Deciding what to drop belongs to whoever holds the
+ * caches, which is why this mirrors the two callbacks above rather than reaching
+ * for the query client from a screen: a new path that changes identity then has
+ * one call to make instead of a list of caches to remember.
+ *
+ * Await it before issuing another request. Part of what the handler drops is
+ * the cookie jar, and a request that goes out first still carries the previous
+ * account's session cookie -- which the server prefers over the Bearer token
+ * this app sends, so the reply would describe the account we just left.
+ */
+export const notifyIdentityChanged = async (): Promise<void> => {
+  if (!onIdentityChangedCallback) {
+    // The screens that change identity no longer drop anything themselves, so
+    // an unregistered handler means the previous account's caches survive the
+    // switch in silence. Nothing here can recover them -- the caches belong to
+    // the tree that failed to register -- but it must not pass unnoticed.
+    addLog(
+      "[AuthService] Identity changed with no handler registered; the previous account's caches were left in place.",
+      'ERROR'
+    );
+    return;
+  }
+  await onIdentityChangedCallback();
+};
+
 let pendingProxyHeaders: Record<string, string> = {};
-export const setPendingProxyHeaders = (headers: Record<string, string>): void => {
+export const setPendingProxyHeaders = (
+  headers: Record<string, string>
+): void => {
   pendingProxyHeaders = headers;
 };
 export const clearPendingProxyHeaders = (): void => {
@@ -90,13 +129,14 @@ export const clearPendingProxyHeaders = (): void => {
  * Returns the appropriate Authorization header for the given config.
  * Session configs use the session token; API key configs use the API key.
  */
-export const getAuthHeaders = (config: ServerConfig): Record<string, string> => {
+export const getAuthHeaders = (
+  config: ServerConfig
+): Record<string, string> => {
   if (config.authType === 'session' && config.sessionToken) {
     return { Authorization: `Bearer ${config.sessionToken}` };
   }
   return { Authorization: `Bearer ${config.apiKey}` };
 };
-
 
 const getJsonHeaders = (): Record<string, string> => ({
   'Content-Type': 'application/json',
@@ -109,7 +149,10 @@ export const _clearTrustedOriginCache = (): void => {
   trustedOriginCache.clear();
 };
 
-export const _setTrustedOriginCache = (url: string, origin: string | null): void => {
+export const _setTrustedOriginCache = (
+  url: string,
+  origin: string | null
+): void => {
   trustedOriginCache.set(normalizeUrl(url), origin);
 };
 
@@ -117,7 +160,8 @@ type NetworkingModule = {
   clearCookies: (callback: (result: boolean) => void) => void;
 };
 
-const networkingModule = NativeModules.Networking as NetworkingModule | undefined;
+const networkingModule = NativeModules.Networking as
+  NetworkingModule | undefined;
 
 const normalizeOrigin = (origin?: string | null): string | undefined => {
   if (!origin) {
@@ -128,7 +172,10 @@ const normalizeOrigin = (origin?: string | null): string | undefined => {
     return new URL(origin).origin;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    addLog(`[AuthService] Invalid trusted_origin from server: ${origin} (${message})`, 'WARNING');
+    addLog(
+      `[AuthService] Invalid trusted_origin from server: ${origin} (${message})`,
+      'WARNING'
+    );
     return undefined;
   }
 };
@@ -138,12 +185,17 @@ const getFallbackAuthOrigin = (serverUrl: string): string | undefined => {
     return new URL(serverUrl).origin;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    addLog(`[AuthService] Invalid server URL for auth origin: ${serverUrl} (${message})`, 'WARNING');
+    addLog(
+      `[AuthService] Invalid server URL for auth origin: ${serverUrl} (${message})`,
+      'WARNING'
+    );
     return undefined;
   }
 };
 
-const getTrustedAuthOrigin = async (serverUrl: string): Promise<string | undefined> => {
+const getTrustedAuthOrigin = async (
+  serverUrl: string
+): Promise<string | undefined> => {
   const baseUrl = normalizeUrl(serverUrl);
 
   if (trustedOriginCache.has(baseUrl)) {
@@ -153,19 +205,26 @@ const getTrustedAuthOrigin = async (serverUrl: string): Promise<string | undefin
   let trustedOrigin: string | undefined;
 
   try {
-    const response = await fetchWithTimeout(`${baseUrl}/api/auth/settings`, {
-      method: 'GET',
-      credentials: 'omit',
-      cache: 'no-store', // skip native HTTP cache to avoid 304 empty bodies (#1353)
-      headers: { ...pendingProxyHeaders },
-    }, CONNECTION_CHECK_TIMEOUT_MS);
+    const response = await fetchWithTimeout(
+      `${baseUrl}/api/auth/settings`,
+      {
+        method: 'GET',
+        credentials: 'omit',
+        cache: 'no-store', // skip native HTTP cache to avoid 304 empty bodies (#1353)
+        headers: { ...pendingProxyHeaders },
+      },
+      CONNECTION_CHECK_TIMEOUT_MS
+    );
 
     if (response.ok) {
       const body = (await response.json()) as AuthSettingsResponse;
       trustedOrigin = normalizeOrigin(body.trusted_origin);
     }
   } catch (error) {
-    addLog(`[AuthService] Failed to fetch auth settings for MFA: ${getErrorMessage(error)}`, 'WARNING');
+    addLog(
+      `[AuthService] Failed to fetch auth settings for MFA: ${getErrorMessage(error)}`,
+      'WARNING'
+    );
   }
 
   if (!trustedOrigin) {
@@ -178,7 +237,9 @@ const getTrustedAuthOrigin = async (serverUrl: string): Promise<string | undefin
 
 // Headers for Better Auth endpoint requests (sign-in, two-factor verify/send-otp).
 // Adds the trusted Origin header Better Auth requires on top of the JSON headers.
-const getBetterAuthHeaders = async (serverUrl: string): Promise<Record<string, string>> => {
+const getBetterAuthHeaders = async (
+  serverUrl: string
+): Promise<Record<string, string>> => {
   const origin = await getTrustedAuthOrigin(serverUrl);
 
   if (!origin) {
@@ -198,7 +259,9 @@ const getBetterAuthHeaders = async (serverUrl: string): Promise<Record<string, s
  * returned separately so `classifyLoginError` can read it rather than search
  * the prose for it.
  */
-const parseAuthError = (errorText: string): { message: string; code?: string } => {
+const parseAuthError = (
+  errorText: string
+): { message: string; code?: string } => {
   try {
     const parsed = JSON.parse(errorText) as {
       code?: string;
@@ -225,18 +288,53 @@ const parseAuthError = (errorText: string): { message: string; code?: string } =
   return { message: errorText.trim() };
 };
 
-export const clearAuthCookies = async (): Promise<void> => {
-  await new Promise<void>((resolve) => {
+/**
+ * How long to wait for the native cookie jar to answer. Android's
+ * `ForwardingCookieHandler.clearCookies` is `cookieManager?.removeAllCookies`,
+ * and `cookieManager` is null whenever the WebView provider is missing -- a
+ * case React Native handles by returning null rather than throwing. The call
+ * then does nothing *and never invokes the callback*, so without a deadline the
+ * promise, and the identity change awaiting it, would hang forever.
+ */
+const COOKIE_CLEAR_TIMEOUT_MS = 3_000;
+
+/**
+ * Empties the native HTTP cookie jar.
+ *
+ * Returns whether the jar can be considered cleared. False means a session
+ * cookie may still be on the wire, which matters because a server that
+ * resolves it ahead of our Bearer token would answer as the previous account,
+ * so failures are logged as errors rather than passed over.
+ */
+export const clearAuthCookies = async (): Promise<boolean> => {
+  if (!networkingModule) {
+    addLog(
+      '[AuthService] No Networking module: auth cookies were left in place.',
+      'ERROR'
+    );
+    return false;
+  }
+
+  const cleared = new Promise<boolean>((resolve, reject) => {
     try {
-      networkingModule?.clearCookies(() => resolve());
-      if (!networkingModule) {
-        resolve();
-      }
+      // The callback's boolean reports whether anything was *removed*, not
+      // whether the sweep worked: Android answers false for an already-empty
+      // jar. Being called at all is the success signal.
+      networkingModule.clearCookies(() => resolve(true));
     } catch (error) {
-      addLog(`[AuthService] Failed to clear auth cookies: ${getErrorMessage(error)}`, 'WARNING');
-      resolve();
+      reject(error);
     }
   });
+
+  try {
+    return await withTimeout(cleared, COOKIE_CLEAR_TIMEOUT_MS, 'Cookie clear');
+  } catch (error) {
+    addLog(
+      `[AuthService] Failed to clear auth cookies: ${getErrorMessage(error)}`,
+      'ERROR'
+    );
+    return false;
+  }
 };
 
 /**
@@ -246,7 +344,7 @@ export const clearAuthCookies = async (): Promise<void> => {
 export const login = async (
   serverUrl: string,
   email: string,
-  password: string,
+  password: string
 ): Promise<LoginResult> => {
   const baseUrl = normalizeUrl(serverUrl);
 
@@ -257,19 +355,23 @@ export const login = async (
   // Native fetch persists cookies, so start a fresh sign-in without stale Better Auth cookies.
   await clearAuthCookies();
 
-  const response = await fetchWithTimeout(`${baseUrl}/api/auth/sign-in/email`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: await getBetterAuthHeaders(baseUrl),
-    body: JSON.stringify({ email, password }),
-  }, DEFAULT_API_TIMEOUT_MS);
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/auth/sign-in/email`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: await getBetterAuthHeaders(baseUrl),
+      body: JSON.stringify({ email, password }),
+    },
+    DEFAULT_API_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     const parsed = parseAuthError(await response.text());
     throw new LoginError(
       `Sign-in failed: ${response.status} - ${parsed.message}`,
       response.status,
-      parsed.code,
+      parsed.code
     );
   }
 
@@ -298,7 +400,7 @@ export const login = async (
  */
 export const fetchMfaFactors = async (
   serverUrl: string,
-  email: string,
+  email: string
 ): Promise<MfaFactors> => {
   const baseUrl = normalizeUrl(serverUrl);
   const response = await fetchWithTimeout(
@@ -308,7 +410,7 @@ export const fetchMfaFactors = async (
       cache: 'no-store', // skip native HTTP cache to avoid 304 empty bodies (#1353)
       headers: { ...pendingProxyHeaders },
     },
-    DEFAULT_API_TIMEOUT_MS,
+    DEFAULT_API_TIMEOUT_MS
   );
 
   if (!response.ok) {
@@ -329,17 +431,21 @@ export const fetchMfaFactors = async (
  */
 export const verifyTotp = async (
   serverUrl: string,
-  code: string,
+  code: string
 ): Promise<MfaVerifyResult> => {
   const baseUrl = normalizeUrl(serverUrl);
   const headers = await getBetterAuthHeaders(baseUrl);
 
-  const response = await fetchWithTimeout(`${baseUrl}/api/auth/two-factor/verify-totp`, {
-    method: 'POST',
-    credentials: 'include',
-    headers,
-    body: JSON.stringify({ code }),
-  }, DEFAULT_API_TIMEOUT_MS);
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/auth/two-factor/verify-totp`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ code }),
+    },
+    DEFAULT_API_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     const parsed = parseAuthError(await response.text());
@@ -348,7 +454,9 @@ export const verifyTotp = async (
 
   const body = await response.json();
   if (!body.token) {
-    throw new LoginError('Verification response did not include a session token.');
+    throw new LoginError(
+      'Verification response did not include a session token.'
+    );
   }
 
   return {
@@ -363,17 +471,19 @@ export const verifyTotp = async (
 /**
  * Triggers the server to send an email OTP code to the user.
  */
-export const sendEmailOtp = async (
-  serverUrl: string,
-): Promise<void> => {
+export const sendEmailOtp = async (serverUrl: string): Promise<void> => {
   const baseUrl = normalizeUrl(serverUrl);
   const headers = await getBetterAuthHeaders(baseUrl);
 
-  const response = await fetchWithTimeout(`${baseUrl}/api/auth/two-factor/send-otp`, {
-    method: 'POST',
-    credentials: 'include',
-    headers,
-  }, DEFAULT_API_TIMEOUT_MS);
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/auth/two-factor/send-otp`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+    },
+    DEFAULT_API_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     const parsed = parseAuthError(await response.text());
@@ -386,17 +496,21 @@ export const sendEmailOtp = async (
  */
 export const verifyEmailOtp = async (
   serverUrl: string,
-  code: string,
+  code: string
 ): Promise<MfaVerifyResult> => {
   const baseUrl = normalizeUrl(serverUrl);
   const headers = await getBetterAuthHeaders(baseUrl);
 
-  const response = await fetchWithTimeout(`${baseUrl}/api/auth/two-factor/verify-otp`, {
-    method: 'POST',
-    credentials: 'include',
-    headers,
-    body: JSON.stringify({ code }),
-  }, DEFAULT_API_TIMEOUT_MS);
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/auth/two-factor/verify-otp`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ code }),
+    },
+    DEFAULT_API_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     const parsed = parseAuthError(await response.text());
@@ -405,7 +519,9 @@ export const verifyEmailOtp = async (
 
   const body = await response.json();
   if (!body.token) {
-    throw new LoginError('Verification response did not include a session token.');
+    throw new LoginError(
+      'Verification response did not include a session token.'
+    );
   }
 
   return {
@@ -415,15 +531,6 @@ export const verifyEmailOtp = async (
       role: body.user?.role,
     },
   };
-};
-
-/**
- * Clears the session token for the given config.
- */
-export const logout = async (configId: string): Promise<void> => {
-  await clearSessionToken(configId);
-  await clearAuthCookies();
-  addLog(`[AuthService] Session token cleared for config ${configId}`, 'INFO');
 };
 
 export interface OidcProvider {
@@ -454,18 +561,25 @@ export const fetchAuthSettings = async (
   customHeaders?: Record<string, string>
 ): Promise<AuthSettings> => {
   const baseUrl = normalizeUrl(serverUrl);
-  const response = await fetchWithTimeout(`${baseUrl}/api/auth/settings`, {
-    method: 'GET',
-    credentials: 'omit',
-    cache: 'no-store',
-    headers: {
-      ...pendingProxyHeaders,
-      ...customHeaders,
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/auth/settings`,
+    {
+      method: 'GET',
+      credentials: 'omit',
+      cache: 'no-store',
+      headers: {
+        ...pendingProxyHeaders,
+        ...customHeaders,
+      },
     },
-  }, CONNECTION_CHECK_TIMEOUT_MS);
+    CONNECTION_CHECK_TIMEOUT_MS
+  );
 
   if (!response.ok) {
-    throw new LoginError('Failed to fetch authentication settings.', response.status);
+    throw new LoginError(
+      'Failed to fetch authentication settings.',
+      response.status
+    );
   }
 
   return await response.json();
@@ -479,7 +593,10 @@ const SSO_CALLBACK_URL = 'sparkyfitnessmobile://oauth-callback';
  * of the app keeps apiFetch + Bearer tokens. Created per login attempt so the
  * baseURL and current pendingProxyHeaders are always fresh.
  */
-const createSsoAuthClient = (baseUrl: string, authHeaders?: Record<string, string>) =>
+const createSsoAuthClient = (
+  baseUrl: string,
+  authHeaders?: Record<string, string>
+) =>
   createAuthClient({
     baseURL: `${baseUrl}/api/auth`,
     plugins: [
@@ -520,7 +637,7 @@ const clearSsoDanceCookies = async (): Promise<void> => {
  */
 export const loginWithOidc = async (
   serverUrl: string,
-  providerId: string,
+  providerId: string
 ): Promise<LoginResult> => {
   const baseUrl = normalizeUrl(serverUrl);
 
@@ -535,7 +652,10 @@ export const loginWithOidc = async (
 
   const authClient = createSsoAuthClient(baseUrl);
 
-  addLog(`[AuthService] Initiating OIDC login for provider: ${providerId}`, 'INFO');
+  addLog(
+    `[AuthService] Initiating OIDC login for provider: ${providerId}`,
+    'INFO'
+  );
 
   // Resolves only after the system-browser dance completes; the expo client
   // stores the session cookie relayed on the app-scheme redirect in SecureStore.
@@ -545,11 +665,17 @@ export const loginWithOidc = async (
   });
 
   if (error) {
-    addLog(`[AuthService] OIDC sign-in failed: ${error.message ?? error.statusText}`, 'ERROR');
+    addLog(
+      `[AuthService] OIDC sign-in failed: ${error.message ?? error.statusText}`,
+      'ERROR'
+    );
     throw new LoginError(error.message ?? 'SSO sign-in failed.', error.status);
   }
 
-  addLog(`[AuthService] Browser flow finished. Fetching session details...`, 'INFO');
+  addLog(
+    `[AuthService] Browser flow finished. Fetching session details...`,
+    'INFO'
+  );
 
   // getSession sends the stored cookie; the response contains the RAW session
   // token, which is what apiClient's Bearer header / server authMiddleware expect.
@@ -557,7 +683,10 @@ export const loginWithOidc = async (
   const sessionToken = data?.session?.token;
 
   if (!sessionToken) {
-    addLog('[AuthService] No session established after OIDC flow (cancelled or failed).', 'ERROR');
+    addLog(
+      '[AuthService] No session established after OIDC flow (cancelled or failed).',
+      'ERROR'
+    );
     throw new LoginError('SSO sign-in was cancelled or did not complete.');
   }
 
@@ -597,7 +726,10 @@ const getPasskeyBrowserPackage = async (): Promise<string | undefined> => {
   try {
     const { defaultBrowserPackage, browserPackages, servicePackages } =
       await WebBrowser.getCustomTabsSupportingBrowsersAsync();
-    if (defaultBrowserPackage && PASSKEY_CAPABLE_BROWSERS.includes(defaultBrowserPackage)) {
+    if (
+      defaultBrowserPackage &&
+      PASSKEY_CAPABLE_BROWSERS.includes(defaultBrowserPackage)
+    ) {
       return undefined;
     }
     // When a default browser is set, Android filters VIEW-intent queries
@@ -620,7 +752,10 @@ const getPasskeyBrowserPackage = async (): Promise<string | undefined> => {
     }
     return fallback;
   } catch (err) {
-    addLog(`[AuthService] Could not inspect installed browsers: ${err}`, 'WARNING');
+    addLog(
+      `[AuthService] Could not inspect installed browsers: ${err}`,
+      'WARNING'
+    );
     return undefined;
   }
 };
@@ -628,7 +763,9 @@ const getPasskeyBrowserPackage = async (): Promise<string | undefined> => {
 /**
  * Triggers native passkey (WebAuthn/FIDO2) sign-in flow.
  */
-export const loginWithPasskey = async (serverUrl: string): Promise<LoginSuccess> => {
+export const loginWithPasskey = async (
+  serverUrl: string
+): Promise<LoginSuccess> => {
   const baseUrl = normalizeUrl(serverUrl);
 
   if (!__DEV__ && !baseUrl.startsWith('https://')) {
@@ -641,18 +778,32 @@ export const loginWithPasskey = async (serverUrl: string): Promise<LoginSuccess>
   addLog('[AuthService] Initiating browser-based passkey login flow', 'INFO');
 
   const authUrl = `${baseUrl}/api/auth/web-login/passkey`;
-  const result = await WebBrowser.openAuthSessionAsync(authUrl, SSO_CALLBACK_URL, {
-    browserPackage: await getPasskeyBrowserPackage(),
-  });
+  const result = await WebBrowser.openAuthSessionAsync(
+    authUrl,
+    SSO_CALLBACK_URL,
+    {
+      browserPackage: await getPasskeyBrowserPackage(),
+    }
+  );
 
   if (result.type !== 'success') {
-    addLog('[AuthService] Browser-based passkey login was cancelled or failed.', 'ERROR');
-    throw new LoginError('Passkey authentication cancelled or did not complete.');
+    addLog(
+      '[AuthService] Browser-based passkey login was cancelled or failed.',
+      'ERROR'
+    );
+    throw new LoginError(
+      'Passkey authentication cancelled or did not complete.'
+    );
   }
 
   if (!result.url) {
-    addLog('[AuthService] Browser-based passkey login returned no redirect URL.', 'ERROR');
-    throw new LoginError('Passkey authentication cancelled or did not complete.');
+    addLog(
+      '[AuthService] Browser-based passkey login returned no redirect URL.',
+      'ERROR'
+    );
+    throw new LoginError(
+      'Passkey authentication cancelled or did not complete.'
+    );
   }
 
   let sessionToken: string | null = null;
@@ -674,7 +825,9 @@ export const loginWithPasskey = async (serverUrl: string): Promise<LoginSuccess>
 
   if (!sessionToken || !email) {
     addLog('[AuthService] No session details in redirect URL.', 'ERROR');
-    throw new LoginError('Passkey authentication was cancelled or did not complete.');
+    throw new LoginError(
+      'Passkey authentication was cancelled or did not complete.'
+    );
   }
 
   addLog('[AuthService] Passkey login flow completed successfully.', 'INFO');
@@ -698,14 +851,22 @@ export interface MobilePasskeyRecord {
 /**
  * Retrieves the list of passkeys registered for the current authenticated user.
  */
-export const getPasskeys = async (serverUrl: string, sessionToken: string): Promise<MobilePasskeyRecord[]> => {
+export const getPasskeys = async (
+  serverUrl: string,
+  sessionToken: string
+): Promise<MobilePasskeyRecord[]> => {
   const baseUrl = normalizeUrl(serverUrl);
-  const authClient = createSsoAuthClient(baseUrl, { Authorization: `Bearer ${sessionToken}` });
+  const authClient = createSsoAuthClient(baseUrl, {
+    Authorization: `Bearer ${sessionToken}`,
+  });
 
   addLog('[AuthService] Fetching registered passkeys', 'INFO');
-  const res = await authClient.$fetch<MobilePasskeyRecord[]>('/passkey/list-user-passkeys', {
-    method: 'GET',
-  });
+  const res = await authClient.$fetch<MobilePasskeyRecord[]>(
+    '/passkey/list-user-passkeys',
+    {
+      method: 'GET',
+    }
+  );
 
   if (res.error) {
     const msg = res.error.message || 'Failed to fetch passkeys';
@@ -724,19 +885,23 @@ export const getPasskeys = async (serverUrl: string, sessionToken: string): Prom
  * Throws `LoginError('SESSION_NOT_FRESH', 403)` when the server rejects the
  * session as stale — the caller should re-authenticate and retry.
  */
-export const requestPasskeyRegistrationTicket = async (
+export const _requestPasskeyRegistrationTicket = async (
   serverUrl: string,
   sessionToken: string
 ): Promise<string> => {
   const baseUrl = normalizeUrl(serverUrl);
-  const res = await fetchWithTimeout(`${baseUrl}/api/auth/web-login/register-ticket`, {
-    method: 'POST',
-    cache: 'no-store',
-    headers: {
-      ...pendingProxyHeaders,
-      Authorization: `Bearer ${sessionToken}`,
+  const res = await fetchWithTimeout(
+    `${baseUrl}/api/auth/web-login/register-ticket`,
+    {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        ...pendingProxyHeaders,
+        Authorization: `Bearer ${sessionToken}`,
+      },
     },
-  }, DEFAULT_API_TIMEOUT_MS);
+    DEFAULT_API_TIMEOUT_MS
+  );
 
   if (res.status === 403) {
     const body = await res.json().catch(() => ({}));
@@ -769,21 +934,31 @@ export const addPasskey = async (
   const baseUrl = normalizeUrl(serverUrl);
 
   addLog('[AuthService] Requesting passkey registration ticket', 'INFO');
-  const ticket = await requestPasskeyRegistrationTicket(baseUrl, sessionToken);
+  const ticket = await _requestPasskeyRegistrationTicket(baseUrl, sessionToken);
 
-  addLog('[AuthService] Opening browser-based passkey registration flow', 'INFO');
+  addLog(
+    '[AuthService] Opening browser-based passkey registration flow',
+    'INFO'
+  );
   // Ticket rides in the fragment (never sent to the server) and is single-use,
   // so it can't be replayed even if the URL leaks.
   const registerUrl = `${baseUrl}/api/auth/web-login/register-passkey#ticket=${encodeURIComponent(
     ticket
   )}&name=${encodeURIComponent(name)}`;
 
-  const result = await WebBrowser.openAuthSessionAsync(registerUrl, SSO_CALLBACK_URL, {
-    browserPackage: await getPasskeyBrowserPackage(),
-  });
+  const result = await WebBrowser.openAuthSessionAsync(
+    registerUrl,
+    SSO_CALLBACK_URL,
+    {
+      browserPackage: await getPasskeyBrowserPackage(),
+    }
+  );
 
   if (result.type !== 'success' || !result.url) {
-    addLog('[AuthService] Browser-based passkey registration was cancelled or failed.', 'ERROR');
+    addLog(
+      '[AuthService] Browser-based passkey registration was cancelled or failed.',
+      'ERROR'
+    );
     throw new Error('Passkey registration cancelled or did not complete.');
   }
 
@@ -794,13 +969,20 @@ export const addPasskey = async (
     throw new Error('Passkey registration did not succeed.');
   }
 
-  addLog('[AuthService] Passkey successfully registered via browser flow.', 'INFO');
+  addLog(
+    '[AuthService] Passkey successfully registered via browser flow.',
+    'INFO'
+  );
 };
 
 /**
  * Deletes a registered passkey.
  */
-export const deletePasskey = async (serverUrl: string, sessionToken: string, id: string): Promise<void> => {
+export const deletePasskey = async (
+  serverUrl: string,
+  sessionToken: string,
+  id: string
+): Promise<void> => {
   const baseUrl = normalizeUrl(serverUrl);
 
   addLog(`[AuthService] Deleting passkey: ${id}`, 'INFO');
@@ -808,20 +990,24 @@ export const deletePasskey = async (serverUrl: string, sessionToken: string, id:
   // is sent exactly as given — the better-fetch client dropped it when per-call
   // headers were supplied, leaving delete requests unauthenticated. The server's
   // /api/auth interceptor converts this Bearer token into the session cookie.
-  const response = await fetchWithTimeout(`${baseUrl}/api/auth/passkey/delete-passkey`, {
-    method: 'POST',
-    cache: 'no-store',
-    headers: {
-      ...pendingProxyHeaders,
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${sessionToken}`,
-      // Better Auth rejects state-changing requests with a missing/null Origin.
-      // The app scheme is a trusted origin (see auth.ts trustedOrigins), so send
-      // it explicitly — native fetch (unlike a browser) allows setting Origin.
-      Origin: 'sparkyfitnessmobile://',
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/auth/passkey/delete-passkey`,
+    {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        ...pendingProxyHeaders,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${sessionToken}`,
+        // Better Auth rejects state-changing requests with a missing/null Origin.
+        // The app scheme is a trusted origin (see auth.ts trustedOrigins), so send
+        // it explicitly — native fetch (unlike a browser) allows setting Origin.
+        Origin: 'sparkyfitnessmobile://',
+      },
+      body: JSON.stringify({ id }),
     },
-    body: JSON.stringify({ id }),
-  }, DEFAULT_API_TIMEOUT_MS);
+    DEFAULT_API_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
@@ -835,4 +1021,3 @@ export const deletePasskey = async (serverUrl: string, sessionToken: string, id:
     throw new Error(msg);
   }
 };
-

@@ -24,6 +24,7 @@ describe('buildWidgetKeys', () => {
       'meal:a',
       'meal:b',
       'exercise',
+      'caffeine',
     ]);
   });
 
@@ -36,6 +37,7 @@ describe('buildWidgetKeys', () => {
       'water',
       'healthMetrics',
       'meal:a',
+      'caffeine',
     ]);
   });
 });

@@ -6,6 +6,7 @@ import {
   authorizationStatusFor,
 } from '@kingstinct/react-native-healthkit';
 import { fetchDailySummary } from '../../../src/services/api/dailySummaryApi';
+import { fetchWaterIntakeLog } from '../../../src/services/api/measurementsApi';
 import {
   loadHealthPreference,
   saveHealthPreference,
@@ -20,8 +21,13 @@ import i18n, { initializeI18n } from '../../../src/localization/i18n';
 jest.mock('../../../src/services/api/dailySummaryApi', () => ({
   fetchDailySummary: jest.fn(),
 }));
+jest.mock('../../../src/services/api/measurementsApi', () => ({
+  fetchWaterIntakeLog: jest.fn(),
+}));
 jest.mock('../../../src/utils/loggedMealCollapse', () => ({
-  resolveCollapsedFoodEntries: jest.fn((_date: string, entries: unknown) => Promise.resolve(entries)),
+  resolveCollapsedFoodEntries: jest.fn((_date: string, entries: unknown) =>
+    Promise.resolve(entries)
+  ),
 }));
 jest.mock('../../../src/services/healthkit/preferences', () => ({
   loadHealthPreference: jest.fn(),
@@ -41,6 +47,7 @@ const mockSaveQuantity = saveQuantitySample as jest.Mock;
 const mockDeleteObjects = deleteObjects as jest.Mock;
 const mockAuthStatus = authorizationStatusFor as jest.Mock;
 const mockSummary = fetchDailySummary as jest.Mock;
+const mockWaterLog = fetchWaterIntakeLog as jest.Mock;
 const mockLoadPref = loadHealthPreference as jest.Mock;
 const mockSavePref = saveHealthPreference as jest.Mock;
 
@@ -70,7 +77,7 @@ let store: Record<string, unknown> = {};
 const prefs = (initial: Record<string, unknown>) => {
   store = { ...initial };
   mockLoadPref.mockImplementation((key: string) =>
-    Promise.resolve(key in store ? store[key] : null),
+    Promise.resolve(key in store ? store[key] : null)
   );
   mockSavePref.mockImplementation((key: string, value: unknown) => {
     store[key] = value;
@@ -92,11 +99,32 @@ beforeEach(() => {
     ],
   });
   mockSummary.mockResolvedValue({ foodEntries: [foodEntry], waterIntake: 500 });
+  mockWaterLog.mockResolvedValue([]);
+});
+
+// One manually-logged drink at a real timestamp (#1939) — the default shape
+// a hydration test builds on top of.
+const manualLogEntry = (
+  waterMl = 500,
+  loggedAt = '2026-06-01T09:00:00.000Z'
+) => ({
+  id: 'log-1',
+  user_id: 'user-1',
+  entry_date: '2026-06-01',
+  water_ml: waterMl,
+  container_id: null,
+  container_name: null,
+  source: 'manual',
+  created_at: loggedAt,
+  logged_at: loggedAt,
 });
 
 describe('writebackPhase', () => {
   it('does nothing when both metrics are disabled', async () => {
-    prefs({ writebackNutritionEnabled: false, writebackHydrationEnabled: false });
+    prefs({
+      writebackNutritionEnabled: false,
+      writebackHydrationEnabled: false,
+    });
     await writebackPhase(['2026-06-01']);
     expect(mockSaveCorrelation).not.toHaveBeenCalled();
     expect(mockSaveQuantity).not.toHaveBeenCalled();
@@ -146,7 +174,9 @@ describe('writebackPhase', () => {
     await initializeI18n('pl');
     prefs({ writebackNutritionEnabled: true });
     await writebackPhase(['2026-06-01']);
-    expect(mockSaveCorrelation.mock.calls[0][4]).toMatchObject({ Meal: 'Śniadanie' });
+    expect(mockSaveCorrelation.mock.calls[0][4]).toMatchObject({
+      Meal: 'Śniadanie',
+    });
     await i18n.changeLanguage('en');
   });
 
@@ -154,10 +184,15 @@ describe('writebackPhase', () => {
     prefs({ writebackNutritionEnabled: true });
     await writebackPhase(['2026-06-01']);
     // samples are the 2nd arg to saveCorrelationSample(type, samples, start, end, metadata)
-    const samples = mockSaveCorrelation.mock.calls[0][1] as { metadata?: Record<string, unknown> }[];
+    const samples = mockSaveCorrelation.mock.calls[0][1] as {
+      metadata?: Record<string, unknown>;
+    }[];
     expect(samples.length).toBeGreaterThan(0);
     samples.forEach((s) => {
-      expect(s.metadata).toMatchObject({ HKFoodType: 'Eggs', Meal: 'Breakfast' });
+      expect(s.metadata).toMatchObject({
+        HKFoodType: 'Eggs',
+        Meal: 'Breakfast',
+      });
     });
   });
 
@@ -170,18 +205,29 @@ describe('writebackPhase', () => {
       },
     });
     await writebackPhase(['2026-06-01']);
-    expect(mockDeleteObjects).toHaveBeenCalledWith(ENERGY, { uuids: ['old-energy'] });
-    expect(mockDeleteObjects).toHaveBeenCalledWith(FOOD_CORRELATION, { uuids: ['old-corr'] });
+    expect(mockDeleteObjects).toHaveBeenCalledWith(ENERGY, {
+      uuids: ['old-energy'],
+    });
+    expect(mockDeleteObjects).toHaveBeenCalledWith(FOOD_CORRELATION, {
+      uuids: ['old-corr'],
+    });
     expect(mockSaveCorrelation).toHaveBeenCalledTimes(1);
   });
 
   it('filters a denied nutrient out of the correlation but still writes the food', async () => {
     prefs({ writebackNutritionEnabled: true });
-    mockAuthStatus.mockImplementation((t: string) => (t === SODIUM ? SHARING_DENIED : SHARING_AUTHORIZED));
-    mockSummary.mockResolvedValue({ foodEntries: [{ ...foodEntry, sodium: 500 }], waterIntake: 0 });
+    mockAuthStatus.mockImplementation((t: string) =>
+      t === SODIUM ? SHARING_DENIED : SHARING_AUTHORIZED
+    );
+    mockSummary.mockResolvedValue({
+      foodEntries: [{ ...foodEntry, sodium: 500 }],
+      waterIntake: 0,
+    });
     await writebackPhase(['2026-06-01']);
     expect(mockSaveCorrelation).toHaveBeenCalledTimes(1);
-    const samples = mockSaveCorrelation.mock.calls[0][1] as { quantityType: string }[];
+    const samples = mockSaveCorrelation.mock.calls[0][1] as {
+      quantityType: string;
+    }[];
     const types = samples.map((s) => s.quantityType);
     expect(types).toContain(ENERGY);
     expect(types).not.toContain(SODIUM); // denied nutrient dropped, food still written
@@ -212,9 +258,16 @@ describe('writebackPhase', () => {
 
     // Old UUIDs we couldn't delete are kept alongside the freshly-written ones, so a later
     // run retries the delete rather than orphaning them in HealthKit.
-    const map = store['writebackNutritionUuids:2026-06-01'] as Record<string, string[]>;
-    expect(map[ENERGY]).toEqual(expect.arrayContaining(['obj-energy', 'old-energy']));
-    expect(map[FOOD_CORRELATION]).toEqual(expect.arrayContaining(['corr-1', 'old-corr']));
+    const map = store['writebackNutritionUuids:2026-06-01'] as Record<
+      string,
+      string[]
+    >;
+    expect(map[ENERGY]).toEqual(
+      expect.arrayContaining(['obj-energy', 'old-energy'])
+    );
+    expect(map[FOOD_CORRELATION]).toEqual(
+      expect.arrayContaining(['corr-1', 'old-corr'])
+    );
     // Signature withheld so the next run re-enters and retries the delete.
     expect(store['writebackNutritionSig:2026-06-01']).toBeUndefined();
   });
@@ -225,11 +278,12 @@ describe('writebackPhase', () => {
       'writebackHydrationUuids:2026-06-01': ['old-water'],
     });
     mockSummary.mockResolvedValue({ foodEntries: [], waterIntake: 500 });
+    mockWaterLog.mockResolvedValue([manualLogEntry()]);
     mockDeleteObjects.mockRejectedValue(new Error('boom'));
     await writebackPhase(['2026-06-01']);
 
     expect(store['writebackHydrationUuids:2026-06-01']).toEqual(
-      expect.arrayContaining(['water-1', 'old-water']),
+      expect.arrayContaining(['water-1', 'old-water'])
     );
     expect(store['writebackHydrationSig:2026-06-01']).toBeUndefined();
   });
@@ -249,36 +303,107 @@ describe('writebackPhase', () => {
     nowSpy.mockRestore();
   });
 
-  it('writes a hydration sample and tracks its UUID', async () => {
+  it('writes a hydration sample per manually-logged drink at its real timestamp (#1939)', async () => {
     prefs({ writebackHydrationEnabled: true });
     mockSummary.mockResolvedValue({ foodEntries: [], waterIntake: 500 });
+    mockWaterLog.mockResolvedValue([manualLogEntry(500)]);
     await writebackPhase(['2026-06-01']);
     expect(mockSaveQuantity).toHaveBeenCalledWith(
-      WATER, 'mL', 500, expect.any(Date), expect.any(Date), expect.anything(),
+      WATER,
+      'mL',
+      500,
+      expect.any(Date),
+      expect.any(Date),
+      expect.anything()
     );
     expect(store['writebackHydrationUuids:2026-06-01']).toEqual(['water-1']);
   });
 
-  it('deletes the previous water record when water drops to 0', async () => {
+  it('writes one sample per ledger row and never re-exports a provider-synced row', async () => {
+    prefs({ writebackHydrationEnabled: true });
+    mockSummary.mockResolvedValue({ foodEntries: [], waterIntake: 750 });
+    mockWaterLog.mockResolvedValue([
+      manualLogEntry(500, '2026-06-01T09:00:00.000Z'),
+      { ...manualLogEntry(250, '2026-06-01T15:00:00.000Z'), id: 'log-2' },
+      {
+        ...manualLogEntry(1000, '2026-06-01T08:00:00.000Z'),
+        id: 'log-3',
+        source: 'healthkit', // imported -- must not be re-exported
+      },
+    ]);
+    await writebackPhase(['2026-06-01']);
+    expect(mockSaveQuantity).toHaveBeenCalledTimes(2);
+    expect(mockSaveQuantity).not.toHaveBeenCalledWith(
+      WATER,
+      'mL',
+      1000,
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('folds food-derived water into one synthetic noon-anchored sample (#1557, #1629)', async () => {
+    prefs({ writebackHydrationEnabled: true });
+    mockSummary.mockResolvedValue({
+      foodEntries: [],
+      waterIntake: 300,
+      waterIntakeBreakdown: {
+        water_ml: 300,
+        manual_ml: 0,
+        ledger_ml: 0,
+        food_ml: 300,
+      },
+    });
+    mockWaterLog.mockResolvedValue([]); // no ledger rows -- all from food
+    await writebackPhase(['2026-06-01']);
+    expect(mockSaveQuantity).toHaveBeenCalledTimes(1);
+    expect(mockSaveQuantity).toHaveBeenCalledWith(
+      WATER,
+      'mL',
+      300,
+      expect.any(Date),
+      expect.any(Date),
+      expect.anything()
+    );
+  });
+
+  it('deletes the previous water record when there is nothing left to write', async () => {
     prefs({
       writebackHydrationEnabled: true,
       'writebackHydrationUuids:2026-06-01': ['old-water'],
     });
     mockSummary.mockResolvedValue({ foodEntries: [], waterIntake: 0 });
+    mockWaterLog.mockResolvedValue([]);
     await writebackPhase(['2026-06-01']);
-    expect(mockSaveQuantity).not.toHaveBeenCalled(); // ml<=0 → no record
-    expect(mockDeleteObjects).toHaveBeenCalledWith(WATER, { uuids: ['old-water'] });
+    expect(mockSaveQuantity).not.toHaveBeenCalled();
+    expect(mockDeleteObjects).toHaveBeenCalledWith(WATER, {
+      uuids: ['old-water'],
+    });
   });
 
   // Regression: a pre-noon run used to store the empty signature, making every
   // later run that day report "unchanged — skipped" regardless of the total.
-  it('defers hydration without storing a signature while the noon anchor is in the future', async () => {
+  // Real ledger rows carry a concrete logged_at and never defer (this fixed
+  // the "hydration can't be written before noon" bug); only the synthetic
+  // food-water remainder still anchors to noon and can defer.
+  it('defers only the food-water remainder without storing a signature while the noon anchor is in the future', async () => {
     const d = new Date();
     d.setDate(d.getDate() + 1); // local tomorrow: noon anchor guaranteed future
     const tomorrow = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
     prefs({ writebackHydrationEnabled: true });
-    mockSummary.mockResolvedValue({ foodEntries: [], waterIntake: 750 });
+    mockSummary.mockResolvedValue({
+      foodEntries: [],
+      waterIntake: 750,
+      waterIntakeBreakdown: {
+        water_ml: 750,
+        manual_ml: 0,
+        ledger_ml: 0,
+        food_ml: 750,
+      },
+    });
+    mockWaterLog.mockResolvedValue([]);
     await writebackPhase([tomorrow]);
 
     expect(mockSaveQuantity).not.toHaveBeenCalled();
@@ -292,7 +417,9 @@ describe('writebackPhase', () => {
 });
 
 describe('runWriteback (cursor)', () => {
-  const { saveLastWritebackTime } = jest.requireMock('../../../src/services/storage');
+  const { saveLastWritebackTime } = jest.requireMock(
+    '../../../src/services/storage'
+  );
   const mockSaveCursor = saveLastWritebackTime as jest.Mock;
 
   it('advances the cursor after a completed run', async () => {
@@ -313,44 +440,80 @@ describe('runWriteback (cursor)', () => {
 describe('removeWrittenData (cleanup)', () => {
   it('full purge: range-deletes each type all-time, clears tracking, disables writeback', async () => {
     await AsyncStorage.clear();
-    await AsyncStorage.setItem('@HealthKit:writebackNutritionUuids:2026-06-01', JSON.stringify({ [ENERGY]: ['u1'] }));
-    await AsyncStorage.setItem('@HealthKit:writebackHydrationSig:2026-06-15', '"sig"');
+    await AsyncStorage.setItem(
+      '@HealthKit:writebackNutritionUuids:2026-06-01',
+      JSON.stringify({ [ENERGY]: ['u1'] })
+    );
+    await AsyncStorage.setItem(
+      '@HealthKit:writebackHydrationSig:2026-06-15',
+      '"sig"'
+    );
     await AsyncStorage.setItem('@HealthKit:syncDuration', '"daily"'); // unrelated — must survive
 
     const result = await removeWrittenData(null);
     expect(result).toEqual({ ok: true });
 
     // Predicate (range) delete per sample type — catches orphans, not just tracked UUIDs.
-    const allTime = { date: expect.objectContaining({ endDate: expect.any(Date) }) };
+    const allTime = {
+      date: expect.objectContaining({ endDate: expect.any(Date) }),
+    };
     expect(mockDeleteObjects).toHaveBeenCalledWith(ENERGY, allTime);
     expect(mockDeleteObjects).toHaveBeenCalledWith(WATER, allTime);
     expect(mockDeleteObjects).toHaveBeenCalledWith(FOOD_CORRELATION, allTime);
 
     const remaining = await AsyncStorage.getAllKeys();
-    expect(remaining).not.toContain('@HealthKit:writebackNutritionUuids:2026-06-01');
-    expect(remaining).not.toContain('@HealthKit:writebackHydrationSig:2026-06-15');
+    expect(remaining).not.toContain(
+      '@HealthKit:writebackNutritionUuids:2026-06-01'
+    );
+    expect(remaining).not.toContain(
+      '@HealthKit:writebackHydrationSig:2026-06-15'
+    );
     expect(remaining).toContain('@HealthKit:syncDuration');
 
-    expect(mockSavePref).toHaveBeenCalledWith('writebackNutritionEnabled', false);
-    expect(mockSavePref).toHaveBeenCalledWith('writebackHydrationEnabled', false);
+    expect(mockSavePref).toHaveBeenCalledWith(
+      'writebackNutritionEnabled',
+      false
+    );
+    expect(mockSavePref).toHaveBeenCalledWith(
+      'writebackHydrationEnabled',
+      false
+    );
   });
 
   it('date range: range-deletes with start+end, clears only in-range tracking, keeps writeback on', async () => {
     await AsyncStorage.clear();
-    await AsyncStorage.setItem('@HealthKit:writebackNutritionUuids:2026-06-10', JSON.stringify({ [ENERGY]: ['in'] }));
-    await AsyncStorage.setItem('@HealthKit:writebackNutritionUuids:2026-06-20', JSON.stringify({ [ENERGY]: ['out'] }));
-
-    const result = await removeWrittenData({ from: '2026-06-08', to: '2026-06-12' });
-    expect(result).toEqual({ ok: true });
-    expect(mockDeleteObjects).toHaveBeenCalledWith(
-      WATER,
-      { date: expect.objectContaining({ startDate: expect.any(Date), endDate: expect.any(Date) }) },
+    await AsyncStorage.setItem(
+      '@HealthKit:writebackNutritionUuids:2026-06-10',
+      JSON.stringify({ [ENERGY]: ['in'] })
+    );
+    await AsyncStorage.setItem(
+      '@HealthKit:writebackNutritionUuids:2026-06-20',
+      JSON.stringify({ [ENERGY]: ['out'] })
     );
 
+    const result = await removeWrittenData({
+      from: '2026-06-08',
+      to: '2026-06-12',
+    });
+    expect(result).toEqual({ ok: true });
+    expect(mockDeleteObjects).toHaveBeenCalledWith(WATER, {
+      date: expect.objectContaining({
+        startDate: expect.any(Date),
+        endDate: expect.any(Date),
+      }),
+    });
+
     const remaining = await AsyncStorage.getAllKeys();
-    expect(remaining).not.toContain('@HealthKit:writebackNutritionUuids:2026-06-10'); // in range → cleared
-    expect(remaining).toContain('@HealthKit:writebackNutritionUuids:2026-06-20'); // out of range → kept
-    expect(mockSavePref).not.toHaveBeenCalledWith('writebackNutritionEnabled', false);
+    expect(remaining).not.toContain(
+      '@HealthKit:writebackNutritionUuids:2026-06-10'
+    ); // in range → cleared
+    expect(remaining).toContain(
+      '@HealthKit:writebackNutritionUuids:2026-06-20'
+    ); // out of range → kept
+    expect(mockSavePref).not.toHaveBeenCalledWith(
+      'writebackNutritionEnabled',
+      false
+    );
   });
 
   it('reports partial failure (ok=false) when a delete throws', async () => {

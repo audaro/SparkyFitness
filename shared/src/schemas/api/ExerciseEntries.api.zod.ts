@@ -81,6 +81,15 @@ export const exerciseSnapshotResponseSchema = z
   })
   .strict();
 
+/**
+ * The snapshot as it appears on a diary entry, where the library row may be
+ * gone. Same fields as the base snapshot, but `id` can be null: the base schema
+ * keeps a required id because it is also used for live library and search
+ * results, where one always exists.
+ */
+export const entryExerciseSnapshotResponseSchema =
+  exerciseSnapshotResponseSchema.extend({ id: z.string().nullable() });
+
 /** A single set within an exercise entry */
 export const exerciseEntrySetResponseSchema = z
   .object({
@@ -98,6 +107,12 @@ export const exerciseEntrySetResponseSchema = z
     is_pr: z.boolean(),
     // Km. Optional: pre-distance servers omit it.
     distance: z.number().nullable().optional(),
+    // Progression & Equipment Fields
+    progression_mode: z.enum(["rep_goal", "fixed", "step_load", "manual"]).nullable().optional(),
+    rep_goal: z.number().int().nullable().optional(),
+    increment_type: z.enum(["weight", "reps"]).nullable().optional(),
+    increment_value: z.number().nullable().optional(),
+    equipment_brand: z.string().nullable().optional(),
   })
   .strict();
 
@@ -135,7 +150,12 @@ export const exerciseEntrySetRequestSchema = z
 export const presetSessionExerciseRequestSchema = z
   .object({
     id: z.string().uuid().optional(),
-    exercise_id: z.string().uuid(),
+    // Null when the library exercise this entry was logged from has since been
+    // deleted (20260912150000_preserve_data_on_user_and_library_deletes.sql).
+    // The entry stands on its own snapshot, so re-saving the workout it belongs
+    // to has to be able to send it back. Creating a *new* entry still requires a
+    // real exercise -- see createExerciseEntryRequestSchema.
+    exercise_id: z.string().uuid().nullable(),
     sort_order: z.number().int().min(0).default(0),
     duration_minutes: z.number().min(0).default(0),
     // Manual per-exercise override; when omitted the server recomputes
@@ -143,20 +163,34 @@ export const presetSessionExerciseRequestSchema = z
     calories_burned: z.number().min(0).optional(),
     notes: z.string().nullable().optional(),
     superset_group: z.number().int().nullable().optional(),
+    // Progression & Equipment Fields
+    progression_mode: z
+      .enum(["rep_goal", "fixed", "step_load", "manual"])
+      .nullable()
+      .optional(),
+    rep_goal: z.number().int().positive().nullable().optional(),
+    increment_type: z.enum(["weight", "reps"]).nullable().optional(),
+    increment_value: z.number().positive().nullable().optional(),
+    equipment_brand: z.string().nullable().optional(),
     sets: z.array(exerciseEntrySetRequestSchema).default([]),
     entry_time: timeStringSchema.nullish(),
   })
   .strict();
 
+// A workout session can be started in two ways:
+// 1. From a stored preset blueprint (workout_preset_id provided; exercises optional)
+// 2. As a freeform workout (no workout_preset_id; non-empty name and at least one exercise required)
+// Both sources can also be provided together (e.g. client starts from a preset with client-supplied sets).
 export const createPresetSessionRequestSchema = z
   .object({
     workout_preset_id: z.number().int().nullable().optional(),
     entry_date: dateStringSchema,
-    name: z.string().min(1).optional(),
+    name: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
     source: z.string().default("manual"),
-    exercises: z.array(presetSessionExerciseRequestSchema).min(1).optional(),
+    exercises: z.array(presetSessionExerciseRequestSchema).optional(),
+    workoutPlanAssignmentId: z.number().int().nullable().optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -164,28 +198,30 @@ export const createPresetSessionRequestSchema = z
       data.workout_preset_id !== undefined && data.workout_preset_id !== null;
     const hasExercises = data.exercises !== undefined;
 
-    // workout_preset_id alone means "copy this preset's own stored
-    // structure"; exercises alone means a freeform/individual session;
-    // both together means "tag this session as started from a preset, but
-    // use the client-supplied (e.g. live-workout) exercise/set structure
-    // instead of the preset's stored one." Only rule out neither.
-    if (!hasPresetId && !hasExercises) {
+    // Freeform workouts require a non-empty name
+    if (!hasPresetId) {
+      if (!data.name || data.name.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Name is required when creating a freeform workout",
+          path: ["name"],
+        });
+      }
+    }
+
+    if (hasPresetId && !hasExercises) {
+      return;
+    }
+
+    if (!hasExercises || !data.exercises || data.exercises.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Provide a workout source: workout_preset_id or exercises.",
+        message:
+          "Workout session must include at least one exercise when not started from a stored preset.",
         path: ["exercises"],
       });
     }
-
-    if (!hasPresetId && !data.name) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Name is required when creating a freeform workout.",
-        path: ["name"],
-      });
-    }
   });
-
 export const updatePresetSessionRequestSchema = z
   .object({
     name: z.string().min(1).optional(),
@@ -288,7 +324,10 @@ export const updateExerciseEntryRequestSchema = createExerciseEntryRequestSchema
 export const exerciseEntryResponseSchema = z
   .object({
     id: z.string(),
-    exercise_id: z.string(),
+    // Nulled rather than cascaded when the library exercise is deleted
+    // (20260912150000_preserve_data_on_user_and_library_deletes.sql), so the
+    // entry outlives it. Parsing a preserved entry would throw otherwise.
+    exercise_id: z.string().nullable(),
     duration_minutes: z.number(),
     calories_burned: z.number(),
     entry_date: z.string().nullable(),
@@ -301,7 +340,10 @@ export const exerciseEntryResponseSchema = z
     exercise_preset_entry_id: z.string().nullable().optional(),
     created_at: z.string().nullable().optional(),
     sets: z.array(exerciseEntrySetResponseSchema),
-    exercise_snapshot: exerciseSnapshotResponseSchema.nullable(),
+    // Entry snapshots outlive the library row they were copied from, so their
+    // id can be null. The base schema keeps a required id because it is also
+    // used for live library and search results, where one always exists.
+    exercise_snapshot: entryExerciseSnapshotResponseSchema.nullable(),
     activity_details: z.array(activityDetailResponseSchema),
     steps: z.number().nullable().optional(),
     category: z.string().nullable().optional(),
@@ -496,6 +538,9 @@ export type ExerciseHistoryQuery = z.infer<typeof exerciseHistoryQuerySchema>;
 export type ExerciseStatsQuery = z.infer<typeof exerciseStatsQuerySchema>;
 export type ExerciseSnapshotResponse = z.infer<
   typeof exerciseSnapshotResponseSchema
+>;
+export type EntryExerciseSnapshotResponse = z.infer<
+  typeof entryExerciseSnapshotResponseSchema
 >;
 export type ExerciseEntrySetRequest = z.infer<
   typeof exerciseEntrySetRequestSchema

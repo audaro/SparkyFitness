@@ -1,10 +1,16 @@
-import type { ExerciseEntryResponse, RecommendedExercise } from '@workspace/shared';
+import type {
+  ExerciseEntryResponse,
+  RecommendedExercise,
+} from '@workspace/shared';
 import type { WorkoutDraftExercise } from '../types/drafts';
 import { getDefaultRestSec } from '../stores/appPreferencesStore';
 
 // The default rest period lives with the preference that configures it;
 // re-exported here so workout code keeps importing it from the rest domain.
-export { DEFAULT_REST_SEC, getDefaultRestSec } from '../stores/appPreferencesStore';
+export {
+  DEFAULT_REST_SEC,
+  getDefaultRestSec,
+} from '../stores/appPreferencesStore';
 
 // --- Supersets ---
 
@@ -21,7 +27,7 @@ export interface SupersetRun {
  * still round-tripped by the payload builders.
  */
 export function getSupersetRuns(
-  exercises: { id: string; superset_group?: number | null }[],
+  exercises: { id: string; superset_group?: number | null }[]
 ): SupersetRun[] {
   const runs: SupersetRun[] = [];
   const flush = (run: SupersetRun | null) => {
@@ -45,9 +51,14 @@ export function getSupersetRuns(
 }
 
 /** Runs over form drafts, keyed by `clientId` instead of entry id. */
-export function getDraftSupersetRuns(exercises: WorkoutDraftExercise[]): SupersetRun[] {
+export function getDraftSupersetRuns(
+  exercises: WorkoutDraftExercise[]
+): SupersetRun[] {
   return getSupersetRuns(
-    exercises.map(e => ({ id: e.clientId, superset_group: e.supersetGroup ?? null })),
+    exercises.map((e) => ({
+      id: e.clientId,
+      superset_group: e.supersetGroup ?? null,
+    }))
   );
 }
 
@@ -70,26 +81,33 @@ interface SupersetFields<T> {
 const SESSION_SUPERSET_FIELDS: SupersetFields<ExerciseEntryResponse> = {
   idField: 'id',
   groupField: 'superset_group',
-  firstRestSec: e => e.sets[0]?.rest_time,
-  withRest: (e, restSec) => ({ ...e, sets: e.sets.map(s => ({ ...s, rest_time: restSec })) }),
+  firstRestSec: (e) => e.sets[0]?.rest_time,
+  withRest: (e, restSec) => ({
+    ...e,
+    sets: e.sets.map((s) => ({ ...s, rest_time: restSec })),
+  }),
 };
 
 const DRAFT_SUPERSET_FIELDS: SupersetFields<WorkoutDraftExercise> = {
   idField: 'clientId',
   groupField: 'supersetGroup',
-  firstRestSec: e => e.sets[0]?.restTime,
-  withRest: (e, restSec) => ({ ...e, sets: e.sets.map(s => ({ ...s, restTime: restSec })) }),
+  firstRestSec: (e) => e.sets[0]?.restTime,
+  withRest: (e, restSec) => ({
+    ...e,
+    sets: e.sets.map((s) => ({ ...s, restTime: restSec })),
+  }),
 };
 
 function runsByFields<T extends object>(
   exercises: T[],
-  fields: SupersetFields<T>,
+  fields: SupersetFields<T>
 ): SupersetRun[] {
   return getSupersetRuns(
-    exercises.map(e => ({
+    exercises.map((e) => ({
       id: e[fields.idField] as unknown as string,
-      superset_group: (e[fields.groupField] as unknown as number | null | undefined) ?? null,
-    })),
+      superset_group:
+        (e[fields.groupField] as unknown as number | null | undefined) ?? null,
+    }))
   );
 }
 
@@ -101,14 +119,18 @@ function runsByFields<T extends object>(
  */
 function normalizeSupersetGroupsByFields<T extends object>(
   exercises: T[],
-  fields: SupersetFields<T>,
+  fields: SupersetFields<T>
 ): T[] {
-  const grouped = new Set(runsByFields(exercises, fields).flatMap(run => run.entryIds));
+  const grouped = new Set(
+    runsByFields(exercises, fields).flatMap((run) => run.entryIds)
+  );
   const isStale = (e: T) =>
     (e[fields.groupField] as unknown as number | null | undefined) != null &&
     !grouped.has(e[fields.idField] as unknown as string);
   if (!exercises.some(isStale)) return exercises;
-  return exercises.map(e => (isStale(e) ? ({ ...e, [fields.groupField]: null } as T) : e));
+  return exercises.map((e) =>
+    isStale(e) ? ({ ...e, [fields.groupField]: null } as T) : e
+  );
 }
 
 /**
@@ -124,19 +146,21 @@ function supersetWithByFields<T extends object>(
   exercises: T[],
   currentId: string,
   pickedId: string,
-  fields: SupersetFields<T>,
+  fields: SupersetFields<T>
 ): T[] {
   const getId = (e: T) => e[fields.idField] as unknown as string;
-  const getGroup = (e: T) => (e[fields.groupField] as unknown as number | null | undefined) ?? null;
+  const getGroup = (e: T) =>
+    (e[fields.groupField] as unknown as number | null | undefined) ?? null;
 
   if (currentId === pickedId) return exercises;
-  const picked = exercises.find(e => getId(e) === pickedId);
-  if (!picked || !exercises.some(e => getId(e) === currentId)) return exercises;
+  const picked = exercises.find((e) => getId(e) === pickedId);
+  if (!picked || !exercises.some((e) => getId(e) === currentId))
+    return exercises;
 
   const runs = runsByFields(exercises, fields);
-  if (runs.some(r => r.entryIds.includes(pickedId))) return exercises;
+  if (runs.some((r) => r.entryIds.includes(pickedId))) return exercises;
 
-  const currentRun = runs.find(r => r.entryIds.includes(currentId));
+  const currentRun = runs.find((r) => r.entryIds.includes(currentId));
   let groupId: number;
   if (currentRun) {
     groupId = currentRun.groupId;
@@ -154,20 +178,27 @@ function supersetWithByFields<T extends object>(
     : [currentId, pickedId];
   const memberIdSet = new Set(memberIds);
 
-  const anchor = exercises.find(e => getId(e) === memberIds[0])!;
+  const anchor = exercises.find((e) => getId(e) === memberIds[0])!;
   const groupRest = fields.firstRestSec(anchor) ?? getDefaultRestSec();
 
   const lastMemberId = currentRun
     ? currentRun.entryIds[currentRun.entryIds.length - 1]
     : currentId;
-  const without = exercises.filter(e => getId(e) !== pickedId);
-  const insertAt = without.findIndex(e => getId(e) === lastMemberId) + 1;
-  const reordered = [...without.slice(0, insertAt), picked, ...without.slice(insertAt)];
+  const without = exercises.filter((e) => getId(e) !== pickedId);
+  const insertAt = without.findIndex((e) => getId(e) === lastMemberId) + 1;
+  const reordered = [
+    ...without.slice(0, insertAt),
+    picked,
+    ...without.slice(insertAt),
+  ];
 
-  return reordered.map(e =>
+  return reordered.map((e) =>
     memberIdSet.has(getId(e))
-      ? ({ ...fields.withRest(e, groupRest), [fields.groupField]: groupId } as T)
-      : e,
+      ? ({
+          ...fields.withRest(e, groupRest),
+          [fields.groupField]: groupId,
+        } as T)
+      : e
   );
 }
 
@@ -179,22 +210,24 @@ function supersetWithByFields<T extends object>(
 function ungroupExerciseByFields<T extends object>(
   exercises: T[],
   targetId: string,
-  fields: SupersetFields<T>,
+  fields: SupersetFields<T>
 ): T[] {
   const getId = (e: T) => e[fields.idField] as unknown as string;
-  const run = runsByFields(exercises, fields).find(r => r.entryIds.includes(targetId));
+  const run = runsByFields(exercises, fields).find((r) =>
+    r.entryIds.includes(targetId)
+  );
   if (!run) return exercises;
 
-  let next = exercises.map(e =>
-    getId(e) === targetId ? ({ ...e, [fields.groupField]: null } as T) : e,
+  let next = exercises.map((e) =>
+    getId(e) === targetId ? ({ ...e, [fields.groupField]: null } as T) : e
   );
 
   const position = run.entryIds.indexOf(targetId);
   if (position > 0 && position < run.entryIds.length - 1) {
-    const moved = next.find(e => getId(e) === targetId)!;
-    const without = next.filter(e => getId(e) !== targetId);
+    const moved = next.find((e) => getId(e) === targetId)!;
+    const without = next.filter((e) => getId(e) !== targetId);
     const lastMemberId = run.entryIds[run.entryIds.length - 1];
-    const insertAt = without.findIndex(e => getId(e) === lastMemberId) + 1;
+    const insertAt = without.findIndex((e) => getId(e) === lastMemberId) + 1;
     next = [...without.slice(0, insertAt), moved, ...without.slice(insertAt)];
   }
   return next;
@@ -207,21 +240,26 @@ function ungroupExerciseByFields<T extends object>(
 export function supersetSessionExercises(
   exercises: ExerciseEntryResponse[],
   currentEntryId: string,
-  pickedEntryId: string,
+  pickedEntryId: string
 ): ExerciseEntryResponse[] {
-  return supersetWithByFields(exercises, currentEntryId, pickedEntryId, SESSION_SUPERSET_FIELDS);
+  return supersetWithByFields(
+    exercises,
+    currentEntryId,
+    pickedEntryId,
+    SESSION_SUPERSET_FIELDS
+  );
 }
 
 export function ungroupSessionExercise(
   exercises: ExerciseEntryResponse[],
-  entryId: string,
+  entryId: string
 ): ExerciseEntryResponse[] {
   return ungroupExerciseByFields(exercises, entryId, SESSION_SUPERSET_FIELDS);
 }
 
 /** See {@link normalizeSupersetGroupsByFields}; session-entry shape. */
 export function normalizeSessionSupersetGroups(
-  exercises: ExerciseEntryResponse[],
+  exercises: ExerciseEntryResponse[]
 ): ExerciseEntryResponse[] {
   return normalizeSupersetGroupsByFields(exercises, SESSION_SUPERSET_FIELDS);
 }
@@ -238,25 +276,27 @@ export function normalizeSessionSupersetGroups(
  * `.strict()`, and the group belongs on the `exercise_entries` row that
  * starting the workout creates.
  */
-export type PlannedExercise = RecommendedExercise & { superset_group?: number | null };
+export type PlannedExercise = RecommendedExercise & {
+  superset_group?: number | null;
+};
 
 const PLANNED_SUPERSET_FIELDS: SupersetFields<PlannedExercise> = {
   idField: 'exercise_id',
   groupField: 'superset_group',
-  firstRestSec: e => e.sets[0]?.rest_time,
+  firstRestSec: (e) => e.sets[0]?.rest_time,
   // `rest_seconds` is the same number the sets carry (it is what the row's
   // "2:00 rest" chip reads), so harmonizing one without the other would leave
   // the card advertising a rest the started workout will not take.
   withRest: (e, restSec) => ({
     ...e,
     rest_seconds: restSec,
-    sets: e.sets.map(s => ({ ...s, rest_time: restSec })),
+    sets: e.sets.map((s) => ({ ...s, rest_time: restSec })),
   }),
 };
 
 /** See {@link normalizeSupersetGroupsByFields}; planned-workout shape. */
 export function normalizePlannedSupersetGroups(
-  exercises: PlannedExercise[],
+  exercises: PlannedExercise[]
 ): PlannedExercise[] {
   return normalizeSupersetGroupsByFields(exercises, PLANNED_SUPERSET_FIELDS);
 }
@@ -264,29 +304,35 @@ export function normalizePlannedSupersetGroups(
 export function supersetPlannedExercises(
   exercises: PlannedExercise[],
   currentExerciseId: string,
-  pickedExerciseId: string,
+  pickedExerciseId: string
 ): PlannedExercise[] {
   return normalizePlannedSupersetGroups(
     supersetWithByFields(
       exercises,
       currentExerciseId,
       pickedExerciseId,
-      PLANNED_SUPERSET_FIELDS,
-    ),
+      PLANNED_SUPERSET_FIELDS
+    )
   );
 }
 
 export function ungroupPlannedExercise(
   exercises: PlannedExercise[],
-  exerciseId: string,
+  exerciseId: string
 ): PlannedExercise[] {
-  const next = ungroupExerciseByFields(exercises, exerciseId, PLANNED_SUPERSET_FIELDS);
+  const next = ungroupExerciseByFields(
+    exercises,
+    exerciseId,
+    PLANNED_SUPERSET_FIELDS
+  );
   if (next === exercises) return exercises;
   return normalizePlannedSupersetGroups(next);
 }
 
 /** Runs over a planned workout, keyed by `exercise_id`. */
-export function getPlannedSupersetRuns(exercises: PlannedExercise[]): SupersetRun[] {
+export function getPlannedSupersetRuns(
+  exercises: PlannedExercise[]
+): SupersetRun[] {
   return runsByFields(exercises, PLANNED_SUPERSET_FIELDS);
 }
 
@@ -295,7 +341,7 @@ export function getPlannedSupersetRuns(exercises: PlannedExercise[]): SupersetRu
 
 /** See {@link normalizeSupersetGroupsByFields}; draft shape. */
 export function normalizeDraftSupersetGroups(
-  exercises: WorkoutDraftExercise[],
+  exercises: WorkoutDraftExercise[]
 ): WorkoutDraftExercise[] {
   return normalizeSupersetGroupsByFields(exercises, DRAFT_SUPERSET_FIELDS);
 }
@@ -303,18 +349,27 @@ export function normalizeDraftSupersetGroups(
 export function supersetDraftExercises(
   exercises: WorkoutDraftExercise[],
   currentClientId: string,
-  pickedClientId: string,
+  pickedClientId: string
 ): WorkoutDraftExercise[] {
   return normalizeDraftSupersetGroups(
-    supersetWithByFields(exercises, currentClientId, pickedClientId, DRAFT_SUPERSET_FIELDS),
+    supersetWithByFields(
+      exercises,
+      currentClientId,
+      pickedClientId,
+      DRAFT_SUPERSET_FIELDS
+    )
   );
 }
 
 export function ungroupDraftExercise(
   exercises: WorkoutDraftExercise[],
-  clientId: string,
+  clientId: string
 ): WorkoutDraftExercise[] {
-  const next = ungroupExerciseByFields(exercises, clientId, DRAFT_SUPERSET_FIELDS);
+  const next = ungroupExerciseByFields(
+    exercises,
+    clientId,
+    DRAFT_SUPERSET_FIELDS
+  );
   if (next === exercises) return exercises;
   return normalizeDraftSupersetGroups(next);
 }
@@ -340,10 +395,10 @@ export interface ExerciseReorderItem {
  * solo items. Shape matches both session entries and `WorkoutCardExercise`.
  */
 export function buildExerciseReorderItems(
-  exercises: { id: string; superset_group?: number | null }[],
+  exercises: { id: string; superset_group?: number | null }[]
 ): ExerciseReorderItem[] {
   const runByFirstId = new Map(
-    getSupersetRuns(exercises).map((run) => [run.entryIds[0], run]),
+    getSupersetRuns(exercises).map((run) => [run.entryIds[0], run])
   );
   const consumed = new Set<string>();
   const items: ExerciseReorderItem[] = [];
@@ -352,7 +407,11 @@ export function buildExerciseReorderItems(
     const run = runByFirstId.get(exercise.id);
     if (run) {
       for (const id of run.entryIds) consumed.add(id);
-      items.push({ key: run.entryIds[0], entryIds: [...run.entryIds], groupId: run.groupId });
+      items.push({
+        key: run.entryIds[0],
+        entryIds: [...run.entryIds],
+        groupId: run.groupId,
+      });
     } else {
       items.push({ key: exercise.id, entryIds: [exercise.id], groupId: null });
     }
@@ -365,10 +424,15 @@ export function buildExerciseReorderItems(
  * screens use to show their header reorder trigger. Two exercises fused into
  * one superset run collapse to a single item, so they don't count.
  */
-export function canReorderDraftExercises(exercises: WorkoutDraftExercise[]): boolean {
+export function canReorderDraftExercises(
+  exercises: WorkoutDraftExercise[]
+): boolean {
   return (
     buildExerciseReorderItems(
-      exercises.map((e) => ({ id: e.clientId, superset_group: e.supersetGroup ?? null })),
+      exercises.map((e) => ({
+        id: e.clientId,
+        superset_group: e.supersetGroup ?? null,
+      }))
     ).length >= 2
   );
 }
@@ -397,22 +461,31 @@ function moveExerciseItemByFields<T extends object>(
   from: number,
   to: number,
   idField: keyof T & string,
-  groupField: keyof T & string,
+  groupField: keyof T & string
 ): T[] {
   const items = buildExerciseReorderItems(
     exercises.map((e) => ({
       id: e[idField] as unknown as string,
-      superset_group: (e[groupField] as unknown as number | null | undefined) ?? null,
-    })),
+      superset_group:
+        (e[groupField] as unknown as number | null | undefined) ?? null,
+    }))
   );
-  if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) {
+  if (
+    from === to ||
+    from < 0 ||
+    to < 0 ||
+    from >= items.length ||
+    to >= items.length
+  ) {
     return exercises;
   }
 
   // Ids that belong to a real run keep their group; every other non-null group
   // value is a stale singleton and is cleared so it can't fuse after the move.
   const grouped = new Set(
-    items.filter((item) => item.groupId != null).flatMap((item) => item.entryIds),
+    items
+      .filter((item) => item.groupId != null)
+      .flatMap((item) => item.entryIds)
   );
   const clearedById = new Map<string, T>();
   for (const exercise of exercises) {
@@ -420,7 +493,9 @@ function moveExerciseItemByFields<T extends object>(
     const group = exercise[groupField] as unknown as number | null | undefined;
     clearedById.set(
       id,
-      group != null && !grouped.has(id) ? ({ ...exercise, [groupField]: null } as T) : exercise,
+      group != null && !grouped.has(id)
+        ? ({ ...exercise, [groupField]: null } as T)
+        : exercise
     );
   }
 
@@ -428,14 +503,16 @@ function moveExerciseItemByFields<T extends object>(
   const [moved] = nextItems.splice(from, 1);
   nextItems.splice(to, 0, moved);
 
-  return nextItems.flatMap((item) => item.entryIds.map((id) => clearedById.get(id)!));
+  return nextItems.flatMap((item) =>
+    item.entryIds.map((id) => clearedById.get(id)!)
+  );
 }
 
 /** Reorder live-session entries by draggable item (see {@link moveExerciseItemByFields}). */
 export function moveSessionExerciseItem(
   exercises: ExerciseEntryResponse[],
   from: number,
-  to: number,
+  to: number
 ): ExerciseEntryResponse[] {
   return moveExerciseItemByFields(exercises, from, to, 'id', 'superset_group');
 }
@@ -444,9 +521,15 @@ export function moveSessionExerciseItem(
 export function moveDraftExerciseItem(
   exercises: WorkoutDraftExercise[],
   from: number,
-  to: number,
+  to: number
 ): WorkoutDraftExercise[] {
-  return moveExerciseItemByFields(exercises, from, to, 'clientId', 'supersetGroup');
+  return moveExerciseItemByFields(
+    exercises,
+    from,
+    to,
+    'clientId',
+    'supersetGroup'
+  );
 }
 
 /**
@@ -472,7 +555,7 @@ export const SUPERSET_PALETTE_VARS = [
  */
 export function buildSupersetColorMap(
   runs: SupersetRun[],
-  palette: string[],
+  palette: string[]
 ): Map<string, string> {
   const byEntryId = new Map<string, string>();
   if (palette.length > 0) {

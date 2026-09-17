@@ -1,13 +1,13 @@
 import { waterContainerKeys } from '@/api/keys/settings';
 import {
   getWaterContainers,
-  getPrimaryWaterContainer,
+  getDrinkPresetCatalog,
+  materializeDrinkPreset,
   createWaterContainer,
   updateWaterContainer,
   deleteWaterContainer,
   setPrimaryWaterContainer,
 } from '@/api/Settings/waterContainerService';
-import { WaterContainer } from '@/types/settings';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 
 export const useWaterContainersQuery = (userId?: string) => {
@@ -21,10 +21,30 @@ export const useWaterContainersQuery = (userId?: string) => {
   });
 };
 
-export const primaryWaterContainerOptions = () => ({
-  queryKey: waterContainerKeys.primary(),
-  queryFn: getPrimaryWaterContainer,
-});
+export const useDrinkPresetCatalogQuery = () => {
+  return useQuery({
+    queryKey: ['water-containers', 'catalog'],
+    queryFn: getDrinkPresetCatalog,
+    meta: {
+      errorMessage: 'Failed to fetch drink preset catalog.',
+    },
+  });
+};
+
+export const useMaterializeDrinkPresetMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (catalogId: string) => materializeDrinkPreset(catalogId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: waterContainerKeys.all });
+    },
+    meta: {
+      successMessage: 'Drink preset added.',
+      errorMessage: 'Failed to add drink preset.',
+    },
+  });
+};
 
 export const useCreateWaterContainerMutation = () => {
   const queryClient = useQueryClient();
@@ -47,11 +67,11 @@ export const useUpdateWaterContainerMutation = () => {
   return useMutation({
     mutationFn: ({
       id,
-      data,
+      containerData,
     }: {
       id: number;
-      data: Partial<Omit<WaterContainer, 'id' | 'user_id'>>;
-    }) => updateWaterContainer(id, data),
+      containerData: Parameters<typeof updateWaterContainer>[1];
+    }) => updateWaterContainer(id, containerData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: waterContainerKeys.all });
     },

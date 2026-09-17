@@ -30,6 +30,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CENTRAL_NUTRIENT_CONFIG } from '@/constants/nutrients';
+import { NON_GOAL_NUTRIENT_KEYS } from '@workspace/shared';
 
 const baseNutrients = [
   'calories',
@@ -50,15 +51,38 @@ const baseNutrients = [
   'iron',
   'calcium',
   'glycemic_index',
+  'caffeine_mg',
+  'water_ml',
+  'alcohol_g',
 ];
 
 const viewGroups = [
-  { id: 'summary', name: 'Summary' },
-  { id: 'quick_info', name: 'Quick Info' },
-  { id: 'food_database', name: 'Food Database' },
-  { id: 'goal', name: 'Goal' },
-  { id: 'report_tabular', name: 'Report (Tabular)' },
-  { id: 'report_chart', name: 'Report (Chart)' },
+  {
+    id: 'summary',
+    key: 'settings.nutrientDisplay.groups.summary',
+    name: 'Summary',
+  },
+  {
+    id: 'quick_info',
+    key: 'settings.nutrientDisplay.groups.quickInfo',
+    name: 'Quick Info',
+  },
+  {
+    id: 'food_database',
+    key: 'settings.nutrientDisplay.groups.foodDatabase',
+    name: 'Food Database',
+  },
+  { id: 'goal', key: 'settings.nutrientDisplay.groups.goal', name: 'Goal' },
+  {
+    id: 'report_tabular',
+    key: 'settings.nutrientDisplay.groups.reportTabular',
+    name: 'Report (Tabular)',
+  },
+  {
+    id: 'report_chart',
+    key: 'settings.nutrientDisplay.groups.reportChart',
+    name: 'Report (Chart)',
+  },
 ];
 
 interface NutrientPreference {
@@ -74,6 +98,18 @@ function buildOrderedList(
   const visibleSet = new Set(visibleNutrients);
   const rest = allNutrients.filter((n) => !visibleSet.has(n));
   return [...visibleNutrients, ...rest];
+}
+
+// water_ml is never offerable as a goal: user_goals has no water_ml column (the
+// one water goal is water_goal_ml), so a checked box here would render a goal
+// input whose value is silently dropped on save. Same guard as DailyGoals.tsx,
+// EditGoalsForToday.tsx and NutrientGoalDirectionSettings.tsx.
+function nutrientsForGroup(viewGroup: string, allNutrients: string[]) {
+  return viewGroup === 'goal'
+    ? allNutrients.filter(
+        (n) => !(NON_GOAL_NUTRIENT_KEYS as readonly string[]).includes(n)
+      )
+    : allNutrients;
 }
 
 interface SortableNutrientRowProps {
@@ -115,7 +151,10 @@ function SortableNutrientRow({
         className="cursor-grab text-muted-foreground opacity-40 group-hover:opacity-100 transition-opacity touch-none"
         {...attributes}
         {...listeners}
-        aria-label={`Drag to reorder ${nutrient}`}
+        aria-label={t('settings.nutrientDisplay.dragToReorder', {
+          defaultValue: 'Drag to reorder {{nutrient}}',
+          nutrient: getNutrientLabel(nutrient),
+        })}
       >
         <GripVertical className="h-4 w-4" />
       </button>
@@ -151,7 +190,7 @@ function buildInitialOrder(
       );
       groupOrders[platform] = buildOrderedList(
         pref?.visible_nutrients ?? [],
-        allNutrients
+        nutrientsForGroup(group.id, allNutrients)
       );
     }
 
@@ -184,6 +223,7 @@ const NutrientDisplaySettingsInner: React.FC<
   resetPreference,
   loadNutrientDisplayPreferences,
 }) => {
+  const { t } = useTranslation();
   const allNutrients = useMemo(
     () => [...baseNutrients, ...customNutrients.map((n) => n.name)],
     [customNutrients]
@@ -296,7 +336,10 @@ const NutrientDisplaySettingsInner: React.FC<
     platformsToUpdate.forEach((pform) => {
       const order =
         nutrientOrder[viewGroup]?.[pform] ??
-        buildOrderedList(getVisibleNutrients(viewGroup, pform), allNutrients);
+        buildOrderedList(
+          getVisibleNutrients(viewGroup, pform),
+          nutrientsForGroup(viewGroup, allNutrients)
+        );
       const currentVisible = getVisibleNutrients(viewGroup, pform);
       const newVisible = checked
         ? order.filter((n) => n === nutrient || currentVisible.includes(n))
@@ -321,7 +364,10 @@ const NutrientDisplaySettingsInner: React.FC<
     platformsToUpdate.forEach((pform) => {
       const currentOrder =
         nutrientOrder[viewGroup]?.[pform] ??
-        buildOrderedList(getVisibleNutrients(viewGroup, pform), allNutrients);
+        buildOrderedList(
+          getVisibleNutrients(viewGroup, pform),
+          nutrientsForGroup(viewGroup, allNutrients)
+        );
       const oldIndex = currentOrder.indexOf(active.id as string);
       const newIndex = currentOrder.indexOf(over.id as string);
       if (oldIndex === -1 || newIndex === -1) return;
@@ -350,7 +396,10 @@ const NutrientDisplaySettingsInner: React.FC<
     platformsToUpdate.forEach((pform) => {
       const order =
         nutrientOrder[viewGroup]?.[pform] ??
-        buildOrderedList(getVisibleNutrients(viewGroup, pform), allNutrients);
+        buildOrderedList(
+          getVisibleNutrients(viewGroup, pform),
+          nutrientsForGroup(viewGroup, allNutrients)
+        );
       updatePreferences(viewGroup, pform, order);
     });
   };
@@ -395,7 +444,7 @@ const NutrientDisplaySettingsInner: React.FC<
               ...(prev[viewGroup] ?? {}),
               [pform]: buildOrderedList(
                 defaultPreference.visible_nutrients ?? [],
-                allNutrients
+                nutrientsForGroup(viewGroup, allNutrients)
               ),
             },
           }));
@@ -458,8 +507,12 @@ const NutrientDisplaySettingsInner: React.FC<
         }
       >
         <TabsList className="h-10">
-          <TabsTrigger value="desktop">Desktop</TabsTrigger>
-          <TabsTrigger value="mobile">Mobile</TabsTrigger>
+          <TabsTrigger value="desktop">
+            {t('settings.nutrientDisplay.platformDesktop', 'Desktop')}
+          </TabsTrigger>
+          <TabsTrigger value="mobile">
+            {t('settings.nutrientDisplay.platformMobile', 'Mobile')}
+          </TabsTrigger>
         </TabsList>
 
         {(['desktop', 'mobile'] as const).map((platform) => (
@@ -471,7 +524,7 @@ const NutrientDisplaySettingsInner: React.FC<
               <TabsList className="h-10">
                 {viewGroups.map((group) => (
                   <TabsTrigger key={group.id} value={group.id}>
-                    {group.name}
+                    {t(group.key, group.name)}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -484,23 +537,41 @@ const NutrientDisplaySettingsInner: React.FC<
                   nutrientOrder[group.id]?.[platform] ??
                   buildOrderedList(
                     getVisibleNutrients(group.id, platform),
-                    allNutrients
+                    nutrientsForGroup(group.id, allNutrients)
                   );
 
                 return (
                   <TabsContent key={group.id} value={group.id}>
                     <p className="text-sm text-muted-foreground mb-1">
                       {group.id === 'summary'
-                        ? 'Controls the Nutrition Summary and 14-Day Trends on the Diary page.'
+                        ? t(
+                            'settings.nutrientDisplay.descriptions.summary',
+                            'Controls the Nutrition Summary and 14-Day Trends on the Diary page.'
+                          )
                         : group.id === 'quick_info'
-                          ? 'Controls nutrients shown for individual food entries, meal totals, food search results, and the food database.'
+                          ? t(
+                              'settings.nutrientDisplay.descriptions.quickInfo',
+                              'Controls nutrients shown for individual food entries, meal totals, food search results, and the food database.'
+                            )
                           : group.id === 'food_database'
-                            ? 'Controls nutrients shown when editing foods in your database.'
+                            ? t(
+                                'settings.nutrientDisplay.descriptions.foodDatabase',
+                                'Controls nutrients shown when editing foods in your database.'
+                              )
                             : group.id === 'goal'
-                              ? 'Controls nutrients shown when setting or editing your goals.'
+                              ? t(
+                                  'settings.nutrientDisplay.descriptions.goal',
+                                  'Controls nutrients shown when setting or editing your goals.'
+                                )
                               : group.id === 'report_tabular'
-                                ? 'Controls nutrient columns in the Reports table view.'
-                                : 'Controls which nutrients are available for charts in the Reports section.'}
+                                ? t(
+                                    'settings.nutrientDisplay.descriptions.reportTabular',
+                                    'Controls nutrient columns in the Reports table view.'
+                                  )
+                                : t(
+                                    'settings.nutrientDisplay.descriptions.reportChart',
+                                    'Controls which nutrients are available for charts in the Reports section.'
+                                  )}
                     </p>
 
                     <DndContext
@@ -545,27 +616,41 @@ const NutrientDisplaySettingsInner: React.FC<
                           className="cursor-pointer"
                           htmlFor={`sync-${group.id}-${platform}`}
                         >
-                          Sync with{' '}
-                          {platform === 'desktop' ? 'Mobile' : 'Desktop'}
+                          {t('settings.nutrientDisplay.syncWith', {
+                            defaultValue: 'Sync with {{platform}}',
+                            platform:
+                              platform === 'desktop'
+                                ? t(
+                                    'settings.nutrientDisplay.platformMobile',
+                                    'Mobile'
+                                  )
+                                : t(
+                                    'settings.nutrientDisplay.platformDesktop',
+                                    'Desktop'
+                                  ),
+                          })}
                         </Label>
                       </div>
                       <Button
                         variant="outline"
                         onClick={() => handleSelectAll(group.id, platform)}
                       >
-                        Select All
+                        {t('settings.nutrientDisplay.selectAll', 'Select All')}
                       </Button>
                       <Button
                         variant="outline"
                         onClick={() => handleClearAll(group.id, platform)}
                       >
-                        Clear All
+                        {t('settings.nutrientDisplay.clearAll', 'Clear All')}
                       </Button>
                       <Button
                         variant="outline"
                         onClick={() => handleReset(group.id, platform)}
                       >
-                        Reset to Default
+                        {t(
+                          'settings.nutrientDisplay.resetDefault',
+                          'Reset to Default'
+                        )}
                       </Button>
                     </div>
                   </TabsContent>

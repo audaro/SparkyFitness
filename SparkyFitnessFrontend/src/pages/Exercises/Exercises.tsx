@@ -67,8 +67,10 @@ import {
 import { useBulkSelection } from '@/hooks/useBulkSelection';
 import BulkActionToolbar from '@/components/BulkActionToolbar';
 import BulkDeleteDialog from '@/components/BulkDeleteDialog';
+import DeleteExerciseDialog from './DeleteExerciseDialog';
 import { DataTable } from '@/components/ui/DataTable';
 import { ColumnDef, RowSelectionState } from '@tanstack/react-table';
+import { type DataTableFeatures } from '@/components/ui/dataTableFeatures';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getEnergyUnitString } from '@/utils/nutritionCalculations';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -131,6 +133,7 @@ const ExerciseDatabaseManager = () => {
     showDeleteConfirmation,
     setShowDeleteConfirmation,
     deletionImpact,
+    exerciseToDelete,
     handleDeleteRequest,
     confirmDelete,
     deleteExercise,
@@ -197,8 +200,11 @@ const ExerciseDatabaseManager = () => {
   const handleBulkDeleteConfirm = async () => {
     try {
       await Promise.all(
+        // 'delete', never 'delete_with_history': a bulk tidy-up of the library
+        // must not quietly destroy logged workouts. This used to force-delete
+        // every selected exercise with no warning at all.
         Array.from(selectedIds).map((id) =>
-          deleteExercise({ id, forceDelete: true })
+          deleteExercise({ id, mode: 'delete' })
         )
       );
     } catch (err) {
@@ -217,7 +223,7 @@ const ExerciseDatabaseManager = () => {
   const totalExercisesCount = data ? data.totalCount : 0;
   const totalPages = Math.ceil(totalExercisesCount / itemsPerPage);
 
-  const columns = useMemo<ColumnDef<ExerciseInterface>[]>(
+  const columns = useMemo<ColumnDef<DataTableFeatures, ExerciseInterface>[]>(
     () => [
       {
         id: 'select',
@@ -677,6 +683,10 @@ const ExerciseDatabaseManager = () => {
         onOpenChange={setShowBulkDeleteDialog}
         selectedCount={selectedCount}
         entityName={t('exercise.databaseManager.exercises', 'exercises')}
+        description={t('exercise.databaseManager.bulkDeleteDescription', {
+          count: selectedCount,
+          defaultValue: `Remove these ${selectedCount} exercises from your library and from any workout presets and plans. Workouts you have already logged are kept in your diary.`,
+        })}
         onConfirm={handleBulkDeleteConfirm}
       />
 
@@ -698,16 +708,11 @@ const ExerciseDatabaseManager = () => {
       />
 
       {showDeleteConfirmation && (
-        <ConfirmationDialog
-          open={showDeleteConfirmation}
-          onOpenChange={setShowDeleteConfirmation}
+        <DeleteExerciseDialog
+          exercise={exerciseToDelete}
+          impact={deletionImpact}
           onConfirm={confirmDelete}
-          title={t('exercise.databaseManager.deleteConfirmationTitle')}
-          description={
-            deletionImpact?.isUsedByOthers
-              ? t('exercise.databaseManager.deleteImpactDescription')
-              : t('exercise.databaseManager.deleteConfirmationDescription')
-          }
+          onCancel={() => setShowDeleteConfirmation(false)}
         />
       )}
 

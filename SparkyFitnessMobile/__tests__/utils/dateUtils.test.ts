@@ -4,6 +4,7 @@ import {
   addDays,
   normalizeDate,
   formatDateLabel,
+  formatDate,
   formatRelativeTime,
 } from '../../src/utils/dateUtils';
 import i18n, { initializeI18n } from '../../src/localization/i18n';
@@ -105,11 +106,31 @@ describe('with a pinned clock', () => {
 
   describe('formatDateLabel', () => {
     test('selects Today / Yesterday / fallback by day string', () => {
-      expect(formatDateLabel('2024-06-15', englishTranslator, 'en-US')).toBe('Today');
-      expect(formatDateLabel('2024-06-14', englishTranslator, 'en-US')).toBe('Yesterday');
+      expect(formatDateLabel('2024-06-15', englishTranslator, 'en-US')).toBe(
+        'Today'
+      );
+      expect(formatDateLabel('2024-06-14', englishTranslator, 'en-US')).toBe(
+        'Yesterday'
+      );
       const other = formatDateLabel('2024-06-13', englishTranslator, 'en-US');
       expect(other).not.toBe('Today');
       expect(other).not.toBe('Yesterday');
+    });
+
+    test('accepts localized relative labels and date formatting', async () => {
+      await initializeI18n('pl');
+      await i18n.changeLanguage('pl');
+      const polishTranslator = i18n.getFixedT('pl');
+      expect(formatDateLabel('2024-06-15', polishTranslator, 'pl')).toBe(
+        'Dzisiaj'
+      );
+      expect(formatDateLabel('2024-06-14', polishTranslator, 'pl')).toBe(
+        'Wczoraj'
+      );
+      expect(formatDate('2024-06-13', 'pl')).not.toBe(
+        formatDate('2024-06-13', 'en-US')
+      );
+      await i18n.changeLanguage('en');
     });
   });
 
@@ -117,28 +138,60 @@ describe('with a pinned clock', () => {
     const minutesAgo = (m: number) => new Date(Date.now() - m * 60 * 1000);
 
     test('null means never synced', () => {
-      expect(formatRelativeTime(null, englishTranslator, 'en-US')).toBe('Never synced');
+      expect(formatRelativeTime(null, englishTranslator, 'en-US')).toBe(
+        'Never synced'
+      );
     });
 
     test('uses the active Polish app locale for relative time', async () => {
       await initializeI18n('pl');
       await i18n.changeLanguage('pl');
       const polishTranslator = i18n.getFixedT('pl');
-      expect(formatRelativeTime(minutesAgo(1), polishTranslator, 'pl-PL')).toMatch(/1 minutę temu/);
-      expect(formatRelativeTime(minutesAgo(5), polishTranslator, 'pl-PL')).toMatch(/5 minut temu/);
+      expect(
+        formatRelativeTime(minutesAgo(1), polishTranslator, 'pl-PL')
+      ).toMatch(/1 minutę temu/);
+      expect(
+        formatRelativeTime(minutesAgo(5), polishTranslator, 'pl-PL')
+      ).toMatch(/5 minut temu/);
     });
 
     test('branches on elapsed time', async () => {
       await i18n.changeLanguage('en');
-      expect(formatRelativeTime(minutesAgo(0.5), englishTranslator, 'en-US')).toBe('Just now');
-      expect(formatRelativeTime(minutesAgo(1), englishTranslator, 'en-US')).toMatch(/1 minute ago/);
-      expect(formatRelativeTime(minutesAgo(5), englishTranslator, 'en-US')).toMatch(/5 minutes ago/);
-      expect(formatRelativeTime(minutesAgo(90), englishTranslator, 'en-US')).toMatch(/1 hour ago/);
-      expect(formatRelativeTime(minutesAgo(3 * 60), englishTranslator, 'en-US')).toMatch(/3 hours ago/);
-      expect(formatRelativeTime(minutesAgo(30 * 60), englishTranslator, 'en-US')).toMatch(/^Yesterday at /);
-      const older = formatRelativeTime(minutesAgo(5 * 24 * 60), englishTranslator, 'en-US');
+      expect(
+        formatRelativeTime(minutesAgo(0.5), englishTranslator, 'en-US')
+      ).toBe('Just now');
+      expect(
+        formatRelativeTime(minutesAgo(1), englishTranslator, 'en-US')
+      ).toMatch(/1 minute ago/);
+      expect(
+        formatRelativeTime(minutesAgo(5), englishTranslator, 'en-US')
+      ).toMatch(/5 minutes ago/);
+      expect(
+        formatRelativeTime(minutesAgo(90), englishTranslator, 'en-US')
+      ).toMatch(/1 hour ago/);
+      expect(
+        formatRelativeTime(minutesAgo(3 * 60), englishTranslator, 'en-US')
+      ).toMatch(/3 hours ago/);
+      expect(
+        formatRelativeTime(minutesAgo(30 * 60), englishTranslator, 'en-US')
+      ).toMatch(/^Yesterday at /);
+      const older = formatRelativeTime(
+        minutesAgo(5 * 24 * 60),
+        englishTranslator,
+        'en-US'
+      );
       expect(older).not.toMatch(/^Yesterday/);
       expect(older).toContain(' at ');
+    });
+
+    test('formats time according to timeFormat parameter (12h vs 24h)', () => {
+      const yesterdayDate = minutesAgo(30 * 60); // 30 hours ago -> Yesterday at 16:30 / 4:30 PM
+      expect(
+        formatRelativeTime(yesterdayDate, englishTranslator, 'en-US', 'HH:mm')
+      ).toMatch(/Yesterday at \d{2}:\d{2}$/);
+      expect(
+        formatRelativeTime(yesterdayDate, englishTranslator, 'en-US', 'h:mm A')
+      ).toMatch(/Yesterday at \d{1,2}:\d{2} (AM|PM)$/);
     });
   });
 });

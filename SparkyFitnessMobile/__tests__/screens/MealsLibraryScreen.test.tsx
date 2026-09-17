@@ -14,7 +14,13 @@ jest.mock('../../src/hooks', () => ({
   useMealSearch: jest.fn(),
   useServerConnection: jest.fn(),
   useProfile: jest.fn(() => ({ profile: undefined, isLoading: false })),
-  useFavorites: jest.fn(() => ({ favoriteFoods: [], favoriteMeals: [], isLoading: false, isError: false, refetch: jest.fn() })),
+  useFavorites: jest.fn(() => ({
+    favoriteFoods: [],
+    favoriteMeals: [],
+    isLoading: false,
+    isError: false,
+    refetch: jest.fn(),
+  })),
 }));
 
 jest.mock('../../src/components/ActiveWorkoutBar', () => ({
@@ -22,8 +28,12 @@ jest.mock('../../src/components/ActiveWorkoutBar', () => ({
 }));
 
 const mockUseMeals = useMeals as jest.MockedFunction<typeof useMeals>;
-const mockUseMealSearch = useMealSearch as jest.MockedFunction<typeof useMealSearch>;
-const mockUseServerConnection = useServerConnection as jest.MockedFunction<typeof useServerConnection>;
+const mockUseMealSearch = useMealSearch as jest.MockedFunction<
+  typeof useMealSearch
+>;
+const mockUseServerConnection = useServerConnection as jest.MockedFunction<
+  typeof useServerConnection
+>;
 
 const mockNavigation = {
   navigate: jest.fn(),
@@ -44,6 +54,7 @@ function createMeal(id: string, name: string, calories: number) {
     user_id: 'user-1',
     name,
     description: null,
+    notes: null,
     is_public: false,
     serving_size: 1,
     serving_unit: 'serving',
@@ -83,7 +94,7 @@ describe('MealsLibraryScreen', () => {
     render(
       <SafeAreaProvider initialMetrics={{ insets, frame }}>
         <MealsLibraryScreen navigation={navigation} route={route} />
-      </SafeAreaProvider>,
+      </SafeAreaProvider>
     );
 
   beforeEach(() => {
@@ -139,7 +150,7 @@ describe('MealsLibraryScreen', () => {
       expect.objectContaining({
         mealId: 'meal-1',
         initialMeal: expect.objectContaining({ name: 'Overnight Oats' }),
-      }),
+      })
     );
   });
 
@@ -180,7 +191,9 @@ describe('MealsLibraryScreen', () => {
 
     pressHeaderMenuAction(navigation, 'Public');
 
-    expect(useAppPreferencesStore.getState().mealsLibraryOwnershipFilter).toBe('public');
+    expect(useAppPreferencesStore.getState().mealsLibraryOwnershipFilter).toBe(
+      'public'
+    );
     expect(screen.getByText('Community Chili')).toBeTruthy();
     expect(screen.queryByText('Overnight Oats')).toBeNull();
   });
@@ -197,6 +210,8 @@ describe('MealsLibraryScreen', () => {
 
     expect(screen.getByText('No server configured')).toBeTruthy();
     fireEvent.press(screen.getByText('Go to Settings'));
-    expect(navigation.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Settings' });
+    expect(navigation.navigate).toHaveBeenCalledWith('Tabs', {
+      screen: 'Settings',
+    });
   });
 });

@@ -197,7 +197,7 @@ const SyncRangeDialog = ({
                     disabled={(date) =>
                       date > new Date() || (endDate ? date > endDate : false)
                     }
-                    initialFocus
+                    autoFocus
                   />
                 </PopoverContent>
               </Popover>
@@ -234,7 +234,7 @@ const SyncRangeDialog = ({
                       date > new Date() ||
                       (startDate ? date < startDate : false)
                     }
-                    initialFocus
+                    autoFocus
                   />
                 </PopoverContent>
               </Popover>

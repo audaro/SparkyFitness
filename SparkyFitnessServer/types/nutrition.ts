@@ -38,6 +38,9 @@ export interface NutrientFields {
   vitamin_c?: NutrientValue;
   calcium?: NutrientValue;
   iron?: NutrientValue;
+  caffeine_mg?: NutrientValue;
+  water_ml?: NutrientValue;
+  alcohol_g?: NutrientValue;
   glycemic_index?: string | null;
   custom_nutrients?: CustomNutrients | null;
 }
@@ -71,6 +74,7 @@ export interface FoodVariantInput extends NutrientFields {
   updated_at?: string | Date | null;
   serving_size?: NutrientValue;
   serving_unit?: string | null;
+  abv_percent?: NutrientValue;
   is_default?: boolean | null;
   source?: string | null;
   ai_confidence?: string | null;
@@ -100,6 +104,10 @@ export interface FoodEntryInput extends FoodEntrySnapshot {
   source?: string | null;
   source_id?: string | null;
   images?: string[] | null;
+  // Per-occurrence markdown note. Unlike the nutrition snapshot this is never
+  // derived from the parent food or meal, so it is not part of
+  // FoodEntrySnapshot and is never rewritten by a snapshot resync.
+  notes?: string | null;
   created_by_user_id?: string | null;
   updated_by_user_id?: string | null;
   // Set when the entry was generated from a meal plan.
@@ -135,6 +143,8 @@ export interface MealInput {
   serving_unit?: string | null;
   total_servings?: unknown;
   images?: string[] | null;
+  /** Owner-authored markdown reference note (e.g. a recipe). */
+  notes?: string | null;
   foods?: MealFoodInput[];
 }
 

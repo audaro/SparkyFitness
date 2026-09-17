@@ -7,11 +7,14 @@ jest.mock('uniwind', () => ({
     Array.isArray(keys) ? keys.map(() => '#111827') : '#111827',
 }));
 
-function buildParams(overrides: Partial<ToastConfigParams<unknown>> = {}): ToastConfigParams<unknown> {
+function buildParams(
+  overrides: Partial<ToastConfigParams<unknown>> = {}
+): ToastConfigParams<unknown> {
   return {
     position: 'top',
     type: 'success',
     isVisible: true,
+    visibilityTime: 4000,
     text1: 'Lisinopril logged',
     text2: undefined,
     show: jest.fn(),
@@ -33,7 +36,11 @@ describe('toastConfig', () => {
   it('becomes tappable when an action is passed through props', () => {
     const onPress = jest.fn();
     const screen = render(
-      <>{toastConfig.success!(buildParams({ text2: 'Tap to undo', props: { onPress } }))}</>,
+      <>
+        {toastConfig.success!(
+          buildParams({ text2: 'Tap to undo', props: { onPress } })
+        )}
+      </>
     );
 
     expect(screen.getByText('Tap to undo')).toBeTruthy();

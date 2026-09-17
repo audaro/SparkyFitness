@@ -43,6 +43,7 @@ import BulkDeleteDialog from '@/components/BulkDeleteDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable } from '@/components/ui/DataTable';
 import { ColumnDef, RowSelectionState } from '@tanstack/react-table';
+import { type DataTableFeatures } from '@/components/ui/dataTableFeatures';
 import { Badge } from '@/components/ui/badge';
 
 const MealPlanCalendar: React.FC = () => {
@@ -222,7 +223,7 @@ const MealPlanCalendar: React.FC = () => {
     }
   };
 
-  const columns = useMemo<ColumnDef<MealPlanTemplate>[]>(
+  const columns = useMemo<ColumnDef<DataTableFeatures, MealPlanTemplate>[]>(
     () => [
       {
         id: 'select',
@@ -232,14 +233,14 @@ const MealPlanCalendar: React.FC = () => {
             onCheckedChange={(value) =>
               table.toggleAllPageRowsSelected(!!value)
             }
-            aria-label="Select all"
+            aria-label={t('common.selectAll', 'Select all')}
           />
         ),
         cell: ({ row }) => (
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
+            aria-label={t('common.selectRow', 'Select row')}
           />
         ),
         enableSorting: false,
@@ -324,7 +325,9 @@ const MealPlanCalendar: React.FC = () => {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="h-8 w-8 p-0">
-                  <span className="sr-only">Open menu</span>
+                  <span className="sr-only">
+                    {t('mealPlanCalendar.openMenu', 'Open menu')}
+                  </span>
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

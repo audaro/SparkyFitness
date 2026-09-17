@@ -17,6 +17,12 @@ interface BulkDeleteDialogProps {
   onConfirm: () => void;
   selectedCount: number;
   entityName?: string;
+  /**
+   * Overrides the generic "cannot be undone" line. Use it where the outcome is
+   * narrower than it sounds -- deleting library items, for instance, keeps the
+   * diary history logged from them.
+   */
+  description?: string;
 }
 
 const BulkDeleteDialog: React.FC<BulkDeleteDialogProps> = ({
@@ -25,6 +31,7 @@ const BulkDeleteDialog: React.FC<BulkDeleteDialogProps> = ({
   onConfirm,
   selectedCount,
   entityName,
+  description,
 }) => {
   const { t } = useTranslation();
 
@@ -35,15 +42,19 @@ const BulkDeleteDialog: React.FC<BulkDeleteDialogProps> = ({
           <AlertDialogTitle>
             {t('common.bulkDeleteTitle', {
               count: selectedCount,
+              selectedCount,
               entity: entityName || t('common.items', 'items'),
+              entityName: entityName || t('common.items', 'items'),
               defaultValue: `Delete ${selectedCount} ${entityName || 'items'}?`,
             })}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {t('common.bulkDeleteDescription', {
-              count: selectedCount,
-              defaultValue: `Are you sure you want to delete these ${selectedCount} items? This action cannot be undone.`,
-            })}
+            {description ??
+              t('common.bulkDeleteDescription', {
+                count: selectedCount,
+                selectedCount,
+                defaultValue: `Are you sure you want to delete these ${selectedCount} items? This action cannot be undone.`,
+              })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

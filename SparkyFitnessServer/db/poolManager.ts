@@ -30,7 +30,6 @@ function createOwnerPoolInstance() {
   });
   newPool.on('error', (err) => {
     log('error', 'Unexpected error on idle owner client', err);
-    process.exit(-1);
   });
   return newPool;
 }
@@ -48,7 +47,6 @@ function createAppPoolInstance() {
   });
   newPool.on('error', (err) => {
     log('error', 'Unexpected error on idle app client', err);
-    process.exit(-1);
   });
   return newPool;
 }
@@ -64,10 +62,15 @@ function _getRawAppPool(): pg.Pool {
   }
   return appPoolInstance;
 }
-// The id is validated here rather than typed as non-null: several callers read
-// it off a request where it is genuinely optional, and this throw is the single
-// place that turns a missing id into a clear error instead of a query that
-// silently runs without an RLS context.
+/**
+ * Borrows a client with RLS context set for the target user and authenticated actor.
+ * The caller must release it in a finally block; failed context setup discards it.
+ *
+ * The id is validated here rather than typed as non-null: several callers read
+ * it off a request where it is genuinely optional, and this throw is the single
+ * place that turns a missing id into a clear error instead of a query that
+ * silently runs without an RLS context.
+ */
 async function getClient(
   userId: string | null | undefined,
   authenticatedUserId: string | null = null
@@ -81,11 +84,16 @@ async function getClient(
   const store = dbContextStorage.getStore();
   const actualAuthUserId =
     authenticatedUserId || store?.authenticatedUserId || userId;
-  await client.query('SELECT public.set_app_context($1, $2)', [
-    userId,
-    actualAuthUserId,
-  ]);
-  return client;
+  try {
+    await client.query('SELECT public.set_app_context($1, $2)', [
+      userId,
+      actualAuthUserId,
+    ]);
+    return client;
+  } catch (error) {
+    client.release(true);
+    throw error;
+  }
 }
 async function getSystemClient() {
   const client = await _getRawOwnerPool().connect();

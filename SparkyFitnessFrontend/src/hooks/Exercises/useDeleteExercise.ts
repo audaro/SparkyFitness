@@ -12,8 +12,10 @@ import {
   exerciseDeletionImpactOptions,
   useDeleteExerciseMutation,
 } from '@/hooks/Exercises/useExercises';
+import type { ExerciseDeleteMode } from '@/types/exercises';
 import { useAuth } from '@/hooks/useAuth';
 import { usePreferences } from '@/contexts/PreferencesContext';
+import { formatDateToYYYYMMDD } from '@/lib/utils';
 
 export function useDeleteExercise() {
   const { t } = useTranslation();
@@ -42,22 +44,24 @@ export function useDeleteExercise() {
     }
   };
 
-  const confirmDelete = async () => {
+  /**
+   * `mode` comes from the button the user pressed, never from the reference
+   * counts. Inferring it here is what used to force-delete precisely when the
+   * exercise had diary entries -- the one case the user most wants kept.
+   */
+  const confirmDelete = async (mode: ExerciseDeleteMode = 'delete') => {
     if (!exerciseToDelete || !user) return;
     try {
-      const shouldForce =
-        deletionImpact &&
-        !deletionImpact.isUsedByOthers &&
-        deletionImpact.exerciseEntriesCount > 0;
-
+      const clientDate = formatDateToYYYYMMDD(new Date());
       const response = await deleteExercise({
         id: exerciseToDelete.id,
-        forceDelete: shouldForce ?? false,
+        mode,
+        clientDate,
       });
 
       if (
         response?.status === 'deleted' ||
-        response?.status === 'force_deleted'
+        response?.status === 'deleted_with_history'
       ) {
         toast({
           title: t('common.success', 'Success'),

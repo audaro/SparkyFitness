@@ -25,7 +25,10 @@ import {
   queryCorrelationSamples,
 } from '@kingstinct/react-native-healthkit';
 
-import { aggregateByDay, toLocalDateString } from '../../../src/services/healthkit/dataAggregation';
+import {
+  aggregateByDay,
+  toLocalDateString,
+} from '../../../src/services/healthkit/dataAggregation';
 import { transformHealthRecords } from '../../../src/services/healthkit/dataTransformation';
 import type { TransformedRecord } from '../../../src/types/healthRecords';
 
@@ -37,7 +40,8 @@ jest.mock('../../../src/services/LogService', () => ({
 }));
 
 const mockIsHealthDataAvailable = isHealthDataAvailable as jest.Mock;
-const mockQueryStatisticsCollection = queryStatisticsCollectionForQuantity as jest.Mock;
+const mockQueryStatisticsCollection =
+  queryStatisticsCollectionForQuantity as jest.Mock;
 const mockQueryQuantitySamples = queryQuantitySamples as jest.Mock;
 const mockQueryWorkoutSamples = queryWorkoutSamples as jest.Mock;
 const mockQueryCategorySamples = queryCategorySamples as jest.Mock;
@@ -60,7 +64,12 @@ const daysFromToday = (days: number) => {
 };
 
 // A statistics-collection day bucket carrying a cumulative sum.
-const sumBucket = (startDate: Date, endDate: Date, sum?: number, unit = 'count') => ({
+const sumBucket = (
+  startDate: Date,
+  endDate: Date,
+  sum?: number,
+  unit = 'count'
+) => ({
   startDate,
   endDate,
   ...(sum !== undefined ? { sumQuantity: { unit, quantity: sum } } : {}),
@@ -71,16 +80,16 @@ const statsBucket = (
   startDate: Date,
   endDate: Date,
   stats?: { min: number; max: number; avg: number },
-  unit = 'count/min',
+  unit = 'count/min'
 ) => ({
   startDate,
   endDate,
   ...(stats
     ? {
-      minimumQuantity: { unit, quantity: stats.min },
-      maximumQuantity: { unit, quantity: stats.max },
-      averageQuantity: { unit, quantity: stats.avg },
-    }
+        minimumQuantity: { unit, quantity: stats.min },
+        maximumQuantity: { unit, quantity: stats.max },
+        averageQuantity: { unit, quantity: stats.avg },
+      }
     : {}),
 });
 
@@ -88,7 +97,7 @@ describe('getSyncStartDate', () => {
   test('day-based durations return midnight (00:00:00.000)', () => {
     // 24h is excluded - it's a true rolling window, not snapped to midnight
     const durations: SyncDuration[] = ['today', '3d', '7d', '30d', '90d'];
-    durations.forEach(duration => {
+    durations.forEach((duration) => {
       const result = getSyncStartDate(duration);
       expect(result.getHours()).toBe(0);
       expect(result.getMinutes()).toBe(0);
@@ -105,7 +114,9 @@ describe('getSyncStartDate', () => {
     // Should be approximately 24 hours ago (within a few ms of test execution)
     const expectedTime = before.getTime() - 24 * 60 * 60 * 1000;
     expect(result.getTime()).toBeGreaterThanOrEqual(expectedTime - 100);
-    expect(result.getTime()).toBeLessThanOrEqual(after.getTime() - 24 * 60 * 60 * 1000 + 100);
+    expect(result.getTime()).toBeLessThanOrEqual(
+      after.getTime() - 24 * 60 * 60 * 1000 + 100
+    );
   });
 
   test("'today' returns today's date at midnight", () => {
@@ -170,7 +181,9 @@ describe('initHealthConnect', () => {
   });
 
   test('returns false and handles error when isHealthDataAvailable throws', async () => {
-    mockIsHealthDataAvailable.mockRejectedValue(new Error('HealthKit not supported'));
+    mockIsHealthDataAvailable.mockRejectedValue(
+      new Error('HealthKit not supported')
+    );
 
     const result = await initHealthConnect();
 
@@ -191,7 +204,10 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
     mockIsHealthDataAvailable.mockResolvedValue(false);
     await initHealthConnect();
 
-    const result = await getAggregatedStepsByDate(localDate(2024, 1, 15), localDate(2024, 1, 15, 23, 59));
+    const result = await getAggregatedStepsByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 15, 23, 59)
+    );
 
     expect(result).toEqual([]);
     expect(mockQueryStatisticsCollection).not.toHaveBeenCalled();
@@ -216,7 +232,7 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
       ['cumulativeSum'],
       localDate(2024, 1, 15), // anchor = local midnight of the filter start
       { day: 1 },
-      { filter: { date: { startDate, endDate } }, unit: 'count' },
+      { filter: { date: { startDate, endDate } }, unit: 'count' }
     );
     expect(result).toHaveLength(3);
     expect(result[0]).toMatchObject({
@@ -225,7 +241,7 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
       type: 'step',
     });
     expect(result[0].record_timezone).toBeDefined();
-    expect(result.map(r => r.value)).toEqual([5000, 6000, 7000]);
+    expect(result.map((r) => r.value)).toEqual([5000, 6000, 7000]);
   });
 
   test('drops zero and empty buckets', async () => {
@@ -237,7 +253,10 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
       sumBucket(localDate(2024, 1, 17), localDate(2024, 1, 18)), // no sumQuantity
     ]);
 
-    const result = await getAggregatedStepsByDate(localDate(2024, 1, 15), localDate(2024, 1, 17, 23, 59));
+    const result = await getAggregatedStepsByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 17, 23, 59)
+    );
 
     expect(result).toHaveLength(1);
     expect(result[0].value).toBe(5000);
@@ -250,7 +269,10 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
       sumBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), 5432.7),
     ]);
 
-    const result = await getAggregatedStepsByDate(localDate(2024, 1, 15), localDate(2024, 1, 15, 23, 59));
+    const result = await getAggregatedStepsByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 15, 23, 59)
+    );
 
     expect(result[0].value).toBe(5433);
     expect(Number.isInteger(result[0].value)).toBe(true);
@@ -263,7 +285,10 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
       sumBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), 0.4),
     ]);
 
-    const result = await getAggregatedStepsByDate(localDate(2024, 1, 15), localDate(2024, 1, 15, 23, 59));
+    const result = await getAggregatedStepsByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 15, 23, 59)
+    );
 
     expect(result).toHaveLength(1);
     expect(result[0].value).toBe(0);
@@ -285,7 +310,10 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
     const result = await getAggregatedStepsByDate(startDate, endDate);
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ date: toLocalDateString(localDate(2024, 1, 15)), value: 3000 });
+    expect(result[0]).toMatchObject({
+      date: toLocalDateString(localDate(2024, 1, 15)),
+      value: 3000,
+    });
 
     // The native filter keeps the actual 2pm start; only the ANCHOR is midnight.
     const call = mockQueryStatisticsCollection.mock.calls[0];
@@ -306,7 +334,10 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
     const result = await getAggregatedStepsByDate(todayStart, new Date());
 
     expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ date: toLocalDateString(todayStart), value: 800 });
+    expect(result[0]).toMatchObject({
+      date: toLocalDateString(todayStart),
+      value: 800,
+    });
   });
 
   test('clamps the native filter end to now when endDate is in the future', async () => {
@@ -315,7 +346,8 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
     const before = Date.now();
     await getAggregatedStepsByDate(startOfToday(), daysFromToday(2));
 
-    const filterEnd = mockQueryStatisticsCollection.mock.calls[0][4].filter.date.endDate;
+    const filterEnd =
+      mockQueryStatisticsCollection.mock.calls[0][4].filter.date.endDate;
     expect(filterEnd.getTime()).toBeGreaterThanOrEqual(before);
     expect(filterEnd.getTime()).toBeLessThanOrEqual(Date.now());
   });
@@ -334,7 +366,7 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
 
     const result = await getAggregatedStepsByDate(startDate, endDate);
 
-    expect(result.map(r => r.value)).toEqual([5000, 6000]);
+    expect(result.map((r) => r.value)).toEqual([5000, 6000]);
   });
 
   test('a native error fails the whole metric instead of silently dropping days', async () => {
@@ -342,7 +374,10 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
 
     mockQueryStatisticsCollection.mockRejectedValue(new Error('Query failed'));
 
-    const result = await getAggregatedStepsByDate(localDate(2024, 1, 15), localDate(2024, 1, 16, 23, 59));
+    const result = await getAggregatedStepsByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 16, 23, 59)
+    );
 
     expect(result).toEqual([]);
   });
@@ -352,7 +387,10 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
 
     mockQueryStatisticsCollection.mockRejectedValue(new Error('Query failed'));
 
-    const result = await getAggregatedStepsByDateDetailed(localDate(2024, 1, 15), localDate(2024, 1, 16, 23, 59));
+    const result = await getAggregatedStepsByDateDetailed(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 16, 23, 59)
+    );
 
     expect(result.records).toEqual([]);
     expect(result.error).toBe('Query failed');
@@ -362,7 +400,8 @@ describe('getAggregatedStepsByDate (statistics collection)', () => {
 describe('getAggregatedTotalCaloriesByDate (statistics collection)', () => {
   const mockByIdentifier = (map: Record<string, unknown[]>) =>
     mockQueryStatisticsCollection.mockImplementation((identifier: string) =>
-      Promise.resolve(map[identifier] ?? []));
+      Promise.resolve(map[identifier] ?? [])
+    );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -375,7 +414,10 @@ describe('getAggregatedTotalCaloriesByDate (statistics collection)', () => {
     mockIsHealthDataAvailable.mockResolvedValue(false);
     await initHealthConnect();
 
-    const result = await getAggregatedTotalCaloriesByDate(localDate(2024, 1, 15), localDate(2024, 1, 15, 23, 59));
+    const result = await getAggregatedTotalCaloriesByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 15, 23, 59)
+    );
 
     expect(result).toEqual([]);
     // The availability guard must short-circuit before any statistics query — without
@@ -395,15 +437,22 @@ describe('getAggregatedTotalCaloriesByDate (statistics collection)', () => {
       ],
     });
 
-    const result = await getAggregatedTotalCaloriesByDate(localDate(2024, 1, 15), localDate(2024, 1, 15, 23, 59));
+    const result = await getAggregatedTotalCaloriesByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 15, 23, 59)
+    );
 
     expect(mockQueryStatisticsCollection).toHaveBeenCalledTimes(2);
-    const identifiers = mockQueryStatisticsCollection.mock.calls.map(call => call[0]);
-    expect(identifiers).toEqual(expect.arrayContaining([
-      'HKQuantityTypeIdentifierBasalEnergyBurned',
-      'HKQuantityTypeIdentifierActiveEnergyBurned',
-    ]));
-    mockQueryStatisticsCollection.mock.calls.forEach(call => {
+    const identifiers = mockQueryStatisticsCollection.mock.calls.map(
+      (call) => call[0]
+    );
+    expect(identifiers).toEqual(
+      expect.arrayContaining([
+        'HKQuantityTypeIdentifierBasalEnergyBurned',
+        'HKQuantityTypeIdentifierActiveEnergyBurned',
+      ])
+    );
+    mockQueryStatisticsCollection.mock.calls.forEach((call) => {
       expect(call[4].unit).toBe('kcal');
     });
 
@@ -427,11 +476,20 @@ describe('getAggregatedTotalCaloriesByDate (statistics collection)', () => {
       ],
     });
 
-    const result = await getAggregatedTotalCaloriesByDate(localDate(2024, 1, 15), localDate(2024, 1, 16, 23, 59));
+    const result = await getAggregatedTotalCaloriesByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 16, 23, 59)
+    );
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ date: toLocalDateString(localDate(2024, 1, 15)), value: 1500 });
-    expect(result[1]).toMatchObject({ date: toLocalDateString(localDate(2024, 1, 16)), value: 400 });
+    expect(result[0]).toMatchObject({
+      date: toLocalDateString(localDate(2024, 1, 15)),
+      value: 1500,
+    });
+    expect(result[1]).toMatchObject({
+      date: toLocalDateString(localDate(2024, 1, 16)),
+      value: 400,
+    });
   });
 
   test('skips days where both sides are zero or missing', async () => {
@@ -446,7 +504,10 @@ describe('getAggregatedTotalCaloriesByDate (statistics collection)', () => {
       ],
     });
 
-    const result = await getAggregatedTotalCaloriesByDate(localDate(2024, 1, 15), localDate(2024, 1, 15, 23, 59));
+    const result = await getAggregatedTotalCaloriesByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 15, 23, 59)
+    );
 
     expect(result).toHaveLength(0);
   });
@@ -460,7 +521,7 @@ describe('getAggregatedTotalCaloriesByDate (statistics collection)', () => {
     await getAggregatedTotalCaloriesByDate(startDate, endDate);
 
     expect(mockQueryStatisticsCollection).toHaveBeenCalledTimes(2);
-    mockQueryStatisticsCollection.mock.calls.forEach(call => {
+    mockQueryStatisticsCollection.mock.calls.forEach((call) => {
       expect(call[4].filter.date.startDate).toEqual(startDate);
       expect(call[2]).toEqual(localDate(2024, 1, 15)); // anchor still midnight
     });
@@ -472,12 +533,26 @@ describe('getAggregatedTotalCaloriesByDate (statistics collection)', () => {
     mockQueryStatisticsCollection.mockImplementation((identifier: string) =>
       identifier === 'HKQuantityTypeIdentifierBasalEnergyBurned'
         ? Promise.reject(new Error('Basal query failed'))
-        : Promise.resolve([sumBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), 500, 'kcal')]));
+        : Promise.resolve([
+            sumBucket(
+              localDate(2024, 1, 15),
+              localDate(2024, 1, 16),
+              500,
+              'kcal'
+            ),
+          ])
+    );
 
-    const result = await getAggregatedTotalCaloriesByDate(localDate(2024, 1, 15), localDate(2024, 1, 15, 23, 59));
+    const result = await getAggregatedTotalCaloriesByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 15, 23, 59)
+    );
     expect(result).toEqual([]);
 
-    const detailed = await getAggregatedTotalCaloriesByDateDetailed(localDate(2024, 1, 15), localDate(2024, 1, 15, 23, 59));
+    const detailed = await getAggregatedTotalCaloriesByDateDetailed(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 15, 23, 59)
+    );
     expect(detailed.records).toEqual([]);
     expect(detailed.error).toBe('Basal query failed');
   });
@@ -509,7 +584,7 @@ describe('getAggregatedBasalEnergyByDate (statistics collection)', () => {
       {
         filter: { date: { startDate: localDate(2024, 1, 15), endDate } },
         unit: 'kcal',
-      },
+      }
     );
   });
 
@@ -522,7 +597,10 @@ describe('getAggregatedBasalEnergyByDate (statistics collection)', () => {
       sumBucket(yesterdayStart, todayStart, 1600.4, 'kcal'),
     ]);
 
-    const result = await getAggregatedBasalEnergyByDate(yesterdayStart, new Date());
+    const result = await getAggregatedBasalEnergyByDate(
+      yesterdayStart,
+      new Date()
+    );
 
     expect(result).toEqual([
       expect.objectContaining({
@@ -540,7 +618,10 @@ describe('getAggregatedBasalEnergyByDate (statistics collection)', () => {
       sumBucket(startOfToday(), daysFromToday(1), 900, 'kcal'),
     ]);
 
-    const result = await getAggregatedBasalEnergyByDate(startOfToday(), new Date());
+    const result = await getAggregatedBasalEnergyByDate(
+      startOfToday(),
+      new Date()
+    );
 
     expect(result).toEqual([]);
   });
@@ -554,10 +635,16 @@ describe('getAggregatedBasalEnergyByDate (statistics collection)', () => {
       sumBucket(localDate(2024, 1, 16), localDate(2024, 1, 17), 1400, 'kcal'), // ends past endDate
     ]);
 
-    const result = await getAggregatedBasalEnergyByDate(localDate(2024, 1, 15), endDate);
+    const result = await getAggregatedBasalEnergyByDate(
+      localDate(2024, 1, 15),
+      endDate
+    );
 
     expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ date: toLocalDateString(localDate(2024, 1, 16)), value: 1500 });
+    expect(result[0]).toMatchObject({
+      date: toLocalDateString(localDate(2024, 1, 16)),
+      value: 1500,
+    });
   });
 
   test('drops zero and empty buckets', async () => {
@@ -568,7 +655,10 @@ describe('getAggregatedBasalEnergyByDate (statistics collection)', () => {
       sumBucket(localDate(2024, 1, 16), localDate(2024, 1, 17)),
     ]);
 
-    const result = await getAggregatedBasalEnergyByDate(localDate(2024, 1, 15), localDate(2024, 1, 18));
+    const result = await getAggregatedBasalEnergyByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 18)
+    );
 
     expect(result).toEqual([]);
   });
@@ -578,7 +668,10 @@ describe('getAggregatedBasalEnergyByDate (statistics collection)', () => {
 
     mockQueryStatisticsCollection.mockRejectedValue(new Error('Query failed'));
 
-    const result = await getAggregatedBasalEnergyByDateDetailed(localDate(2024, 1, 15), localDate(2024, 1, 18));
+    const result = await getAggregatedBasalEnergyByDateDetailed(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 18)
+    );
 
     expect(result.records).toEqual([]);
     expect(result.error).toBe('Query failed');
@@ -645,7 +738,7 @@ describe('readHealthRecords', () => {
         ascending: false,
         limit: 0,
         filter: { date: { startDate, endDate } },
-      }),
+      })
     );
   });
 
@@ -693,7 +786,9 @@ describe('readHealthRecords', () => {
     );
 
     expect(result).toHaveLength(1);
-    expect((result[0] as { samples: { beatsPerMinute: number }[] }).samples).toEqual([{ beatsPerMinute: 72 }]);
+    expect(
+      (result[0] as { samples: { beatsPerMinute: number }[] }).samples
+    ).toEqual([{ beatsPerMinute: 72 }]);
   });
 
   test('transforms HeartRateVariabilitySDNN records as direct ms value', async () => {
@@ -735,7 +830,9 @@ describe('readHealthRecords', () => {
     );
 
     expect(result).toHaveLength(1);
-    expect((result[0] as { weight: { inKilograms: number } }).weight).toEqual({ inKilograms: 75.5 });
+    expect((result[0] as { weight: { inKilograms: number } }).weight).toEqual({
+      inKilograms: 75.5,
+    });
   });
 
   test('normalizes flattened metadataTimeZone into metadata.HKTimeZone for quantity records', async () => {
@@ -835,7 +932,7 @@ describe('readHealthRecords', () => {
           ascending: false,
           limit: 0,
           filter: { date: { startDate, endDate } },
-        }),
+        })
       );
     });
 
@@ -870,15 +967,20 @@ describe('readHealthRecords', () => {
     test('uses stats from getStatistic when available', async () => {
       await initHealthConnect();
 
-      const mockGetStatistic = jest.fn().mockImplementation((identifier: string) => {
-        if (identifier === 'HKQuantityTypeIdentifierActiveEnergyBurned') {
-          return Promise.resolve({ sumQuantity: { quantity: 600 } });
-        }
-        if (identifier === 'HKQuantityTypeIdentifierDistanceWalkingRunning') {
-          return Promise.resolve({ sumQuantity: { quantity: 6000 } });
-        }
-        return Promise.resolve(undefined);
-      });
+      const mockGetStatistic = jest
+        .fn()
+        .mockImplementation((identifier: string) => {
+          if (identifier === 'HKQuantityTypeIdentifierActiveEnergyBurned') {
+            return Promise.resolve({ sumQuantity: { quantity: 600 } });
+          }
+          if (identifier === 'HKQuantityTypeIdentifierDistanceWalkingRunning') {
+            return Promise.resolve({ sumQuantity: { quantity: 6000 } });
+          }
+          if (identifier === 'HKQuantityTypeIdentifierStepCount') {
+            return Promise.resolve({ sumQuantity: { quantity: 6543 } });
+          }
+          return Promise.resolve(undefined);
+        });
 
       mockQueryWorkoutSamples.mockResolvedValue([
         {
@@ -898,8 +1000,35 @@ describe('readHealthRecords', () => {
         new Date('2024-01-15T23:59:59Z')
       );
 
-      expect((result[0] as { totalEnergyBurned: number }).totalEnergyBurned).toBe(600);
+      expect(
+        (result[0] as { totalEnergyBurned: number }).totalEnergyBurned
+      ).toBe(600);
       expect((result[0] as { totalDistance: number }).totalDistance).toBe(6000);
+      expect((result[0] as { totalSteps: number }).totalSteps).toBe(6543);
+    });
+
+    test('does not invent workout steps when HealthKit has no associated step statistic', async () => {
+      await initHealthConnect();
+
+      const mockGetStatistic = jest.fn().mockResolvedValue(undefined);
+      mockQueryWorkoutSamples.mockResolvedValue([
+        {
+          startDate: '2024-01-15T08:00:00Z',
+          endDate: '2024-01-15T09:00:00Z',
+          workoutActivityType: 50,
+          duration: 3600,
+          totalEnergyBurned: 300,
+          getStatistic: mockGetStatistic,
+        },
+      ]);
+
+      const result = await readHealthRecords(
+        'Workout',
+        new Date('2024-01-15T00:00:00Z'),
+        new Date('2024-01-15T23:59:59Z')
+      );
+
+      expect(result[0]).not.toHaveProperty('totalSteps');
     });
 
     test('pins units to kcal and meters on getStatistic calls (regression: user-preferred units leaked through)', async () => {
@@ -946,7 +1075,9 @@ describe('readHealthRecords', () => {
     test('falls back to direct properties when getStatistic fails', async () => {
       await initHealthConnect();
 
-      const mockGetStatistic = jest.fn().mockRejectedValue(new Error('Stats unavailable'));
+      const mockGetStatistic = jest
+        .fn()
+        .mockRejectedValue(new Error('Stats unavailable'));
       mockQueryWorkoutSamples.mockResolvedValue([
         {
           startDate: '2024-01-15T08:00:00Z',
@@ -965,7 +1096,9 @@ describe('readHealthRecords', () => {
         new Date('2024-01-15T23:59:59Z')
       );
 
-      expect((result[0] as { totalEnergyBurned: number }).totalEnergyBurned).toBe(500);
+      expect(
+        (result[0] as { totalEnergyBurned: number }).totalEnergyBurned
+      ).toBe(500);
       expect((result[0] as { totalDistance: number }).totalDistance).toBe(5000);
     });
 
@@ -973,12 +1106,14 @@ describe('readHealthRecords', () => {
       await initHealthConnect();
 
       // Only cycling distance available; running returns undefined first.
-      const mockGetStatistic = jest.fn().mockImplementation((identifier: string) => {
-        if (identifier === 'HKQuantityTypeIdentifierDistanceCycling') {
-          return Promise.resolve({ sumQuantity: { quantity: 15000 } });
-        }
-        return Promise.resolve(undefined);
-      });
+      const mockGetStatistic = jest
+        .fn()
+        .mockImplementation((identifier: string) => {
+          if (identifier === 'HKQuantityTypeIdentifierDistanceCycling') {
+            return Promise.resolve({ sumQuantity: { quantity: 15000 } });
+          }
+          return Promise.resolve(undefined);
+        });
 
       mockQueryWorkoutSamples.mockResolvedValue([
         {
@@ -998,7 +1133,9 @@ describe('readHealthRecords', () => {
         new Date('2024-01-15T23:59:59Z')
       );
 
-      expect((result[0] as { totalDistance: number }).totalDistance).toBe(15000);
+      expect((result[0] as { totalDistance: number }).totalDistance).toBe(
+        15000
+      );
       // Once cycling matched, swimming/wheelchair/snow should not be queried.
       const distanceCalls = mockGetStatistic.mock.calls.filter((c) =>
         (c[0] as string).startsWith('HKQuantityTypeIdentifierDistance')
@@ -1064,9 +1201,15 @@ describe('readHealthRecords', () => {
 
       // All overlapping workouts should be included
       expect(result).toHaveLength(3);
-      expect((result[0] as { startTime: string }).startTime).toBe('2024-01-14T23:30:00Z');
-      expect((result[1] as { startTime: string }).startTime).toBe('2024-01-15T08:00:00Z');
-      expect((result[2] as { startTime: string }).startTime).toBe('2024-01-15T23:30:00Z');
+      expect((result[0] as { startTime: string }).startTime).toBe(
+        '2024-01-14T23:30:00Z'
+      );
+      expect((result[1] as { startTime: string }).startTime).toBe(
+        '2024-01-15T08:00:00Z'
+      );
+      expect((result[2] as { startTime: string }).startTime).toBe(
+        '2024-01-15T23:30:00Z'
+      );
     });
 
     test('returns empty array for empty workouts response', async () => {
@@ -1106,7 +1249,11 @@ describe('readHealthRecords', () => {
 
       const startDate = new Date('2024-01-15T00:00:00Z');
       const endDate = new Date('2024-01-15T23:59:59Z');
-      const result = await readHealthRecords('SleepSession', startDate, endDate);
+      const result = await readHealthRecords(
+        'SleepSession',
+        startDate,
+        endDate
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
@@ -1125,7 +1272,7 @@ describe('readHealthRecords', () => {
           ascending: false,
           limit: 0,
           filter: { date: { startDate, endDate } },
-        }),
+        })
       );
     });
 
@@ -1149,7 +1296,9 @@ describe('readHealthRecords', () => {
       );
 
       expect(result).toHaveLength(1);
-      expect((result[0] as { metadata?: Record<string, unknown> }).metadata).toEqual({
+      expect(
+        (result[0] as { metadata?: Record<string, unknown> }).metadata
+      ).toEqual({
         customKey: 'customValue',
         HKTimeZone: 'Europe/London',
       });
@@ -1194,13 +1343,23 @@ describe('readHealthRecords', () => {
         },
       ]);
 
-      const result = await readHealthRecords('SleepSession', startDate, endDate);
+      const result = await readHealthRecords(
+        'SleepSession',
+        startDate,
+        endDate
+      );
 
       // All overlapping sessions should be included
       expect(result).toHaveLength(3);
-      expect((result[0] as { startTime: string }).startTime).toBe('2024-01-14T22:00:00Z');
-      expect((result[1] as { startTime: string }).startTime).toBe('2024-01-15T22:00:00Z');
-      expect((result[2] as { startTime: string }).startTime).toBe('2024-01-15T23:00:00Z');
+      expect((result[0] as { startTime: string }).startTime).toBe(
+        '2024-01-14T22:00:00Z'
+      );
+      expect((result[1] as { startTime: string }).startTime).toBe(
+        '2024-01-15T22:00:00Z'
+      );
+      expect((result[2] as { startTime: string }).startTime).toBe(
+        '2024-01-15T23:00:00Z'
+      );
     });
 
     test('includes sleep sessions spanning midnight when overlapping', async () => {
@@ -1218,12 +1377,20 @@ describe('readHealthRecords', () => {
         },
       ]);
 
-      const result = await readHealthRecords('SleepSession', startDate, endDate);
+      const result = await readHealthRecords(
+        'SleepSession',
+        startDate,
+        endDate
+      );
 
       // Session spanning midnight is included because both start and end are within the 2-day range
       expect(result).toHaveLength(1);
-      expect((result[0] as { startTime: string }).startTime).toBe('2024-01-15T23:30:00Z');
-      expect((result[0] as { endTime: string }).endTime).toBe('2024-01-16T07:30:00Z');
+      expect((result[0] as { startTime: string }).startTime).toBe(
+        '2024-01-15T23:30:00Z'
+      );
+      expect((result[0] as { endTime: string }).endTime).toBe(
+        '2024-01-16T07:30:00Z'
+      );
     });
 
     test('returns empty array when queryCategorySamples returns empty', async () => {
@@ -1277,9 +1444,21 @@ describe('readHealthRecords', () => {
       await initHealthConnect();
 
       mockQueryCategorySamples.mockResolvedValue([
-        { startDate: '2024-01-15T08:00:00Z', endDate: '2024-01-15T08:15:00Z', value: 0 },
-        { startDate: '2024-01-15T12:00:00Z', endDate: '2024-01-15T12:30:00Z', value: 5 },
-        { startDate: '2024-01-15T18:00:00Z', endDate: '2024-01-15T18:10:00Z', value: null },
+        {
+          startDate: '2024-01-15T08:00:00Z',
+          endDate: '2024-01-15T08:15:00Z',
+          value: 0,
+        },
+        {
+          startDate: '2024-01-15T12:00:00Z',
+          endDate: '2024-01-15T12:30:00Z',
+          value: 5,
+        },
+        {
+          startDate: '2024-01-15T18:00:00Z',
+          endDate: '2024-01-15T18:10:00Z',
+          value: null,
+        },
       ]);
 
       const result = await readHealthRecords(
@@ -1289,7 +1468,9 @@ describe('readHealthRecords', () => {
       );
 
       expect(result).toHaveLength(3);
-      expect(result.every(r => (r as { value: number }).value === 1)).toBe(true);
+      expect(result.every((r) => (r as { value: number }).value === 1)).toBe(
+        true
+      );
     });
 
     test('returns empty array when queryCategorySamples returns empty', async () => {
@@ -1324,7 +1505,11 @@ describe('readHealthRecords', () => {
 
       const startDate = new Date('2024-01-15T00:00:00Z');
       const endDate = new Date('2024-01-15T23:59:59Z');
-      const result = await readHealthRecords('BloodPressure', startDate, endDate);
+      const result = await readHealthRecords(
+        'BloodPressure',
+        startDate,
+        endDate
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
@@ -1339,10 +1524,12 @@ describe('readHealthRecords', () => {
         filter: { date: { startDate, endDate } },
       });
       expect(mockQueryQuantitySamples).toHaveBeenCalledWith(
-        'HKQuantityTypeIdentifierBloodPressureSystolic', expectedOptions,
+        'HKQuantityTypeIdentifierBloodPressureSystolic',
+        expectedOptions
       );
       expect(mockQueryQuantitySamples).toHaveBeenCalledWith(
-        'HKQuantityTypeIdentifierBloodPressureDiastolic', expectedOptions,
+        'HKQuantityTypeIdentifierBloodPressureDiastolic',
+        expectedOptions
       );
     });
 
@@ -1407,8 +1594,12 @@ describe('readHealthRecords', () => {
 
       // Systolic and diastolic at different times - no matches
       mockQueryQuantitySamples
-        .mockResolvedValueOnce([{ startDate: '2024-01-15T08:00:00Z', quantity: 120 }])
-        .mockResolvedValueOnce([{ startDate: '2024-01-15T10:00:00Z', quantity: 80 }]);
+        .mockResolvedValueOnce([
+          { startDate: '2024-01-15T08:00:00Z', quantity: 120 },
+        ])
+        .mockResolvedValueOnce([
+          { startDate: '2024-01-15T10:00:00Z', quantity: 80 },
+        ]);
 
       const result = await readHealthRecords(
         'BloodPressure',
@@ -1453,23 +1644,47 @@ describe('readHealthRecords', () => {
       metadataTimeZone: 'America/New_York',
       sourceRevision: { source: { bundleIdentifier: 'com.other.app' } },
       objects: [
-        { uuid: 'c-energy', quantityType: 'HKQuantityTypeIdentifierDietaryEnergyConsumed', quantity: 150, unit: 'kcal' },
-        { uuid: 'c-protein', quantityType: 'HKQuantityTypeIdentifierDietaryProtein', quantity: 12, unit: 'g' },
+        {
+          uuid: 'c-energy',
+          quantityType: 'HKQuantityTypeIdentifierDietaryEnergyConsumed',
+          quantity: 150,
+          unit: 'kcal',
+        },
+        {
+          uuid: 'c-protein',
+          quantityType: 'HKQuantityTypeIdentifierDietaryProtein',
+          quantity: 12,
+          unit: 'g',
+        },
       ],
       ...overrides,
     });
 
     // Return loose quantity samples per identifier (a single fn serves every identifier
     // query, so key off the requested identifier to model distinct nutrients).
-    const looseByIdentifier = (
-      map: Record<string, { uuid: string; startDate: string; quantity: number; unit: string; source: { bundleIdentifier?: string } }[]>,
-    ) => (identifier: string) => Promise.resolve(map[identifier]?.map(s => ({
-      uuid: s.uuid,
-      startDate: s.startDate,
-      quantity: s.quantity,
-      unit: s.unit,
-      sourceRevision: { source: s.source },
-    })) ?? []);
+    const looseByIdentifier =
+      (
+        map: Record<
+          string,
+          {
+            uuid: string;
+            startDate: string;
+            quantity: number;
+            unit: string;
+            source: { bundleIdentifier?: string };
+          }[]
+        >
+      ) =>
+      (identifier: string) =>
+        Promise.resolve(
+          map[identifier]?.map((s) => ({
+            uuid: s.uuid,
+            startDate: s.startDate,
+            quantity: s.quantity,
+            unit: s.unit,
+            sourceRevision: { source: s.source },
+          })) ?? []
+        );
 
     test('normalizes a Food correlation into a record the transformer consumes', async () => {
       await initHealthConnect();
@@ -1499,8 +1714,13 @@ describe('readHealthRecords', () => {
         expect.objectContaining({
           ascending: false,
           limit: 0,
-          filter: { date: { startDate: new Date('2024-01-15T00:00:00Z'), endDate: new Date('2024-01-15T23:59:59Z') } },
-        }),
+          filter: {
+            date: {
+              startDate: new Date('2024-01-15T00:00:00Z'),
+              endDate: new Date('2024-01-15T23:59:59Z'),
+            },
+          },
+        })
       );
     });
 
@@ -1541,14 +1761,28 @@ describe('readHealthRecords', () => {
     test('groups loose samples by (source, instant) into one entry (no food name)', async () => {
       await initHealthConnect();
       const mfp = { bundleIdentifier: 'com.myfitnesspal.mfp' };
-      mockQueryQuantitySamples.mockImplementation(looseByIdentifier({
-        'HKQuantityTypeIdentifierDietaryEnergyConsumed': [
-          { uuid: 'e1', startDate: '2024-01-15T12:30:00Z', quantity: 500, unit: 'Cal', source: mfp },
-        ],
-        'HKQuantityTypeIdentifierDietaryProtein': [
-          { uuid: 'p1', startDate: '2024-01-15T12:30:00Z', quantity: 30, unit: 'g', source: mfp },
-        ],
-      }));
+      mockQueryQuantitySamples.mockImplementation(
+        looseByIdentifier({
+          HKQuantityTypeIdentifierDietaryEnergyConsumed: [
+            {
+              uuid: 'e1',
+              startDate: '2024-01-15T12:30:00Z',
+              quantity: 500,
+              unit: 'Cal',
+              source: mfp,
+            },
+          ],
+          HKQuantityTypeIdentifierDietaryProtein: [
+            {
+              uuid: 'p1',
+              startDate: '2024-01-15T12:30:00Z',
+              quantity: 30,
+              unit: 'g',
+              source: mfp,
+            },
+          ],
+        })
+      );
 
       const result = await readHealthRecords(
         'Nutrition',
@@ -1563,7 +1797,9 @@ describe('readHealthRecords', () => {
         sourceBundleId: 'com.myfitnesspal.mfp',
       });
       // Loose samples have no food name; the transformer fills in "Apple Health food".
-      expect((result[0] as { metadataFoodType?: string }).metadataFoodType).toBeUndefined();
+      expect(
+        (result[0] as { metadataFoodType?: string }).metadataFoodType
+      ).toBeUndefined();
       expect((result[0] as { objects: unknown[] }).objects).toHaveLength(2);
       // The loose per-identifier read must also page within the native date window.
       expect(mockQueryQuantitySamples).toHaveBeenCalledWith(
@@ -1571,20 +1807,39 @@ describe('readHealthRecords', () => {
         expect.objectContaining({
           ascending: false,
           limit: 0,
-          filter: { date: { startDate: new Date('2024-01-15T00:00:00Z'), endDate: new Date('2024-01-15T23:59:59Z') } },
-        }),
+          filter: {
+            date: {
+              startDate: new Date('2024-01-15T00:00:00Z'),
+              endDate: new Date('2024-01-15T23:59:59Z'),
+            },
+          },
+        })
       );
     });
 
     test('splits loose samples from different instants into separate entries', async () => {
       await initHealthConnect();
       const cron = { bundleIdentifier: 'CRONOMETER-GOLD' };
-      mockQueryQuantitySamples.mockImplementation(looseByIdentifier({
-        'HKQuantityTypeIdentifierDietaryProtein': [
-          { uuid: 'a', startDate: '2024-01-15T08:00:00Z', quantity: 10, unit: 'g', source: cron },
-          { uuid: 'b', startDate: '2024-01-15T19:00:00Z', quantity: 25, unit: 'g', source: cron },
-        ],
-      }));
+      mockQueryQuantitySamples.mockImplementation(
+        looseByIdentifier({
+          HKQuantityTypeIdentifierDietaryProtein: [
+            {
+              uuid: 'a',
+              startDate: '2024-01-15T08:00:00Z',
+              quantity: 10,
+              unit: 'g',
+              source: cron,
+            },
+            {
+              uuid: 'b',
+              startDate: '2024-01-15T19:00:00Z',
+              quantity: 25,
+              unit: 'g',
+              source: cron,
+            },
+          ],
+        })
+      );
 
       const result = await readHealthRecords(
         'Nutrition',
@@ -1593,7 +1848,7 @@ describe('readHealthRecords', () => {
       );
 
       expect(result).toHaveLength(2);
-      expect(result.map(r => (r as { uuid: string }).uuid).sort()).toEqual([
+      expect(result.map((r) => (r as { uuid: string }).uuid).sort()).toEqual([
         'CRONOMETER-GOLD:2024-01-15T08:00:00Z',
         'CRONOMETER-GOLD:2024-01-15T19:00:00Z',
       ]);
@@ -1607,17 +1862,36 @@ describe('readHealthRecords', () => {
           startDate: '2024-01-15T08:00:00Z',
           sourceRevision: { source: { bundleIdentifier: 'com.fitnow.loseit' } },
           objects: [
-            { uuid: 'shared-protein', quantityType: 'HKQuantityTypeIdentifierDietaryProtein', quantity: 10, unit: 'g' },
+            {
+              uuid: 'shared-protein',
+              quantityType: 'HKQuantityTypeIdentifierDietaryProtein',
+              quantity: 10,
+              unit: 'g',
+            },
           ],
         }),
       ]);
-      mockQueryQuantitySamples.mockImplementation(looseByIdentifier({
-        'HKQuantityTypeIdentifierDietaryProtein': [
-          // Same UUID as the correlation's contained sample → must be skipped.
-          { uuid: 'shared-protein', startDate: '2024-01-15T08:00:00Z', quantity: 10, unit: 'g', source: { bundleIdentifier: 'com.fitnow.loseit' } },
-          { uuid: 'loose-protein', startDate: '2024-01-15T12:30:00Z', quantity: 20, unit: 'g', source: { bundleIdentifier: 'com.myfitnesspal.mfp' } },
-        ],
-      }));
+      mockQueryQuantitySamples.mockImplementation(
+        looseByIdentifier({
+          HKQuantityTypeIdentifierDietaryProtein: [
+            // Same UUID as the correlation's contained sample → must be skipped.
+            {
+              uuid: 'shared-protein',
+              startDate: '2024-01-15T08:00:00Z',
+              quantity: 10,
+              unit: 'g',
+              source: { bundleIdentifier: 'com.fitnow.loseit' },
+            },
+            {
+              uuid: 'loose-protein',
+              startDate: '2024-01-15T12:30:00Z',
+              quantity: 20,
+              unit: 'g',
+              source: { bundleIdentifier: 'com.myfitnesspal.mfp' },
+            },
+          ],
+        })
+      );
 
       const result = await readHealthRecords(
         'Nutrition',
@@ -1627,10 +1901,14 @@ describe('readHealthRecords', () => {
 
       // One correlation entry + one loose entry; the shared-protein loose sample is excluded.
       expect(result).toHaveLength(2);
-      const ids = result.map(r => (r as { uuid: string }).uuid);
+      const ids = result.map((r) => (r as { uuid: string }).uuid);
       expect(ids).toContain('corr-1');
       expect(ids).toContain('com.myfitnesspal.mfp:2024-01-15T12:30:00Z');
-      const looseEntry = result.find(r => (r as { sourceBundleId?: string }).sourceBundleId === 'com.myfitnesspal.mfp');
+      const looseEntry = result.find(
+        (r) =>
+          (r as { sourceBundleId?: string }).sourceBundleId ===
+          'com.myfitnesspal.mfp'
+      );
       expect((looseEntry as { objects: unknown[] }).objects).toHaveLength(1);
     });
   });
@@ -1647,7 +1925,11 @@ describe('readHealthRecordsDetailed', () => {
     await initHealthConnect();
 
     mockQueryQuantitySamples.mockResolvedValue([
-      { startDate: '2024-01-15T10:00:00Z', endDate: '2024-01-15T10:30:00Z', quantity: 500 },
+      {
+        startDate: '2024-01-15T10:00:00Z',
+        endDate: '2024-01-15T10:30:00Z',
+        quantity: 500,
+      },
     ]);
 
     const result = await readHealthRecordsDetailed(
@@ -1680,7 +1962,9 @@ describe('readHealthRecordsDetailed', () => {
   test('database-inaccessible errors both count and surface', async () => {
     await initHealthConnect();
 
-    mockQueryQuantitySamples.mockRejectedValue(new Error('Protected health data is inaccessible'));
+    mockQueryQuantitySamples.mockRejectedValue(
+      new Error('Protected health data is inaccessible')
+    );
 
     const result = await readHealthRecordsDetailed(
       'Steps',
@@ -1695,7 +1979,11 @@ describe('readHealthRecordsDetailed', () => {
 });
 
 describe('readMinMaxAvgByDayDetailed', () => {
-  const HEART_RATE_CONFIG = { recordType: 'HeartRate', unit: 'bpm', type: 'heart_rate' };
+  const HEART_RATE_CONFIG = {
+    recordType: 'HeartRate',
+    unit: 'bpm',
+    type: 'heart_rate',
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -1710,7 +1998,7 @@ describe('readMinMaxAvgByDayDetailed', () => {
     const result = await readMinMaxAvgByDayDetailed(
       { recordType: 'RunningSpeed', unit: 'm/s', type: 'running_speed' },
       localDate(2024, 1, 15),
-      localDate(2024, 1, 15, 23, 59),
+      localDate(2024, 1, 15, 23, 59)
     );
 
     expect(result).toBeNull();
@@ -1723,17 +2011,25 @@ describe('readMinMaxAvgByDayDetailed', () => {
     const startDate = localDate(2024, 1, 15);
     const endDate = localDate(2024, 1, 15, 23, 59);
     mockQueryStatisticsCollection.mockResolvedValue([
-      statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), { min: 48, max: 120, avg: 72.437 }),
+      statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), {
+        min: 48,
+        max: 120,
+        avg: 72.437,
+      }),
     ]);
 
-    const result = await readMinMaxAvgByDayDetailed(HEART_RATE_CONFIG, startDate, endDate);
+    const result = await readMinMaxAvgByDayDetailed(
+      HEART_RATE_CONFIG,
+      startDate,
+      endDate
+    );
 
     expect(mockQueryStatisticsCollection).toHaveBeenCalledWith(
       'HKQuantityTypeIdentifierHeartRate',
       ['discreteMin', 'discreteMax', 'discreteAverage'],
       localDate(2024, 1, 15),
       { day: 1 },
-      { filter: { date: { startDate, endDate } }, unit: 'count/min' },
+      { filter: { date: { startDate, endDate } }, unit: 'count/min' }
     );
 
     const date = toLocalDateString(localDate(2024, 1, 15));
@@ -1741,9 +2037,30 @@ describe('readMinMaxAvgByDayDetailed', () => {
     // second aggregation pass (or a missing stat) would change this count.
     expect(result!.records).toHaveLength(3);
     expect(result!.records).toEqual([
-      { value: 48, type: 'heart_rate_min', date, unit: 'bpm', source: 'HealthKit', record_timezone: expect.any(String) },
-      { value: 120, type: 'heart_rate_max', date, unit: 'bpm', source: 'HealthKit', record_timezone: expect.any(String) },
-      { value: 72.44, type: 'heart_rate_avg', date, unit: 'bpm', source: 'HealthKit', record_timezone: expect.any(String) },
+      {
+        value: 48,
+        type: 'heart_rate_min',
+        date,
+        unit: 'bpm',
+        source: 'HealthKit',
+        record_timezone: expect.any(String),
+      },
+      {
+        value: 120,
+        type: 'heart_rate_max',
+        date,
+        unit: 'bpm',
+        source: 'HealthKit',
+        record_timezone: expect.any(String),
+      },
+      {
+        value: 72.44,
+        type: 'heart_rate_avg',
+        date,
+        unit: 'bpm',
+        source: 'HealthKit',
+        record_timezone: expect.any(String),
+      },
     ]);
   });
 
@@ -1753,50 +2070,84 @@ describe('readMinMaxAvgByDayDetailed', () => {
     const dayStart = localDate(2024, 1, 15);
     const sample = (hour: number, bpm: number) => {
       const iso = localDate(2024, 1, 15, hour).toISOString();
-      return { startTime: iso, endTime: iso, time: iso, value: bpm, samples: [{ beatsPerMinute: bpm }] };
+      return {
+        startTime: iso,
+        endTime: iso,
+        time: iso,
+        value: bpm,
+        samples: [{ beatsPerMinute: bpm }],
+      };
     };
     const legacy = aggregateByDay(
       transformHealthRecords(
         [sample(8, 62), sample(12, 118), sample(20, 74)],
-        HEART_RATE_CONFIG,
+        HEART_RATE_CONFIG
       ) as TransformedRecord[],
       'heart_rate',
       'bpm',
-      'min-max-avg',
+      'min-max-avg'
     );
 
     // Same day via day statistics (avg differs by design: HealthKit's discreteAverage is
     // time-weighted, so it is asserted against the mocked bucket, not the legacy mean).
     mockQueryStatisticsCollection.mockResolvedValue([
-      statsBucket(dayStart, localDate(2024, 1, 16), { min: 62, max: 118, avg: 84.666 }),
+      statsBucket(dayStart, localDate(2024, 1, 16), {
+        min: 62,
+        max: 118,
+        avg: 84.666,
+      }),
     ]);
-    const result = await readMinMaxAvgByDayDetailed(HEART_RATE_CONFIG, dayStart, localDate(2024, 1, 15, 23, 59));
+    const result = await readMinMaxAvgByDayDetailed(
+      HEART_RATE_CONFIG,
+      dayStart,
+      localDate(2024, 1, 15, 23, 59)
+    );
 
     const pick = (records: TransformedRecord[], type: string) => {
-      const record = records.find(r => r.type === type)!;
-      return { value: record.value, type: record.type, date: record.date, unit: record.unit, source: record.source };
+      const record = records.find((r) => r.type === type)!;
+      return {
+        value: record.value,
+        type: record.type,
+        date: record.date,
+        unit: record.unit,
+        source: record.source,
+      };
     };
-    expect(pick(result!.records, 'heart_rate_min')).toEqual(pick(legacy, 'heart_rate_min'));
-    expect(pick(result!.records, 'heart_rate_max')).toEqual(pick(legacy, 'heart_rate_max'));
-    expect(result!.records.find(r => r.type === 'heart_rate_avg')!.value).toBe(84.67);
+    expect(pick(result!.records, 'heart_rate_min')).toEqual(
+      pick(legacy, 'heart_rate_min')
+    );
+    expect(pick(result!.records, 'heart_rate_max')).toEqual(
+      pick(legacy, 'heart_rate_max')
+    );
+    expect(
+      result!.records.find((r) => r.type === 'heart_rate_avg')!.value
+    ).toBe(84.67);
   });
 
   test('emits 3 records per day across multiple day buckets', async () => {
     await initHealthConnect();
 
     mockQueryStatisticsCollection.mockResolvedValue([
-      statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), { min: 50, max: 100, avg: 70 }),
-      statsBucket(localDate(2024, 1, 16), localDate(2024, 1, 17), { min: 55, max: 110, avg: 75 }),
+      statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), {
+        min: 50,
+        max: 100,
+        avg: 70,
+      }),
+      statsBucket(localDate(2024, 1, 16), localDate(2024, 1, 17), {
+        min: 55,
+        max: 110,
+        avg: 75,
+      }),
     ]);
 
     const result = await readMinMaxAvgByDayDetailed(
       HEART_RATE_CONFIG,
       localDate(2024, 1, 15),
-      localDate(2024, 1, 16, 23, 59),
+      localDate(2024, 1, 16, 23, 59)
     );
 
     expect(result!.records).toHaveLength(6);
-    expect(result!.records.map(r => r.date)).toEqual([
+    expect(result!.records.map((r) => r.date)).toEqual([
       toLocalDateString(localDate(2024, 1, 15)),
       toLocalDateString(localDate(2024, 1, 15)),
       toLocalDateString(localDate(2024, 1, 15)),
@@ -1810,17 +2161,21 @@ describe('readMinMaxAvgByDayDetailed', () => {
     await initHealthConnect();
 
     mockQueryStatisticsCollection.mockResolvedValue([
-      statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), { min: 0, max: 0, avg: 0 }),
+      statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), {
+        min: 0,
+        max: 0,
+        avg: 0,
+      }),
     ]);
 
     const result = await readMinMaxAvgByDayDetailed(
       HEART_RATE_CONFIG,
       localDate(2024, 1, 15),
-      localDate(2024, 1, 15, 23, 59),
+      localDate(2024, 1, 15, 23, 59)
     );
 
     expect(result!.records).toHaveLength(3);
-    expect(result!.records.every(r => r.value === 0)).toBe(true);
+    expect(result!.records.every((r) => r.value === 0)).toBe(true);
   });
 
   test('skips buckets without stats (days with no samples)', async () => {
@@ -1828,17 +2183,23 @@ describe('readMinMaxAvgByDayDetailed', () => {
 
     mockQueryStatisticsCollection.mockResolvedValue([
       statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16)), // no data
-      statsBucket(localDate(2024, 1, 16), localDate(2024, 1, 17), { min: 50, max: 100, avg: 70 }),
+      statsBucket(localDate(2024, 1, 16), localDate(2024, 1, 17), {
+        min: 50,
+        max: 100,
+        avg: 70,
+      }),
     ]);
 
     const result = await readMinMaxAvgByDayDetailed(
       HEART_RATE_CONFIG,
       localDate(2024, 1, 15),
-      localDate(2024, 1, 16, 23, 59),
+      localDate(2024, 1, 16, 23, 59)
     );
 
     expect(result!.records).toHaveLength(3);
-    expect(result!.records[0].date).toBe(toLocalDateString(localDate(2024, 1, 16)));
+    expect(result!.records[0].date).toBe(
+      toLocalDateString(localDate(2024, 1, 16))
+    );
   });
 
   test('a native error returns an error envelope, NOT null (no silent sample fallback)', async () => {
@@ -1849,7 +2210,7 @@ describe('readMinMaxAvgByDayDetailed', () => {
     const result = await readMinMaxAvgByDayDetailed(
       HEART_RATE_CONFIG,
       localDate(2024, 1, 15),
-      localDate(2024, 1, 15, 23, 59),
+      localDate(2024, 1, 15, 23, 59)
     );
 
     expect(result).toEqual({ records: [], error: 'boom' });
@@ -1858,12 +2219,14 @@ describe('readMinMaxAvgByDayDetailed', () => {
   test('database-inaccessible errors count toward the locked-device counter', async () => {
     await initHealthConnect();
 
-    mockQueryStatisticsCollection.mockRejectedValue(new Error('Protected health data is inaccessible'));
+    mockQueryStatisticsCollection.mockRejectedValue(
+      new Error('Protected health data is inaccessible')
+    );
 
     const result = await readMinMaxAvgByDayDetailed(
       HEART_RATE_CONFIG,
       localDate(2024, 1, 15),
-      localDate(2024, 1, 15, 23, 59),
+      localDate(2024, 1, 15, 23, 59)
     );
 
     expect(result!.error).toContain('Protected health data');
@@ -1875,96 +2238,161 @@ describe('readMinMaxAvgByDayDetailed', () => {
       await initHealthConnect();
 
       mockQueryStatisticsCollection.mockResolvedValue([
-        statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), { min: 30, max: 52, avg: 43.333 }, 'ms'),
+        statsBucket(
+          localDate(2024, 1, 15),
+          localDate(2024, 1, 16),
+          { min: 30, max: 52, avg: 43.333 },
+          'ms'
+        ),
       ]);
 
       const result = await readMinMaxAvgByDayDetailed(
-        { recordType: 'HeartRateVariabilitySDNN', unit: 'ms', type: 'HRV_SDNN' },
+        {
+          recordType: 'HeartRateVariabilitySDNN',
+          unit: 'ms',
+          type: 'HRV_SDNN',
+        },
         localDate(2024, 1, 15),
-        localDate(2024, 1, 15, 23, 59),
+        localDate(2024, 1, 15, 23, 59)
       );
 
-      expect(mockQueryStatisticsCollection.mock.calls[0][0]).toBe('HKQuantityTypeIdentifierHeartRateVariabilitySDNN');
+      expect(mockQueryStatisticsCollection.mock.calls[0][0]).toBe(
+        'HKQuantityTypeIdentifierHeartRateVariabilitySDNN'
+      );
       expect(mockQueryStatisticsCollection.mock.calls[0][4].unit).toBe('ms');
-      expect(result!.records.map(r => ({ type: r.type, value: r.value, unit: r.unit }))).toEqual([
+      expect(
+        result!.records.map((r) => ({
+          type: r.type,
+          value: r.value,
+          unit: r.unit,
+        }))
+      ).toEqual([
         { type: 'HRV_SDNN_min', value: 30, unit: 'ms' },
         { type: 'HRV_SDNN_max', value: 52, unit: 'ms' },
         { type: 'HRV_SDNN_avg', value: 43.33, unit: 'ms' },
       ]);
     });
 
-    test("RespiratoryRate queries count/min but emits breaths/min", async () => {
+    test('RespiratoryRate queries count/min but emits breaths/min', async () => {
       await initHealthConnect();
 
       mockQueryStatisticsCollection.mockResolvedValue([
-        statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), { min: 12, max: 18, avg: 14.5 }),
+        statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), {
+          min: 12,
+          max: 18,
+          avg: 14.5,
+        }),
       ]);
 
       const result = await readMinMaxAvgByDayDetailed(
-        { recordType: 'RespiratoryRate', unit: 'breaths/min', type: 'respiratory_rate' },
+        {
+          recordType: 'RespiratoryRate',
+          unit: 'breaths/min',
+          type: 'respiratory_rate',
+        },
         localDate(2024, 1, 15),
-        localDate(2024, 1, 15, 23, 59),
+        localDate(2024, 1, 15, 23, 59)
       );
 
-      expect(mockQueryStatisticsCollection.mock.calls[0][0]).toBe('HKQuantityTypeIdentifierRespiratoryRate');
-      expect(mockQueryStatisticsCollection.mock.calls[0][4].unit).toBe('count/min');
-      expect(result!.records.every(r => r.unit === 'breaths/min')).toBe(true);
-      expect(result!.records.map(r => r.value)).toEqual([12, 18, 14.5]);
+      expect(mockQueryStatisticsCollection.mock.calls[0][0]).toBe(
+        'HKQuantityTypeIdentifierRespiratoryRate'
+      );
+      expect(mockQueryStatisticsCollection.mock.calls[0][4].unit).toBe(
+        'count/min'
+      );
+      expect(result!.records.every((r) => r.unit === 'breaths/min')).toBe(true);
+      expect(result!.records.map((r) => r.value)).toEqual([12, 18, 14.5]);
     });
 
     test('BloodGlucose queries mg/dL, converts to mmol/L, and matches the legacy transformer', async () => {
       await initHealthConnect();
 
-      const config = { recordType: 'BloodGlucose', unit: 'mmol/L', type: 'blood_glucose' };
+      const config = {
+        recordType: 'BloodGlucose',
+        unit: 'mmol/L',
+        type: 'blood_glucose',
+      };
       const dayIso = localDate(2024, 1, 15, 8).toISOString();
       // Legacy path: mg/dL sample → transformer divides by 18.018 → aggregateByDay.
       const legacy = aggregateByDay(
         transformHealthRecords(
-          [{ time: dayIso, level: { inMilligramsPerDeciliter: 90.09 } },
-            { time: dayIso, level: { inMilligramsPerDeciliter: 180.18 } }],
-          config,
+          [
+            { time: dayIso, level: { inMilligramsPerDeciliter: 90.09 } },
+            { time: dayIso, level: { inMilligramsPerDeciliter: 180.18 } },
+          ],
+          config
         ) as TransformedRecord[],
         'blood_glucose',
         'mmol/L',
-        'min-max-avg',
+        'min-max-avg'
       );
 
       mockQueryStatisticsCollection.mockResolvedValue([
-        statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), { min: 90.09, max: 180.18, avg: 135.135 }, 'mg/dL'),
+        statsBucket(
+          localDate(2024, 1, 15),
+          localDate(2024, 1, 16),
+          { min: 90.09, max: 180.18, avg: 135.135 },
+          'mg/dL'
+        ),
       ]);
       const result = await readMinMaxAvgByDayDetailed(
         config,
         localDate(2024, 1, 15),
-        localDate(2024, 1, 15, 23, 59),
+        localDate(2024, 1, 15, 23, 59)
       );
 
-      expect(mockQueryStatisticsCollection.mock.calls[0][0]).toBe('HKQuantityTypeIdentifierBloodGlucose');
+      expect(mockQueryStatisticsCollection.mock.calls[0][0]).toBe(
+        'HKQuantityTypeIdentifierBloodGlucose'
+      );
       expect(mockQueryStatisticsCollection.mock.calls[0][4].unit).toBe('mg/dL');
-      expect(result!.records.every(r => r.unit === 'mmol/L')).toBe(true);
-      const legacyMin = legacy.find(r => r.type === 'blood_glucose_min')!;
-      const legacyMax = legacy.find(r => r.type === 'blood_glucose_max')!;
-      expect(result!.records.find(r => r.type === 'blood_glucose_min')!.value).toBe(legacyMin.value);
-      expect(result!.records.find(r => r.type === 'blood_glucose_max')!.value).toBe(legacyMax.value);
-      expect(result!.records.find(r => r.type === 'blood_glucose_avg')!.value).toBe(7.5); // 135.135 / 18.018
+      expect(result!.records.every((r) => r.unit === 'mmol/L')).toBe(true);
+      const legacyMin = legacy.find((r) => r.type === 'blood_glucose_min')!;
+      const legacyMax = legacy.find((r) => r.type === 'blood_glucose_max')!;
+      expect(
+        result!.records.find((r) => r.type === 'blood_glucose_min')!.value
+      ).toBe(legacyMin.value);
+      expect(
+        result!.records.find((r) => r.type === 'blood_glucose_max')!.value
+      ).toBe(legacyMax.value);
+      expect(
+        result!.records.find((r) => r.type === 'blood_glucose_avg')!.value
+      ).toBe(7.5); // 135.135 / 18.018
     });
 
     test('BloodOxygenSaturation queries the 0–1 fraction unit (%) and emits percent ×100', async () => {
       await initHealthConnect();
 
-      const config = { recordType: 'BloodOxygenSaturation', unit: 'percent', type: 'blood_oxygen_saturation' };
+      const config = {
+        recordType: 'BloodOxygenSaturation',
+        unit: 'percent',
+        type: 'blood_oxygen_saturation',
+      };
       mockQueryStatisticsCollection.mockResolvedValue([
-        statsBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), { min: 0.92, max: 0.99, avg: 0.9612 }, '%'),
+        statsBucket(
+          localDate(2024, 1, 15),
+          localDate(2024, 1, 16),
+          { min: 0.92, max: 0.99, avg: 0.9612 },
+          '%'
+        ),
       ]);
 
       const result = await readMinMaxAvgByDayDetailed(
         config,
         localDate(2024, 1, 15),
-        localDate(2024, 1, 15, 23, 59),
+        localDate(2024, 1, 15, 23, 59)
       );
 
-      expect(mockQueryStatisticsCollection.mock.calls[0][0]).toBe('HKQuantityTypeIdentifierOxygenSaturation');
+      expect(mockQueryStatisticsCollection.mock.calls[0][0]).toBe(
+        'HKQuantityTypeIdentifierOxygenSaturation'
+      );
       expect(mockQueryStatisticsCollection.mock.calls[0][4].unit).toBe('%');
-      expect(result!.records.map(r => ({ type: r.type, value: r.value, unit: r.unit }))).toEqual([
+      expect(
+        result!.records.map((r) => ({
+          type: r.type,
+          value: r.value,
+          unit: r.unit,
+        }))
+      ).toEqual([
         { type: 'blood_oxygen_saturation_min', value: 92, unit: 'percent' },
         { type: 'blood_oxygen_saturation_max', value: 99, unit: 'percent' },
         { type: 'blood_oxygen_saturation_avg', value: 96.12, unit: 'percent' },
@@ -1975,9 +2403,13 @@ describe('readMinMaxAvgByDayDetailed', () => {
       await initHealthConnect();
 
       const result = await readMinMaxAvgByDayDetailed(
-        { recordType: 'OxygenSaturation', unit: 'percent', type: 'blood_oxygen_saturation' },
+        {
+          recordType: 'OxygenSaturation',
+          unit: 'percent',
+          type: 'blood_oxygen_saturation',
+        },
         localDate(2024, 1, 15),
-        localDate(2024, 1, 15, 23, 59),
+        localDate(2024, 1, 15, 23, 59)
       );
 
       expect(result).toBeNull();
@@ -1997,8 +2429,12 @@ describe('isDatabaseInaccessibleError', () => {
   });
 
   test('is case-insensitive', () => {
-    expect(isDatabaseInaccessibleError(new Error('PROTECTED HEALTH DATA is blocked'))).toBe(true);
-    expect(isDatabaseInaccessibleError(new Error('ErrorDatabaseInaccessible'))).toBe(true);
+    expect(
+      isDatabaseInaccessibleError(new Error('PROTECTED HEALTH DATA is blocked'))
+    ).toBe(true);
+    expect(
+      isDatabaseInaccessibleError(new Error('ErrorDatabaseInaccessible'))
+    ).toBe(true);
   });
 
   test('returns false for non-Error values', () => {
@@ -2009,8 +2445,12 @@ describe('isDatabaseInaccessibleError', () => {
   });
 
   test('returns false for unrelated errors', () => {
-    expect(isDatabaseInaccessibleError(new Error('Network timeout'))).toBe(false);
-    expect(isDatabaseInaccessibleError(new Error('Authorization denied'))).toBe(false);
+    expect(isDatabaseInaccessibleError(new Error('Network timeout'))).toBe(
+      false
+    );
+    expect(isDatabaseInaccessibleError(new Error('Authorization denied'))).toBe(
+      false
+    );
   });
 });
 
@@ -2028,9 +2468,15 @@ describe('databaseInaccessibleCount', () => {
     mockIsHealthDataAvailable.mockResolvedValue(true);
     await initHealthConnect();
 
-    mockQueryQuantitySamples.mockRejectedValue(new Error('Protected health data is inaccessible'));
+    mockQueryQuantitySamples.mockRejectedValue(
+      new Error('Protected health data is inaccessible')
+    );
 
-    await readHealthRecords('Steps', new Date('2024-01-15'), new Date('2024-01-16'));
+    await readHealthRecords(
+      'Steps',
+      new Date('2024-01-15'),
+      new Date('2024-01-16')
+    );
 
     expect(getDatabaseInaccessibleCount()).toBe(1);
   });
@@ -2040,7 +2486,9 @@ describe('databaseInaccessibleCount', () => {
     mockIsHealthDataAvailable.mockResolvedValue(true);
     await initHealthConnect();
 
-    mockQueryStatisticsCollection.mockRejectedValue(new Error('Protected health data is inaccessible'));
+    mockQueryStatisticsCollection.mockRejectedValue(
+      new Error('Protected health data is inaccessible')
+    );
 
     const startDate = new Date('2024-01-15T00:00:00Z');
     const endDate = new Date('2024-01-15T23:59:59Z');
@@ -2054,7 +2502,9 @@ describe('databaseInaccessibleCount', () => {
     mockIsHealthDataAvailable.mockResolvedValue(true);
     await initHealthConnect();
 
-    mockQueryStatisticsCollection.mockRejectedValue(new Error('Protected health data is inaccessible'));
+    mockQueryStatisticsCollection.mockRejectedValue(
+      new Error('Protected health data is inaccessible')
+    );
 
     const startDate = new Date('2024-01-15T00:00:00Z');
     const endDate = new Date('2024-01-15T23:59:59Z');
@@ -2070,7 +2520,11 @@ describe('databaseInaccessibleCount', () => {
 
     mockQueryQuantitySamples.mockRejectedValue(new Error('Network error'));
 
-    await readHealthRecords('Steps', new Date('2024-01-15'), new Date('2024-01-16'));
+    await readHealthRecords(
+      'Steps',
+      new Date('2024-01-15'),
+      new Date('2024-01-16')
+    );
 
     expect(getDatabaseInaccessibleCount()).toBe(0);
   });
@@ -2080,8 +2534,14 @@ describe('databaseInaccessibleCount', () => {
     mockIsHealthDataAvailable.mockResolvedValue(true);
     await initHealthConnect();
 
-    mockQueryQuantitySamples.mockRejectedValue(new Error('Protected health data is inaccessible'));
-    await readHealthRecords('Steps', new Date('2024-01-15'), new Date('2024-01-16'));
+    mockQueryQuantitySamples.mockRejectedValue(
+      new Error('Protected health data is inaccessible')
+    );
+    await readHealthRecords(
+      'Steps',
+      new Date('2024-01-15'),
+      new Date('2024-01-16')
+    );
     expect(getDatabaseInaccessibleCount()).toBe(1);
 
     resetDatabaseInaccessibleCount();
@@ -2119,12 +2579,18 @@ describe('readEarliestSampleDetailed', () => {
     expect(options.ascending).toBe(true);
     expect(options.limit).toBe(1);
     expect(options.filter.date.startDate).toEqual(new Date(0));
-    expect(result).toEqual({ records: [{ startTime: '2018-05-20T09:00:00.000Z' }] });
+    expect(result).toEqual({
+      records: [{ startTime: '2018-05-20T09:00:00.000Z' }],
+    });
   });
 
   test('routes category types through queryCategorySamples', async () => {
     mockQueryCategorySamples.mockResolvedValue([
-      { startDate: '2017-11-02T22:00:00Z', endDate: '2017-11-03T06:00:00Z', value: 1 },
+      {
+        startDate: '2017-11-02T22:00:00Z',
+        endDate: '2017-11-03T06:00:00Z',
+        value: 1,
+      },
     ]);
 
     const result = await readEarliestSampleDetailed('SleepSession');
@@ -2159,29 +2625,35 @@ describe('readEarliestSampleDetailed', () => {
 
     expect(mockQueryQuantitySamples).toHaveBeenCalledWith(
       'HKQuantityTypeIdentifierBloodPressureSystolic',
-      expect.objectContaining({ ascending: true, limit: 1 }),
+      expect.objectContaining({ ascending: true, limit: 1 })
     );
   });
 
   test('TotalCaloriesBurned takes the min over basal AND active energy', async () => {
     mockQueryQuantitySamples.mockImplementation((identifier: string) => {
       if (identifier === 'HKQuantityTypeIdentifierBasalEnergyBurned') {
-        return Promise.resolve([{ startDate: '2020-01-01T00:00:00Z', quantity: 1500 }]);
+        return Promise.resolve([
+          { startDate: '2020-01-01T00:00:00Z', quantity: 1500 },
+        ]);
       }
       if (identifier === 'HKQuantityTypeIdentifierActiveEnergyBurned') {
-        return Promise.resolve([{ startDate: '2015-06-15T10:00:00Z', quantity: 200 }]);
+        return Promise.resolve([
+          { startDate: '2015-06-15T10:00:00Z', quantity: 200 },
+        ]);
       }
       return Promise.resolve([]);
     });
 
     const result = await readEarliestSampleDetailed('TotalCaloriesBurned');
 
-    const probedIdentifiers = mockQueryQuantitySamples.mock.calls.map(call => call[0]);
+    const probedIdentifiers = mockQueryQuantitySamples.mock.calls.map(
+      (call) => call[0]
+    );
     expect(probedIdentifiers).toEqual(
       expect.arrayContaining([
         'HKQuantityTypeIdentifierBasalEnergyBurned',
         'HKQuantityTypeIdentifierActiveEnergyBurned',
-      ]),
+      ])
     );
     expect(result.records).toEqual([{ startTime: '2015-06-15T10:00:00.000Z' }]);
   });
@@ -2190,10 +2662,14 @@ describe('readEarliestSampleDetailed', () => {
     // A protein-only sample predating the earliest energy sample must move the floor.
     mockQueryQuantitySamples.mockImplementation((identifier: string) => {
       if (identifier === 'HKQuantityTypeIdentifierDietaryEnergyConsumed') {
-        return Promise.resolve([{ startDate: '2021-02-01T12:00:00Z', quantity: 500 }]);
+        return Promise.resolve([
+          { startDate: '2021-02-01T12:00:00Z', quantity: 500 },
+        ]);
       }
       if (identifier === 'HKQuantityTypeIdentifierDietaryProtein') {
-        return Promise.resolve([{ startDate: '2019-07-04T12:00:00Z', quantity: 30 }]);
+        return Promise.resolve([
+          { startDate: '2019-07-04T12:00:00Z', quantity: 30 },
+        ]);
       }
       return Promise.resolve([]);
     });
@@ -2214,7 +2690,9 @@ describe('readEarliestSampleDetailed', () => {
 
   test('a locked-device failure bumps the inaccessible counter and errors the envelope', async () => {
     resetDatabaseInaccessibleCount();
-    mockQueryQuantitySamples.mockRejectedValue(new Error('Protected health data is inaccessible'));
+    mockQueryQuantitySamples.mockRejectedValue(
+      new Error('Protected health data is inaccessible')
+    );
 
     const result = await readEarliestSampleDetailed('Weight');
 

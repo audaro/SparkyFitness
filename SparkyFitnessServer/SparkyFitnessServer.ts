@@ -14,6 +14,19 @@ import { log } from './config/logging.js';
 import { authenticate } from './middleware/authMiddleware.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { applySignOutCookieCleanup } from './middleware/signOutCookieCleanup.js';
+import {
+  isDemoMode,
+  isDemoEmail,
+  isDemoPasswordResetToken,
+  getDemoEmail,
+  demoRestrictionGuard,
+} from './middleware/demoGuardMiddleware.js';
+import {
+  seedDemoUser,
+  purgeDemoUserIfExists,
+  scheduleDemoMidnightReset,
+} from './services/demoSeedService.js';
+import { fromNodeHeaders } from 'better-auth/node';
 import foodRoutes from './routes/foodRoutes.js';
 import favoritesRoutes from './routes/favoritesRoutes.js';
 // @ts-expect-error TS1192
@@ -70,19 +83,20 @@ import onboardingRoutes from './routes/onboardingRoutes.js';
 import customNutrientRoutes from './routes/customNutrientRoutes.js';
 import aiUnitConversionRoutes from './routes/aiUnitConversionRoutes.js';
 import allergenPreferenceRoutes from './routes/allergenPreferenceRoutes.js';
-import { applyMigrations } from './utils/dbMigrations.js';
-import { applyRlsPolicies } from './utils/applyRlsPolicies.js';
 import waterContainerRoutes from './routes/waterContainerRoutes.js';
 import waterIntakeRoutesV2 from './routes/v2/waterIntakeRoutes.js';
 import medicationRoutesV2 from './routes/v2/medicationRoutes.js';
 import symptomRoutesV2 from './routes/v2/symptomRoutes.js';
 import cycleRoutesV2 from './routes/v2/cycleRoutes.js';
 import pregnancyRoutesV2 from './routes/v2/pregnancyRoutes.js';
+import reportRoutesV2 from './routes/v2/reportRoutes.js';
+import nutritionKineticsRoutesV2 from './routes/v2/nutritionKineticsRoutes.js';
 import backupRoutes from './routes/backupRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import cron from 'node-cron';
 import { scheduleBackupsOnStartup } from './services/backupScheduler.js';
+import { scheduleOpenFoodFactsAutoSyncOnStartup } from './services/openFoodFactsAutoSyncScheduler.js';
 import externalProviderRepository from './models/externalProviderRepository.js';
 import garminService from './services/garminService.js';
 import { getGarminSyncPhaseErrors } from './services/garminSyncResult.js';
@@ -131,7 +145,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.set('trust proxy', 1); // Trust the first proxy immediately in front of me just internal nginx. external not required.
+// How many proxies sit in front of the app, deciding which X-Forwarded-For
+// entry Express reports as req.ip. The default of 1 covers the bundled setup,
+// where only the frontend container's nginx is in front. Add a hop for each
+// extra proxy (reverse proxy, tunnel connector, load balancer) or req.ip will
+// resolve to an internal address shared by every visitor.
+const trustedProxyHops = Number.parseInt(
+  process.env.SPARKY_FITNESS_TRUSTED_PROXY_HOPS ?? '',
+  10
+);
+app.set(
+  'trust proxy',
+  Number.isInteger(trustedProxyHops) && trustedProxyHops >= 0
+    ? trustedProxyHops
+    : 1
+);
 // 304s from ETag revalidation break the iOS mobile app (#1353).
 app.set('etag', false);
 const PORT = process.env.SPARKY_FITNESS_SERVER_PORT || 3010;
@@ -182,30 +210,61 @@ app.use(
     );
   })
 );
+// OAuth/OIDC discovery probes must 404, not 401.
+//
+// This server authenticates with API keys and session cookies; it is not an
+// OAuth authorization server. When an MCP client's first request is rejected it
+// follows the spec and probes for OAuth metadata. Falling through to
+// `authenticate` answered those probes with 401, which reads as "OAuth exists,
+// keep negotiating", so the client retried discovery in a loop (and then failed
+// Dynamic Client Registration with a 404 anyway). A 404 says "no OAuth here",
+// and the client falls back to the bearer token it was configured with.
+//
+// Registered before the /mcp mount and the global `authenticate` so it beats
+// both. Deliberately an explicit list rather than all of `/.well-known/*`, so
+// an ACME http-01 challenge served through this app is untouched.
+const OAUTH_DISCOVERY_PATHS = new Set([
+  '/.well-known/openid-configuration',
+  '/.well-known/oauth-authorization-server',
+  '/.well-known/oauth-protected-resource',
+]);
+app.use((req, res, next) => {
+  // Strip an optional /mcp prefix: clients probe both the origin root and the
+  // MCP mount point, and Express has not applied the mount prefix yet here.
+  const path = req.path.startsWith('/mcp/')
+    ? req.path.slice('/mcp'.length)
+    : req.path;
+  if (!OAUTH_DISCOVERY_PATHS.has(path)) return next();
+  res.status(404).json({ error: 'not_found' });
+});
 // External MCP endpoint — a self-contained chain mounted top-level (not /api)
 // to skip the /api/auth interceptor and cache-control middleware. It sits
-// before the global 50mb parser so its route-local 1mb parser wins (the global
+// before the global parser so its route-local parser wins (the global
 // parser would set req._body first and no-op the local one). cookieParser is
-// local because the global one also runs after the 50mb parser, and
+// local because the global one also runs after the global parser, and
 // authenticate reads req.cookies. requestLogger is local because the global
 // one also runs after this mount, so /mcp requests would never reach it.
 app.use(
   '/mcp',
   requestLogger({ logCompletion: true }),
-  express.json({ limit: '1mb' }),
+  express.json({ limit: isDemoMode() ? '1mb' : '50mb' }),
   cookieParser(),
   authenticate,
+  // /mcp mounts ahead of the global route table, so it needs the demo guard
+  // explicitly — the app-level one below never sees these requests.
+  demoRestrictionGuard,
   mcpRoutes
 );
 // Middleware to parse JSON bodies for all incoming requests
-// Increased limit to 50mb to accommodate image uploads
-app.use(express.json({ limit: '50mb' }));
+// Increased limit to 50mb to accommodate image uploads. A public demo instance
+// takes a much lower cap: the routes that need the headroom (image analysis,
+// uploads, FIT import) are blocked for the demo account anyway, and a 50mb
+// parse per request is a cheap way for an anonymous visitor to burn memory.
+app.use(express.json({ limit: isDemoMode() ? '1mb' : '50mb' }));
 app.use(cookieParser());
 // --- Better Auth Mounting Logic (Moved to after migrations) ---
-// @ts-expect-error TS7034
-let syncTrustedProviders;
-// @ts-expect-error TS7034
-let betterAuthHandlerInstance = null;
+let syncTrustedProviders: typeof authModule.syncTrustedProviders | undefined;
+let betterAuthHandlerInstance: ReturnType<typeof toNodeHandler> | null = null;
 const mountBetterAuth = () => {
   try {
     console.log('[AUTH] Starting Better Auth mounting phase...');
@@ -220,15 +279,117 @@ const mountBetterAuth = () => {
 };
 // Catch ALL requests starting with /api/auth early.
 app.use(async (req, res, next) => {
-  // @ts-expect-error TS7005
   if (req.originalUrl.startsWith('/api/auth') && betterAuthHandlerInstance) {
     // 1. Skip interceptor for discovery routes - let them fall through to authRoutes.js
     const isDiscovery =
       req.path === '/api/auth/settings' ||
       req.path === '/api/auth/mfa-factors' ||
+      req.path === '/api/auth/demo-login' ||
       req.path.startsWith('/api/auth/web-login');
     if (isDiscovery) {
       return next();
+    }
+
+    // In demo mode the credential backend stays loaded so the one-click demo
+    // login (an in-process auth.api.signInEmail call) keeps working, so the
+    // public password routes have to be closed here instead. The body matches
+    // Better Auth's own EMAIL_PASSWORD_DISABLED response byte for byte, so a
+    // client cannot tell which layer refused it.
+    if (
+      process.env.SPARKY_FITNESS_DISABLE_EMAIL_LOGIN === 'true' &&
+      (req.path.startsWith('/api/auth/sign-in/email') ||
+        req.path.startsWith('/api/auth/sign-up/email'))
+    ) {
+      return res.status(400).json({
+        message: 'Email and password is not enabled',
+        code: 'EMAIL_PASSWORD_DISABLED',
+      });
+    }
+
+    if (isDemoMode()) {
+      // Prefix matches throughout: exact equality misses trailing-slash and
+      // sub-path variants that Better Auth still routes.
+      const restrictedAuthPrefixes = [
+        '/api/auth/two-factor',
+        '/api/auth/passkey',
+        '/api/auth/change-password',
+        '/api/auth/set-password',
+        '/api/auth/change-email',
+        '/api/auth/update-user',
+        '/api/auth/delete-user',
+      ];
+      const isRestrictedAuthPath = restrictedAuthPrefixes.some(
+        (prefix) => req.path === prefix || req.path.startsWith(prefix + '/')
+      );
+
+      // API keys are read-only for the sandbox rather than invisible: minting
+      // one would outlive the daily reset, but listing the account's own keys
+      // gives away nothing (Better Auth returns the key itself only at
+      // creation) and blocking the read just makes the settings screen throw.
+      const isApiKeyPath =
+        req.path === '/api/auth/api-key' ||
+        req.path.startsWith('/api/auth/api-key/');
+      const isRestrictedApiKeyPath =
+        isApiKeyPath && req.method.toUpperCase() !== 'GET';
+
+      // Password-recovery endpoints are unauthenticated, so there is no session
+      // to match on — identify the account from the request itself, or the demo
+      // credential could be reset out from under the sandbox.
+      //
+      // The two request endpoints name it by address. `/reset-password` does
+      // not: it carries `{ newPassword, token }`, so the account has to be
+      // resolved from the token, which Better Auth accepts in either the body
+      // or the query string.
+      const recoveryPrefixes = [
+        '/api/auth/forget-password',
+        '/api/auth/request-password-reset',
+        '/api/auth/reset-password',
+      ];
+      const isRecoveryPath = recoveryPrefixes.some(
+        (prefix) => req.path === prefix || req.path.startsWith(prefix + '/')
+      );
+      if (
+        isRecoveryPath &&
+        (isDemoEmail(req.body?.email) ||
+          (await isDemoPasswordResetToken(
+            // `||`, not `??`: Better Auth resolves the token as
+            // `ctx.body.token || ctx.query?.token`, so an empty body token still
+            // falls through to the query string there and must here too.
+            req.body?.token || req.query?.token
+          )))
+      ) {
+        log(
+          'warn',
+          `[DEMO GUARD] Blocked password recovery on ${req.method} ${req.path} for the demo account`
+        );
+        return res.status(403).json({
+          error:
+            'This action is disabled on the demo account to keep the instance available for everyone.',
+          code: 'DEMO_ACTION_RESTRICTED',
+        });
+      }
+
+      if (isRestrictedAuthPath || isRestrictedApiKeyPath) {
+        try {
+          const { auth } = authModule;
+          const session = await auth.api.getSession({
+            headers: fromNodeHeaders(req.headers),
+          });
+          if (session?.user && isDemoEmail(session.user.email)) {
+            log(
+              'warn',
+              `[DEMO GUARD] Blocked Better Auth mutation on ${req.method} ${req.path} for demo user`
+            );
+            return res.status(403).json({
+              error:
+                'This action is disabled on the demo account to keep the instance available for everyone.',
+              code: 'DEMO_ACTION_RESTRICTED',
+            });
+          }
+        } catch {
+          // If session retrieval fails, fall through
+        }
+      }
     }
 
     // Translate Bearer token to cookie / x-api-key before passing to the Better
@@ -296,12 +457,42 @@ const uploadsStaticOptions = {
   },
   headers: uploadsSecurityHeaders,
 };
-// Check-in progress photos are sensitive. Block direct access via the public
-// static mounts so they can only be reached through the authenticated,
-// ownership-checked route (GET /api/measurements/check-in-photos/file/:id).
+// Check-in progress photos and pregnancy bump photos are sensitive. Block
+// direct access via the public static mounts so they can only be reached
+// through their authenticated, ownership-checked routes:
+//   GET /api/measurements/check-in-photos/file/:id   (check-in)
+//   GET /api/v2/pregnancy/photos/file/:id            (pregnancy)
+// Check-in is delegatable via the 'checkin' permission; pregnancy is
+// owner-only reproductive-health data and is never shared or delegated, so its
+// route deliberately carries no permission middleware.
 // 404 (not 403) so we don't confirm whether a given path exists.
-app.use(['/uploads/check-in', '/api/uploads/check-in'], (_req, res) => {
-  res.status(404).end();
+// This block MUST stay above the express.static mounts below — moving it after
+// them silently re-exposes every file. tests/uploadsStaticMount.test.ts guards
+// both the behavior and the source ordering.
+const SENSITIVE_UPLOAD_SUBTREES = new Set(['check-in', 'pregnancy']);
+app.use(['/uploads', '/api/uploads'], (req, res, next) => {
+  // Match the path the way serve-static resolves it, not the way it was
+  // written: a prefix test against the raw URL would not account for percent-
+  // encoded separators or `..` segments, which serve-static decodes and
+  // normalizes before it looks for a file. So decode once (as it does),
+  // normalize, and test the resulting first segment.
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(req.path);
+  } catch {
+    // Malformed percent-encoding never reaches a real file.
+    res.status(400).end();
+    return;
+  }
+  const normalized = path.posix.normalize(decodedPath.replace(/\\/g, '/'));
+  // Lowercased because Express routing and macOS/Windows filesystems are all
+  // case-insensitive, so /uploads/Pregnancy/... reaches the same bytes.
+  const firstSegment = normalized.split('/').filter(Boolean)[0]?.toLowerCase();
+  if (firstSegment && SENSITIVE_UPLOAD_SUBTREES.has(firstSegment)) {
+    res.status(404).end();
+    return;
+  }
+  next();
 });
 app.use('/api/uploads', express.static(UPLOADS_BASE_DIR, uploadsStaticOptions));
 app.use('/uploads', express.static(UPLOADS_BASE_DIR, uploadsStaticOptions));
@@ -472,6 +663,7 @@ const isPublicApiDocsEnabled =
 const publicRoutes = [
   '/api/auth/settings',
   '/api/auth/mfa-factors',
+  '/api/auth/demo-login',
   '/api/auth/web-login',
   '/api/health',
   '/api/version',
@@ -500,6 +692,10 @@ app.use((req: Request<RouteParams>, res: Response, next: NextFunction) => {
   }
   authenticate(req, res, next);
 });
+// Demo restrictions run once, here, ahead of the whole route table. Per-route
+// demoGuard calls remain as defense in depth, but this is what guarantees a
+// newly added route family is covered without anyone remembering to opt in.
+app.use(demoRestrictionGuard);
 // Test route
 app.get('/api/ping', (_req, res) =>
   res.json({ status: 'ok', time: new Date().toISOString() })
@@ -570,6 +766,8 @@ app.use('/api/v2/medications', medicationRoutesV2);
 app.use('/api/v2/symptoms', symptomRoutesV2);
 app.use('/api/v2/cycle', cycleRoutesV2);
 app.use('/api/v2/pregnancy', pregnancyRoutesV2);
+app.use('/api/v2/reports', reportRoutesV2);
+app.use('/api/v2/nutrition', nutritionKineticsRoutesV2);
 app.use('/api/workout-presets', workoutPresetRoutes);
 app.use('/api/workout-plan-templates', workoutPlanTemplateRoutes);
 app.use('/api/gym-equipment-profiles', gymEquipmentProfileRoutes);
@@ -852,78 +1050,125 @@ const scheduleHevySyncs = async () => {
     }
   });
 };
-applyMigrations()
-  .then(applyRlsPolicies)
-  .then(async () => {
-    // Upsert OIDC provider from env when SPARKY_FITNESS_OIDC_ISSUER_URL + CLIENT_ID + SECRET + PROVIDER_SLUG are set
+// Migrations and RLS policies are applied by index.ts before this module is
+// imported, so that Better Auth's eager schema validation (run at auth.ts
+// module scope) sees the migrated schema. Do not move them back in here.
+(async () => {
+  // Upsert OIDC provider from env when SPARKY_FITNESS_OIDC_ISSUER_URL + CLIENT_ID + SECRET + PROVIDER_SLUG are set
+  try {
+    await upsertEnvOidcProvider();
+  } catch (err) {
+    log('error', 'OIDC env provider upsert failed:', err);
+  }
+  mountBetterAuth();
+  // Sync trusted SSO providers after database is ready (so Better Auth sees env-upserted and DB providers)
+  if (syncTrustedProviders) {
+    await syncTrustedProviders().catch((err: unknown) =>
+      console.error('[AUTH] Post-init SSO sync failed:', err)
+    );
+  }
+  scheduleBackupsOnStartup();
+  await scheduleOpenFoodFactsAutoSyncOnStartup();
+  scheduleSessionCleanup();
+  scheduleWithingsSyncs();
+  scheduleGarminSyncs();
+  scheduleFitbitSyncs();
+  scheduleOuraSyncs();
+  schedulePolarSyncs();
+  scheduleStravaSyncs();
+  scheduleGoogleHealthSyncs();
+  scheduleHevySyncs();
+  if (process.env.SPARKY_FITNESS_ADMIN_EMAIL) {
+    // A demo account promoted to admin would hand every anonymous visitor the
+    // admin panel. Refuse the promotion rather than start up compromised.
+    if (isDemoMode() && isDemoEmail(process.env.SPARKY_FITNESS_ADMIN_EMAIL)) {
+      throw new Error(
+        `SPARKY_FITNESS_ADMIN_EMAIL matches the demo account (${getDemoEmail()}). ` +
+          'Refusing to grant admin to the public demo user — use a different admin address.'
+      );
+    }
+    const adminUser = await userRepository.findUserByEmail(
+      process.env.SPARKY_FITNESS_ADMIN_EMAIL
+    );
+    if (adminUser) await userRepository.updateUserRole(adminUser.id, 'admin');
+  }
+  if (process.env.SPARKY_FITNESS_DEMO_MODE === 'true') {
     try {
-      await upsertEnvOidcProvider();
+      await seedDemoUser();
+      scheduleDemoMidnightReset();
     } catch (err) {
-      log('error', 'OIDC env provider upsert failed:', err);
+      log('error', '[DEMO] Demo mode initialization failed:', err);
     }
-    mountBetterAuth();
-    // Sync trusted SSO providers after database is ready (so Better Auth sees env-upserted and DB providers)
-    // @ts-expect-error TS7005
-    if (syncTrustedProviders) {
-      // @ts-expect-error TS7006
-      await syncTrustedProviders().catch((err) =>
-        console.error('[AUTH] Post-init SSO sync failed:', err)
-      );
+  } else {
+    try {
+      await purgeDemoUserIfExists();
+    } catch (err) {
+      log('error', '[DEMO] Demo auto-purge check failed:', err);
     }
-    scheduleBackupsOnStartup();
-    scheduleSessionCleanup();
-    scheduleWithingsSyncs();
-    scheduleGarminSyncs();
-    scheduleFitbitSyncs();
-    scheduleOuraSyncs();
-    schedulePolarSyncs();
-    scheduleStravaSyncs();
-    scheduleGoogleHealthSyncs();
-    scheduleHevySyncs();
-    if (process.env.SPARKY_FITNESS_ADMIN_EMAIL) {
-      const adminUser = await userRepository.findUserByEmail(
-        process.env.SPARKY_FITNESS_ADMIN_EMAIL
-      );
-      if (adminUser) await userRepository.updateUserRole(adminUser.id, 'admin');
-    }
-    const server = app.listen(PORT, () => {
-      console.log(`DEBUG: Server started and listening on port ${PORT}`);
-      log('info', `SparkyFitnessServer listening on port ${PORT}`);
-      console.log('View API documentation at: /api/api-docs/swagger');
-    });
-    // Fix for reverse proxies using HTTP keepalive (e.g. Traefik, Caddy)
-    server.keepAliveTimeout = 181000; // Must be > proxy's idle timeout (nginx=75s, traefik=default 180s)
-    server.headersTimeout = 182000; // Must be slightly > keepAliveTimeout
-    // Graceful shutdown
-    let shuttingDown = false;
-    // @ts-expect-error TS7006
-    const shutdown = async (signal) => {
-      if (shuttingDown) return;
-      shuttingDown = true;
-      log('info', `${signal} received, shutting down gracefully...`);
-      server.close(async () => {
-        log('info', 'HTTP server closed, draining database pools...');
-        try {
-          await endPool();
-          log('info', 'Database pools closed. Exiting.');
-        } catch (err) {
-          log('error', 'Error closing database pools:', err);
-        }
-        // eslint-disable-next-line n/no-process-exit
-        process.exit(0);
-      });
-      // Force exit if graceful shutdown takes too long
-      setTimeout(() => {
-        log('error', 'Graceful shutdown timed out after 15s, forcing exit.');
-        // eslint-disable-next-line n/no-process-exit
-        process.exit(1);
-      }, 15000).unref();
+  }
+  const server = app.listen(PORT);
+  // A binding failure (EADDRINUSE, EACCES) arrives as the server's 'error'
+  // event, not as a rejection of this chain. Left unhandled it terminates the
+  // process before the catch below can drain the pools, so bridge the two
+  // events into the promise. Both listeners are removed once one fires: a
+  // lingering 'error' listener would swallow later runtime errors that should
+  // still surface.
+  await new Promise<void>((resolve, reject) => {
+    const onListening = () => {
+      server.removeListener('error', onError);
+      resolve();
     };
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
-  })
-  .catch((error) => {
-    console.error('Failed to start server:', error);
-    process.exitCode = 1;
+    const onError = (error: Error) => {
+      server.removeListener('listening', onListening);
+      reject(error);
+    };
+    server.once('listening', onListening);
+    server.once('error', onError);
   });
+  console.log(`DEBUG: Server started and listening on port ${PORT}`);
+  log('info', `SparkyFitnessServer listening on port ${PORT}`);
+  console.log('View API documentation at: /api/api-docs/swagger');
+  // Fix for reverse proxies using HTTP keepalive (e.g. Traefik, Caddy)
+  server.keepAliveTimeout = 181000; // Must be > proxy's idle timeout (nginx=75s, traefik=default 180s)
+  server.headersTimeout = 182000; // Must be slightly > keepAliveTimeout
+  // Graceful shutdown
+  let shuttingDown = false;
+  // @ts-expect-error TS7006
+  const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    log('info', `${signal} received, shutting down gracefully...`);
+    server.close(async () => {
+      log('info', 'HTTP server closed, draining database pools...');
+      try {
+        await endPool();
+        log('info', 'Database pools closed. Exiting.');
+      } catch (err) {
+        log('error', 'Error closing database pools:', err);
+      }
+      // eslint-disable-next-line n/no-process-exit
+      process.exit(0);
+    });
+    // Force exit if graceful shutdown takes too long
+    setTimeout(() => {
+      log('error', 'Graceful shutdown timed out after 15s, forcing exit.');
+      // eslint-disable-next-line n/no-process-exit
+      process.exit(1);
+    }, 15000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+})().catch(async (error) => {
+  console.error('Failed to start server:', error);
+  // A failed boot must stop the process. Setting process.exitCode alone leaves
+  // a live container that never listens, which Docker's restart policy will
+  // not retry, so the deployment sits broken instead of restarting.
+  try {
+    await endPool();
+  } catch {
+    // Already failing; don't mask the original cause.
+  }
+  // eslint-disable-next-line n/no-process-exit
+  process.exit(1);
+});
 app.use(errorHandler);

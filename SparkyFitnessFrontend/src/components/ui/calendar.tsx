@@ -44,8 +44,8 @@ function Calendar({
       captionLayout={captionLayout}
       locale={locale}
       reverseYears
-      fromYear={new Date().getFullYear() - yearsRange}
-      toYear={new Date().getFullYear() + 1}
+      startMonth={new Date(new Date().getFullYear() - yearsRange, 0)}
+      endMonth={new Date(new Date().getFullYear() + 1, 11)}
       formatters={{
         formatMonthDropdown: (date) =>
           date.toLocaleString(locale?.code, { month: 'short' }),
@@ -95,7 +95,7 @@ function Calendar({
             : 'cn-calendar-caption-label flex items-center gap-1 rounded-(--cell-radius) text-sm [&>svg]:size-3.5 [&>svg]:text-muted-foreground',
           defaultClassNames.caption_label
         ),
-        table: 'w-full border-collapse',
+        month_grid: 'w-full border-collapse',
         weekdays: cn('flex', defaultClassNames.weekdays),
         weekday: cn(
           'flex-1 rounded-(--cell-radius) text-[0.7rem] font-medium uppercase tracking-widest text-muted-foreground/50 text-center select-none',

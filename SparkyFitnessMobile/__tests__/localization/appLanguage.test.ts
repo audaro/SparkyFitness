@@ -39,7 +39,6 @@ const mockNative = AppLanguageNative as Mutable<
 >;
 const mockAddLog = addLog as jest.MockedFunction<typeof addLog>;
 
-
 const MIGRATION_KEY = '@SparkyFitness/app-language-migration';
 
 async function markMigrationComplete(): Promise<void> {
@@ -48,7 +47,13 @@ async function markMigrationComplete(): Promise<void> {
 
 describe('normalizePreference', () => {
   it.each([
-    ['en', 'en'], ['en-US', 'en'], ['en-GB', 'en'], ['pl', 'pl'], ['pl-PL', 'pl'], ['de-DE', 'system'], [null, 'system'],
+    ['en', 'en'],
+    ['en-US', 'en'],
+    ['en-GB', 'en'],
+    ['pl', 'pl'],
+    ['pl-PL', 'pl'],
+    ['de-DE', 'system'],
+    [null, 'system'],
   ])('%s normalizes to %s', (input, expected) => {
     expect(normalizePreference(input)).toBe(expected);
   });
@@ -69,17 +74,25 @@ describe('app language service', () => {
     mockNative.getEffectiveLanguage.mockReset().mockResolvedValue('en');
     mockAddLog.mockClear();
     nativeApplication = null;
-    mockNative.getApplicationLanguage.mockImplementation(async () => nativeApplication);
-    mockNative.setApplicationLanguage.mockImplementation(async (language: string | null) => {
-      nativeApplication = language;
-    });
+    mockNative.getApplicationLanguage.mockImplementation(
+      async () => nativeApplication
+    );
+    mockNative.setApplicationLanguage.mockImplementation(
+      async (language: string | null) => {
+        nativeApplication = language;
+      }
+    );
     (getLocales as jest.Mock).mockReturnValue([
-      { languageCode: 'en', languageTag: 'en-US', regionCode: 'US', textDirection: 'ltr' },
+      {
+        languageCode: 'en',
+        languageTag: 'en-US',
+        regionCode: 'US',
+        textDirection: 'ltr',
+      },
     ]);
     await initializeI18n('en');
     await i18n.changeLanguage('en');
   });
-
 
   describe('iOS native-authoritative language', () => {
     beforeEach(() => {
@@ -92,7 +105,9 @@ describe('app language service', () => {
       (getLocales as jest.Mock).mockReturnValue([{ languageCode: 'pl' }]);
       await initializeAppLanguage();
       expect(i18n.resolvedLanguage).toBe('pl');
-      expect(useAppPreferencesStore.getState().languagePreference).toBe('system');
+      expect(useAppPreferencesStore.getState().languagePreference).toBe(
+        'system'
+      );
       expect(mockNative.setApplicationLanguage).not.toHaveBeenCalled();
     });
 
@@ -101,7 +116,9 @@ describe('app language service', () => {
       (getLocales as jest.Mock).mockReturnValue([{ languageCode: 'en' }]);
       await initializeAppLanguage();
       expect(i18n.resolvedLanguage).toBe('en');
-      expect(useAppPreferencesStore.getState().languagePreference).toBe('system');
+      expect(useAppPreferencesStore.getState().languagePreference).toBe(
+        'system'
+      );
       expect(mockNative.setApplicationLanguage).not.toHaveBeenCalled();
     });
 
@@ -109,7 +126,12 @@ describe('app language service', () => {
       // The official locale reader maps an unsupported first locale to en.
       (getLocales as jest.Mock).mockReturnValue([{ languageCode: 'en' }]);
       (getLocales as jest.Mock).mockReturnValue([
-        { languageCode: 'de', languageTag: 'de-DE', regionCode: 'DE', textDirection: 'ltr' },
+        {
+          languageCode: 'de',
+          languageTag: 'de-DE',
+          regionCode: 'DE',
+          textDirection: 'ltr',
+        },
       ]);
       await initializeAppLanguage();
       expect(i18n.resolvedLanguage).toBe('en');
@@ -145,7 +167,12 @@ describe('app language service', () => {
     it('resolves system through expo-localization (device locale)', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'system' });
       (getLocales as jest.Mock).mockReturnValue([
-        { languageCode: 'pl', languageTag: 'pl-PL', regionCode: 'PL', textDirection: 'ltr' },
+        {
+          languageCode: 'pl',
+          languageTag: 'pl-PL',
+          regionCode: 'PL',
+          textDirection: 'ltr',
+        },
       ]);
 
       await initializeAppLanguage();
@@ -174,7 +201,9 @@ describe('app language service', () => {
       expect(mockNative.setApplicationLanguage).not.toHaveBeenCalled();
       expect(await AsyncStorage.getItem(MIGRATION_KEY)).toBeTruthy();
       expect(i18n.resolvedLanguage).toBe('en');
-      expect(useAppPreferencesStore.getState().languagePreference).toBe('system');
+      expect(useAppPreferencesStore.getState().languagePreference).toBe(
+        'system'
+      );
     });
 
     it('migrates a stored en preference to the platform locale en', async () => {
@@ -237,7 +266,9 @@ describe('app language service', () => {
 
     it('falls back locally and leaves the marker unset when the initial native read fails', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'pl' });
-      mockNative.getApplicationLanguage.mockRejectedValue(new Error('bridge down'));
+      mockNative.getApplicationLanguage.mockRejectedValue(
+        new Error('bridge down')
+      );
 
       await expect(initializeAppLanguage()).resolves.toBe('pl');
 
@@ -247,13 +278,15 @@ describe('app language service', () => {
       expect(await AsyncStorage.getItem(MIGRATION_KEY)).toBeNull();
       expect(mockAddLog).toHaveBeenCalledWith(
         expect.stringContaining('Migration could not read native language'),
-        'WARNING',
+        'WARNING'
       );
     });
 
     it('does not write the completion marker when the native write fails (retries next launch)', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'pl' });
-      mockNative.setApplicationLanguage.mockRejectedValueOnce(new Error('native unavailable'));
+      mockNative.setApplicationLanguage.mockRejectedValueOnce(
+        new Error('native unavailable')
+      );
 
       await initializeAppLanguage();
 
@@ -264,7 +297,9 @@ describe('app language service', () => {
 
     it('does not write the completion marker when the native read-back fails (retries next launch)', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'pl' });
-      mockNative.getApplicationLanguage.mockRejectedValueOnce(new Error('read failed'));
+      mockNative.getApplicationLanguage.mockRejectedValueOnce(
+        new Error('read failed')
+      );
 
       await initializeAppLanguage();
 
@@ -275,16 +310,20 @@ describe('app language service', () => {
 
     it('retries the migration on the next bootstrap after a failed handoff', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'pl' });
-      mockNative.setApplicationLanguage.mockRejectedValueOnce(new Error('native unavailable'));
+      mockNative.setApplicationLanguage.mockRejectedValueOnce(
+        new Error('native unavailable')
+      );
 
       await initializeAppLanguage();
       expect(await AsyncStorage.getItem(MIGRATION_KEY)).toBeNull();
 
       // Restore the tracking implementation (the rejected once is consumed) so
       // the retried handoff writes and read-backs pl.
-      mockNative.setApplicationLanguage.mockImplementation(async (language: string | null) => {
-        nativeApplication = language;
-      });
+      mockNative.setApplicationLanguage.mockImplementation(
+        async (language: string | null) => {
+          nativeApplication = language;
+        }
+      );
       await initializeAppLanguage();
 
       expect(await AsyncStorage.getItem(MIGRATION_KEY)).toBeTruthy();
@@ -311,14 +350,16 @@ describe('app language service', () => {
 
     it('falls back to the stored preference when the native read rejects', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'pl' });
-      mockNative.getApplicationLanguage.mockRejectedValue(new Error('bridge failure'));
+      mockNative.getApplicationLanguage.mockRejectedValue(
+        new Error('bridge failure')
+      );
 
       await expect(initializeAppLanguage()).resolves.toBe('pl');
       expect(useAppPreferencesStore.getState().languagePreference).toBe('pl');
       expect(i18n.resolvedLanguage).toBe('pl');
       expect(mockAddLog).toHaveBeenCalledWith(
         expect.stringContaining('Native application-language read failed'),
-        'WARNING',
+        'WARNING'
       );
     });
 
@@ -350,7 +391,9 @@ describe('app language service', () => {
       await initializeAppLanguage();
 
       expect(mockNative.setApplicationLanguage).not.toHaveBeenCalled();
-      expect(useAppPreferencesStore.getState().languagePreference).toBe('system');
+      expect(useAppPreferencesStore.getState().languagePreference).toBe(
+        'system'
+      );
       expect(i18n.resolvedLanguage).toBe('en');
     });
 
@@ -380,7 +423,9 @@ describe('app language service', () => {
       await initializeAppLanguage();
 
       expect(mockNative.setApplicationLanguage).toHaveBeenCalledWith(null);
-      expect(useAppPreferencesStore.getState().languagePreference).toBe('system');
+      expect(useAppPreferencesStore.getState().languagePreference).toBe(
+        'system'
+      );
       expect(i18n.resolvedLanguage).toBe('en');
     });
   });
@@ -388,9 +433,16 @@ describe('app language service', () => {
   describe('native effective-language reads', () => {
     it('falls back to expo-localization when the native read rejects', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'system' });
-      mockNative.getEffectiveLanguage.mockRejectedValue(new Error('bridge failure'));
+      mockNative.getEffectiveLanguage.mockRejectedValue(
+        new Error('bridge failure')
+      );
       (getLocales as jest.Mock).mockReturnValue([
-        { languageCode: 'pl', languageTag: 'pl-PL', regionCode: 'PL', textDirection: 'ltr' },
+        {
+          languageCode: 'pl',
+          languageTag: 'pl-PL',
+          regionCode: 'PL',
+          textDirection: 'ltr',
+        },
       ]);
 
       await initializeAppLanguage();
@@ -398,7 +450,7 @@ describe('app language service', () => {
       expect(i18n.resolvedLanguage).toBe('pl');
       expect(mockAddLog).toHaveBeenCalledWith(
         expect.stringContaining('Failed to read native effective language'),
-        'WARNING',
+        'WARNING'
       );
     });
 
@@ -406,7 +458,12 @@ describe('app language service', () => {
       useAppPreferencesStore.setState({ languagePreference: 'system' });
       mockNative.getEffectiveLanguage.mockResolvedValue('de-DE');
       (getLocales as jest.Mock).mockReturnValue([
-        { languageCode: 'en', languageTag: 'en-US', regionCode: 'US', textDirection: 'ltr' },
+        {
+          languageCode: 'en',
+          languageTag: 'en-US',
+          regionCode: 'US',
+          textDirection: 'ltr',
+        },
       ]);
 
       await initializeAppLanguage();
@@ -429,7 +486,9 @@ describe('app language service', () => {
 
     it('falls back to the stored preference when the native read rejects', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'pl' });
-      mockNative.getApplicationLanguage.mockRejectedValue(new Error('bridge failure'));
+      mockNative.getApplicationLanguage.mockRejectedValue(
+        new Error('bridge failure')
+      );
 
       await syncAppLanguageFromSystem();
 
@@ -443,7 +502,9 @@ describe('app language service', () => {
 
       await syncAppLanguageFromSystem();
 
-      expect(useAppPreferencesStore.getState().languagePreference).toBe('system');
+      expect(useAppPreferencesStore.getState().languagePreference).toBe(
+        'system'
+      );
       expect(i18n.resolvedLanguage).toBe('en');
       expect(mockNative.setApplicationLanguage).not.toHaveBeenCalled();
     });
@@ -482,15 +543,19 @@ describe('app language service', () => {
 
     it('rejects and preserves the previous language when the native write fails', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'en' });
-      mockNative.setApplicationLanguage.mockRejectedValue(new Error('native unavailable'));
+      mockNative.setApplicationLanguage.mockRejectedValue(
+        new Error('native unavailable')
+      );
 
-      await expect(setAppLanguagePreference('pl')).rejects.toThrow('native unavailable');
+      await expect(setAppLanguagePreference('pl')).rejects.toThrow(
+        'native unavailable'
+      );
 
       expect(useAppPreferencesStore.getState().languagePreference).toBe('en');
       expect(i18n.resolvedLanguage).toBe('en');
       expect(mockAddLog).toHaveBeenCalledWith(
         expect.stringContaining('Native application-language write failed'),
-        'ERROR',
+        'ERROR'
       );
     });
   });
@@ -508,7 +573,9 @@ describe('app language service', () => {
       await expect(setAppLanguagePreference('en')).rejects.toThrow('i18n boom');
 
       // Requested native write happened first, then the rollback to pl.
-      const setCalls = mockNative.setApplicationLanguage.mock.calls.map((c) => c[0]);
+      const setCalls = mockNative.setApplicationLanguage.mock.calls.map(
+        (c) => c[0]
+      );
       expect(setCalls).toEqual(['en', 'pl']);
       expect(useAppPreferencesStore.getState().languagePreference).toBe('pl');
       expect(i18n.resolvedLanguage).toBe('pl');
@@ -531,7 +598,7 @@ describe('app language service', () => {
       expect(i18n.resolvedLanguage).toBe('en');
       expect(mockAddLog).toHaveBeenCalledWith(
         expect.stringContaining('i18n apply failed; store unchanged'),
-        'ERROR',
+        'ERROR'
       );
       changeLanguage.mockRestore();
     });
@@ -557,7 +624,7 @@ describe('app language service', () => {
       // Rollback failure is logged as ERROR.
       expect(mockAddLog).toHaveBeenCalledWith(
         expect.stringContaining('Native rollback failed'),
-        'ERROR',
+        'ERROR'
       );
       // No silent inconsistent success: the store reconciles to the ACTUAL
       // native state (the failed rollback left it at 'en').

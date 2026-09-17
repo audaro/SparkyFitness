@@ -1,6 +1,6 @@
 # AGENTS.md
 
-*Last updated: 2026-09-01*
+*Last updated: 2026-09-16*
 
 This is the repo-root monorepo guide for SparkyFitness. Use it to choose the right package, understand shared repo-level rules, and find the next guide to read.
 
@@ -33,7 +33,7 @@ For `docs/` and `SparkyFitnessGarmin/`, there is no package-level `AGENTS.md`. `
 
 - `SparkyFitnessFrontend/` - React 19 + Vite web app.
 - `SparkyFitnessServer/` - Express 5 + PostgreSQL backend API.
-- `SparkyFitnessMobile/` - Expo SDK 56 / React Native 0.85 app.
+- `SparkyFitnessMobile/` - Expo SDK 57 / React Native 0.86 app.
 - `shared/` - source-first TypeScript workspace package for `@workspace/shared` schemas, constants, and timezone/day helpers.
 - `docs/` - Nuxt / Docus docs site.
 - `SparkyFitnessGarmin/` - standalone Python integration service outside the current `pnpm` workspace.
@@ -65,7 +65,7 @@ Cheap ways to learn things:
 - Database table index: read `docs/content/8.developer/4.database.md` (quick reference of all ~120 tables with one-line purpose). For detailed schema, read `shared/src/schemas/database/<Table>.zod.ts` (one small Zod file per table).
 - Database security & permissions: `docs/content/8.developer/11.database-security-tiers.md` (security tier, permission type, and RLS rules for every table).
 - API request/response contract: `shared/src/schemas/api/<Name>.api.zod.ts`.
-- Definition of done: CI (`.github/workflows/ci-tests.yml`) runs `pnpm run validate` plus the package's CI test script for each changed package. Run those locally before declaring work complete.
+- Definition of done: CI (`.github/workflows/ci-tests.yml`) runs `pnpm run validate` (which includes Knip unused export & dead code checks in frontend and mobile) plus the package's CI test script for each changed package. Run those locally before declaring work complete.
   - A change under `SparkyFitnessServer/db/` additionally triggers **Fresh-install Migrations** and **Upgrade-path Migrations** against Postgres 18.3, plus the RLS permission matrix. `validate` does not cover them: reproduce them locally with `pnpm run test:migrations` (server) and `pnpm exec vitest run tests/rlsPermissionMatrix.integration.test.ts`, or you can satisfy this bullet and still go red.
 
 ## Cross-Package Rules
@@ -85,6 +85,8 @@ Cheap ways to learn things:
 - Server runtime secrets are usually sourced from repo-root `.env`, commonly created from `docker/.env.example`. The server can also load secret files via `SparkyFitnessServer/utils/secretLoader.ts`.
 - Extract shared logic on the **second** duplication ("rule of two"), not the third - duplicated logic drifts as different sessions edit each copy. Extract *behavior*, not coincidental shape. See `agent-docs/anti-patterns.md`.
 - **Strict TypeScript Typing:** Never use `any` or `// eslint-disable-next-line @typescript-eslint/no-explicit-any` when creating new functions or editing existing code. Always define explicit TypeScript interfaces, types, or import schemas from `@workspace/shared`. Do NOT copy legacy `any` parameter signatures when refactoring or extending legacy service/repository files.
+- **Library Deletes vs Diary Snapshots:** `exercise_entries` and `food_entries` are self-contained snapshots, not pointers (`exercise_id` and `food_id` are `ON DELETE SET NULL`). Deleting an exercise or food from the library (`mode: 'delete'`) preserves past and current diary history, cascades from presets and plan templates, cleans up future scheduled workout plan entries (`entry_date >= today`), and cleans up empty parent preset entries. Only explicit `delete_with_history` (force delete) purges diary logs for that user. If an item is referenced by other users (`otherUserReferences > 0`), the backend falls back to hiding (`is_quick_exercise` / `is_quick_food`).
+- **Comprehensive Cache Invalidation:** When mutating library items (foods, exercises, presets, meals, plans), always invalidate the entire family of dependent query keys across library search, counts, templates, and daily diary summaries (`dailySummary` / `dailyProgress` / `exerciseEntries`) in both web and mobile.
 
 
 ## Commit & PR Conventions

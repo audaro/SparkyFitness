@@ -118,10 +118,13 @@ router.put('/display-preferences', async (req, res, next) => {
  */
 router.post('/', async (req, res, next) => {
   try {
-    const { mood_value, mood_tags, notes, entry_date } = req.body;
+    const { mood_value, mood_tags, notes, entry_date } = req.body ?? {};
 
     const userId = req.userId;
-    if (mood_value === null) {
+    // Catch both an explicit null and a missing/undefined field. A missing
+    // field previously slipped through and hit the DB NOT NULL constraint,
+    // leaking the raw column/table names in the error response.
+    if (mood_value === null || mood_value === undefined) {
       return res.status(400).json({ message: 'Mood value is required.' });
     }
     const newMoodEntry = await moodRepository.createOrUpdateMoodEntry(
@@ -321,6 +324,11 @@ router.put('/:id', async (req, res, next) => {
       notes,
       Array.isArray(mood_tags) ? mood_tags : null
     );
+    // RLS scopes the UPDATE to the caller, so a missing or not-owned id returns
+    // no row. Return 404 instead of a misleading empty-body 200.
+    if (!updatedMoodEntry) {
+      return res.status(404).json({ error: 'Mood entry not found.' });
+    }
     res.json(updatedMoodEntry);
   } catch (error) {
     next(error);

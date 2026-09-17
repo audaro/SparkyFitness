@@ -1,5 +1,9 @@
 import { apiFetch } from './apiClient';
 import type { FoodEntry } from '../../types/foodEntries';
+import type {
+  CopyReviewedFoodEntriesFromUserPayload,
+  CopySelectedFoodEntriesFromUserPayload,
+} from '@workspace/shared';
 
 export interface CreateFoodEntryPayload {
   meal_type_id: string;
@@ -7,6 +11,8 @@ export interface CreateFoodEntryPayload {
   unit: string;
   entry_date: string;
   entry_time?: string | null;
+  /** Per-occurrence markdown note; never derived from the food's own note. */
+  notes?: string | null;
   // Linked food entry
   food_id?: string;
   variant_id?: string;
@@ -27,6 +33,9 @@ export interface CreateFoodEntryPayload {
   potassium?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   cholesterol?: number;
   vitamin_a?: number;
   vitamin_c?: number;
@@ -38,7 +47,9 @@ export interface CreateFoodEntryPayload {
 /**
  * Creates a food entry.
  */
-export const createFoodEntry = async (payload: CreateFoodEntryPayload): Promise<FoodEntry> => {
+export const createFoodEntry = async (
+  payload: CreateFoodEntryPayload
+): Promise<FoodEntry> => {
   return apiFetch<FoodEntry>({
     endpoint: '/api/food-entries/',
     serviceName: 'Food Entries API',
@@ -55,6 +66,8 @@ export interface UpdateFoodEntryPayload {
   variant_id?: string;
   entry_date?: string;
   entry_time?: string | null;
+  /** Omit to leave the stored note alone; send null to clear it. */
+  notes?: string | null;
   // Nutrition snapshot overrides (server applies to entry snapshot)
   food_name?: string;
   brand_name?: string;
@@ -72,6 +85,9 @@ export interface UpdateFoodEntryPayload {
   potassium?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   cholesterol?: number;
   vitamin_a?: number;
   vitamin_c?: number;
@@ -81,7 +97,10 @@ export interface UpdateFoodEntryPayload {
 /**
  * Updates a food entry by ID.
  */
-export const updateFoodEntry = async (id: string, payload: UpdateFoodEntryPayload): Promise<FoodEntry> => {
+export const updateFoodEntry = async (
+  id: string,
+  payload: UpdateFoodEntryPayload
+): Promise<FoodEntry> => {
   return apiFetch<FoodEntry>({
     endpoint: `/api/food-entries/${id}`,
     serviceName: 'Food Entries API',
@@ -115,7 +134,9 @@ export interface CopyFoodEntriesPayload {
  * Meal types are matched by name (case-insensitive) server-side. The source
  * entries are left untouched.
  */
-export const copyFoodEntries = async (payload: CopyFoodEntriesPayload): Promise<void> => {
+export const copyFoodEntries = async (
+  payload: CopyFoodEntriesPayload
+): Promise<void> => {
   await apiFetch<unknown>({
     endpoint: '/api/food-entries/copy',
     serviceName: 'Food Entries API',
@@ -126,13 +147,33 @@ export const copyFoodEntries = async (payload: CopyFoodEntriesPayload): Promise<
 };
 
 /**
- * Fetches food entries for a given date.
+ * Copies a complete meal from an explicitly selected family diary user.
+ * The server preserves composite-meal containers for this whole-meal route.
  */
-export const fetchFoodEntries = async (date: string): Promise<FoodEntry[]> => {
-  return apiFetch<FoodEntry[]>({
-    endpoint: `/api/food-entries/by-date/${date}`,
+export const copyReviewedFoodEntriesFromUser = async (
+  payload: CopyReviewedFoodEntriesFromUserPayload
+): Promise<void> => {
+  await apiFetch<unknown>({
+    endpoint: '/api/food-entries/copy-reviewed-from-user',
     serviceName: 'Food Entries API',
-    operation: 'fetch food entries',
+    operation: 'copy reviewed food entries from family user',
+    method: 'POST',
+    body: payload,
+  });
+};
+
+/**
+ * Copies selected entries from an explicitly selected family diary user.
+ */
+export const copySelectedFoodEntriesFromUser = async (
+  payload: CopySelectedFoodEntriesFromUserPayload
+): Promise<void> => {
+  await apiFetch<unknown>({
+    endpoint: '/api/food-entries/copy-selected-from-user',
+    serviceName: 'Food Entries API',
+    operation: 'copy selected food entries from family user',
+    method: 'POST',
+    body: payload,
   });
 };
 
@@ -153,7 +194,10 @@ export const calculateCaloriesConsumed = (entries: FoodEntry[]): number => {
  * Calculates a macro nutrient total from food entries.
  * Uses same formula as calories: (value * quantity) / serving_size
  */
-const calculateMacro = (entries: FoodEntry[], field: keyof FoodEntry): number => {
+const calculateMacro = (
+  entries: FoodEntry[],
+  field: keyof FoodEntry
+): number => {
   return entries.reduce((total, entry) => {
     if (entry.serving_size === 0) {
       return total;
@@ -166,22 +210,29 @@ const calculateMacro = (entries: FoodEntry[], field: keyof FoodEntry): number =>
   }, 0);
 };
 
-export const calculateProtein = (entries: FoodEntry[]): number => calculateMacro(entries, 'protein');
-export const calculateCarbs = (entries: FoodEntry[]): number => calculateMacro(entries, 'carbs');
-export const calculateFat = (entries: FoodEntry[]): number => calculateMacro(entries, 'fat');
-export const calculateFiber = (entries: FoodEntry[]): number => calculateMacro(entries, 'dietary_fiber');
+export const calculateProtein = (entries: FoodEntry[]): number =>
+  calculateMacro(entries, 'protein');
+export const calculateCarbs = (entries: FoodEntry[]): number =>
+  calculateMacro(entries, 'carbs');
+export const calculateFat = (entries: FoodEntry[]): number =>
+  calculateMacro(entries, 'fat');
+export const calculateFiber = (entries: FoodEntry[]): number =>
+  calculateMacro(entries, 'dietary_fiber');
 
 /**
  * Aggregates all custom nutrient values across food entries.
  * Uses the same (value * quantity) / serving_size formula as calculateMacro.
  * Returns a map of nutrient name → total consumed value.
  */
-export const calculateCustomNutrientTotals = (entries: FoodEntry[]): Record<string, number> => {
+export const calculateCustomNutrientTotals = (
+  entries: FoodEntry[]
+): Record<string, number> => {
   const totals: Record<string, number> = {};
   for (const entry of entries) {
     if (!entry.custom_nutrients || entry.serving_size === 0) continue;
     for (const [name, rawValue] of Object.entries(entry.custom_nutrients)) {
-      const value = typeof rawValue === 'number' ? rawValue : parseFloat(String(rawValue));
+      const value =
+        typeof rawValue === 'number' ? rawValue : parseFloat(String(rawValue));
       if (isNaN(value)) continue;
       const scaled = (value * entry.quantity) / entry.serving_size;
       totals[name] = (totals[name] ?? 0) + scaled;

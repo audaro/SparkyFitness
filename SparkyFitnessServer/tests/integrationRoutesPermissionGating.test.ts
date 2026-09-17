@@ -92,14 +92,35 @@ describe('integration routers reject switched-context delegates lacking diary ac
 
 // Strava is absent on purpose: its POST /callback carries no middleware at all
 // and reads an undefined req.userId, so there is no gate here to assert.
+// Withings and Polar are absent for the opposite reason: their callbacks are
+// self-only and identify the owner by claiming a server-issued single-use
+// `state` bound to the authenticated actor (`utils/oauthState.ts`), so a
+// permission gate there would be the weaker of the two checks — a read-only
+// delegate passing `diary_read` on GET is exactly what that design removes.
+const CALLBACK_GATED = new Set(['/fitbit', '/oura']);
+
 describe('integration routers gate the OAuth callback itself', () => {
-  for (const [mount, router] of cases.filter(([m]) => m !== '/strava')) {
+  for (const [mount, router] of cases.filter(([m]) => CALLBACK_GATED.has(m))) {
     it(`${mount} POST /callback returns 403 when permission is denied`, async () => {
       permissionState.allow = false;
       const app = appWith(mount, router);
       const res = await request(app)
         .post(`${mount}/callback`)
         .send({ code: 'code', state: 'state' });
+      expect(res.statusCode).toBe(403);
+    });
+  }
+});
+
+// Account linking is self-only, so it must fail for a delegate even when the
+// diary permission gate would allow the request. This is the property that
+// keeps an owner's OAuth client id out of a read-only delegate's hands.
+describe('integration routers refuse delegated account linking', () => {
+  for (const [mount, router] of cases) {
+    it(`${mount} GET /authorize returns 403 for a switched delegate even when permission is granted`, async () => {
+      permissionState.allow = true;
+      const app = appWith(mount, router);
+      const res = await request(app).get(`${mount}/authorize`);
       expect(res.statusCode).toBe(403);
     });
   }

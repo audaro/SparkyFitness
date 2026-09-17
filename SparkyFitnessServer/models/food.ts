@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import { getClient, getSystemClient } from '../db/poolManager.js';
 import { log } from '../config/logging.js';
 import { normalizeBarcode } from '../utils/foodUtils.js';
@@ -10,6 +11,7 @@ import {
   toImageArray,
   resolveImageInput,
 } from '../utils/imageLocalizer.js';
+import { sanitizeNotes } from '@workspace/shared';
 import type {
   NutrientValue,
   NutrientFields,
@@ -47,12 +49,15 @@ export interface FoodInput extends NutrientFields {
   images?: string[] | null;
   image_url?: string | null;
   image_source_url?: string | null;
+  /** Owner-authored markdown reference note. */
+  notes?: string | null;
   serving_size?: NutrientValue;
   serving_unit?: string | null;
   source?: string | null;
   ai_confidence?: string | null;
   allergens?: string[] | null;
   traces?: string[] | null;
+  abv_percent?: NutrientValue;
 }
 
 const DEFAULT_VARIANT_JSON_SQL = `
@@ -77,6 +82,10 @@ const DEFAULT_VARIANT_JSON_SQL = `
     'vitamin_c', fv.vitamin_c,
     'calcium', fv.calcium,
     'iron', fv.iron,
+    'caffeine_mg', fv.caffeine_mg,
+    'water_ml', fv.water_ml,
+    'alcohol_g', fv.alcohol_g,
+    'abv_percent', fv.abv_percent,
     'is_default', fv.is_default,
     'glycemic_index', fv.glycemic_index,
     'custom_nutrients', fv.custom_nutrients,
@@ -171,7 +180,7 @@ async function searchFoods(
   try {
     let query = `
       SELECT
-        f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images,
+        f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images, f.notes,
         ${DEFAULT_VARIANT_JSON_SQL}
       FROM foods f
       ${PREFERRED_DEFAULT_VARIANT_JOIN_SQL}
@@ -215,71 +224,141 @@ async function searchFoods(
     client.release();
   }
 }
+/**
+ * Inserts a food and its default variant on a caller-supplied client, WITHOUT
+ * opening a transaction and WITHOUT localizing images.
+ *
+ * Split out of `createFood` so a caller that is already inside a transaction
+ * can create a food and then reference it in the same transaction. Going
+ * through `createFood` there would not work: it acquires its own client, so the
+ * new food would be invisible to the outer transaction's queries, and its
+ * COMMIT would defeat the outer rollback.
+ *
+ * The caller owns BEGIN/COMMIT/ROLLBACK and the client's lifetime.
+ *
+ * Deliberately does no image localization — that is network I/O and belongs
+ * after COMMIT (see `createFood`). Callers that create foods with remote image
+ * URLs must use `createFood`, not this.
+ */
+async function createFoodWithClient(client: PoolClient, foodData: FoodInput) {
+  // 1. Create the food entry
+  const foodResult = await client.query(
+    `INSERT INTO foods (
+        name, is_custom, user_id, brand, barcode, provider_external_id, shared_with_public, provider_type, provider_verified, is_quick_food, images, notes, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, now(), now()) RETURNING id, name, brand, is_custom, user_id, shared_with_public, is_quick_food, provider_external_id, provider_type, provider_verified, images, notes`,
+    [
+      foodData.name,
+      sanitizeBoolean(foodData.is_custom) ?? true,
+      foodData.user_id,
+      foodData.brand,
+      foodData.barcode ? normalizeBarcode(foodData.barcode) : foodData.barcode,
+      foodData.provider_external_id,
+      sanitizeBoolean(foodData.shared_with_public) ?? false,
+      foodData.provider_type,
+      sanitizeBoolean(foodData.provider_verified) ?? false,
+      sanitizeBoolean(foodData.is_quick_food) ?? false,
+      JSON.stringify(resolveImageInput(foodData)),
+      sanitizeNotes(foodData.notes) ?? null,
+    ]
+  );
+  const newFood = foodResult.rows[0];
+  // 2. Create the primary food variant and mark it as default
+  const variantResult = await client.query(
+    `INSERT INTO food_variants (
+        food_id, serving_size, serving_unit, calories, protein, carbs, fat,
+        saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
+        cholesterol, sodium, potassium, dietary_fiber, sugars,
+        vitamin_a, vitamin_c, calcium, iron, caffeine_mg, water_ml, alcohol_g, abv_percent, is_default, glycemic_index, custom_nutrients,
+        source, ai_confidence, allergens, traces, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, TRUE, $25, $26, $27, $28, $29, $30, now(), now()) RETURNING id`,
+    [
+      newFood.id,
+      sanitizeNumeric(foodData.serving_size),
+      foodData.serving_unit,
+      sanitizeNumeric(foodData.calories),
+      sanitizeNumeric(foodData.protein),
+      sanitizeNumeric(foodData.carbs),
+      sanitizeNumeric(foodData.fat),
+      sanitizeNumeric(foodData.saturated_fat),
+      sanitizeNumeric(foodData.polyunsaturated_fat),
+      sanitizeNumeric(foodData.monounsaturated_fat),
+      sanitizeNumeric(foodData.trans_fat),
+      sanitizeNumeric(foodData.cholesterol),
+      sanitizeNumeric(foodData.sodium),
+      sanitizeNumeric(foodData.potassium),
+      sanitizeNumeric(foodData.dietary_fiber),
+      sanitizeNumeric(foodData.sugars),
+      sanitizeNumeric(foodData.vitamin_a),
+      sanitizeNumeric(foodData.vitamin_c),
+      sanitizeNumeric(foodData.calcium),
+      sanitizeNumeric(foodData.iron),
+      sanitizeNumeric(foodData.caffeine_mg),
+      sanitizeNumeric(foodData.water_ml),
+      sanitizeNumeric(foodData.alcohol_g),
+      sanitizeNumeric(foodData.abv_percent),
+      sanitizeGlycemicIndex(foodData.glycemic_index),
+      foodData.custom_nutrients ?? {},
+      foodData.source ?? 'manual',
+      foodData.ai_confidence ?? null,
+      foodData.allergens ?? null,
+      foodData.traces ?? null,
+    ]
+  );
+  const newVariantId = variantResult.rows[0].id;
+
+  // Return the new food with its default variant details
+  return {
+    ...newFood,
+    default_variant: buildDefaultVariantEcho(newVariantId, newFood, foodData),
+  };
+}
+
+function buildDefaultVariantEcho(
+  newVariantId: string,
+  newFood: { user_id: string },
+  foodData: FoodInput
+) {
+  return {
+    id: newVariantId,
+    serving_size: foodData.serving_size,
+    serving_unit: foodData.serving_unit,
+    calories: foodData.calories,
+    protein: foodData.protein,
+    carbs: foodData.carbs,
+    fat: foodData.fat,
+    saturated_fat: foodData.saturated_fat,
+    polyunsaturated_fat: foodData.polyunsaturated_fat,
+    monounsaturated_fat: foodData.monounsaturated_fat,
+    trans_fat: foodData.trans_fat,
+    cholesterol: foodData.cholesterol,
+    sodium: foodData.sodium,
+    potassium: foodData.potassium,
+    dietary_fiber: foodData.dietary_fiber,
+    sugars: foodData.sugars,
+    vitamin_a: foodData.vitamin_a,
+    vitamin_c: foodData.vitamin_c,
+    calcium: foodData.calcium,
+    iron: foodData.iron,
+    caffeine_mg: foodData.caffeine_mg,
+    water_ml: foodData.water_ml,
+    alcohol_g: foodData.alcohol_g,
+    abv_percent: foodData.abv_percent,
+    is_default: true,
+    user_id: newFood.user_id,
+    source: foodData.source ?? 'manual',
+    ai_confidence: foodData.ai_confidence ?? null,
+    custom_nutrients: foodData.custom_nutrients ?? {},
+    allergens: foodData.allergens ?? null,
+    traces: foodData.traces ?? null,
+  };
+}
+
 async function createFood(foodData: FoodInput) {
   const client = await getClient(foodData.user_id); // User-specific operation
   try {
     await client.query('BEGIN'); // Start transaction
-    // 1. Create the food entry
-    const foodResult = await client.query(
-      `INSERT INTO foods (
-        name, is_custom, user_id, brand, barcode, provider_external_id, shared_with_public, provider_type, provider_verified, is_quick_food, images, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, now(), now()) RETURNING id, name, brand, is_custom, user_id, shared_with_public, is_quick_food, provider_external_id, provider_type, provider_verified, images`,
-      [
-        foodData.name,
-        sanitizeBoolean(foodData.is_custom) ?? true,
-        foodData.user_id,
-        foodData.brand,
-        foodData.barcode
-          ? normalizeBarcode(foodData.barcode)
-          : foodData.barcode,
-        foodData.provider_external_id,
-        sanitizeBoolean(foodData.shared_with_public) ?? false,
-        foodData.provider_type,
-        sanitizeBoolean(foodData.provider_verified) ?? false,
-        sanitizeBoolean(foodData.is_quick_food) ?? false,
-        JSON.stringify(resolveImageInput(foodData)),
-      ]
-    );
-    const newFood = foodResult.rows[0];
-    // 2. Create the primary food variant and mark it as default
-    const variantResult = await client.query(
-      `INSERT INTO food_variants (
-        food_id, serving_size, serving_unit, calories, protein, carbs, fat,
-        saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
-        cholesterol, sodium, potassium, dietary_fiber, sugars,
-        vitamin_a, vitamin_c, calcium, iron, is_default, glycemic_index, custom_nutrients,
-        source, ai_confidence, allergens, traces, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, TRUE, $21, $22, $23, $24, $25, $26, now(), now()) RETURNING id`,
-      [
-        newFood.id,
-        sanitizeNumeric(foodData.serving_size),
-        foodData.serving_unit,
-        sanitizeNumeric(foodData.calories),
-        sanitizeNumeric(foodData.protein),
-        sanitizeNumeric(foodData.carbs),
-        sanitizeNumeric(foodData.fat),
-        sanitizeNumeric(foodData.saturated_fat),
-        sanitizeNumeric(foodData.polyunsaturated_fat),
-        sanitizeNumeric(foodData.monounsaturated_fat),
-        sanitizeNumeric(foodData.trans_fat),
-        sanitizeNumeric(foodData.cholesterol),
-        sanitizeNumeric(foodData.sodium),
-        sanitizeNumeric(foodData.potassium),
-        sanitizeNumeric(foodData.dietary_fiber),
-        sanitizeNumeric(foodData.sugars),
-        sanitizeNumeric(foodData.vitamin_a),
-        sanitizeNumeric(foodData.vitamin_c),
-        sanitizeNumeric(foodData.calcium),
-        sanitizeNumeric(foodData.iron),
-        sanitizeGlycemicIndex(foodData.glycemic_index),
-        foodData.custom_nutrients ?? {},
-        foodData.source ?? 'manual',
-        foodData.ai_confidence ?? null,
-        foodData.allergens ?? null,
-        foodData.traces ?? null,
-      ]
-    );
-    const newVariantId = variantResult.rows[0].id;
+    const created = await createFoodWithClient(client, foodData);
+    const newFood = created;
     await client.query('COMMIT'); // Commit transaction
 
     // Localize provider-hosted images after COMMIT so network latency never
@@ -321,42 +400,124 @@ async function createFood(foodData: FoodInput) {
       );
     }
 
-    // Return the new food with its default variant details
-    return {
-      ...newFood,
-      default_variant: {
-        id: newVariantId,
-        serving_size: foodData.serving_size,
-        serving_unit: foodData.serving_unit,
-        calories: foodData.calories,
-        protein: foodData.protein,
-        carbs: foodData.carbs,
-        fat: foodData.fat,
-        saturated_fat: foodData.saturated_fat,
-        polyunsaturated_fat: foodData.polyunsaturated_fat,
-        monounsaturated_fat: foodData.monounsaturated_fat,
-        trans_fat: foodData.trans_fat,
-        cholesterol: foodData.cholesterol,
-        sodium: foodData.sodium,
-        potassium: foodData.potassium,
-        dietary_fiber: foodData.dietary_fiber,
-        sugars: foodData.sugars,
-        vitamin_a: foodData.vitamin_a,
-        vitamin_c: foodData.vitamin_c,
-        calcium: foodData.calcium,
-        iron: foodData.iron,
-        is_default: true,
-        user_id: newFood.user_id,
-        source: foodData.source ?? 'manual',
-        ai_confidence: foodData.ai_confidence ?? null,
-        custom_nutrients: foodData.custom_nutrients ?? {},
-        allergens: foodData.allergens ?? null,
-        traces: foodData.traces ?? null,
-      },
-    };
+    // `created` already carries the default_variant echo; localization above
+    // mutates `newFood.images` in place, which is the same object.
+    return created;
   } catch (error) {
     await client.query('ROLLBACK'); // Rollback transaction on error
     throw error;
+  } finally {
+    client.release();
+  }
+}
+export interface FoodMatchCandidateRow {
+  query_key: string;
+  food_id: string;
+  food_name: string;
+  brand: string | null;
+  user_id: string | null;
+  variant_id: string;
+  serving_size: number | string;
+  serving_unit: string;
+  calories: number | string | null;
+  protein: number | string | null;
+  carbs: number | string | null;
+  fat: number | string | null;
+  dietary_fiber: number | string | null;
+  sugars: number | string | null;
+  saturated_fat: number | string | null;
+  polyunsaturated_fat: number | string | null;
+  monounsaturated_fat: number | string | null;
+  trans_fat: number | string | null;
+  cholesterol: number | string | null;
+  sodium: number | string | null;
+  potassium: number | string | null;
+  calcium: number | string | null;
+  iron: number | string | null;
+  vitamin_a: number | string | null;
+  vitamin_c: number | string | null;
+  caffeine_mg: number | string | null;
+  water_ml: number | string | null;
+  alcohol_g: number | string | null;
+  abv_percent: number | string | null;
+  last_used: string | null;
+}
+
+/**
+ * Retrieves food-match candidates for MANY ingredient names in one query.
+ *
+ * Two deliberate choices:
+ *
+ * 1. **ILIKE, not trigram.** `pg_trgm` is not installed and adding an extension
+ *    is a migration plus an ops burden on self-hosters. SQL does cheap
+ *    candidate *retrieval*; the ranking happens in TypeScript
+ *    (`scoreFoodMatch` in `@workspace/shared`), so it is unit-testable with no
+ *    database and can be tuned without touching a query.
+ * 2. **One round trip.** `unnest` + `LATERAL` fans every term out inside
+ *    Postgres. Calling `searchFoods` per ingredient would acquire and release a
+ *    client each time — six ingredients, six connections from a pool of ten.
+ *
+ * `is_quick_food = FALSE` mirrors every other food-discovery query: a quick add
+ * is a deliberate "log this once, do not keep it", so it must not be offered as
+ * a match. Photo-estimate ingredients are NOT quick foods — they are normal
+ * foods precisely so a later photo can match and reuse them.
+ */
+async function findFoodMatchCandidates(
+  userId: string,
+  queries: { key: string; term: string }[],
+  opts: { includePublic?: boolean; limitPerTerm?: number } = {}
+): Promise<Map<string, FoodMatchCandidateRow[]>> {
+  const grouped = new Map<string, FoodMatchCandidateRow[]>();
+  const usable = queries.filter((q) => q.term && q.term.trim().length > 0);
+  if (usable.length === 0) return grouped;
+
+  const client = await getClient(userId);
+  try {
+    const result = await client.query(
+      `WITH q AS (
+         SELECT * FROM unnest($2::text[], $3::text[]) AS t(key, term)
+       )
+       SELECT q.key AS query_key, c.*
+       FROM q
+       CROSS JOIN LATERAL (
+         SELECT f.id AS food_id, f.name AS food_name, f.brand, f.user_id,
+                fv.id AS variant_id, fv.serving_size, fv.serving_unit,
+                fv.calories, fv.protein, fv.carbs, fv.fat,
+                fv.dietary_fiber, fv.sugars,
+                -- Selected so applying a match carries the food's real
+                -- micronutrients. Omitting them would scale to 0 and blank
+                -- values the matched food actually records.
+                fv.saturated_fat, fv.polyunsaturated_fat,
+                fv.monounsaturated_fat, fv.trans_fat, fv.cholesterol,
+                fv.sodium, fv.potassium, fv.calcium, fv.iron,
+                fv.vitamin_a, fv.vitamin_c,
+                fv.caffeine_mg, fv.water_ml, fv.alcohol_g, fv.abv_percent,
+                (SELECT MAX(fe.entry_date) FROM food_entries fe
+                  WHERE fe.food_id = f.id AND fe.user_id = $1) AS last_used
+         FROM foods f
+         JOIN food_variants fv ON fv.food_id = f.id AND fv.is_default = TRUE
+         WHERE f.is_quick_food = FALSE
+           AND (f.user_id = $1 OR ($4 AND f.shared_with_public = TRUE))
+           AND (LOWER(f.name) = LOWER(q.term) OR f.name ILIKE '%' || q.term || '%')
+         ORDER BY (LOWER(f.name) = LOWER(q.term)) DESC,
+                  (f.user_id = $1) DESC,
+                  last_used DESC NULLS LAST
+         LIMIT $5
+       ) c`,
+      [
+        userId,
+        usable.map((q) => q.key),
+        usable.map((q) => q.term),
+        opts.includePublic ?? false,
+        opts.limitPerTerm ?? 5,
+      ]
+    );
+    for (const row of result.rows as FoodMatchCandidateRow[]) {
+      const list = grouped.get(row.query_key);
+      if (list) list.push(row);
+      else grouped.set(row.query_key, [row]);
+    }
+    return grouped;
   } finally {
     client.release();
   }
@@ -367,7 +528,7 @@ async function findFoodByBarcode(barcode: string, userId: string) {
   try {
     const result = await client.query(
       `SELECT
-        f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images,
+        f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images, f.notes,
         ${DEFAULT_VARIANT_JSON_SQL}
       FROM foods f
       ${PREFERRED_DEFAULT_VARIANT_JOIN_SQL}
@@ -385,7 +546,7 @@ async function getFoodById(foodId: string, userId: string) {
   try {
     const result = await client.query(
       `SELECT
-        f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images,
+        f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images, f.notes,
         ${DEFAULT_VARIANT_JSON_SQL}
       FROM foods f
       ${PREFERRED_DEFAULT_VARIANT_JOIN_SQL}
@@ -425,6 +586,15 @@ async function updateFood(id: string, userId: string, foodData: FoodUpdate) {
         ? normalizeBarcode(foodData.barcode)
         : null
       : null;
+    // Same distinction as barcode: a user clearing their note sends
+    // `notes: null`, which COALESCE would silently ignore.
+    const notesKeyPresent = Object.prototype.hasOwnProperty.call(
+      foodData,
+      'notes'
+    );
+    const notesValue = notesKeyPresent
+      ? (sanitizeNotes(foodData.notes) ?? null)
+      : null;
     const result = await client.query(
       `UPDATE foods SET
         name = COALESCE($1, name),
@@ -437,8 +607,9 @@ async function updateFood(id: string, userId: string, foodData: FoodUpdate) {
         provider_verified = COALESCE($9, provider_verified),
         is_quick_food = COALESCE($10, is_quick_food),
         images = COALESCE($11::jsonb, images),
+        notes = CASE WHEN $12::boolean THEN $13 ELSE notes END,
         updated_at = now()
-      WHERE id = $12
+      WHERE id = $14
       RETURNING *`,
       [
         foodData.name,
@@ -455,6 +626,8 @@ async function updateFood(id: string, userId: string, foodData: FoodUpdate) {
         foodData.images === undefined
           ? null
           : JSON.stringify(toImageArray(foodData.images)),
+        notesKeyPresent,
+        notesValue,
         id,
       ]
     );
@@ -557,7 +730,7 @@ async function getFoodsWithPagination(
 
     let query = `
       SELECT
-        f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images,
+        f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images, f.notes,
         ${DEFAULT_VARIANT_JSON_SQL}
       FROM foods f
       ${PREFERRED_DEFAULT_VARIANT_JOIN_SQL}
@@ -788,17 +961,141 @@ async function getFoodDeletionImpact(
     systemClient.release();
   }
 }
-async function deleteFoodAndDependencies(foodId: string, userId: string) {
+/**
+ * Deletes only the current user's diary entries for a food. Backs the
+ * `delete_with_history` mode alone -- a plain delete leaves the diary intact.
+ *
+ * Scoped to `user_id` on purpose: under family sharing another user may have
+ * logged the same food, and their history is never ours to remove.
+ */
+async function deleteFoodEntriesForUser(
+  foodId: string,
+  userId: string
+): Promise<number> {
   const client = await getClient(userId);
   try {
-    await client.query('BEGIN');
-    // 1. Delete food entries referencing this food for the current user
-    await client.query(
+    const result = await client.query(
       'DELETE FROM food_entries WHERE food_id = $1 AND user_id = $2',
       [foodId, userId]
     );
-    log('info', `Deleted food entries for food ${foodId} by user ${userId}`);
-    // 2. Delete meal_foods referencing this food for meals owned by the current user
+    log(
+      'info',
+      `Deleted ${result.rowCount} food entries for food ${foodId} by user ${userId}`
+    );
+    return result.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+/**
+ * Removes a food from the library along with the *composition* rows that point
+ * at it (meals, meal plans, meal plan templates, variants).
+ *
+ * Deliberately does NOT touch food_entries. Since
+ * 20260912150000_preserve_data_on_user_and_library_deletes.sql the entry's
+ * food_id is ON DELETE SET NULL, and an entry carries its own snapshot
+ * (food_name, brand_name, serving size, full nutrition), so diary history
+ * survives the library row. Deleting entries here would pre-empt that rule and
+ * destroy history -- including other users' history.
+ */
+async function deleteFoodAndDependencies(
+  foodId: string,
+  userId: string,
+  today?: string,
+  options: { deleteHistory?: boolean } = {}
+): Promise<{ success: boolean; deletedEntries: number }> {
+  const client = await getClient(userId);
+  try {
+    await client.query('BEGIN');
+
+    let deletedEntries = 0;
+
+    if (options.deleteHistory) {
+      // Delete all diary entries for this user referencing this food
+      const entryMealsResult = await client.query(
+        `
+        SELECT DISTINCT food_entry_meal_id
+        FROM food_entries
+        WHERE food_id = $1 
+          AND user_id = $2 
+          AND food_entry_meal_id IS NOT NULL
+      `,
+        [foodId, userId]
+      );
+      const entryMealIds = entryMealsResult.rows.map(
+        (r: { food_entry_meal_id: string }) => r.food_entry_meal_id
+      );
+
+      const entriesResult = await client.query(
+        'DELETE FROM food_entries WHERE food_id = $1 AND user_id = $2',
+        [foodId, userId]
+      );
+      deletedEntries = entriesResult.rowCount ?? 0;
+
+      if (entryMealIds.length > 0) {
+        await client.query(
+          `
+          DELETE FROM food_entry_meals fem
+          WHERE fem.id = ANY($1::uuid[])
+            AND NOT EXISTS (
+              SELECT 1 FROM food_entries fe WHERE fe.food_entry_meal_id = fem.id
+            )
+        `,
+          [entryMealIds]
+        );
+      }
+      log(
+        'info',
+        `Deleted ${deletedEntries} food entries for food ${foodId} by user ${userId}`
+      );
+    } else if (today) {
+      // 0. Delete future food entries generated from meal plan templates for this food
+      const entryMealsResult = await client.query(
+        `
+        SELECT DISTINCT food_entry_meal_id
+        FROM food_entries
+        WHERE food_id = $1 
+          AND user_id = $2 
+          AND entry_date >= $3 
+          AND meal_plan_template_id IS NOT NULL 
+          AND food_entry_meal_id IS NOT NULL
+      `,
+        [foodId, userId, today]
+      );
+      const entryMealIds = entryMealsResult.rows.map(
+        (r: { food_entry_meal_id: string }) => r.food_entry_meal_id
+      );
+
+      await client.query(
+        `
+        DELETE FROM food_entries
+        WHERE food_id = $1
+          AND user_id = $2
+          AND entry_date >= $3
+          AND meal_plan_template_id IS NOT NULL
+      `,
+        [foodId, userId, today]
+      );
+
+      if (entryMealIds.length > 0) {
+        await client.query(
+          `
+          DELETE FROM food_entry_meals fem
+          WHERE fem.id = ANY($1::uuid[])
+            AND NOT EXISTS (
+              SELECT 1 FROM food_entries fe WHERE fe.food_entry_meal_id = fem.id
+            )
+        `,
+          [entryMealIds]
+        );
+      }
+      log(
+        'info',
+        `Deleted future planned food entries for food ${foodId} starting from ${today}`
+      );
+    }
+
+    // 1. Delete meal_foods referencing this food for meals owned by the current user
     await client.query(
       `
       DELETE FROM meal_foods mf
@@ -813,13 +1110,13 @@ async function deleteFoodAndDependencies(foodId: string, userId: string) {
       'info',
       `Deleted meal foods for food ${foodId} in meals by user ${userId}`
     );
-    // 3. Delete meal_plans referencing this food for the current user
+    // 2. Delete meal_plans referencing this food for the current user
     await client.query(
       'DELETE FROM meal_plans WHERE food_id = $1 AND user_id = $2',
       [foodId, userId]
     );
     log('info', `Deleted meal plans for food ${foodId} by user ${userId}`);
-    // 4. Delete meal_plan_template_assignments referencing this food for templates owned by the current user
+    // 3. Delete meal_plan_template_assignments referencing this food for templates owned by the current user
     await client.query(
       `
       DELETE FROM meal_plan_template_assignments mpta
@@ -834,19 +1131,19 @@ async function deleteFoodAndDependencies(foodId: string, userId: string) {
       'info',
       `Deleted meal plan template assignments for food ${foodId} in templates by user ${userId}`
     );
-    // 5. Delete food variants associated with this food
+    // 4. Delete food variants associated with this food
     await client.query('DELETE FROM food_variants WHERE food_id = $1', [
       foodId,
     ]);
     log('info', `Deleted food variants for food ${foodId}`);
-    // 6. Finally, delete the food itself
+    // 5. Finally, delete the food itself
     const result = await client.query(
       'DELETE FROM foods WHERE id = $1 AND user_id = $2 RETURNING id',
       [foodId, userId]
     );
     log('info', `Deleted food ${foodId} by user ${userId}`);
     await client.query('COMMIT');
-    return (result.rowCount ?? 0) > 0;
+    return { success: (result.rowCount ?? 0) > 0, deletedEntries };
   } catch (error) {
     await client.query('ROLLBACK');
     log(
@@ -896,6 +1193,10 @@ interface BulkImportFoodData {
   vitamin_c?: NumericInput;
   calcium?: NumericInput;
   iron?: NumericInput;
+  caffeine_mg?: NumericInput;
+  water_ml?: NumericInput;
+  alcohol_g?: NumericInput;
+  abv_percent?: NumericInput;
   glycemic_index?: string | null;
   custom_nutrients?: Record<string, unknown> | null;
   source?: string | null;
@@ -1133,6 +1434,10 @@ async function createFoodsInBulk(
                 iron = COALESCE($19, iron),
                 glycemic_index = COALESCE($20, glycemic_index),
                 custom_nutrients = COALESCE($21, custom_nutrients),
+                caffeine_mg = COALESCE($22, caffeine_mg),
+                water_ml = COALESCE($23, water_ml),
+                alcohol_g = COALESCE($24, alcohol_g),
+                abv_percent = COALESCE($25, abv_percent),
                 updated_at = now()
               WHERE id = $1`,
             [
@@ -1159,6 +1464,10 @@ async function createFoodsInBulk(
               // null (not {}) so the COALESCE above keeps the stored map when
               // the import carried no custom nutrients at all.
               variant.custom_nutrients ?? null,
+              sanitizeNumeric(variant.caffeine_mg),
+              sanitizeNumeric(variant.water_ml),
+              sanitizeNumeric(variant.alcohol_g),
+              sanitizeNumeric(variant.abv_percent),
             ]
           );
         } else {
@@ -1168,10 +1477,10 @@ async function createFoodsInBulk(
               saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
               cholesterol, sodium, potassium, dietary_fiber, sugars,
               vitamin_a, vitamin_c, calcium, iron, glycemic_index, custom_nutrients,
-              source, ai_confidence, allergens, traces, created_at, updated_at
+              source, ai_confidence, allergens, traces, caffeine_mg, water_ml, alcohol_g, abv_percent, created_at, updated_at
             ) VALUES (
               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-              $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, now(), now()
+              $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, now(), now()
             )`,
             [
               foodId,
@@ -1201,6 +1510,10 @@ async function createFoodsInBulk(
               variant.ai_confidence ?? null,
               variant.allergens ?? null,
               variant.traces ?? null,
+              sanitizeNumeric(variant.caffeine_mg),
+              sanitizeNumeric(variant.water_ml),
+              sanitizeNumeric(variant.alcohol_g),
+              sanitizeNumeric(variant.abv_percent),
             ]
           );
         }
@@ -1352,7 +1665,12 @@ async function findFoodByProviderExternalId(
   const client = await getClient(userId);
   try {
     const result = await client.query(
-      `SELECT f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images,
+      // Deliberately NOT filtered by is_quick_food, unlike the discovery
+      // queries: this is a dedup lookup, and skipping a hidden row would insert
+      // a duplicate alongside it. The caller is responsible for un-hiding what
+      // it reuses -- see refreshExistingExternalFoodMetadata. is_quick_food is
+      // selected so it can make that decision.
+      `SELECT f.id, f.name, f.brand, f.barcode, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, f.provider_verified, f.images, f.notes, f.is_quick_food,
               fv.id AS default_variant_id, fv.serving_size, fv.serving_unit,
               ${DEFAULT_VARIANT_JSON_SQL}
        FROM foods f
@@ -1400,6 +1718,9 @@ async function updateFoodVariantNutrition(
         calcium = $19,
         iron = $20,
         custom_nutrients = COALESCE($21::jsonb, custom_nutrients),
+        caffeine_mg = $22,
+        water_ml = $23,
+        alcohol_g = $24,
         updated_at = now()
       WHERE id = $1`,
       [
@@ -1426,6 +1747,9 @@ async function updateFoodVariantNutrition(
         nutritionData.custom_nutrients
           ? JSON.stringify(nutritionData.custom_nutrients)
           : null,
+        sanitizeNumeric(nutritionData.caffeine_mg),
+        sanitizeNumeric(nutritionData.water_ml),
+        sanitizeNumeric(nutritionData.alcohol_g),
       ]
     );
   } finally {
@@ -1450,11 +1774,16 @@ export { getFoodsWithPagination };
 export { countFoods };
 export { getFoodDeletionImpact };
 export { createFoodsInBulk };
+export { createFoodWithClient };
+export { findFoodMatchCandidates };
 export type { BulkImportFoodData };
 export { getFoodsNeedingReview };
 export { clearUserIgnoredUpdate };
 export { deleteFoodAndDependencies };
+export { deleteFoodEntriesForUser };
 export default {
+  createFoodWithClient,
+  findFoodMatchCandidates,
   sanitizeGlycemicIndex,
   sanitizeNumeric,
   sanitizeBoolean,
@@ -1475,4 +1804,5 @@ export default {
   getFoodsNeedingReview,
   clearUserIgnoredUpdate,
   deleteFoodAndDependencies,
+  deleteFoodEntriesForUser,
 };

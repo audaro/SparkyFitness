@@ -38,7 +38,9 @@ export function isAuthzError(error: unknown): boolean {
 
 export function getApiErrorMessage(error: unknown): string | null {
   if (error instanceof TimeoutError) {
-    return i18n.t('common.requestTimedOut', { defaultValue: 'Request timed out. Check your server connection.' });
+    return i18n.t('common.requestTimedOut', {
+      defaultValue: 'Request timed out. Check your server connection.',
+    });
   }
   if (!(error instanceof ApiError) || !error.body) return null;
   try {

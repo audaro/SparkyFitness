@@ -29,7 +29,10 @@ function createEmptyDraft(): PresetDraft {
   };
 }
 
-export type PresetClientIds = { exerciseClientId: string; setClientIds: string[] }[];
+export type PresetClientIds = {
+  exerciseClientId: string;
+  setClientIds: string[];
+}[];
 
 type PresetFormAction =
   | DraftExercisesAction
@@ -57,7 +60,10 @@ type PresetFormAction =
       clientIds: PresetClientIds;
     };
 
-export function presetFormReducer(state: PresetDraft, action: PresetFormAction): PresetDraft {
+export function presetFormReducer(
+  state: PresetDraft,
+  action: PresetFormAction
+): PresetDraft {
   switch (action.type) {
     case 'SET_NAME':
       return { ...state, name: action.name };
@@ -77,19 +83,35 @@ export function presetFormReducer(state: PresetDraft, action: PresetFormAction):
           exerciseModality: exercise.modality ?? null,
           images: exercise.image_url ? [exercise.image_url] : [],
           supersetGroup: exercise.superset_group ?? null,
+          // Progression & Equipment Fields
+          progressionMode: exercise.progression_mode ?? 'rep_goal',
+          repGoal: exercise.rep_goal ?? null,
+          incrementType: exercise.increment_type ?? 'weight',
+          incrementValue: exercise.increment_value ?? 5,
+          equipmentBrand: exercise.equipment_brand ?? null,
           sets: exercise.sets.map((set, setIdx) => ({
             clientId: action.clientIds[exerciseIdx].setClientIds[setIdx],
             restTime: set.rest_time,
             weight:
               set.weight != null
-                ? String(parseFloat(weightFromKg(set.weight, action.weightUnit).toFixed(1)))
+                ? String(
+                    parseFloat(
+                      weightFromKg(set.weight, action.weightUnit).toFixed(1)
+                    )
+                  )
                 : '',
             reps: set.reps != null ? String(set.reps) : '',
             distance:
               set.distance != null
-                ? String(parseFloat(distanceFromKm(set.distance, action.distanceUnit).toFixed(2)))
+                ? String(
+                    parseFloat(
+                      distanceFromKm(set.distance, action.distanceUnit).toFixed(
+                        2
+                      )
+                    )
+                  )
                 : '',
-            setType: set.set_type ?? undefined,
+            setType: (set.set_type as any) ?? undefined,
             duration: set.duration,
             notes: set.notes,
           })),
@@ -115,17 +137,27 @@ export function presetFormReducer(state: PresetDraft, action: PresetFormAction):
           sets: exercise.sets.map((set, setIdx) => ({
             clientId: action.clientIds[exerciseIdx].setClientIds[setIdx],
             restTime: set.rest_time,
-            setType: set.set_type ?? undefined,
+            setType: (set.set_type as any) ?? undefined,
             duration: set.duration,
             notes: set.notes,
             weight:
               set.weight != null
-                ? String(parseFloat(weightFromKg(set.weight, action.weightUnit).toFixed(1)))
+                ? String(
+                    parseFloat(
+                      weightFromKg(set.weight, action.weightUnit).toFixed(1)
+                    )
+                  )
                 : '',
             reps: set.reps != null ? String(set.reps) : '',
             distance:
               set.distance != null
-                ? String(parseFloat(distanceFromKm(set.distance, action.distanceUnit).toFixed(2)))
+                ? String(
+                    parseFloat(
+                      distanceFromKm(set.distance, action.distanceUnit).toFixed(
+                        2
+                      )
+                    )
+                  )
                 : '',
           })),
         })),
@@ -157,7 +189,11 @@ export function presetFormReducer(state: PresetDraft, action: PresetFormAction):
 }
 
 export function useWorkoutPresetForm() {
-  const [state, dispatch] = useReducer(presetFormReducer, undefined, createEmptyDraft);
+  const [state, dispatch] = useReducer(
+    presetFormReducer,
+    undefined,
+    createEmptyDraft
+  );
   const initialDescriptionRef = useRef('');
 
   const {
@@ -171,10 +207,13 @@ export function useWorkoutPresetForm() {
     updateSetField,
     updateSetMeta,
     setExerciseRest,
+    setExerciseProgression,
     supersetWith,
     ungroupExercise,
     reorderExercises,
-  } = useDraftExerciseActions(dispatch, state.exercises, { preserveSetsOnReplace: true });
+  } = useDraftExerciseActions(dispatch, state.exercises, {
+    preserveSetsOnReplace: true,
+  });
 
   const setName = useCallback((name: string) => {
     dispatch({ type: 'SET_NAME', name });
@@ -188,34 +227,52 @@ export function useWorkoutPresetForm() {
     (
       preset: WorkoutPreset,
       weightUnit: 'kg' | 'lbs',
-      distanceUnit: 'km' | 'miles',
+      distanceUnit: 'km' | 'miles'
     ): string[] => {
-      const clientIds: PresetClientIds = preset.exercises.map(e => ({
+      const clientIds: PresetClientIds = preset.exercises.map((e) => ({
         exerciseClientId: generateClientId(),
         setClientIds: e.sets.map(() => generateClientId()),
       }));
       exercisesModifiedRef.current = false;
       initialDescriptionRef.current = preset.description ?? '';
-      dispatch({ type: 'POPULATE_FROM_PRESET', preset, weightUnit, distanceUnit, clientIds });
-      return clientIds.map(c => c.exerciseClientId);
+      dispatch({
+        type: 'POPULATE_FROM_PRESET',
+        preset,
+        weightUnit,
+        distanceUnit,
+        clientIds,
+      });
+      return clientIds.map((c) => c.exerciseClientId);
     },
-    [exercisesModifiedRef],
+    [exercisesModifiedRef, dispatch]
   );
 
   const populateFromSession = useCallback(
     (
       session: PresetSessionResponse,
       weightUnit: 'kg' | 'lbs',
-      distanceUnit: 'km' | 'miles',
+      distanceUnit: 'km' | 'miles'
     ) => {
-      const clientIds: PresetClientIds = session.exercises.map(e => ({
+      const validExercises = (session.exercises ?? []).filter(
+        (e) => e.exercise_id != null && e.exercise_id !== ''
+      );
+      const clientIds: PresetClientIds = validExercises.map((e) => ({
         exerciseClientId: generateClientId(),
-        setClientIds: e.sets.map(() => generateClientId()),
+        setClientIds: (e.sets ?? []).map(() => generateClientId()),
       }));
       exercisesModifiedRef.current = false;
-      dispatch({ type: 'POPULATE_FROM_SESSION', session, weightUnit, distanceUnit, clientIds });
+      dispatch({
+        type: 'POPULATE_FROM_SESSION',
+        session: {
+          ...session,
+          exercises: validExercises,
+        },
+        weightUnit,
+        distanceUnit,
+        clientIds,
+      });
     },
-    [exercisesModifiedRef],
+    [exercisesModifiedRef, dispatch]
   );
 
   const populateFromRecommendation = useCallback(
@@ -256,6 +313,7 @@ export function useWorkoutPresetForm() {
     updateSetField,
     updateSetMeta,
     setExerciseRest,
+    setExerciseProgression,
     supersetWith,
     ungroupExercise,
     reorderExercises,

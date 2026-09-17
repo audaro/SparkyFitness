@@ -3,8 +3,9 @@ import {
   buildMetaTools,
   ENABLE_TOOLS_TOOL_NAME,
 } from '../ai/tools/metaTools.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 
 describe('sparky_enable_tools', () => {
   const tools = buildMetaTools();

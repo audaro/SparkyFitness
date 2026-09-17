@@ -6,7 +6,7 @@ import wgerService from '../integrations/wger/wgerService.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { ExternalProviderType } from 'types/externalProvider.ts';
+import { ExternalProviderType } from '../types/externalProvider.js';
 import {
   ALWAYS_AVAILABLE_EQUIPMENT,
   exerciseWriteArrayFieldsSchema,
@@ -820,13 +820,24 @@ router.get('/wger-filters', authenticate, async (req, res, next) => {
  *             schema:
  *               type: array
  *               items:
- *                 type: string
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                     format: uuid
+ *                     description: Exercise ID.
+ *                   name:
+ *                     type: string
+ *                     description: Exercise name.
  *       500:
  *         description: Server error.
  */
 router.get('/names', authenticate, async (req, res, next) => {
   try {
-    const { muscle, equipment } = req.query;
+    const muscle =
+      typeof req.query.muscle === 'string' ? req.query.muscle : undefined;
+    const equipment =
+      typeof req.query.equipment === 'string' ? req.query.equipment : undefined;
     const exerciseNames = await reportRepository.getExerciseNames(
       req.userId,
       muscle,
@@ -1518,11 +1529,23 @@ router.get('/:id/deletion-impact', authenticate, async (req, res, next) => {
  *         required: true
  *         description: The ID of the exercise to delete.
  *       - in: query
+ *         name: mode
+ *         schema:
+ *           type: string
+ *           enum: [hide, delete, delete_with_history]
+ *           default: delete
+ *         description: >
+ *           hide - stop showing the exercise in search, change nothing else.
+ *           delete - remove it from the library and from presets/plans; diary
+ *           entries are preserved. delete_with_history - also delete the
+ *           caller's own diary entries. Another user's diary is never touched;
+ *           if anyone else still references the exercise it is hidden instead.
+ *       - in: query
  *         name: forceDelete
  *         schema:
  *           type: boolean
  *           default: false
- *         description: If true, forces deletion even if there are linked entries.
+ *         description: Deprecated alias for mode=delete_with_history.
  *     responses:
  *       200:
  *         description: Exercise deleted successfully.
@@ -1544,7 +1567,11 @@ router.get('/:id/deletion-impact', authenticate, async (req, res, next) => {
  */
 router.delete('/:id', authenticate, async (req, res, next) => {
   const { id } = req.params;
-  const { forceDelete } = req.query; // Get forceDelete from query parameters
+  const { forceDelete, mode, clientDate } = req.query as {
+    forceDelete?: string;
+    mode?: string;
+    clientDate?: string;
+  };
   const uuidRegex =
     /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
   if (!id || !uuidRegex.test(id)) {
@@ -1553,18 +1580,28 @@ router.delete('/:id', authenticate, async (req, res, next) => {
       .json({ error: 'Exercise ID is required and must be a valid UUID.' });
   }
   try {
+    // `forceDelete=true` is the pre-mode spelling of delete_with_history; keep
+    // honouring it so an older client upgrading mid-release behaves the same.
+    const requestedMode =
+      mode ?? (forceDelete === 'true' ? 'delete_with_history' : 'delete');
+    if (!exerciseService.isExerciseDeleteMode(requestedMode)) {
+      return res.status(400).json({
+        error: 'mode must be one of: hide, delete, delete_with_history.',
+      });
+    }
     const result = await exerciseService.deleteExercise(
       req.userId,
       id,
-      forceDelete === 'true'
+      requestedMode,
+      typeof clientDate === 'string' ? clientDate : undefined
     );
     // Based on the result status, return appropriate messages and status codes
-    if (result.status === 'deleted') {
-      res.status(200).json({ message: result.message });
-    } else if (result.status === 'force_deleted') {
-      res.status(200).json({ message: result.message });
-    } else if (result.status === 'hidden') {
-      res.status(200).json({ message: result.message });
+    if (
+      result.status === 'deleted' ||
+      result.status === 'deleted_with_history' ||
+      result.status === 'hidden'
+    ) {
+      res.status(200).json({ message: result.message, status: result.status });
     } else {
       // Fallback for unexpected status
       res

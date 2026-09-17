@@ -38,12 +38,15 @@ const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
           <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
             {t('common.selectedCount', {
               count: selectedCount,
+              selectedCount,
               defaultValue: `${selectedCount} selected`,
             })}
           </span>
           <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
             {t('common.outOfTotal', {
+              count: totalCount,
               total: totalCount,
+              totalCount,
               defaultValue: `out of ${totalCount} items`,
             })}
           </span>

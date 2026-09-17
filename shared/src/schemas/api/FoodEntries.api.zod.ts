@@ -37,11 +37,17 @@ export const foodEntryResponseSchema = z.object({
   vitamin_c: z.number().nullable(),
   calcium: z.number().nullable(),
   iron: z.number().nullable(),
+  caffeine_mg: z.number().nullable(),
+  water_ml: z.number().nullable(),
+  alcohol_g: z.number().nullable(),
   glycemic_index: z.string().nullable(),
   custom_nutrients: z.record(z.string(), z.union([z.string(), z.number()])).nullable(),
   // Provider that produced this entry (e.g. 'health_connect'); NULL/absent for
   // manual entries. Not every food-entry query selects it, so keep it optional.
   source: z.string().nullish(),
+  // Per-occurrence markdown note. Never derived from the parent food's notes,
+  // and not selected by every food-entry query, so keep it optional.
+  notes: z.string().nullish(),
 });
 
 export type FoodEntryResponse = z.infer<typeof foodEntryResponseSchema>;

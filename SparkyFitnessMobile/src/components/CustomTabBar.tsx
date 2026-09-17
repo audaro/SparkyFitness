@@ -1,5 +1,11 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, Platform, StyleSheet } from 'react-native';
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  Platform,
+  StyleSheet,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { useTranslation } from 'react-i18next';
@@ -78,10 +84,16 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
 
         if (isAddButton) {
           return (
-            <View key={route.key} className="flex-1 items-center justify-end pb-1">
+            <View
+              key={route.key}
+              className="flex-1 items-center justify-end pb-1"
+            >
               <TouchableOpacity
                 accessibilityRole="button"
-                accessibilityLabel={options.tabBarAccessibilityLabel ?? t('navigation.add', { defaultValue: 'Add' })}
+                accessibilityLabel={
+                  options.tabBarAccessibilityLabel ??
+                  t('navigation.add', { defaultValue: 'Add' })
+                }
                 onPress={onPress}
                 onLongPress={onLongPress}
                 activeOpacity={0.8}
@@ -110,8 +122,9 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
         const label =
           typeof options.tabBarLabel === 'string'
             ? options.tabBarLabel
-            : options.title ?? route.name;
-        const iconName: IconName | undefined = TAB_ICONS[route.name as ContentTabName];
+            : (options.title ?? route.name);
+        const iconName: IconName | undefined =
+          TAB_ICONS[route.name as ContentTabName];
         const tintColor = isFocused ? tabActive : tabInactive;
 
         return (

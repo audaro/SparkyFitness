@@ -421,8 +421,7 @@ async function updateChatHistoryEntry(
         session_id = COALESCE($4, session_id),
         message = COALESCE($5, message),
         response = COALESCE($6, response),
-        parts = COALESCE($7, parts),
-        updated_at = now()
+        parts = COALESCE($7, parts)
       WHERE id = $8
       RETURNING *`,
       [

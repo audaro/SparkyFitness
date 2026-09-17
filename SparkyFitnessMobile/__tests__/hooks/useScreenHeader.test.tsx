@@ -77,7 +77,9 @@ describe('useScreenHeader accessibility label (custom path)', () => {
   });
 
   it('English: default primary action shows Save and announces Save', async () => {
-    const { getByText, getByRole } = render(<TestScreen right={primaryNoLabel} />);
+    const { getByText, getByRole } = render(
+      <TestScreen right={primaryNoLabel} />
+    );
 
     expect(getByText('Save')).toBeTruthy();
     expect(getByRole('button').props.accessibilityLabel).toBe('Save');
@@ -86,14 +88,18 @@ describe('useScreenHeader accessibility label (custom path)', () => {
   it('Polish: default primary action shows Zapisz and announces Zapisz', async () => {
     await i18n.changeLanguage('pl');
 
-    const { getByText, getByRole } = render(<TestScreen right={primaryNoLabel} />);
+    const { getByText, getByRole } = render(
+      <TestScreen right={primaryNoLabel} />
+    );
 
     expect(getByText('Zapisz')).toBeTruthy();
     expect(getByRole('button').props.accessibilityLabel).toBe('Zapisz');
   });
 
   it('busy disables the button without desynchronizing the label', async () => {
-    const { getByRole, queryByText } = render(<TestScreen right={primaryBusy} />);
+    const { getByRole, queryByText } = render(
+      <TestScreen right={primaryBusy} />
+    );
 
     const button = getByRole('button');
     // The custom bar swaps the text for a spinner while busy.
@@ -150,27 +156,38 @@ describe('useScreenHeader custom bar title layout', () => {
   // actually guarantees the behavior at runtime.
   it('renders the title as an untouchable absolute layer and keeps the side cells content-sized, so a long title cannot squeeze them to zero', () => {
     const { UNSAFE_getAllByType } = render(
-      <TestScreen title={'A very long preset name that would otherwise overflow the header bar'} />,
+      <TestScreen
+        title={
+          'A very long preset name that would otherwise overflow the header bar'
+        }
+      />
     );
 
     const views = UNSAFE_getAllByType(View);
-    const titleLayer = views.find((view) => view.props.pointerEvents === 'box-none');
+    const titleLayer = views.find(
+      (view) => view.props.pointerEvents === 'box-none'
+    );
     expect(titleLayer?.props.style).toEqual(
-      expect.objectContaining({ position: 'absolute', left: 16, right: 16 }),
+      expect.objectContaining({ position: 'absolute', left: 16, right: 16 })
     );
     expect(titleLayer?.props.children.props.children).toBe(
-      'A very long preset name that would otherwise overflow the header bar',
+      'A very long preset name that would otherwise overflow the header bar'
     );
 
     const leftContainer = views.find(
-      (view) => view.props.className === 'flex-row items-center gap-4',
+      (view) => view.props.className === 'flex-row items-center gap-4'
     );
-    expect(leftContainer?.props.style).toEqual(expect.objectContaining({ flexShrink: 0 }));
+    expect(leftContainer?.props.style).toEqual(
+      expect.objectContaining({ flexShrink: 0 })
+    );
 
     const rightContainer = views.find(
-      (view) => view.props.className === 'flex-row items-center justify-end gap-4',
+      (view) =>
+        view.props.className === 'flex-row items-center justify-end gap-4'
     );
-    expect(rightContainer?.props.style).toEqual(expect.objectContaining({ flexShrink: 0 }));
+    expect(rightContainer?.props.style).toEqual(
+      expect.objectContaining({ flexShrink: 0 })
+    );
   });
 });
 
@@ -191,7 +208,8 @@ describe('useScreenHeader accessibility label (native path)', () => {
   });
 
   function nativeRightItem() {
-    const calls = (mockNavigation as unknown as { setOptions: jest.Mock }).setOptions.mock.calls;
+    const calls = (mockNavigation as unknown as { setOptions: jest.Mock })
+      .setOptions.mock.calls;
     const options = calls[calls.length - 1][0] as {
       unstable_headerRightItems?: () => unknown[];
     };
@@ -202,7 +220,8 @@ describe('useScreenHeader accessibility label (native path)', () => {
   }
 
   function nativeLeftItem() {
-    const calls = (mockNavigation as unknown as { setOptions: jest.Mock }).setOptions.mock.calls;
+    const calls = (mockNavigation as unknown as { setOptions: jest.Mock })
+      .setOptions.mock.calls;
     const options = calls[calls.length - 1][0] as {
       unstable_headerLeftItems?: () => unknown[];
     };
@@ -240,7 +259,9 @@ describe('useScreenHeader accessibility label (native path)', () => {
 
   it('fires the registered handler from the native press path', async () => {
     const onPress = jest.fn();
-    render(<TestScreen right={[{ kind: 'primary', label: 'Save', onPress }]} />);
+    render(
+      <TestScreen right={[{ kind: 'primary', label: 'Save', onPress }]} />
+    );
 
     const item = nativeRightItem();
     item?.onPress?.();
@@ -250,7 +271,9 @@ describe('useScreenHeader accessibility label (native path)', () => {
 
   it('rebuilds a localized left primary item after a language change', async () => {
     const onPress = jest.fn();
-    const { rerender } = render(<TestScreen right={[]} left={{ kind: 'primary', onPress }} />);
+    const { rerender } = render(
+      <TestScreen right={[]} left={{ kind: 'primary', onPress }} />
+    );
 
     let item = nativeLeftItem();
     expect(item?.label).toBe('Save');
@@ -266,14 +289,18 @@ describe('useScreenHeader accessibility label (native path)', () => {
 
   it('rebuilds the localized left busy label after a language change', async () => {
     const onPress = jest.fn();
-    const { rerender } = render(<TestScreen right={[]} left={{ kind: 'primary', busy: true, onPress }} />);
+    const { rerender } = render(
+      <TestScreen right={[]} left={{ kind: 'primary', busy: true, onPress }} />
+    );
 
     let item = nativeLeftItem();
     expect(item?.label).toBe('Saving…');
     expect(item?.accessibilityLabel).toBe('Saving…');
 
     await i18n.changeLanguage('pl');
-    rerender(<TestScreen right={[]} left={{ kind: 'primary', busy: true, onPress }} />);
+    rerender(
+      <TestScreen right={[]} left={{ kind: 'primary', busy: true, onPress }} />
+    );
 
     item = nativeLeftItem();
     expect(item?.label).toBe('Zapisywanie…');
@@ -290,7 +317,7 @@ describe('useScreenHeader accessibility label (native path)', () => {
           accessibilityLabel: 'Save meal',
           onPress: () => {},
         }}
-      />,
+      />
     );
 
     const item = nativeLeftItem();

@@ -62,7 +62,9 @@ jest.mock('../../src/components/BottomSheetPicker', () => {
       value: string;
     }) => (
       <View>
-        <Text>{options.find((option) => option.value === value)?.label ?? ''}</Text>
+        <Text>
+          {options.find((option) => option.value === value)?.label ?? ''}
+        </Text>
         {options.map((option) => (
           <Pressable key={option.value} onPress={() => onSelect(option.value)}>
             <Text>{`opt-${option.value}`}</Text>
@@ -136,7 +138,7 @@ const renderScreen = (medicationId?: string) => {
   return render(
     <SafeAreaProvider initialMetrics={{ insets, frame }}>
       <MedicationFormScreen navigation={mockNavigation} route={route} />
-    </SafeAreaProvider>,
+    </SafeAreaProvider>
   );
 };
 
@@ -146,15 +148,17 @@ describe('MedicationFormScreen — optional text fields', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseMedicationDetail.mockReturnValue(
-      { data: baseMed } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
-    mockUseCreateMedication.mockReturnValue(
-      { mutate: createMutate, isPending: false } as unknown as ReturnType<typeof useCreateMedication>,
-    );
-    mockUseUpdateMedication.mockReturnValue(
-      { mutate: updateMutate, isPending: false } as unknown as ReturnType<typeof useUpdateMedication>,
-    );
+    mockUseMedicationDetail.mockReturnValue({
+      data: baseMed,
+    } as unknown as ReturnType<typeof useMedicationDetail>);
+    mockUseCreateMedication.mockReturnValue({
+      mutate: createMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreateMedication>);
+    mockUseUpdateMedication.mockReturnValue({
+      mutate: updateMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof useUpdateMedication>);
   });
 
   it('sends explicit null for cleared fields so the server clears them', () => {
@@ -177,7 +181,7 @@ describe('MedicationFormScreen — optional text fields', () => {
           notes: null,
         }),
       },
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -190,14 +194,17 @@ describe('MedicationFormScreen — optional text fields', () => {
 
     expect(updateMutate).toHaveBeenCalledWith(
       { id: 'med-1', body: expect.objectContaining({ reason_text: null }) },
-      expect.anything(),
+      expect.anything()
     );
   });
 
   it('passes through non-empty values trimmed', () => {
     const screen = renderScreen('med-1');
 
-    fireEvent.changeText(screen.getByPlaceholderText('Blood pressure'), '  Migraines  ');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Blood pressure'),
+      '  Migraines  '
+    );
 
     pressAction(screen, mockNavigation, 'Save');
 
@@ -211,14 +218,14 @@ describe('MedicationFormScreen — optional text fields', () => {
           notes: 'Take with food',
         }),
       },
-      expect.anything(),
+      expect.anything()
     );
   });
 
   it('collapses detail fields on create until the Details toggle is expanded', () => {
-    mockUseMedicationDetail.mockReturnValue(
-      { data: undefined } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
+    mockUseMedicationDetail.mockReturnValue({
+      data: undefined,
+    } as unknown as ReturnType<typeof useMedicationDetail>);
     const screen = renderScreen();
 
     expect(screen.queryByPlaceholderText('Dr. Ipsum')).toBeNull();
@@ -235,9 +242,9 @@ describe('MedicationFormScreen — optional text fields', () => {
   });
 
   it('sends null for empty optional fields on create', () => {
-    mockUseMedicationDetail.mockReturnValue(
-      { data: undefined } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
+    mockUseMedicationDetail.mockReturnValue({
+      data: undefined,
+    } as unknown as ReturnType<typeof useMedicationDetail>);
     const screen = renderScreen();
 
     fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Metformin');
@@ -252,7 +259,7 @@ describe('MedicationFormScreen — optional text fields', () => {
         pharmacy: null,
         notes: null,
       }),
-      expect.anything(),
+      expect.anything()
     );
   });
 });

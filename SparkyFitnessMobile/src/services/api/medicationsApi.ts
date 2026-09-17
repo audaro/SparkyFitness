@@ -37,7 +37,9 @@ export const getMedication = (id: string): Promise<MedicationDetail> =>
     operation: 'get medication',
   });
 
-export const createMedication = (body: CreateMedicationInput): Promise<Medication> =>
+export const createMedication = (
+  body: CreateMedicationInput
+): Promise<Medication> =>
   apiFetch<Medication>({
     endpoint: '/api/v2/medications',
     serviceName: SERVICE_NAME,
@@ -46,7 +48,10 @@ export const createMedication = (body: CreateMedicationInput): Promise<Medicatio
     body,
   });
 
-export const updateMedication = (id: string, body: UpdateMedicationInput): Promise<Medication> =>
+export const updateMedication = (
+  id: string,
+  body: UpdateMedicationInput
+): Promise<Medication> =>
   apiFetch<Medication>({
     endpoint: `/api/v2/medications/${id}`,
     serviceName: SERVICE_NAME,
@@ -65,7 +70,7 @@ export const deleteMedication = (id: string): Promise<void> =>
 
 export const createSchedule = (
   medicationId: string,
-  body: CreateScheduleInput,
+  body: CreateScheduleInput
 ): Promise<MedicationSchedule> =>
   apiFetch<MedicationSchedule>({
     endpoint: `/api/v2/medications/${medicationId}/schedules`,
@@ -75,7 +80,10 @@ export const createSchedule = (
     body,
   });
 
-export const updateSchedule = (id: string, body: UpdateScheduleInput): Promise<MedicationSchedule> =>
+export const updateSchedule = (
+  id: string,
+  body: UpdateScheduleInput
+): Promise<MedicationSchedule> =>
   apiFetch<MedicationSchedule>({
     endpoint: `/api/v2/medications/schedules/${id}`,
     serviceName: SERVICE_NAME,
@@ -110,7 +118,9 @@ export const listEntries = async (opts?: {
   return result ?? [];
 };
 
-export const createEntry = (body: CreateMedicationEntryInput): Promise<MedicationEntry> =>
+export const createEntry = (
+  body: CreateMedicationEntryInput
+): Promise<MedicationEntry> =>
   apiFetch<MedicationEntry>({
     endpoint: '/api/v2/medications/entries',
     serviceName: SERVICE_NAME,
@@ -119,7 +129,10 @@ export const createEntry = (body: CreateMedicationEntryInput): Promise<Medicatio
     body,
   });
 
-export const updateEntry = (id: string, body: UpdateMedicationEntryInput): Promise<MedicationEntry> =>
+export const updateEntry = (
+  id: string,
+  body: UpdateMedicationEntryInput
+): Promise<MedicationEntry> =>
   apiFetch<MedicationEntry>({
     endpoint: `/api/v2/medications/entries/${id}`,
     serviceName: SERVICE_NAME,

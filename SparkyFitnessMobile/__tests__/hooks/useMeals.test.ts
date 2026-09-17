@@ -25,7 +25,11 @@ import {
   fetchRecentMeals,
   updateMeal,
 } from '../../src/services/api/mealsApi';
-import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import {
+  createTestQueryClient,
+  createQueryWrapper,
+  type QueryClient,
+} from './queryTestUtils';
 
 jest.mock('../../src/services/api/mealsApi', () => ({
   createMeal: jest.fn(),
@@ -40,9 +44,14 @@ jest.mock('../../src/services/api/mealsApi', () => ({
 const mockCreateMeal = createMeal as jest.MockedFunction<typeof createMeal>;
 const mockDeleteMeal = deleteMeal as jest.MockedFunction<typeof deleteMeal>;
 const mockFetchMeal = fetchMeal as jest.MockedFunction<typeof fetchMeal>;
-const mockFetchMealDeletionImpact = fetchMealDeletionImpact as jest.MockedFunction<typeof fetchMealDeletionImpact>;
+const mockFetchMealDeletionImpact =
+  fetchMealDeletionImpact as jest.MockedFunction<
+    typeof fetchMealDeletionImpact
+  >;
 const mockFetchMeals = fetchMeals as jest.MockedFunction<typeof fetchMeals>;
-const mockFetchRecentMeals = fetchRecentMeals as jest.MockedFunction<typeof fetchRecentMeals>;
+const mockFetchRecentMeals = fetchRecentMeals as jest.MockedFunction<
+  typeof fetchRecentMeals
+>;
 const mockUpdateMeal = updateMeal as jest.MockedFunction<typeof updateMeal>;
 
 const mealData = {
@@ -50,6 +59,7 @@ const mealData = {
   user_id: 'user-1',
   name: 'Overnight Oats',
   description: null,
+  notes: null,
   is_public: false,
   serving_size: 1,
   serving_unit: 'serving',
@@ -224,9 +234,16 @@ describe('meal mutations', () => {
       expect(mockCreateMeal).toHaveBeenCalled();
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: mealsQueryKey });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: recentMealsQueryKeyRoot, refetchType: 'all' });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: mealSearchQueryKeyRoot });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: mealDetailQueryKey('meal-1') });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: recentMealsQueryKeyRoot,
+      refetchType: 'all',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: mealSearchQueryKeyRoot,
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: mealDetailQueryKey('meal-1'),
+    });
     // Regression: an edited/deleted favorited meal would otherwise show stale
     // content (or linger) in the separate favorites cache (5-min staleTime).
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: favoritesQueryKey });
@@ -237,9 +254,12 @@ describe('meal mutations', () => {
     const onSuccess = jest.fn();
     mockUpdateMeal.mockResolvedValue(mealData);
 
-    const { result } = renderHook(() => useUpdateMeal({ mealId: 'meal-1', onSuccess }), {
-      wrapper: createQueryWrapper(queryClient),
-    });
+    const { result } = renderHook(
+      () => useUpdateMeal({ mealId: 'meal-1', onSuccess }),
+      {
+        wrapper: createQueryWrapper(queryClient),
+      }
+    );
 
     await act(async () => {
       await result.current.updateMealAsync({ name: 'Overnight Oats' });
@@ -250,9 +270,11 @@ describe('meal mutations', () => {
     expect(mockUpdateMeal).toHaveBeenCalledWith(
       'meal-1',
       { name: 'Overnight Oats' },
-      undefined,
+      undefined
     );
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: mealDetailQueryKey('meal-1') });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: mealDetailQueryKey('meal-1'),
+    });
     expect(onSuccess).toHaveBeenCalledWith(mealData);
   });
 
@@ -277,7 +299,7 @@ describe('meal mutations', () => {
     expect(alertSpy).toHaveBeenCalledWith(
       'Delete Meal',
       expect.any(String),
-      expect.any(Array),
+      expect.any(Array)
     );
 
     const buttons = alertSpy.mock.calls[0][2]!;
@@ -288,7 +310,9 @@ describe('meal mutations', () => {
     await waitFor(() => {
       expect(mockDeleteMeal).toHaveBeenCalledWith('meal-1');
     });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: mealDetailQueryKey('meal-1') });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: mealDetailQueryKey('meal-1'),
+    });
   });
 });
 

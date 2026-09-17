@@ -11,18 +11,23 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import { Scale, Ruler, Percent, Activity } from 'lucide-react';
+import { Scale, Ruler, Percent, Activity, Flame, Droplet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ZoomableChart from '@/components/ZoomableChart';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { info, error } from '@/utils/logging';
-import { parseISO } from 'date-fns';
 import { formatWeight, formatMeasurement } from '@/utils/numberFormatting';
 import { getPrecision } from '@workspace/shared';
 import {
   calculateSmartYAxisDomain,
   ChartDataPoint,
+  createDateTickFormatter,
+  createTimeSyncMethod,
   getChartConfig,
+  getTimeAwareMaxBarSize,
+  getTimeXAxisProps,
+  prepareTimeChartData,
+  REPORTS_CHART_SYNC_ID,
 } from '@/utils/chartUtils';
 import { CheckInMeasurementsResponse } from '@workspace/shared';
 import type { Widget } from '@/components/widgets/WidgetGrid';
@@ -42,6 +47,10 @@ const METRIC_WIDGET_KEYS = [
   'hips',
   'height',
   'body_fat_percentage',
+  'muscle_mass_kg',
+  'bone_mass_kg',
+  'body_water_percentage',
+  'bmr',
 ] as const;
 
 /**
@@ -115,12 +124,16 @@ export function useMeasurementChartWidgets({
     formatDateInUserTimezone,
     weightUnit,
     measurementUnit,
+    energyUnit,
     convertWeight,
     convertMeasurement,
+    convertEnergy,
+    getEnergyUnitString,
+    chartScaleMode,
   } = usePreferences();
 
   const chartData = React.useMemo(() => {
-    return measurementData.map((d) => ({
+    const rows = measurementData.map((d) => ({
       ...d,
       date: d.entry_date,
       rawWeight: d.weight,
@@ -165,30 +178,65 @@ export function useMeasurementChartWidgets({
         : 0,
       rawBodyFat: d.body_fat_percentage,
       body_fat_percentage: d.body_fat_percentage || 0,
+      rawMuscleMass: d.muscle_mass_kg,
+      muscle_mass_kg: d.muscle_mass_kg
+        ? convertWeight(
+            d.muscle_mass_kg,
+            'kg',
+            weightUnit === 'st_lbs' ? 'lbs' : weightUnit
+          )
+        : 0,
+      rawBoneMass: d.bone_mass_kg,
+      bone_mass_kg: d.bone_mass_kg
+        ? convertWeight(
+            d.bone_mass_kg,
+            'kg',
+            weightUnit === 'st_lbs' ? 'lbs' : weightUnit
+          )
+        : 0,
+      rawBodyWater: d.body_water_percentage,
+      body_water_percentage: d.body_water_percentage || 0,
+      rawBmr: d.bmr,
+      bmr: d.bmr
+        ? Math.round(convertEnergy(Number(d.bmr), 'kcal', energyUnit))
+        : 0,
     }));
+    return prepareTimeChartData(rows, chartScaleMode);
   }, [
     measurementData,
     weightUnit,
     measurementUnit,
+    energyUnit,
     convertWeight,
     convertMeasurement,
+    convertEnergy,
+    chartScaleMode,
   ]);
+
+  const syncMethod = React.useMemo(() => createTimeSyncMethod(), []);
 
   info(loggingLevel, 'MeasurementChartsGrid: Rendering component.');
 
+  // Handles both axis shapes: a day string in point mode, a numeric timestamp
+  // in time mode -- which is also what the tooltip label arrives as.
+  const formatChartDate = React.useMemo(
+    () => createDateTickFormatter(formatDateInUserTimezone),
+    [formatDateInUserTimezone]
+  );
+
   const formatDateForChart = React.useCallback(
-    (date: string) => {
-      if (!date || typeof date !== 'string') {
+    (value: unknown) => {
+      const formatted = formatChartDate(value);
+      if (!formatted) {
         error(
           loggingLevel,
-          `MeasurementChartsGrid: Invalid date string provided to formatDateForChart:`,
-          date
+          `MeasurementChartsGrid: Invalid date value provided to formatDateForChart:`,
+          value
         );
-        return '';
       }
-      return formatDateInUserTimezone(parseISO(date), 'MMM dd');
+      return formatted;
     },
-    [loggingLevel, formatDateInUserTimezone]
+    [loggingLevel, formatChartDate]
   );
 
   const getYAxisDomain = React.useCallback(
@@ -298,8 +346,69 @@ export function useMeasurementChartWidgets({
         formatValue: (val: number) => `${val.toFixed(1)}%`,
         axisTickFormat: (value: number) => value.toFixed(1),
       },
+      {
+        key: METRIC_WIDGET_KEYS[6],
+        titleKey: 'reports.muscleMass',
+        defaultTitle: 'Muscle Mass',
+        dataKey: 'muscle_mass_kg',
+        rawKey: 'rawMuscleMass',
+        unit: weightUnit === 'st_lbs' ? 'lbs' : weightUnit,
+        stroke: '#e67e22',
+        icon: Activity,
+        showHeaderIcon: false,
+        formatValue: (val: number) =>
+          formatWeight(val, weightUnit === 'st_lbs' ? 'lbs' : weightUnit),
+        axisTickFormat: (value: number) =>
+          value.toFixed(
+            getPrecision('weight', weightUnit === 'st_lbs' ? 'lbs' : weightUnit)
+          ),
+      },
+      {
+        key: METRIC_WIDGET_KEYS[7],
+        titleKey: 'reports.boneMass',
+        defaultTitle: 'Bone Mass',
+        dataKey: 'bone_mass_kg',
+        rawKey: 'rawBoneMass',
+        unit: weightUnit === 'st_lbs' ? 'lbs' : weightUnit,
+        stroke: '#95a5a6',
+        icon: Activity,
+        showHeaderIcon: false,
+        formatValue: (val: number) =>
+          formatWeight(val, weightUnit === 'st_lbs' ? 'lbs' : weightUnit),
+        axisTickFormat: (value: number) =>
+          value.toFixed(
+            getPrecision('weight', weightUnit === 'st_lbs' ? 'lbs' : weightUnit)
+          ),
+      },
+      {
+        key: METRIC_WIDGET_KEYS[8],
+        titleKey: 'reports.bodyWaterPercentage',
+        defaultTitle: 'Body Water %',
+        dataKey: 'body_water_percentage',
+        rawKey: 'rawBodyWater',
+        unit: '%',
+        stroke: '#3498db',
+        icon: Droplet,
+        showHeaderIcon: false,
+        formatValue: (val: number) => `${val.toFixed(1)}%`,
+        axisTickFormat: (value: number) => value.toFixed(1),
+      },
+      {
+        key: METRIC_WIDGET_KEYS[9],
+        titleKey: 'reports.bmr',
+        defaultTitle: 'BMR',
+        dataKey: 'bmr',
+        rawKey: 'rawBmr',
+        unit: getEnergyUnitString(energyUnit),
+        stroke: '#8e44ad',
+        icon: Flame,
+        showHeaderIcon: false,
+        formatValue: (val: number) =>
+          `${val} ${getEnergyUnitString(energyUnit)}`,
+        axisTickFormat: (value: number) => value.toFixed(0),
+      },
     ],
-    [weightUnit, measurementUnit]
+    [weightUnit, measurementUnit, energyUnit, getEnergyUnitString]
   );
 
   return React.useMemo<Widget[]>(() => {
@@ -307,7 +416,9 @@ export function useMeasurementChartWidgets({
       const loadingCard = (heightClass: string) => (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Loading...</CardTitle>
+            <CardTitle className="text-sm">
+              {t('common.loading', 'Loading...')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div
@@ -371,16 +482,19 @@ export function useMeasurementChartWidgets({
                     debounce={100}
                   >
                     <LineChart
-                      syncId="nutrition-charts"
+                      syncId={REPORTS_CHART_SYNC_ID}
+                      syncMethod={syncMethod}
                       data={chartData.filter(
                         (d) => d[metric.dataKey as keyof typeof d]
                       )}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis
-                        dataKey="date"
+                        {...getTimeXAxisProps({
+                          chartScaleMode,
+                          formatDate: formatDateInUserTimezone,
+                        })}
                         fontSize={10}
-                        tickFormatter={formatDateForChart}
                         tickCount={
                           isMaximized
                             ? Math.max(chartData.length, 10)
@@ -400,9 +514,7 @@ export function useMeasurementChartWidgets({
                         tickFormatter={metric.axisTickFormat}
                       />
                       <Tooltip
-                        labelFormatter={(value) =>
-                          formatDateForChart(value as string)
-                        }
+                        labelFormatter={(value) => formatDateForChart(value)}
                         formatter={(
                           _value: unknown,
                           _name: unknown,
@@ -471,12 +583,16 @@ export function useMeasurementChartWidgets({
                       data={chartData.filter(
                         (d) => d.steps !== undefined && d.steps !== null
                       )}
-                      syncId="nutrition-charts"
+                      syncId={REPORTS_CHART_SYNC_ID}
+                      syncMethod={syncMethod}
+                      maxBarSize={getTimeAwareMaxBarSize(chartScaleMode)}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis
-                        dataKey="date"
-                        tickFormatter={formatDateForChart}
+                        {...getTimeXAxisProps({
+                          chartScaleMode,
+                          formatDate: formatDateInUserTimezone,
+                        })}
                         tickCount={
                           isMaximized
                             ? Math.max(chartData.length, 10)
@@ -495,9 +611,7 @@ export function useMeasurementChartWidgets({
                         tickFormatter={(value) => Math.round(value).toString()}
                       />
                       <Tooltip
-                        labelFormatter={(value) =>
-                          formatDateForChart(value as string)
-                        }
+                        labelFormatter={(value) => formatDateForChart(value)}
                         contentStyle={{
                           backgroundColor: 'hsl(var(--background))',
                         }}
@@ -518,5 +632,15 @@ export function useMeasurementChartWidgets({
     };
 
     return [...metricWidgets, stepsWidget];
-  }, [isMounted, metrics, chartData, t, formatDateForChart, getYAxisDomain]);
+  }, [
+    isMounted,
+    metrics,
+    chartData,
+    t,
+    formatDateForChart,
+    formatDateInUserTimezone,
+    getYAxisDomain,
+    chartScaleMode,
+    syncMethod,
+  ]);
 }

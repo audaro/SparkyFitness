@@ -60,7 +60,7 @@ describe('MedicationRow', () => {
           ],
         })}
         onPress={jest.fn()}
-      />,
+      />
     );
 
     expect(screen.getByText('Lisinopril')).toBeTruthy();
@@ -68,14 +68,18 @@ describe('MedicationRow', () => {
   });
 
   it('summarizes schedule-less medications as as-needed', () => {
-    const screen = render(<MedicationRow medication={buildMedication()} onPress={jest.fn()} />);
+    const screen = render(
+      <MedicationRow medication={buildMedication()} onPress={jest.fn()} />
+    );
 
     expect(screen.getByText('1 tablet · As needed')).toBeTruthy();
   });
 
   it('fires onPress', () => {
     const onPress = jest.fn();
-    const screen = render(<MedicationRow medication={buildMedication()} onPress={onPress} />);
+    const screen = render(
+      <MedicationRow medication={buildMedication()} onPress={onPress} />
+    );
 
     fireEvent.press(screen.getByText('Lisinopril'));
     expect(onPress).toHaveBeenCalled();

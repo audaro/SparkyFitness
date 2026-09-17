@@ -463,7 +463,11 @@ async def get_health_and_wellness(request_data: HealthAndWellnessRequest):
             if "hydration" in metric_types_to_fetch:
                 try:
                     hydration_data = garmin.get_hydration_data(current_date)
-                    if hydration_data and hydration_data.get("valueInML") is not None:
+                    if (
+                        hydration_data
+                        and hydration_data.get("valueInML") is not None
+                        and hydration_data.get("valueInML") > 0
+                    ):
                         health_data["hydration"].append(
                             {
                                 "date": current_date,

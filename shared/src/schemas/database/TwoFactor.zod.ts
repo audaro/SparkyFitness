@@ -16,6 +16,9 @@ export const twoFactorSchema = z.object({
   backup_codes: z.string().nullable(),
   created_at: z.date(),
   updated_at: z.date(),
+  verified: z.boolean(),
+  failed_verification_count: z.number(),
+  locked_until: z.date().nullable(),
 });
 
 export const twoFactorInitializerSchema = z.object({
@@ -25,6 +28,9 @@ export const twoFactorInitializerSchema = z.object({
   backup_codes: z.string().optional().nullable(),
   created_at: z.date().optional(),
   updated_at: z.date().optional(),
+  verified: z.boolean().optional(),
+  failed_verification_count: z.number().optional(),
+  locked_until: z.date().optional().nullable(),
 });
 
 export const twoFactorMutatorSchema = z.object({
@@ -34,6 +40,9 @@ export const twoFactorMutatorSchema = z.object({
   backup_codes: z.string().optional().nullable(),
   created_at: z.date().optional(),
   updated_at: z.date().optional(),
+  verified: z.boolean().optional(),
+  failed_verification_count: z.number().optional(),
+  locked_until: z.date().optional().nullable(),
 });
 
 export type TwoFactor = z.infer<typeof twoFactorSchema>;

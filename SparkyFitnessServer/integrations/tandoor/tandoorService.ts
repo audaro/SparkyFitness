@@ -1,4 +1,17 @@
 import { log } from '../../config/logging.js';
+import {
+  type AiNetworkPolicy,
+  createGuardedFetch,
+} from '../../utils/outboundUrlPolicy.js';
+
+// Admins (allowPrivateNetwork) keep plain fetch — identical to the prior
+// behavior. Non-admins get the guarded fetch (private-address lookup guard +
+// redirect:'manual'), closing redirect-to-internal and DNS-rebinding SSRF.
+function resolveFoodFetch(policy?: AiNetworkPolicy): typeof fetch {
+  return policy && !policy.allowPrivateNetwork
+    ? createGuardedFetch(policy)
+    : fetch;
+}
 
 export interface TandoorPropertyType {
   id?: number;
@@ -133,7 +146,12 @@ class TandoorService {
     >
   > | null;
 
-  constructor(baseUrl: string, apiKey: string) {
+  private networkPolicy?: AiNetworkPolicy;
+  constructor(
+    baseUrl: string,
+    apiKey: string,
+    networkPolicy?: AiNetworkPolicy
+  ) {
     if (!baseUrl) {
       throw new Error('Tandoor baseUrl not provided.');
     }
@@ -145,6 +163,7 @@ class TandoorService {
     this.accessToken = apiKey; // Tandoor API uses token for authentication
     this.propertyTypesCache = null;
     this.propertyTypesPromise = null;
+    this.networkPolicy = networkPolicy;
   }
 
   async searchRecipes(
@@ -164,15 +183,18 @@ class TandoorService {
           this.accessToken.startsWith('Token '))
           ? this.accessToken
           : `Bearer ${this.accessToken}`;
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          Authorization: authHeader,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          ...options.headers,
-        } as HeadersInit,
-      });
+      const response = await resolveFoodFetch(this.networkPolicy)(
+        url.toString(),
+        {
+          method: 'GET',
+          headers: {
+            Authorization: authHeader,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            ...options.headers,
+          } as HeadersInit,
+        }
+      );
       log(
         'debug',
         `Tandoor search HTTP status: ${response.status} ${response.statusText}`
@@ -278,15 +300,18 @@ class TandoorService {
             this.accessToken.startsWith('Token '))
             ? this.accessToken
             : `Bearer ${this.accessToken}`;
-        const response = await fetch(url.toString(), {
-          method: 'GET',
-          headers: {
-            Authorization: authHeader,
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            ...options.headers,
-          } as HeadersInit,
-        });
+        const response = await resolveFoodFetch(this.networkPolicy)(
+          url.toString(),
+          {
+            method: 'GET',
+            headers: {
+              Authorization: authHeader,
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              ...options.headers,
+            } as HeadersInit,
+          }
+        );
         if (!response.ok) {
           log(
             'warn',
@@ -341,7 +366,7 @@ class TandoorService {
           this.accessToken.startsWith('Token '))
           ? this.accessToken
           : `Bearer ${this.accessToken}`;
-      const response = await fetch(url, {
+      const response = await resolveFoodFetch(this.networkPolicy)(url, {
         method: 'GET',
         headers: {
           Authorization: authHeader,

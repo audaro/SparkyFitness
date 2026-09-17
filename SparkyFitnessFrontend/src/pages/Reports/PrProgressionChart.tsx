@@ -12,6 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { formatWeight } from '@/utils/numberFormatting';
+import { axisLabelText } from '@/utils/chartUtils';
 
 interface PrData {
   date: string;
@@ -64,7 +65,7 @@ export const PrProgressionChart = ({
                 tickFormatter={(value) => formatWeight(value, weightUnit)}
               />
               <Tooltip
-                labelFormatter={(label) => formatDate(label)}
+                labelFormatter={(label) => formatDate(axisLabelText(label))}
                 formatter={(
                   value:
                     | string

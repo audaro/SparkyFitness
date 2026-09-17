@@ -11,7 +11,7 @@ export const ssoProviderSchema = z.object({
   id: ssoProviderIdSchema,
   provider_id: z.string(),
   issuer: z.string(),
-  client_id: z.string(),
+  client_id: z.string().nullable(),
   client_secret: z.string().nullable(),
   discovery_endpoint: z.string().nullable(),
   authorization_endpoint: z.string().nullable(),
@@ -24,13 +24,16 @@ export const ssoProviderSchema = z.object({
   created_at: z.date(),
   updated_at: z.date(),
   oidc_config: z.unknown().nullable(),
+  saml_config: z.string().nullable(),
+  user_id: z.string().nullable(),
+  organization_id: z.string().nullable(),
 });
 
 export const ssoProviderInitializerSchema = z.object({
   id: ssoProviderIdSchema.optional(),
   provider_id: z.string(),
   issuer: z.string(),
-  client_id: z.string(),
+  client_id: z.string().optional().nullable(),
   client_secret: z.string().optional().nullable(),
   discovery_endpoint: z.string().optional().nullable(),
   authorization_endpoint: z.string().optional().nullable(),
@@ -43,13 +46,16 @@ export const ssoProviderInitializerSchema = z.object({
   created_at: z.date().optional(),
   updated_at: z.date().optional(),
   oidc_config: z.unknown().optional().nullable(),
+  saml_config: z.string().optional().nullable(),
+  user_id: z.string().optional().nullable(),
+  organization_id: z.string().optional().nullable(),
 });
 
 export const ssoProviderMutatorSchema = z.object({
   id: ssoProviderIdSchema.optional(),
   provider_id: z.string().optional(),
   issuer: z.string().optional(),
-  client_id: z.string().optional(),
+  client_id: z.string().optional().nullable(),
   client_secret: z.string().optional().nullable(),
   discovery_endpoint: z.string().optional().nullable(),
   authorization_endpoint: z.string().optional().nullable(),
@@ -62,8 +68,13 @@ export const ssoProviderMutatorSchema = z.object({
   created_at: z.date().optional(),
   updated_at: z.date().optional(),
   oidc_config: z.unknown().optional().nullable(),
+  saml_config: z.string().optional().nullable(),
+  user_id: z.string().optional().nullable(),
+  organization_id: z.string().optional().nullable(),
 });
 
 export type SsoProvider = z.infer<typeof ssoProviderSchema>;
-export type SsoProviderInitializer = z.infer<typeof ssoProviderInitializerSchema>;
+export type SsoProviderInitializer = z.infer<
+  typeof ssoProviderInitializerSchema
+>;
 export type SsoProviderMutator = z.infer<typeof ssoProviderMutatorSchema>;

@@ -32,9 +32,11 @@ const CheckIn = () => {
     boneMassKg,
     bodyWaterPercentage,
     muscleMassKg,
+    bmr,
     customCategories,
     customNotes,
     customValues,
+    customPlaceholders,
     handleCalculateBodyFat,
     handleDeleteMeasurementClick,
     handleSubmit,
@@ -52,6 +54,7 @@ const CheckIn = () => {
     setBoneMassKg,
     setBodyWaterPercentage,
     setMuscleMassKg,
+    setBmr,
     setCustomNotes,
     setCustomValues,
     setHeight,
@@ -212,8 +215,10 @@ const CheckIn = () => {
             boneMassKg={boneMassKg}
             bodyWaterPercentage={bodyWaterPercentage}
             muscleMassKg={muscleMassKg}
+            bmr={bmr}
             customCategories={customCategories}
             customNotes={customNotes}
+            customPlaceholders={customPlaceholders}
             customValues={customValues}
             handleCalculateBodyFat={handleCalculateBodyFat}
             handleSubmit={handleSubmit}
@@ -226,6 +231,7 @@ const CheckIn = () => {
             setBoneMassKg={setBoneMassKg}
             setBodyWaterPercentage={setBodyWaterPercentage}
             setMuscleMassKg={setMuscleMassKg}
+            setBmr={setBmr}
             setCustomNotes={setCustomNotes}
             setCustomValues={setCustomValues}
             setHeight={setHeight}

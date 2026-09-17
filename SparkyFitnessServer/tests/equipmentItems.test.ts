@@ -163,8 +163,7 @@ describe('ITEM_REQUIREMENTS_BY_SOURCE_ID', () => {
       const reachable = slugs.some((slug) =>
         (
           EQUIPMENT_ITEMS.find((item) => item.slug === slug)?.derives as
-            | readonly string[]
-            | undefined
+            readonly string[] | undefined
         )?.includes(bucket)
       );
       expect(reachable, `${key} (${bucket}) unreachable via ${slugs}`).toBe(

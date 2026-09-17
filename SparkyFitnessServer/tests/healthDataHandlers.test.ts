@@ -1,23 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { todayInZone } from '@workspace/shared';
 import {
   resolveHandler,
   customMeasurementHandler,
   HEALTH_TYPE_HANDLERS,
   type HealthBatchContext,
+  type HealthEntryContext,
   type PreparedHealthEntry,
 } from '../services/healthDataHandlers.js';
 import measurementRepository from '../models/measurementRepository.js';
 import waterContainerRepository from '../models/waterContainerRepository.js';
+import * as genericHealthRepository from '../models/genericHealthRepository.js';
+import type { WaterContainerResponse } from '@workspace/shared';
 
 vi.mock('../models/measurementRepository.js', () => ({
   default: {
     upsertWaterIntakeSamples: vi.fn(),
+    bulkUpsertCheckInMeasurements: vi.fn(),
   },
 }));
 vi.mock('../models/waterContainerRepository.js', () => ({
   default: {
     getPrimaryWaterContainerByUserId: vi.fn(),
   },
+}));
+vi.mock('../models/genericHealthRepository.js', () => ({
+  upsertDailyHealthMetrics: vi.fn(),
 }));
 
 // Guards the registry against alias drift: every case label from the old
@@ -32,6 +40,8 @@ describe('health data handler registry', () => {
     ['Active Calories', 'active_calories'],
     ['active_calories', 'active_calories'],
     ['ActiveCaloriesBurned', 'active_calories'],
+    ['total_calories', 'total_calories'],
+    ['TotalCaloriesBurned', 'total_calories'],
     ['weight', 'weight'],
     ['body_fat_percentage', 'body_fat'],
     ['body_fat', 'body_fat'],
@@ -55,6 +65,10 @@ describe('health data handler registry', () => {
     ['bone_mass', 'bone_mass_kg'],
     ['BoneMass', 'bone_mass_kg'],
     ['body_water_percentage', 'body_water_percentage'],
+    ['bmr', 'bmr'],
+    ['basal_metabolic_rate', 'bmr'],
+    ['BasalMetabolicRate', 'bmr'],
+    ['resting_energy', 'bmr'],
   ])("resolves '%s' to the '%s' handler", (rawType, canonicalKey) => {
     expect(resolveHandler(rawType)).toBe(HEALTH_TYPE_HANDLERS[canonicalKey]);
   });
@@ -71,6 +85,87 @@ describe('health data handler registry', () => {
     expect(resolveHandler(undefined)).toBeUndefined();
     expect(customMeasurementHandler).toBeDefined();
   });
+});
+
+describe('totalCaloriesHandler', () => {
+  const totalCaloriesHandler = HEALTH_TYPE_HANDLERS['total_calories'];
+  const ctx = {
+    userId: 'user-1',
+    actingUserId: 'actor-1',
+    parsedDate: '2026-08-03',
+    entryTimestamp: '2026-08-03T12:00:00.000Z',
+    entryHour: 12,
+  } as unknown as HealthEntryContext;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(
+      genericHealthRepository.upsertDailyHealthMetrics
+    ).mockResolvedValue({
+      id: 'daily-1',
+      user_id: 'user-1',
+      entry_date: '2026-08-03',
+      source_provider: 'health_connect',
+      total_calories: 1234,
+    } as never);
+  });
+
+  it('persists Health Connect total burn as a daily wearable summary', async () => {
+    const outcome = await totalCaloriesHandler.handle(
+      { value: 1234, source: 'Health Connect' },
+      ctx
+    );
+
+    expect(
+      genericHealthRepository.upsertDailyHealthMetrics
+    ).toHaveBeenCalledWith('user-1', 'actor-1', {
+      user_id: 'user-1',
+      entry_date: '2026-08-03',
+      source_provider: 'health_connect',
+      total_calories: 1234,
+      total_calories_captured_at: new Date('2026-08-03T12:00:00.000Z'),
+    });
+    expect(outcome.status).toBe('success');
+  });
+
+  it('normalizes the legacy HealthConnect source spelling', async () => {
+    await totalCaloriesHandler.handle(
+      { value: 1234, source: 'HealthConnect' },
+      ctx
+    );
+
+    expect(
+      genericHealthRepository.upsertDailyHealthMetrics
+    ).toHaveBeenCalledWith(
+      'user-1',
+      'actor-1',
+      expect.objectContaining({ source_provider: 'health_connect' })
+    );
+  });
+
+  it('rejects total calories above the daily ingestion limit', async () => {
+    const result = await totalCaloriesHandler.handle(
+      { value: 20_001, source: 'Health Connect' },
+      ctx
+    );
+
+    expect(result).toMatchObject({ status: 'error' });
+    expect(
+      genericHealthRepository.upsertDailyHealthMetrics
+    ).not.toHaveBeenCalled();
+  });
+
+  it.each(['', '1234kcal', -1, Number.NaN])(
+    'rejects invalid total burn %s',
+    async (value) => {
+      const outcome = await totalCaloriesHandler.handle(
+        { value, source: 'Health Connect' },
+        ctx
+      );
+
+      expect(outcome.status).toBe('error');
+    }
+  );
 });
 
 describe('waterHandler.handleBatch', () => {
@@ -94,7 +189,10 @@ describe('waterHandler.handleBatch', () => {
     vi.clearAllMocks();
     vi.mocked(
       waterContainerRepository.getPrimaryWaterContainerByUserId
-    ).mockResolvedValue({ id: 7, name: 'Big Bottle' });
+    ).mockResolvedValue({
+      id: 7,
+      name: 'Big Bottle',
+    } as unknown as WaterContainerResponse);
     vi.mocked(
       measurementRepository.upsertWaterIntakeSamples
     ).mockImplementation(
@@ -196,5 +294,167 @@ describe('waterHandler.handleBatch', () => {
       containerId: null,
       containerName: 'Default',
     });
+  });
+
+  it('skips 0 and negative water entries without inserting intake samples', async () => {
+    const outcomes = await waterHandler.handleBatch!(
+      [
+        prepared({ value: 0, source: 'garmin' }),
+        prepared({ value: -50, source: 'garmin' }),
+      ],
+      ctx
+    );
+
+    expect(outcomes).toEqual([
+      { status: 'success', data: null },
+      { status: 'success', data: null },
+    ]);
+    expect(
+      measurementRepository.upsertWaterIntakeSamples
+    ).not.toHaveBeenCalled();
+  });
+
+  it('accepts decimal water amounts from unit conversions', async () => {
+    const outcomes = await waterHandler.handleBatch!(
+      [prepared({ value: 709.764, source: 'garmin', source_id: 'garmin-1' })],
+      ctx
+    );
+
+    expect(outcomes[0].status).toBe('success');
+    expect(measurementRepository.upsertWaterIntakeSamples).toHaveBeenCalledWith(
+      'user-1',
+      'actor-1',
+      [
+        expect.objectContaining({
+          waterMl: 709.764,
+          source: 'garmin',
+        }),
+      ]
+    );
+  });
+
+  it('rejects blank and whitespace-only water values with an error', async () => {
+    const singleOutcome = await waterHandler.handle(
+      { value: '   ', type: 'water' },
+      {
+        userId: 'user-1',
+        actingUserId: 'actor-1',
+        parsedDate: '2026-08-03',
+      } as unknown as HealthEntryContext
+    );
+    expect(singleOutcome).toEqual({
+      status: 'error',
+      error: 'Invalid value for water. Must be a valid number.',
+    });
+
+    const batchOutcomes = await waterHandler.handleBatch!(
+      [
+        prepared({ value: '', source: 'garmin' }),
+        prepared({ value: '   ', source: 'garmin' }),
+      ],
+      ctx
+    );
+    expect(batchOutcomes).toEqual([
+      {
+        status: 'error',
+        error: 'Invalid value for water. Must be a valid number.',
+      },
+      {
+        status: 'error',
+        error: 'Invalid value for water. Must be a valid number.',
+      },
+    ]);
+  });
+});
+
+describe('bmrHandler.handleBatch', () => {
+  const bmrHandler = HEALTH_TYPE_HANDLERS['bmr'];
+  const ctx = {
+    userId: 'user-1',
+    actingUserId: 'actor-1',
+  } as unknown as HealthBatchContext;
+
+  const prepared = (
+    entry: Record<string, unknown>,
+    parsedDate = '2026-08-03'
+  ): PreparedHealthEntry => ({
+    entry,
+    parsedDate,
+    entryTimestamp: `${parsedDate}T12:00:00.000Z`,
+    entryHour: 12,
+  });
+
+  beforeEach(() => {
+    vi.mocked(
+      measurementRepository.bulkUpsertCheckInMeasurements
+    ).mockResolvedValue([{ id: 'row-1' } as never]);
+  });
+
+  it('accepts valid numeric values within 300 to 10000 kcal', async () => {
+    const outcomes = await bmrHandler.handleBatch!(
+      [prepared({ type: 'bmr', value: '1650' })],
+      ctx
+    );
+
+    expect(outcomes[0].status).toBe('success');
+  });
+
+  it('refuses an in-progress day only for sources that accumulate', async () => {
+    // Garmin's bmrKilocalories is a running daily total, so a value read before
+    // the day ends is only part of it. HealthKit stamps each fully-elapsed day
+    // with D+1 and Health Connect sends an instantaneous rate, so both are valid
+    // on the current date — refusing today wholesale stopped iOS storing any BMR.
+    const today = todayInZone('UTC');
+    const outcomes = await bmrHandler.handleBatch!(
+      [
+        prepared({ type: 'bmr', value: '1650', source: 'garmin' }, today),
+        prepared(
+          { type: 'bmr', value: '1650', source: 'garmin' },
+          '2026-08-03'
+        ),
+        prepared({ type: 'bmr', value: '1650', source: 'HealthKit' }, today),
+      ],
+      ctx
+    );
+
+    expect(outcomes[0].status).toBe('skipped');
+    expect(outcomes[1].status).toBe('success');
+    expect(outcomes[2].status).toBe('success');
+  });
+
+  it('rejects values with non-numeric suffixes or out of bounds', async () => {
+    const outcomes = await bmrHandler.handleBatch!(
+      [
+        prepared({ type: 'bmr', value: '1650kcal' }),
+        prepared({ type: 'bmr', value: '300xyz' }),
+        prepared({ type: 'bmr', value: '599' }),
+        prepared({ type: 'bmr', value: '6001' }),
+        prepared({ type: 'bmr', value: '' }),
+        // The reading from issue #2395: physiologically impossible for an adult,
+        // but inside the old 300-10000 range that shipped in v1.6.5.
+        prepared({ type: 'bmr', value: '350' }),
+      ],
+      ctx
+    );
+
+    expect(outcomes[0].status).toBe('error');
+    expect(outcomes[1].status).toBe('error');
+    expect(outcomes[2].status).toBe('error');
+    expect(outcomes[3].status).toBe('error');
+    expect(outcomes[4].status).toBe('error');
+    expect(outcomes[5].status).toBe('error');
+  });
+
+  it('accepts the 600 and 6000 boundary values', async () => {
+    const outcomes = await bmrHandler.handleBatch!(
+      [
+        prepared({ type: 'bmr', value: '600' }),
+        prepared({ type: 'bmr', value: '6000' }),
+      ],
+      ctx
+    );
+
+    expect(outcomes[0].status).not.toBe('error');
+    expect(outcomes[1].status).not.toBe('error');
   });
 });

@@ -40,6 +40,10 @@ import type {
   PersonalRecordsMap,
 } from '@/types/reports';
 import {
+  healthMetricLabel,
+  healthMetricUnitLabel,
+} from '@/utils/healthMetricLabels';
+import {
   CheckInMeasurementsResponse,
   CustomMeasurementsResponse,
   CustomCategoriesResponse,
@@ -82,11 +86,7 @@ const formatTonnage = (
 };
 
 export type TableFilterValue =
-  | 'all'
-  | 'food'
-  | 'exercise'
-  | 'measurements'
-  | `category:${string}`;
+  'all' | 'food' | 'exercise' | 'measurements' | `category:${string}`;
 
 interface ReportsTablesProps {
   tabularData: DailyFoodEntry[];
@@ -253,6 +253,13 @@ const ReportsTables = ({
               calcium:
                 (Number(acc.calcium) || 0) + (Number(entry.calcium) || 0),
               iron: (Number(acc.iron) || 0) + (Number(entry.iron) || 0),
+              caffeine_mg:
+                (Number(acc.caffeine_mg) || 0) +
+                (Number(entry.caffeine_mg) || 0),
+              water_ml:
+                (Number(acc.water_ml) || 0) + (Number(entry.water_ml) || 0),
+              alcohol_g:
+                (Number(acc.alcohol_g) || 0) + (Number(entry.alcohol_g) || 0),
               glycemic_index: 'None',
               ...customNutrientsSum,
             };
@@ -275,6 +282,9 @@ const ReportsTables = ({
             vitamin_c: 0,
             calcium: 0,
             iron: 0,
+            caffeine_mg: 0,
+            water_ml: 0,
+            alcohol_g: 0,
             glycemic_index: 'None',
           } as Partial<DailyFoodEntry>
         ); // Use Partial to allow for initial empty state
@@ -303,6 +313,9 @@ const ReportsTables = ({
           vitamin_c: dailyTotals.vitamin_c,
           calcium: dailyTotals.calcium,
           iron: dailyTotals.iron,
+          caffeine_mg: dailyTotals.caffeine_mg,
+          water_ml: dailyTotals.water_ml,
+          alcohol_g: dailyTotals.alcohol_g,
           glycemic_index: 'None',
           serving_size: 100, // Default value, not used for totals
           ...dailyTotals, // Include custom nutrient totals
@@ -375,10 +388,16 @@ const ReportsTables = ({
     .filter(
       (measurement) =>
         measurement.weight !== undefined ||
+        measurement.height !== undefined ||
         measurement.neck !== undefined ||
         measurement.waist !== undefined ||
         measurement.hips !== undefined ||
-        measurement.steps !== undefined
+        measurement.body_fat_percentage !== undefined ||
+        measurement.steps !== undefined ||
+        measurement.muscle_mass_kg !== undefined ||
+        measurement.bone_mass_kg !== undefined ||
+        measurement.body_water_percentage !== undefined ||
+        measurement.bmr !== undefined
     )
     .sort(
       (a, b) =>
@@ -424,8 +443,8 @@ const ReportsTables = ({
             </SelectItem>
             {customCategories.map((category) => (
               <SelectItem key={category.id} value={`category:${category.id}`}>
-                {category.display_name || category.name} (
-                {category.measurement_type})
+                {healthMetricLabel(category.name, category.display_name, t)} (
+                {healthMetricUnitLabel(category.measurement_type, t)})
               </SelectItem>
             ))}
           </SelectContent>
@@ -813,6 +832,20 @@ const ReportsTables = ({
                     <TableHead>
                       {t('reportsTables.bodyFatPercentage', 'Body Fat %')}
                     </TableHead>
+                    <TableHead>
+                      {t('reportsTables.muscleMass', 'Muscle Mass')} (
+                      {weightUnit})
+                    </TableHead>
+                    <TableHead>
+                      {t('reportsTables.boneMass', 'Bone Mass')} ({weightUnit})
+                    </TableHead>
+                    <TableHead>
+                      {t('reportsTables.bodyWaterPercentage', 'Body Water %')}
+                    </TableHead>
+                    <TableHead>
+                      {t('reportsTables.bmr', 'BMR')} (
+                      {getEnergyUnitString(energyUnit)})
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -842,7 +875,27 @@ const ReportsTables = ({
                       </TableCell>
                       <TableCell>
                         {measurement.body_fat_percentage
-                          ? measurement.body_fat_percentage.toFixed(1)
+                          ? `${measurement.body_fat_percentage.toFixed(1)}%`
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {measurement.muscle_mass_kg
+                          ? formatWeight(measurement.muscle_mass_kg, weightUnit)
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {measurement.bone_mass_kg
+                          ? formatWeight(measurement.bone_mass_kg, weightUnit)
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {measurement.body_water_percentage
+                          ? `${measurement.body_water_percentage.toFixed(1)}%`
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {measurement.bmr
+                          ? `${Math.round(convertEnergy(Number(measurement.bmr), 'kcal', energyUnit))}`
                           : '-'}
                       </TableCell>
                     </TableRow>
@@ -880,8 +933,8 @@ const ReportsTables = ({
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>
-                  {category.display_name || category.name} (
-                  {category.measurement_type})
+                  {healthMetricLabel(category.name, category.display_name, t)} (
+                  {healthMetricUnitLabel(category.measurement_type, t)})
                 </CardTitle>
                 <Button
                   onClick={() => onExportCustomMeasurements(category)}
@@ -918,7 +971,10 @@ const ReportsTables = ({
                                 category.measurement_type.toLowerCase()
                               )
                             ? measurementUnit
-                            : category.measurement_type}
+                            : healthMetricUnitLabel(
+                                category.measurement_type,
+                                t
+                              )}
                         )
                       </TableHead>
                       <TableHead>{t('reportsTables.notes', 'Notes')}</TableHead>

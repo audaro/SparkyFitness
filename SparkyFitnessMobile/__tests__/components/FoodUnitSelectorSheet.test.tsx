@@ -61,16 +61,18 @@ jest.mock('../../src/components/Icon', () => {
 jest.mock('@gorhom/bottom-sheet', () => {
   const React = require('react');
   const { View } = require('react-native');
-  const MockBottomSheetModal = React.forwardRef(({ children, onDismiss }: any, ref: any) => {
-    React.useImperativeHandle(ref, () => ({
-      present: mockPresent,
-      dismiss: () => {
-        mockDismiss();
-        onDismiss?.();
-      },
-    }));
-    return <View>{children}</View>;
-  });
+  const MockBottomSheetModal = React.forwardRef(
+    ({ children, onDismiss }: any, ref: any) => {
+      React.useImperativeHandle(ref, () => ({
+        present: mockPresent,
+        dismiss: () => {
+          mockDismiss();
+          onDismiss?.();
+        },
+      }));
+      return <View>{children}</View>;
+    }
+  );
   MockBottomSheetModal.displayName = 'MockBottomSheetModal';
 
   return {
@@ -113,7 +115,7 @@ describe('FoodUnitSelectorSheet', () => {
         selectedVariantId="variant-g"
         onSelect={jest.fn()}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
     expect(screen.getByText('Select Unit')).toBeTruthy();
@@ -135,21 +137,24 @@ describe('FoodUnitSelectorSheet', () => {
         }}
         onSelect={jest.fn()}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
-    const selectedRowStyle = screen.getByTestId('food-unit-option-g').props.style;
+    const selectedRowStyle =
+      screen.getByTestId('food-unit-option-g').props.style;
     expect(selectedRowStyle).toEqual(
       expect.objectContaining({
         backgroundColor: 'raised',
-      }),
+      })
     );
 
     const checkmarkCalls = mockIcon.mock.calls
       .map(([props]) => props)
       .filter((props) => props.name === 'checkmark');
     expect(checkmarkCalls.length).toBeGreaterThan(0);
-    expect(checkmarkCalls.every((props) => props.color === 'successIcon')).toBe(true);
+    expect(checkmarkCalls.every((props) => props.color === 'successIcon')).toBe(
+      true
+    );
     expect(screen.queryByText('icon-chevron-forward')).toBeNull();
   });
 
@@ -177,7 +182,7 @@ describe('FoodUnitSelectorSheet', () => {
         }}
         onSelect={jest.fn()}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
     const aiRow = screen.getByTestId('food-unit-option-cup');
@@ -204,19 +209,27 @@ describe('FoodUnitSelectorSheet', () => {
         }}
         onSelect={jest.fn()}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
-    const selectedRowStyle =
-      screen.getByTestId('food-unit-option-cup').props.style;
+    const selectedRowStyle = screen.getByTestId('food-unit-option-cup').props
+      .style;
     expect(selectedRowStyle).toEqual(
       expect.objectContaining({
         backgroundColor: 'raised',
-      }),
+      })
     );
     expect(screen.getByTestId('food-unit-option-g')).toBeTruthy();
-    expect(within(screen.getByTestId('food-unit-option-cup')).queryByText('icon-checkmark')).toBeNull();
-    expect(within(screen.getByTestId('food-unit-option-g')).queryByText('icon-checkmark')).toBeTruthy();
+    expect(
+      within(screen.getByTestId('food-unit-option-cup')).queryByText(
+        'icon-checkmark'
+      )
+    ).toBeNull();
+    expect(
+      within(screen.getByTestId('food-unit-option-g')).queryByText(
+        'icon-checkmark'
+      )
+    ).toBeTruthy();
   });
 
   it('keeps selected saved custom units visible in their own section', () => {
@@ -241,17 +254,18 @@ describe('FoodUnitSelectorSheet', () => {
         }}
         onSelect={jest.fn()}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
     expect(screen.getByText('Saved Custom Units')).toBeTruthy();
 
-    const selectedRowStyle =
-      screen.getByTestId('food-unit-custom-variant-variant-fillet').props.style;
+    const selectedRowStyle = screen.getByTestId(
+      'food-unit-custom-variant-variant-fillet'
+    ).props.style;
     expect(selectedRowStyle).toEqual(
       expect.objectContaining({
         backgroundColor: 'raised',
-      }),
+      })
     );
     expect(screen.queryByText('100 g (120 cal)')).toBeNull();
   });
@@ -264,7 +278,7 @@ describe('FoodUnitSelectorSheet', () => {
         selectedVariantId="variant-g"
         onSelect={onSelect}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
     fireEvent.press(screen.getByText('kg'));
@@ -298,7 +312,7 @@ describe('FoodUnitSelectorSheet', () => {
         }}
         onSelect={onSelect}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
     fireEvent.press(screen.getByText('g'));
@@ -323,7 +337,7 @@ describe('FoodUnitSelectorSheet', () => {
         }}
         onSelect={onSelect}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
     fireEvent.press(screen.getByText('cup'));
@@ -334,9 +348,13 @@ describe('FoodUnitSelectorSheet', () => {
     expect(mockDismiss).toHaveBeenCalled();
     expect(mockToast.show).not.toHaveBeenCalled();
     expect(
-      screen.queryByText('Please update the nutrition values manually.'),
+      screen.queryByText('Please update the nutrition values manually.')
     ).toBeNull();
-    expect(within(screen.getByTestId('food-unit-option-cup')).queryByText('icon-checkmark')).toBeNull();
+    expect(
+      within(screen.getByTestId('food-unit-option-cup')).queryByText(
+        'icon-checkmark'
+      )
+    ).toBeNull();
   });
 
   it('shows compatible checkmarks via a non-AI sibling donor when the selected variant is AI-estimated', () => {
@@ -377,15 +395,15 @@ describe('FoodUnitSelectorSheet', () => {
         }}
         onSelect={jest.fn()}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
     // tsp option should now show a checkmark because the manual tbsp donor
     // provides a valid math path (tbsp → tsp is intra-volume).
     expect(
       within(screen.getByTestId('food-unit-option-tsp')).queryByText(
-        'icon-checkmark',
-      ),
+        'icon-checkmark'
+      )
     ).not.toBeNull();
   });
 
@@ -397,7 +415,7 @@ describe('FoodUnitSelectorSheet', () => {
         selectedVariantId="variant-g"
         onSelect={onSelect}
         renderTrigger={() => <></>}
-      />,
+      />
     );
 
     fireEvent.press(screen.getByText('kg'));

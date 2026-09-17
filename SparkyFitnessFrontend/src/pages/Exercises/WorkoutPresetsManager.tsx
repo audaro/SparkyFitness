@@ -14,7 +14,6 @@ import {
   Edit,
   Trash2,
   CalendarPlus,
-  Loader2,
   Layers,
   Dumbbell,
   CheckSquare,
@@ -54,6 +53,7 @@ import BulkDeleteDialog from '@/components/BulkDeleteDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable } from '@/components/ui/DataTable';
 import { ColumnDef, RowSelectionState } from '@tanstack/react-table';
+import { type DataTableFeatures } from '@/components/ui/dataTableFeatures';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
 
@@ -74,19 +74,32 @@ const WorkoutPresetsManager = () => {
   const [selectedPreset, setSelectedPreset] = useState<WorkoutPreset | null>(
     null
   );
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const { data, fetchNextPage, hasNextPage, isLoading, isFetchingNextPage } =
-    useWorkoutPresets(user?.id);
+  const { data, isLoading, isFetching } = useWorkoutPresets(
+    user?.id,
+    currentPage,
+    itemsPerPage
+  );
 
   const { mutateAsync: createPreset } = useCreateWorkoutPresetMutation();
   const { mutateAsync: updatePreset } = useUpdateWorkoutPresetMutation();
   const { mutateAsync: deletePreset } = useDeleteWorkoutPresetMutation();
   const { mutateAsync: logWorkoutPreset } = useLogWorkoutPresetMutation();
 
-  const presets = React.useMemo(
-    () => data?.pages.flatMap((page) => page.presets) ?? [],
-    [data]
-  );
+  const presets = React.useMemo(() => data?.presets ?? [], [data]);
+  const totalPresets = data?.total ?? 0;
+  const totalPages = Math.ceil(totalPresets / itemsPerPage);
+
+  // Deleting every preset on the last page (or shrinking the page size) can
+  // leave the request pointing past the end of the list, which would render an
+  // empty table next to a stale page number. Fall back to the last real page.
+  React.useEffect(() => {
+    if (data && totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [data, totalPages, currentPage]);
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
@@ -198,6 +211,17 @@ const WorkoutPresetsManager = () => {
 
   const handleLogPresetToDiary = React.useCallback(
     async (preset: WorkoutPreset) => {
+      if (!preset.exercises || preset.exercises.length === 0) {
+        toast({
+          title: t('common.error', 'Error'),
+          description: t(
+            'workoutPresetsManager.emptyPresetError',
+            'Cannot log a workout preset with no exercises.'
+          ),
+          variant: 'destructive',
+        });
+        return;
+      }
       try {
         // Same day string the Start path uses. Logging and starting the same
         // preset must not land on two different days for a user whose timezone
@@ -225,6 +249,19 @@ const WorkoutPresetsManager = () => {
 
   const handleStartWorkoutPlayback = React.useCallback(
     (preset: WorkoutPreset) => {
+      // Nothing to play back, and the draft this would create would be an
+      // empty session the user then has to abandon.
+      if (!preset.exercises || preset.exercises.length === 0) {
+        toast({
+          title: t('common.error', 'Error'),
+          description: t(
+            'workoutPresetsManager.emptyPresetError',
+            'Cannot start a workout preset with no exercises.'
+          ),
+          variant: 'destructive',
+        });
+        return;
+      }
       // `todayInZone`, not the machine's local date: a user whose timezone
       // differs from their laptop's would otherwise start a workout on one day
       // string here and see the other everywhere the diary computes a day —
@@ -236,10 +273,10 @@ const WorkoutPresetsManager = () => {
         createDraft: () => createWorkoutPlaybackDraftFromPreset(preset, today),
       });
     },
-    [requestStart, timezone]
+    [requestStart, timezone, t]
   );
 
-  const columns = React.useMemo<ColumnDef<WorkoutPreset>[]>(
+  const columns = React.useMemo<ColumnDef<DataTableFeatures, WorkoutPreset>[]>(
     () => [
       {
         id: 'select',
@@ -487,28 +524,22 @@ const WorkoutPresetsManager = () => {
                 isEditMode ? columns : columns.filter((c) => c.id !== 'select')
               }
               data={presets}
-              isLoading={isLoading}
+              isLoading={isLoading || isFetching}
+              manualPagination
+              pageCount={totalPages}
+              pagination={{
+                pageIndex: currentPage - 1,
+                pageSize: itemsPerPage,
+              }}
+              onPaginationChange={(pageIndex, pageSize) => {
+                if (pageSize !== itemsPerPage) {
+                  setItemsPerPage(pageSize);
+                  setCurrentPage(1);
+                } else {
+                  setCurrentPage(pageIndex + 1);
+                }
+              }}
             />
-          )}
-
-          {hasNextPage && (
-            <div className="flex justify-center pt-4">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  fetchNextPage();
-                  clearSelection();
-                }}
-                disabled={isFetchingNextPage}
-                className="text-gray-500"
-              >
-                {isFetchingNextPage ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  t('workoutPresetsManager.loadMore', 'Load more')
-                )}
-              </Button>
-            </div>
           )}
         </CardContent>
       </Card>

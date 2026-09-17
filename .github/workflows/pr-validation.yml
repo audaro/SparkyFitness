@@ -7,6 +7,7 @@ on:
     types: [submitted, dismissed]
   pull_request_review_comment:
     types: [created, deleted]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,7 +15,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: pr-validation-${{ github.event.pull_request.number }}
+  group: pr-validation-${{ github.event.pull_request.number }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -23,11 +24,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # pull_request_target checks out the BASE branch, never the PR head, so this is
-      # repo-owned code and a PR cannot alter the rules that judge it.
+      # Review events default to the PR merge ref; policy must come from the base instead.
       - name: Check out policy rules
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
 
       - name: Validate and Label PR
@@ -38,6 +39,8 @@ jobs:
             // two workflows can never disagree about who is enforced.
             const policy = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/pr-policy.cjs`);
 
+            // Review events from forks have read-only tokens, even with write permissions above.
+            const canWrite = context.eventName === 'pull_request_target';
             const pr     = context.payload.pull_request;
             const title  = pr.title;
             const body   = pr.body || '';
@@ -71,12 +74,23 @@ jobs:
             const hasBackendChanges  = changedFiles.some(f => f.startsWith('SparkyFitnessServer/'));
             const hasMobileChanges   = changedFiles.some(f => f.startsWith('SparkyFitnessMobile/'));
 
+            // Every non-English translation file is owned by Weblate and arrives
+            // through the sync workflow.
             const localesRoot = 'SparkyFitnessFrontend/public/locales/';
+            const mobileLocalesRoot = 'SparkyFitnessMobile/src/localization/locales/';
+            const mobileNativeSurfaces = [
+              /^SparkyFitnessMobile\/locales\/(?!en\.json$)[^/]+\.json$/,
+              /^SparkyFitnessMobile\/targets\/android-widget\/res\/values-[^/]+\/widget_strings\.xml$/,
+              /^SparkyFitnessMobile\/targets\/widget\/(?!en\.lproj\/)[^/]+\.lproj\/Localizable\.strings$/,
+            ];
             const nonEnLocaleFiles = changedFiles.filter(f =>
-              f.startsWith(localesRoot) && !f.startsWith(`${localesRoot}en/`)
+              (f.startsWith(localesRoot) && !f.startsWith(`${localesRoot}en/`)) ||
+              (f.startsWith(mobileLocalesRoot) && !f.startsWith(`${mobileLocalesRoot}en/`)) ||
+              mobileNativeSurfaces.some(re => re.test(f))
             );
             const hasEnTranslationChange = changedFiles.some(f =>
-              f === `${localesRoot}en/translation.json`
+              f === `${localesRoot}en/translation.json` ||
+              f === `${mobileLocalesRoot}en/translation.json`
             );
             const hasSQLChanges = changedFiles.some(f => f.includes('rls_policies.sql'));
 
@@ -103,7 +117,7 @@ jobs:
             if (hasBackendChanges)  toAdd.push('backend');
             if (hasMobileChanges)   toAdd.push('mobile');
 
-            if (toAdd.length > 0) {
+            if (canWrite && toAdd.length > 0) {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -164,7 +178,7 @@ jobs:
             // events for GITHUB_TOKEN actions, so our own edit below cannot re-enter here.
             const senderIsSelf = context.payload.sender?.login === 'github-actions[bot]';
 
-            if (missingItems.length > 0 && !licenseExempt && !senderIsSelf) {
+            if (canWrite && missingItems.length > 0 && !licenseExempt && !senderIsSelf) {
               const restored = [
                 '<!-- restored-checklist -->',
                 '---',
@@ -214,7 +228,8 @@ jobs:
             }
             if (nonEnLocaleFiles.length > 0) {
               errors.push(
-                `**[MANDATORY]** Only the \`en\` translation file may be modified. ` +
+                `**[MANDATORY]** Only the \`en\` translation files may be modified. ` +
+                `Every other language is owned by Weblate and arrives through the sync workflow. ` +
                 `Remove changes to: ${nonEnLocaleFiles.map(f => '`' + f + '`').join(', ')}.`
               );
             }
@@ -320,7 +335,7 @@ jobs:
             // ---- License countdown label ----
             // Adding the label starts the 7-day clock; pr-license-enforcement.yml reads the `labeled`
             // event timestamp. Ticking the box removes the label here and cancels the countdown.
-            if (licenseCountdown) {
+            if (canWrite && licenseCountdown) {
               try {
                 await github.rest.issues.createLabel({
                   owner: context.repo.owner,
@@ -349,7 +364,7 @@ jobs:
                 issue_number: pr.number,
                 labels: [LICENSE_LABEL],
               });
-            } else {
+            } else if (canWrite) {
               try {
                 await github.rest.issues.removeLabel({
                   owner: context.repo.owner,
@@ -382,7 +397,9 @@ jobs:
               message +=
                 '> [!NOTE]\n' +
                 `> ⏳ **Reminder:** In order for us to review and accept this PR, please complete the mandatory questionnaire checkboxes (Integrity & License, etc.) in the PR description. ` +
-                `If any mandatory checkboxes were removed, they have been automatically added back to the bottom of your description for your convenience — just tick the boxes and this check will pass. ` +
+                (canWrite
+                  ? `If any mandatory checkboxes were removed, they have been automatically added back to the bottom of your description for your convenience — just tick the boxes and this check will pass. `
+                  : 'Restore any missing checkboxes from the PR template and tick them in the description. ') +
                 `PRs with incomplete mandatory items are automatically closed after ${GRACE_DAYS} days, and can be reopened at any time once completed.\n\n`;
             } else if (isDraft && !licenseAgreed && !licenseExempt) {
               message +=
@@ -433,6 +450,14 @@ jobs:
 
             await core.summary.addRaw(message).write();
 
+            if (errors.length > 0) {
+              core.setFailed(
+                `PR validation failed with ${errors.length} required action(s). See the job summary for details.`
+              );
+            }
+
+            if (!canWrite) return;
+
             // ---- Upsert comment ----
             const botTag = '<!-- pr-validation-bot -->';
             const { data: comments } = await github.rest.issues.listComments({
@@ -461,10 +486,4 @@ jobs:
                 issue_number: pr.number,
                 body: commentBody,
               });
-            }
-
-            if (errors.length > 0) {
-              core.setFailed(
-                `PR validation failed with ${errors.length} required action(s). See the PR comment for details.`
-              );
             }

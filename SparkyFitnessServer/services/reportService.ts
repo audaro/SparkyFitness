@@ -17,6 +17,7 @@ import {
   compareDays,
   FOOD_VARIANT_NUTRIENT_FIELDS,
   todayInZone,
+  isUsableMeasuredBmr,
 } from '@workspace/shared';
 import { userAge } from '../utils/dateHelpers.js';
 import { loadUserTimezone } from '../utils/timezoneLoader.js';
@@ -52,6 +53,9 @@ interface TabularFoodRow {
   vitamin_c?: number;
   calcium?: number;
   iron?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   serving_size: number;
   [key: string]: unknown;
 }
@@ -61,6 +65,7 @@ interface MeasurementEntry {
   weight?: number | string | null;
   height?: number | string | null;
   body_fat_percentage?: number | string | null;
+  bmr?: number | string | null;
   [key: string]: unknown;
 }
 
@@ -148,7 +153,6 @@ async function getReportsData(
         endDate,
         customNutrients
       ),
-      // @ts-expect-error TS(2554): Expected 6 arguments, but got 3.
       reportRepository.getExerciseEntries(targetUserId, startDate, endDate),
       reportRepository.getMeasurementData(targetUserId, startDate, endDate),
       measurementRepository.getCustomCategories(targetUserId),
@@ -219,6 +223,9 @@ async function getReportsData(
           vitamin_c: row.vitamin_c,
           calcium: row.calcium,
           iron: row.iron,
+          caffeine_mg: row.caffeine_mg,
+          water_ml: row.water_ml,
+          alcohol_g: row.alcohol_g,
           serving_size: row.serving_size,
         },
       };
@@ -246,6 +253,8 @@ async function getReportsData(
           vitamin_c: parseFloat(String(item.vitamin_c)) || 0,
           calcium: parseFloat(String(item.calcium)) || 0,
           iron: parseFloat(String(item.iron)) || 0,
+          caffeine_mg: parseFloat(String(item.caffeine_mg)) || 0,
+          alcohol_g: parseFloat(String(item.alcohol_g)) || 0,
           water: waterByDate.get(String(item.date)) || 0,
         };
         FOOD_VARIANT_NUTRIENT_FIELDS.forEach((nutrient) => {
@@ -301,9 +310,19 @@ async function getReportsData(
           latestMeasurement?.body_fat_percentage !== undefined
             ? Number(latestMeasurement.body_fat_percentage)
             : undefined;
+        // Exact date, unlike the body metrics above: a measured BMR describes the
+        // day it was taken, so it is never carried forward onto later days.
+        const measuredBmr = (measurementData as MeasurementEntry[]).find(
+          (m: MeasurementEntry) =>
+            String(m.entry_date).slice(0, 10) ===
+              String(day.date).slice(0, 10) &&
+            m.bmr !== null &&
+            m.bmr !== undefined
+        )?.bmr;
+        let formulaBmr: number | null = null;
         if (weight && height && age && gender && bmrAlgorithm) {
           try {
-            day.bmr = bmrService.calculateBmr(
+            formulaBmr = bmrService.calculateBmr(
               bmrAlgorithm,
               weight,
               height,
@@ -317,11 +336,17 @@ async function getReportsData(
               // @ts-expect-error TS(2571): Object is of type 'unknown'.
               `Could not calculate BMR for user ${targetUserId} on date ${day.date}: ${error.message}`
             );
-            day.bmr = null;
+            formulaBmr = null;
           }
-        } else {
-          day.bmr = null;
         }
+        // The measured reading wins only if it is plausible against this person's
+        // own formula estimate; with no estimate to compare, the absolute bounds
+        // decide on their own.
+        day.bmr =
+          userPreferences?.use_external_bmr &&
+          isUsableMeasuredBmr(measuredBmr, formulaBmr)
+            ? Number(measuredBmr)
+            : formulaBmr;
         day.include_bmr_in_net_calories =
           userPreferences.include_bmr_in_net_calories;
       });
@@ -426,6 +451,8 @@ async function getMiniNutritionTrends(
         vitamin_c: parseFloat(row.total_vitamin_c) || 0,
         calcium: parseFloat(row.total_calcium) || 0,
         iron: parseFloat(row.total_iron) || 0,
+        caffeine_mg: parseFloat(row.total_caffeine_mg) || 0,
+        alcohol_g: parseFloat(row.total_alcohol_g) || 0,
       };
       // Map custom nutrients dynamically
       customNutrients.forEach((cn: CustomNutrientDefinition) => {

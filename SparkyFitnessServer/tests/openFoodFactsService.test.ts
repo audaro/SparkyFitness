@@ -9,20 +9,31 @@ import {
   searchOpenFoodFacts,
   searchOpenFoodFactsByBarcodeFields,
 } from '../integrations/openfoodfacts/openFoodFactsService.js';
+import { withOpenFoodFactsProductReadPermit } from '../services/openFoodFactsProductReadRateLimitService.js';
 
 vi.mock('../integrations/openfoodfacts/openFoodFactsAuth.js', () => ({
   resolveOpenFoodFactsProvider: vi.fn(),
   invalidateOpenFoodFactsSession: vi.fn(),
   DEFAULT_OFF_BASE_URL: 'https://world.openfoodfacts.org',
 }));
+vi.mock('../services/openFoodFactsProductReadRateLimitService.js', () => ({
+  OPENFOODFACTS_INTERACTIVE_PRODUCT_READ_MAX_WAIT_MS: 5_250,
+  withOpenFoodFactsProductReadPermit: vi.fn(
+    (operation: () => Promise<unknown>) => operation()
+  ),
+}));
 
 const fetchMock = vi.fn();
 global.fetch = fetchMock;
+const EXPLICIT_ZERO_CORE_NUTRITION = { 'energy-kcal_100g': 0 };
 
 describe('openFoodFactsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchMock.mockReset();
+    vi.mocked(withOpenFoodFactsProductReadPermit)
+      .mockReset()
+      .mockImplementation((operation) => operation());
     // @ts-expect-error TS(2339): Property 'mockResolvedValue' does not exist on typ... Remove this comment to see the full error message
     resolveOpenFoodFactsProvider.mockResolvedValue({
       session: null,
@@ -66,7 +77,7 @@ describe('openFoodFactsService', () => {
       const request = fetch.mock.calls[0][1];
       expect(JSON.parse(request.body)).toEqual(
         expect.objectContaining({
-          q: 'whole milk',
+          q: 'whole milk ((nutriments.energy-kcal_100g:* OR nutriments.energy-kj_100g:* OR nutriments.energy_100g:* OR nutriments.proteins_100g:* OR nutriments.carbohydrates_100g:* OR nutriments.fat_100g:*) OR (serving_quantity:[0.000001 TO *] AND (nutriments.energy-kcal_serving:* OR nutriments.energy-kj_serving:* OR nutriments.energy_serving:* OR nutriments.proteins_serving:* OR nutriments.carbohydrates_serving:* OR nutriments.fat_serving:*)))',
           page: 2,
           page_size: 12,
           boost_phrase: true,
@@ -79,6 +90,173 @@ describe('openFoodFactsService', () => {
         totalCount: 25,
         hasMore: true,
       });
+    });
+
+    it('excludes products without mapped calories or core macros after hydration', async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              hits: [
+                {
+                  code: 'incomplete',
+                  product_name: 'Incomplete Banana',
+                  nutriments: { 'added-sugars_100g': 0 },
+                },
+                {
+                  code: 'complete',
+                  product_name: 'Complete Banana',
+                  nutriments: { 'energy-kcal_100g': 89 },
+                },
+              ],
+              page: 1,
+              page_size: 20,
+              count: 2,
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              products: [
+                {
+                  code: 'incomplete',
+                  product_name: 'Incomplete Banana',
+                  nutriments: { 'added-sugars_100g': 0 },
+                },
+                {
+                  code: 'complete',
+                  product_name: 'Complete Banana',
+                  nutriments: { 'energy-kcal_100g': 89 },
+                },
+              ],
+            }),
+        });
+
+      const result = await searchOpenFoodFacts('banana');
+
+      expect(result.products.map((product) => product.code)).toEqual([
+        'complete',
+      ]);
+    });
+
+    it('retains qualified index nutrition when the hydrated product loses it', async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              hits: [
+                {
+                  code: 'stale-hydration',
+                  product_name: 'Indexed Banana',
+                  nutriments: { 'energy-kcal_100g': 89 },
+                },
+              ],
+              page: 1,
+              page_size: 20,
+              count: 1,
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              products: [
+                {
+                  code: 'stale-hydration',
+                  product_name: 'Current Banana',
+                  nutriments: { 'added-sugars_100g': 0 },
+                },
+              ],
+            }),
+        });
+
+      const result = await searchOpenFoodFacts('banana');
+
+      expect(result.products).toEqual([
+        expect.objectContaining({
+          code: 'stale-hydration',
+          product_name: 'Indexed Banana',
+          nutriments: { 'energy-kcal_100g': 89 },
+        }),
+      ]);
+      expect(result.pagination).toEqual({
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+        hasMore: false,
+      });
+    });
+
+    it('keeps products that explicitly declare zero core nutrition values', async () => {
+      const zeroNutritionProduct = {
+        code: 'zero',
+        product_name: 'Mineral Water',
+        nutriments: {
+          'energy-kcal_100g': 0,
+          proteins_100g: 0,
+          carbohydrates_100g: 0,
+          fat_100g: 0,
+        },
+      };
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              hits: [zeroNutritionProduct],
+              page: 1,
+              page_size: 20,
+              count: 1,
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ products: [zeroNutritionProduct] }),
+        });
+
+      const result = await searchOpenFoodFacts('mineral water');
+
+      expect(result.products.map((product) => product.code)).toEqual(['zero']);
+    });
+
+    it('keeps serving-only nutrition only when a serving quantity is declared', async () => {
+      const hits = [
+        {
+          code: 'missing-serving-size',
+          product_name: 'Unknown Portion',
+          nutriments: { proteins_serving: 5 },
+        },
+        {
+          code: 'usable-serving',
+          product_name: 'Known Portion',
+          serving_quantity: 50,
+          nutriments: { proteins_serving: 5 },
+        },
+      ];
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              hits,
+              page: 1,
+              page_size: 20,
+              count: 2,
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ products: hits }),
+        });
+
+      const result = await searchOpenFoodFacts('portion');
+
+      expect(result.products.map((product) => product.code)).toEqual([
+        'usable-serving',
+      ]);
     });
 
     it('reports an inexact Search-a-licious count as the loaded range plus one', async () => {
@@ -174,13 +352,13 @@ describe('openFoodFactsService', () => {
                   code: 'first',
                   product_name: 'Exact Match',
                   brands: ['Brand One', 'Brand Two'],
-                  nutriments: {},
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
                 {
                   code: 'second',
                   product_name: 'Less Relevant Match',
                   brands: ['Other Brand'],
-                  nutriments: {},
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
               ],
               page: 1,
@@ -197,13 +375,13 @@ describe('openFoodFactsService', () => {
                   code: 'second',
                   product_name: 'Less Relevant Match',
                   brands: 'Other Brand',
-                  nutriments: {},
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
                 {
                   code: 'first',
                   product_name: 'Exact Match',
                   brands: 'Brand One, Brand Two',
-                  nutriments: {},
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
               ],
             }),
@@ -232,13 +410,13 @@ describe('openFoodFactsService', () => {
                   code: 'partial',
                   product_name: 'High Protein Pudding',
                   brands: ['Milbona'],
-                  nutriments: {},
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
                 {
                   code: 'complete',
                   product_name: 'High Protein Pudding',
                   brands: ['Ehrmann'],
-                  nutriments: {},
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
               ],
               page: 1,
@@ -255,13 +433,13 @@ describe('openFoodFactsService', () => {
                   code: 'partial',
                   product_name: 'High Protein Pudding',
                   brands: 'Milbona',
-                  nutriments: {},
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
                 {
                   code: 'complete',
                   product_name: 'High Protein Pudding',
                   brands: 'Ehrmann',
-                  nutriments: {},
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
               ],
             }),
@@ -286,8 +464,16 @@ describe('openFoodFactsService', () => {
           json: () =>
             Promise.resolve({
               hits: [
-                { code: 'shampoo', product_name: 'Herbal Shampoo' },
-                { code: 'ham', product_name: 'Smoked Ham' },
+                {
+                  code: 'shampoo',
+                  product_name: 'Herbal Shampoo',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
+                {
+                  code: 'ham',
+                  product_name: 'Smoked Ham',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
               ],
               page: 1,
               page_size: 20,
@@ -299,8 +485,16 @@ describe('openFoodFactsService', () => {
           json: () =>
             Promise.resolve({
               products: [
-                { code: 'shampoo', product_name: 'Herbal Shampoo' },
-                { code: 'ham', product_name: 'Smoked Ham' },
+                {
+                  code: 'shampoo',
+                  product_name: 'Herbal Shampoo',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
+                {
+                  code: 'ham',
+                  product_name: 'Smoked Ham',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
               ],
             }),
         });
@@ -415,6 +609,7 @@ describe('openFoodFactsService', () => {
                   code: '456',
                   product_name: 'Second Product',
                   brands: ['Other Brand'],
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
               ],
               page: 1,
@@ -456,7 +651,13 @@ describe('openFoodFactsService', () => {
             ok: true,
             json: () =>
               Promise.resolve({
-                hits: [{ code: '123', product_name: 'Product' }],
+                hits: [
+                  {
+                    code: '123',
+                    product_name: 'Product',
+                    nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                  },
+                ],
                 page: 1,
                 page_size: 20,
                 count: 1,
@@ -483,7 +684,13 @@ describe('openFoodFactsService', () => {
           ok: true,
           json: () =>
             Promise.resolve({
-              hits: [{ code: '123', product_name: 'Product' }],
+              hits: [
+                {
+                  code: '123',
+                  product_name: 'Product',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
+              ],
               page: 1,
               page_size: 20,
               count: 1,
@@ -506,8 +713,16 @@ describe('openFoodFactsService', () => {
           json: () =>
             Promise.resolve({
               hits: [
-                { code: '123', product_name: 'Indexed First' },
-                { code: '456', product_name: 'Indexed Second' },
+                {
+                  code: '123',
+                  product_name: 'Indexed First',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
+                {
+                  code: '456',
+                  product_name: 'Indexed Second',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
               ],
               page: 1,
               page_size: 20,
@@ -519,7 +734,11 @@ describe('openFoodFactsService', () => {
           json: () =>
             Promise.resolve({
               products: [
-                { code: '123', product_name: 'Current First', nutriments: {} },
+                {
+                  code: '123',
+                  product_name: 'Current First',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
               ],
             }),
         });
@@ -595,7 +814,7 @@ describe('openFoodFactsService', () => {
                   code: '012345678905',
                   product_name: 'Nutella',
                   brands: 'Ferrero',
-                  nutriments: {},
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                 },
               ],
             }),
@@ -621,6 +840,7 @@ describe('openFoodFactsService', () => {
               {
                 product_name: 'Product Without Barcode',
                 brands: ['Index Brand'],
+                nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
               },
             ],
             page: 1,
@@ -647,8 +867,16 @@ describe('openFoodFactsService', () => {
           json: () =>
             Promise.resolve({
               hits: [
-                { code: '123', product_name: 'First Indexed Record' },
-                { code: '123', product_name: 'Second Indexed Record' },
+                {
+                  code: '123',
+                  product_name: 'First Indexed Record',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
+                {
+                  code: '123',
+                  product_name: 'Second Indexed Record',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
               ],
               page: 1,
               page_size: 20,
@@ -659,7 +887,13 @@ describe('openFoodFactsService', () => {
           ok: true,
           json: () =>
             Promise.resolve({
-              products: [{ code: '123', product_name: 'Current Product' }],
+              products: [
+                {
+                  code: '123',
+                  product_name: 'Current Product',
+                  nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                },
+              ],
             }),
         });
 
@@ -699,9 +933,84 @@ describe('openFoodFactsService', () => {
         expect.any(Object)
       );
     });
+
+    it('acquires the shared product-read permit for the primary and alias GETs', async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ status: 0 }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ status: 1, product: {} }),
+        });
+
+      await searchOpenFoodFactsByBarcodeFields('036000291452');
+
+      expect(withOpenFoodFactsProductReadPermit).toHaveBeenCalledTimes(2);
+      expect(withOpenFoodFactsProductReadPermit).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Function),
+        { maxWaitMs: 5_250 }
+      );
+      expect(withOpenFoodFactsProductReadPermit).toHaveBeenNthCalledWith(
+        2,
+        expect.any(Function),
+        { maxWaitMs: 5_250 }
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('authenticated request path', () => {
+    it('forwards a global provider scope for barcode session resolution', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ status: 1, product: {} }),
+      });
+
+      await searchOpenFoodFactsByBarcodeFields(
+        '12345678',
+        undefined,
+        'en',
+        'user-A',
+        'prov-1',
+        'global'
+      );
+
+      expect(resolveOpenFoodFactsProvider).toHaveBeenCalledWith(
+        'user-A',
+        'prov-1',
+        'global'
+      );
+    });
+
+    it('forwards a global provider scope for search session resolution', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({ hits: [], page: 1, page_size: 20, count: 0 }),
+      });
+
+      await searchOpenFoodFacts(
+        'pizza',
+        1,
+        'en',
+        'user-A',
+        'prov-1',
+        20,
+        'global'
+      );
+
+      expect(resolveOpenFoodFactsProvider).toHaveBeenCalledWith(
+        'user-A',
+        'prov-1',
+        'global'
+      );
+    });
+
     it('attaches a session cookie when providerId+userId are supplied', async () => {
       // @ts-expect-error TS(2339): Property 'mockResolvedValue' does not exist on typ... Remove this comment to see the full error message
       resolveOpenFoodFactsProvider.mockResolvedValue({
@@ -724,13 +1033,15 @@ describe('openFoodFactsService', () => {
 
       expect(resolveOpenFoodFactsProvider).toHaveBeenCalledWith(
         'user-A',
-        'prov-1'
+        'prov-1',
+        'personal'
       );
       // @ts-expect-error TS(2339): Property 'mock' does not exist on type '{ (input: ... Remove this comment to see the full error message
       const callArgs = fetch.mock.calls[0];
       expect(callArgs[1].headers).toMatchObject({
         Cookie: 'session=SESS_TOKEN',
       });
+      expect(callArgs[1].redirect).toBe('manual');
     });
 
     it('does not attach a cookie when no providerId is supplied', async () => {
@@ -777,6 +1088,7 @@ describe('openFoodFactsService', () => {
 
       expect(result).toEqual({ status: 1, product: {} });
       expect(fetch).toHaveBeenCalledTimes(2);
+      expect(withOpenFoodFactsProductReadPermit).toHaveBeenCalledTimes(2);
       expect(invalidateOpenFoodFactsSession).toHaveBeenCalledWith(
         'user-A',
         'prov-1'
@@ -885,6 +1197,7 @@ describe('openFoodFactsService', () => {
       await searchOpenFoodFacts('pizza', 1, 'en', 'user-A', 'prov-1');
 
       expect(fetch).toHaveBeenCalledTimes(1);
+      expect(withOpenFoodFactsProductReadPermit).not.toHaveBeenCalled();
       // @ts-expect-error TS(2339): Property 'mock' does not exist on type '{ (input: ... Remove this comment to see the full error message
       expect(fetch.mock.calls[0][1].headers.Cookie).toBeUndefined();
     });
@@ -902,7 +1215,13 @@ describe('openFoodFactsService', () => {
               ok: true,
               json: () =>
                 Promise.resolve({
-                  hits: [{ code: '123', product_name: 'Cookie Product' }],
+                  hits: [
+                    {
+                      code: '123',
+                      product_name: 'Cookie Product',
+                      nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+                    },
+                  ],
                   page: 1,
                   page_size: 20,
                   count: 1,
@@ -924,7 +1243,7 @@ describe('openFoodFactsService', () => {
                   {
                     code: '123',
                     product_name: 'Cookie Product',
-                    nutriments: {},
+                    nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
                   },
                 ],
               }),
@@ -969,6 +1288,165 @@ describe('openFoodFactsService', () => {
   });
 
   describe('self-hosted base_url resolution', () => {
+    it('filters self-hosted results without usable core nutrition', async () => {
+      // @ts-expect-error mocked provider resolver
+      resolveOpenFoodFactsProvider.mockResolvedValue({
+        session: null,
+        baseUrl: 'http://sparkyfitness-foodfacts:8080',
+      });
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            products: [
+              {
+                code: 'missing',
+                product_name: 'Missing Nutrition',
+                nutriments: { 'added-sugars_100g': 0 },
+              },
+              {
+                code: 'explicit-zero',
+                product_name: 'Explicit Zero',
+                nutriments: EXPLICIT_ZERO_CORE_NUTRITION,
+              },
+              {
+                code: 'serving-without-size',
+                product_name: 'Unknown Serving',
+                nutriments: { proteins_serving: 5 },
+              },
+              {
+                code: 'usable-serving',
+                product_name: 'Known Serving',
+                serving_quantity: 50,
+                nutriments: { proteins_serving: 5 },
+              },
+            ],
+            page: 1,
+            page_size: 20,
+            count: 4,
+          }),
+      });
+
+      const result = await searchOpenFoodFacts(
+        'product',
+        1,
+        'en',
+        'user-A',
+        'prov-1'
+      );
+
+      expect(result.products.map((product) => product.code)).toEqual([
+        'explicit-zero',
+        'usable-serving',
+      ]);
+    });
+
+    it('fills self-hosted pages without excluding protein-only nutrition', async () => {
+      // @ts-expect-error mocked provider resolver
+      resolveOpenFoodFactsProvider.mockResolvedValue({
+        session: null,
+        baseUrl: 'http://sparkyfitness-foodfacts:8080',
+      });
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              products: [
+                {
+                  code: 'missing-first',
+                  product_name: 'Missing Nutrition',
+                  nutriments: { 'added-sugars_100g': 0 },
+                },
+                {
+                  code: 'protein-only',
+                  product_name: 'Protein Only',
+                  nutriments: { proteins_100g: 12 },
+                },
+              ],
+              page: 1,
+              page_size: 2,
+              count: 4,
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              products: [
+                {
+                  code: 'missing-second',
+                  product_name: 'Still Missing Nutrition',
+                  nutriments: { fiber_100g: 3 },
+                },
+                {
+                  code: 'energy',
+                  product_name: 'Energy Product',
+                  nutriments: { 'energy-kcal_100g': 42 },
+                },
+              ],
+              page: 2,
+              page_size: 2,
+              count: 4,
+            }),
+        });
+
+      const result = await searchOpenFoodFacts(
+        'banana',
+        1,
+        'en',
+        'user-A',
+        'prov-1',
+        2
+      );
+
+      expect(result.products.map((product) => product.code)).toEqual([
+        'protein-only',
+        'energy',
+      ]);
+      expect(result.pagination).toEqual({
+        page: 1,
+        pageSize: 2,
+        totalCount: 2,
+        hasMore: false,
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      for (const [request] of fetchMock.mock.calls) {
+        const requestUrl = new URL(String(request));
+        expect(requestUrl.searchParams.has('nutriment_0')).toBe(false);
+      }
+    });
+
+    it('bounds self-hosted candidate scans that cannot fill the requested page', async () => {
+      // @ts-expect-error mocked provider resolver
+      resolveOpenFoodFactsProvider.mockResolvedValue({
+        session: null,
+        baseUrl: 'http://sparkyfitness-foodfacts:8080',
+      });
+      const unusableProducts = Array.from({ length: 100 }, (_, index) => ({
+        code: `missing-${index}`,
+        product_name: 'Missing Nutrition',
+        nutriments: { fiber_100g: 3 },
+      }));
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            products: unusableProducts,
+            page_size: 100,
+            count: 2000,
+          }),
+      });
+
+      await expect(
+        searchOpenFoodFacts('banana', 1, 'en', 'user-A', 'prov-1', 20)
+      ).rejects.toMatchObject({
+        message: 'OpenFoodFacts legacy search scan limit reached',
+        status: 504,
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(10);
+    });
+
     it('builds the search URL from a resolved custom base_url', async () => {
       // @ts-expect-error TS(2339): Property 'mockResolvedValue' does not exist on typ... Remove this comment to see the full error message
       resolveOpenFoodFactsProvider.mockResolvedValue({
@@ -991,7 +1469,7 @@ describe('openFoodFactsService', () => {
       );
     });
 
-    it('does not apply the public result-window limit to a custom provider', async () => {
+    it('does not apply the public result-window limit while scanning a custom provider', async () => {
       // @ts-expect-error mocked provider resolver
       resolveOpenFoodFactsProvider.mockResolvedValue({
         session: null,
@@ -1002,10 +1480,15 @@ describe('openFoodFactsService', () => {
         json: () => Promise.resolve({ products: [], count: 0 }),
       });
 
-      await searchOpenFoodFacts('pizza', 501, 'en', 'user-A', 'prov-1', 20);
+      await expect(
+        searchOpenFoodFacts('pizza', 501, 'en', 'user-A', 'prov-1', 20)
+      ).resolves.toMatchObject({
+        products: [],
+        pagination: { page: 501, pageSize: 20, hasMore: false },
+      });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('page=501'),
+        expect.stringContaining('page=1'),
         expect.any(Object)
       );
     });

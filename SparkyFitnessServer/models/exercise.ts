@@ -101,6 +101,7 @@ async function getExerciseOwnerId(id: string, userId: string) {
     client.release();
   }
 }
+/** Reuses the user's own active-calorie exercise, independently of library sharing. */
 async function getOrCreateActiveCaloriesExercise(
   userId: string,
   source = 'Health Data'
@@ -110,8 +111,8 @@ async function getOrCreateActiveCaloriesExercise(
   let exercise;
   try {
     const result = await client.query(
-      'SELECT id FROM exercises WHERE name = $1',
-      [exerciseName]
+      'SELECT id FROM exercises WHERE name = $1 AND user_id = $2 ORDER BY created_at, id LIMIT 1',
+      [exerciseName, userId]
     );
     exercise = result.rows[0];
   } catch (error) {
@@ -1030,21 +1031,178 @@ async function getExerciseDeletionImpact(
     systemClient.release();
   }
 }
-async function deleteExerciseAndDependencies(
+/**
+ * Deletes only the current user's diary entries for an exercise. Backs the
+ * `delete_with_history` mode alone -- a plain delete leaves the diary intact.
+ *
+ * Scoped to `user_id` on purpose: under family sharing another user may have
+ * logged the same exercise, and their history is never ours to remove. The
+ * exercise_entry child tables (sets, activity details, gps points, laps, hr
+ * zones) all cascade from exercise_entries, so they go with it.
+ */
+async function deleteExerciseEntriesForUser(
   exerciseId: string,
   userId: string
-) {
+): Promise<number> {
   const client = await getClient(userId);
   try {
-    await client.query('BEGIN');
-    await client.query(
+    const presetEntriesResult = await client.query(
+      `
+      SELECT DISTINCT exercise_preset_entry_id
+      FROM exercise_entries
+      WHERE exercise_id = $1
+        AND user_id = $2
+        AND exercise_preset_entry_id IS NOT NULL
+    `,
+      [exerciseId, userId]
+    );
+    const presetEntryIds = presetEntriesResult.rows
+      .map(
+        (r: { exercise_preset_entry_id: number | string }) =>
+          r.exercise_preset_entry_id
+      )
+      .filter(Boolean);
+
+    const result = await client.query(
       'DELETE FROM exercise_entries WHERE exercise_id = $1 AND user_id = $2',
       [exerciseId, userId]
     );
+
+    if (presetEntryIds.length > 0) {
+      await client.query(
+        `
+        DELETE FROM exercise_preset_entries
+        WHERE id = ANY($1::int[])
+          AND user_id = $2
+          AND NOT EXISTS (
+            SELECT 1 FROM exercise_entries WHERE exercise_preset_entry_id = exercise_preset_entries.id
+          )
+      `,
+        [presetEntryIds, userId]
+      );
+    }
+
     log(
       'info',
-      `Deleted exercise entries for exercise ${exerciseId} by user ${userId}`
+      `Deleted ${result.rowCount} exercise entries for exercise ${exerciseId} by user ${userId}`
     );
+    return result.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+/**
+ * Removes an exercise from the library along with the *template* rows that
+ * point at it (workout plans and presets).
+ *
+ * Deliberately does NOT touch exercise_entries. Since
+ * 20260912150000_preserve_data_on_user_and_library_deletes.sql the entry's
+ * exercise_id is ON DELETE SET NULL, and an entry carries its own snapshot
+ * (name, category, muscles, equipment, instructions, images), so diary history
+ * survives the library row and stays readable. Deleting entries here would
+ * pre-empt that rule and destroy history -- including other users' history.
+ */
+async function deleteExerciseAndDependencies(
+  exerciseId: string,
+  userId: string,
+  today?: string,
+  options: { deleteHistory?: boolean } = {}
+): Promise<{ success: boolean; deletedEntries: number }> {
+  const client = await getClient(userId);
+  try {
+    await client.query('BEGIN');
+
+    let deletedEntries = 0;
+
+    if (options.deleteHistory) {
+      // Delete all diary entries for this user referencing this exercise
+      const presetEntriesResult = await client.query(
+        `
+        SELECT DISTINCT exercise_preset_entry_id
+        FROM exercise_entries
+        WHERE exercise_id = $1
+          AND user_id = $2
+          AND exercise_preset_entry_id IS NOT NULL
+      `,
+        [exerciseId, userId]
+      );
+      const presetEntryIds = presetEntriesResult.rows
+        .map(
+          (r: { exercise_preset_entry_id: number | string }) =>
+            r.exercise_preset_entry_id
+        )
+        .filter(Boolean);
+
+      const entriesResult = await client.query(
+        'DELETE FROM exercise_entries WHERE exercise_id = $1 AND user_id = $2',
+        [exerciseId, userId]
+      );
+      deletedEntries = entriesResult.rowCount ?? 0;
+
+      if (presetEntryIds.length > 0) {
+        await client.query(
+          `
+          DELETE FROM exercise_preset_entries
+          WHERE id = ANY($1::int[])
+            AND user_id = $2
+            AND NOT EXISTS (
+              SELECT 1 FROM exercise_entries WHERE exercise_preset_entry_id = exercise_preset_entries.id
+            )
+        `,
+          [presetEntryIds, userId]
+        );
+      }
+      log(
+        'info',
+        `Deleted ${deletedEntries} exercise entries for exercise ${exerciseId} by user ${userId}`
+      );
+    } else if (today) {
+      // 0. Delete future exercise entries generated from workout plans for this exercise
+      const presetEntriesResult = await client.query(
+        `
+        SELECT DISTINCT exercise_preset_entry_id
+        FROM exercise_entries
+        WHERE exercise_id = $1
+          AND user_id = $2
+          AND entry_date >= $3
+          AND workout_plan_assignment_id IS NOT NULL
+          AND exercise_preset_entry_id IS NOT NULL
+      `,
+        [exerciseId, userId, today]
+      );
+      const presetEntryIds = presetEntriesResult.rows
+        .map(
+          (r: { exercise_preset_entry_id: number | string }) =>
+            r.exercise_preset_entry_id
+        )
+        .filter(Boolean);
+
+      await client.query(
+        `
+        DELETE FROM exercise_entries
+        WHERE exercise_id = $1
+          AND user_id = $2
+          AND entry_date >= $3
+          AND workout_plan_assignment_id IS NOT NULL
+      `,
+        [exerciseId, userId, today]
+      );
+
+      if (presetEntryIds.length > 0) {
+        await client.query(
+          `
+          DELETE FROM exercise_preset_entries
+          WHERE id = ANY($1::int[])
+            AND user_id = $2
+            AND NOT EXISTS (
+              SELECT 1 FROM exercise_entries WHERE exercise_preset_entry_id = exercise_preset_entries.id
+            )
+        `,
+          [presetEntryIds, userId]
+        );
+      }
+    }
+
     await client.query(
       `
       DELETE FROM workout_plan_template_assignments wpta
@@ -1079,7 +1237,7 @@ async function deleteExerciseAndDependencies(
     );
     log('info', `Deleted exercise ${exerciseId} by user ${userId}`);
     await client.query('COMMIT');
-    return (result.rowCount ?? 0) > 0;
+    return { success: (result.rowCount ?? 0) > 0, deletedEntries };
   } catch (error) {
     await client.query('ROLLBACK');
     log(
@@ -1177,6 +1335,7 @@ export { getTopExercises };
 export { getExerciseBySourceAndSourceId };
 export { getExerciseDeletionImpact };
 export { deleteExerciseAndDependencies };
+export { deleteExerciseEntriesForUser };
 export { findExerciseByNameAndUserId };
 export default {
   getExerciseById,
@@ -1198,5 +1357,6 @@ export default {
   getExerciseBySourceAndSourceId,
   getExerciseDeletionImpact,
   deleteExerciseAndDependencies,
+  deleteExerciseEntriesForUser,
   findExerciseByNameAndUserId,
 };

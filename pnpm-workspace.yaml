@@ -6,11 +6,73 @@ packages:
   - "SparkyFitnessServer"
   - "docs"
 
+# Required by `pnpm deploy` (docker/Dockerfile.backend, release-assets.yml).
+# Without it, deploy falls back to --legacy, which ignores this lockfile and
+# re-resolves the whole workspace from the registry - that both re-applies
+# minimumReleaseAge to already-pinned versions (breaking builds whenever a
+# tilde-ranged dep like expo-* publishes) and ships images built from an
+# untested dependency tree. With injection, deploy installs straight from the
+# lockfile and copies workspace packages in, so the output is self-contained.
+# Must be workspace-wide: per-package dependenciesMeta.injected is NOT enough,
+# deploy rejects it with ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE.
+injectWorkspacePackages: true
+
+minimumReleaseAge: 4320
+
+minimumReleaseAgeExclude:
+  - "assistant-cloud"
+  - "@assistant-ui/*"
+  - "expo"
+  - "expo-*"
+  - "@expo/*"
+
+onlyBuiltDependencies:
+  - "@scarf/scarf"
+  - "@shopify/react-native-skia"
+  - "@swc/core"
+  - "@parcel/watcher"
+  - bcrypt
+  - sharp
+  - esbuild
+  - unrs-resolver
+  - vue-demi
+
+overrides:
+  "@babel/core": "7.29.0"
+  react: "19.2.3"
+  react-dom: "19.2.3"
+  "@expo/dom-webview": "57.0.1"
+  assistant-cloud: "0.2.0"
+  # vite's and tsx's own esbuild dependency both resolve to 0.28.2, whose
+  # published @esbuild/linux-x64 binary reports "0.27.4" to its own
+  # wrapper's version check — failing postinstall on every GitHub Actions
+  # runner (reproduced on two independent clean installs, cache purged
+  # between them; the tarball fetched directly from the registry outside CI
+  # is correct, so this looks like a stale blob in GitHub's own npm mirror
+  # for that one version). Scoped to these two paths rather than a blanket
+  # esbuild override, since two other esbuild versions in this lockfile are
+  # unrelated pins other packages need. Pinned one patch back until it's
+  # resolved upstream.
+  "vite>esbuild": "0.28.1"
+  "tsx>esbuild": "0.28.1"
+  # 7.1 turns on the React Compiler rule set (set-state-in-effect, refs,
+  # immutability). Both apps lint with --max-warnings 0, so adopting it is a
+  # refactor, not an upgrade. Pinned until that work is scheduled.
+  eslint-plugin-react-hooks: "7.0.1"
+  side-channel: "1.0.6"
+  tailwindcss: "4.3.3"
+  zustand: "5.0.15"
 
 packageExtensions:
   "@kingstinct/react-native-healthkit@13":
     dependencies:
-      "@expo/config-plugins": "^55.0.0"
+      "@expo/config-plugins": "^57.0.0"
+  # react-native-worklets' babel plugin does `require("@babel/generator")` but
+  # doesn't declare it as a dep, so every jest suite fails to load under
+  # babel-preset-expo. Inject it into the plugin's resolution scope.
+  "react-native-worklets":
+    dependencies:
+      "@babel/generator": "*"
   # uniwind's metro plugin does `require("metro/private/DeltaBundler/Graph")` and
   # `require("metro-cache/private/stores/FileStore")` but doesn't declare those as deps.
   # Inject them so pnpm puts them in uniwind's resolution scope.
@@ -19,14 +81,15 @@ packageExtensions:
       "metro": "*"
       "metro-cache": "*"
 
-onlyBuiltDependencies:
-  - esbuild
-  - unrs-resolver
-
-minimumReleaseAge: 4320
-
-minimumReleaseAgeExclude: []
-
 patchedDependencies:
-  "react-native-health-connect@3.5.3": "patches/react-native-health-connect@3.5.3.patch"
   "@bacons/apple-targets@4.0.6": "patches/@bacons__apple-targets@4.0.6.patch"
+  react-native-health-connect@4.1.3: patches/react-native-health-connect@4.1.3.patch
+
+supportedArchitectures:
+  cpu:
+    - current
+    - x64
+    - arm64
+  os:
+    - current
+    - linux

@@ -19,6 +19,7 @@ import {
   mapFatSecretFood,
 } from '../integrations/fatsecret/fatsecretService.js';
 import { searchYazioByBarcode } from '../integrations/yazio/yazioService.js';
+import { sanitizeBoolean } from '../models/food.js';
 import type {
   BulkImportFoodData,
   FoodInput,
@@ -30,6 +31,8 @@ import {
   removeEntityImageDir,
 } from '../middleware/imageUpload.js';
 import { resolveImageInput, toImageArray } from '../utils/imageLocalizer.js';
+import { resolveTemplateStartDay } from '../utils/timezoneLoader.js';
+import { alcoholGramsForServing } from '@workspace/shared';
 
 /** A food row as returned by the repository. */
 interface FoodRow {
@@ -37,6 +40,8 @@ interface FoodRow {
   provider_type?: string | null;
   provider_external_id?: string | null;
   provider_verified?: boolean | null;
+  /** True for a hidden food (a `hide` delete, or a quick add). */
+  is_quick_food?: boolean | null;
   [column: string]: unknown;
 }
 
@@ -86,7 +91,10 @@ async function searchFoods(
         authenticatedUserId,
         authenticatedUserId
       );
-      const limit = userPreferences?.food_display_limit || limitFromRequest; // Use food_display_limit for search results
+      // item_display_limit, not food_display_limit: the column was renamed by
+      // migration 20250720201800 and this read was never updated, so it
+      // resolved to undefined and the preference silently did nothing.
+      const limit = userPreferences?.item_display_limit || limitFromRequest;
       const foods = await foodRepository.searchFoods(
         name,
         targetUserId || authenticatedUserId,
@@ -137,6 +145,21 @@ async function refreshExistingExternalFoodMetadata(
     metadata.images = incomingImages;
   }
 
+  // Re-importing or re-saving a food the user had hidden puts it back in the
+  // library. Without this, `hide` was a permanent tombstone: the dedup lookups
+  // above still match the hidden row, so the import returned it unchanged and
+  // the food stayed invisible in search with no way to get it back. The same
+  // applies to a row left behind by a quick-add.
+  //
+  // Skipped when the incoming save is itself a quick add -- that is an explicit
+  // "log this once, do not keep it" and must not be promoted to a library food.
+  if (
+    sanitizeBoolean(existingFood.is_quick_food) === true &&
+    sanitizeBoolean(foodData.is_quick_food) !== true
+  ) {
+    metadata.is_quick_food = false;
+  }
+
   if (Object.keys(metadata).length === 0) {
     return existingFood;
   }
@@ -149,8 +172,39 @@ async function refreshExistingExternalFoodMetadata(
     authenticatedUserId,
     metadata
   );
-
   return updatedFood ?? { ...existingFood, ...metadata };
+}
+
+function deriveAlcoholGramsIfMissing<
+  T extends {
+    serving_size?: unknown;
+    serving_unit?: unknown;
+    abv_percent?: unknown;
+    alcohol_g?: unknown;
+  },
+>(data: T): T {
+  if (
+    data.abv_percent !== undefined &&
+    data.abv_percent !== null &&
+    (data.alcohol_g === undefined ||
+      data.alcohol_g === null ||
+      data.alcohol_g === '')
+  ) {
+    if (data.serving_size && data.serving_unit) {
+      // Shared with the OpenFoodFacts import, which used to derive grams for a
+      // weight serving while this path refused: the same beer then came back
+      // with grams when imported and zero when saved by hand.
+      return {
+        ...data,
+        alcohol_g: alcoholGramsForServing(
+          Number(data.serving_size),
+          String(data.serving_unit),
+          Number(data.abv_percent)
+        ),
+      };
+    }
+  }
+  return data;
 }
 
 async function createFood(authenticatedUserId: string, foodData: FoodInput) {
@@ -184,10 +238,13 @@ async function createFood(authenticatedUserId: string, foodData: FoodInput) {
         );
       }
     }
+    const processedFoodData = deriveAlcoholGramsIfMissing(foodData);
     const newFood = await foodRepository.createFood({
-      ...foodData,
-      glycemic_index: foodData.glycemic_index || null,
-      custom_nutrients: sanitizeCustomNutrients(foodData.custom_nutrients),
+      ...processedFoodData,
+      glycemic_index: processedFoodData.glycemic_index || null,
+      custom_nutrients: sanitizeCustomNutrients(
+        processedFoodData.custom_nutrients
+      ),
     });
     return newFood;
   } catch (error) {
@@ -292,14 +349,36 @@ async function updateFood(
   }
 }
 
+/**
+ * Delete modes offered to the user. Mirrors the exercise side exactly -- the
+ * caller says what it wants and this function either honours it or refuses.
+ *
+ * - `hide`: the food stops appearing in search. Nothing else changes, so every
+ *   diary entry, meal and meal plan keeps working as before.
+ * - `delete`: the library row goes. Meals and meal plans lose it, but diary
+ *   entries survive on their own snapshot with a null food_id.
+ * - `delete_with_history`: a `delete`, plus this user's own diary entries.
+ *
+ * In every mode another user's diary is left alone.
+ */
+type FoodDeleteMode = 'hide' | 'delete' | 'delete_with_history';
+const FOOD_DELETE_MODES: FoodDeleteMode[] = [
+  'hide',
+  'delete',
+  'delete_with_history',
+];
+function isFoodDeleteMode(value: unknown): value is FoodDeleteMode {
+  return FOOD_DELETE_MODES.includes(value as FoodDeleteMode);
+}
 async function deleteFood(
   authenticatedUserId: string,
   foodId: string,
-  forceDelete = false
+  mode: FoodDeleteMode = 'delete',
+  currentClientDate?: string
 ) {
   log(
     'info',
-    `deleteFood: Attempting to delete food ${foodId} by user ${authenticatedUserId}. Force delete: ${forceDelete}`
+    `deleteFood: Attempting to ${mode} food ${foodId} by user ${authenticatedUserId}.`
   );
   try {
     const foodOwnerId = await foodRepository.getFoodOwnerId(
@@ -322,6 +401,18 @@ async function deleteFood(
         'Forbidden: You do not have permission to delete this food.'
       );
     }
+
+    if (mode === 'hide') {
+      await foodRepository.updateFood(foodId, foodOwnerId, {
+        is_quick_food: true,
+      });
+      return {
+        message:
+          'Food hidden. It no longer appears in search; existing diary entries, meals and meal plans are unchanged.',
+        status: 'hidden',
+      };
+    }
+
     const deletionImpact = await foodRepository.getFoodDeletionImpact(
       foodId,
       authenticatedUserId
@@ -330,98 +421,62 @@ async function deleteFood(
       'info',
       `deleteFood: Deletion impact for food ${foodId}: ${JSON.stringify(deletionImpact)}`
     );
-    const {
-      foodEntriesCount,
-      mealFoodsCount,
-      mealPlansCount,
-      mealPlanTemplateAssignmentsCount,
-      otherUserReferences,
-    } = deletionImpact;
-    const totalReferences =
-      foodEntriesCount +
-      mealFoodsCount +
-      mealPlansCount +
-      mealPlanTemplateAssignmentsCount;
-    // Scenario 1: No references at all
-    if (totalReferences === 0) {
+
+    // meal_foods, meal_plans, meal_plan_template_assignments and food_favorites
+    // all cascade from the library row for EVERY user, not just this one. Diary
+    // entries would survive, but another user's meals and meal plans would
+    // silently lose the food -- so when anyone else still references it, hiding
+    // is the only honest option.
+    if (deletionImpact.otherUserReferences > 0) {
       log(
         'info',
-        `deleteFood: Food ${foodId} has no references. Performing hard delete.`
-      );
-      const success = await foodRepository.deleteFoodAndDependencies(
-        foodId,
-        authenticatedUserId
-      );
-      if (!success) {
-        throw new Error('Food not found or not authorized to delete.');
-      }
-      // The row is gone; drop its uploaded images too.
-      await removeEntityImageDir('foods', foodId);
-      return { message: 'Food deleted permanently.', status: 'deleted' };
-    }
-    // Scenario 2: References only by the current user
-    if (otherUserReferences === 0) {
-      if (forceDelete) {
-        log(
-          'info',
-          `deleteFood: Food ${foodId} has references only by current user. Force deleting.`
-        );
-        const success = await foodRepository.deleteFoodAndDependencies(
-          foodId,
-          authenticatedUserId
-        );
-        if (!success) {
-          throw new Error('Food not found or not authorized to delete.');
-        }
-        // The row is gone; drop its uploaded images too.
-        await removeEntityImageDir('foods', foodId);
-        return {
-          message: 'Food and all its references deleted permanently.',
-          status: 'force_deleted',
-        };
-      } else {
-        log(
-          'info',
-          `deleteFood: Food ${foodId} has references only by current user. Hiding as quick food.`
-        );
-        await foodRepository.updateFood(foodId, foodOwnerId, {
-          is_quick_food: true,
-        });
-        return {
-          message:
-            'Food hidden (marked as quick food). Existing references remain.',
-          status: 'hidden',
-        };
-      }
-    }
-    // Scenario 3: References by other users
-    if (otherUserReferences > 0) {
-      log(
-        'info',
-        `deleteFood: Food ${foodId} has references by other users. Hiding as quick food.`
+        `deleteFood: Food ${foodId} is referenced by other users. Hiding instead of deleting.`
       );
       await foodRepository.updateFood(foodId, foodOwnerId, {
         is_quick_food: true,
       });
       return {
         message:
-          'Food hidden (marked as quick food). Existing references remain.',
+          'Food is used by other users, so it was hidden rather than deleted. Their history, meals and meal plans are unaffected.',
         status: 'hidden',
       };
     }
-    // Fallback for any unhandled cases (should not be reached)
-    log(
-      'warn',
-      `deleteFood: Unhandled deletion scenario for food ${foodId}. Hiding as quick food.`
+
+    const today = await resolveTemplateStartDay(
+      authenticatedUserId,
+      currentClientDate
     );
-    await foodRepository.updateFood(foodId, foodOwnerId, {
-      is_quick_food: true,
-    });
-    return {
-      message:
-        'Food hidden (marked as quick food). Existing references remain.',
-      status: 'hidden',
-    };
+    const deleteResult = await foodRepository.deleteFoodAndDependencies(
+      foodId,
+      authenticatedUserId,
+      today,
+      { deleteHistory: mode === 'delete_with_history' }
+    );
+    if (!deleteResult.success) {
+      throw new Error('Food not found or not authorized to delete.');
+    }
+
+    // food_entries.images holds paths into uploads/foods/<foodId>/, so the image
+    // directory can only go once nothing points at it any more. A plain
+    // `delete` deliberately leaves preserved entries behind, so removing the
+    // directory there would blank the picture on every one of them. Only
+    // delete_with_history clears the last references -- other users were
+    // already ruled out above -- which is the one case where it is safe.
+    if (mode === 'delete_with_history') {
+      await removeEntityImageDir('foods', foodId);
+    }
+
+    return mode === 'delete_with_history'
+      ? {
+          message: `Food deleted along with ${deleteResult.deletedEntries} of your diary entries.`,
+          status: 'deleted_with_history',
+          deletedEntries: deleteResult.deletedEntries,
+        }
+      : {
+          message:
+            'Food deleted. Your logged entries are preserved in the diary.',
+          status: 'deleted',
+        };
   } catch (error) {
     log(
       'error',
@@ -481,10 +536,11 @@ async function createFoodVariant(
       );
     }
     variantData.user_id = authenticatedUserId; // Ensure user_id is set from authenticated user
+    const processedVariantData = deriveAlcoholGramsIfMissing(variantData);
     const newVariant = await foodRepository.createFoodVariant(
       {
-        ...variantData,
-        glycemic_index: variantData.glycemic_index || null,
+        ...processedVariantData,
+        glycemic_index: processedVariantData.glycemic_index || null,
       },
       authenticatedUserId
     );
@@ -554,12 +610,42 @@ async function updateFoodVariant(
       );
     }
     variantData.user_id = authenticatedUserId; // Ensure user_id is set from authenticated user
+    const effectiveServingSize =
+      variantData.serving_size !== undefined
+        ? variantData.serving_size
+        : variant.serving_size;
+    const effectiveServingUnit =
+      variantData.serving_unit !== undefined
+        ? variantData.serving_unit
+        : variant.serving_unit;
+    const effectiveAbv =
+      variantData.abv_percent !== undefined
+        ? variantData.abv_percent
+        : variant.abv_percent;
+    const processedVariantData = { ...variantData };
+    if (
+      effectiveAbv !== null &&
+      effectiveAbv !== undefined &&
+      (processedVariantData.alcohol_g === undefined ||
+        processedVariantData.alcohol_g === null ||
+        processedVariantData.alcohol_g === '')
+    ) {
+      if (effectiveServingSize && effectiveServingUnit) {
+        processedVariantData.alcohol_g = alcoholGramsForServing(
+          Number(effectiveServingSize),
+          String(effectiveServingUnit),
+          Number(effectiveAbv)
+        );
+      }
+    }
     const updatedVariant = await foodRepository.updateFoodVariant(
       variantId,
       {
-        ...variantData,
-        glycemic_index: variantData.glycemic_index || null,
-        custom_nutrients: sanitizeCustomNutrients(variantData.custom_nutrients),
+        ...processedVariantData,
+        glycemic_index: processedVariantData.glycemic_index || null,
+        custom_nutrients: sanitizeCustomNutrients(
+          processedVariantData.custom_nutrients
+        ),
       },
       authenticatedUserId
     );
@@ -809,6 +895,9 @@ async function updateSnapshotForVariant(
     vitamin_c: variant.vitamin_c,
     calcium: variant.calcium,
     iron: variant.iron,
+    caffeine_mg: variant.caffeine_mg,
+    water_ml: variant.water_ml,
+    alcohol_g: variant.alcohol_g,
     glycemic_index: variant.glycemic_index,
     custom_nutrients: sanitizeCustomNutrients(variant.custom_nutrients),
   };
@@ -1050,7 +1139,8 @@ async function lookupBarcode(
           undefined,
           language,
           credentialUserId,
-          provider.id
+          provider.id,
+          provider.is_public === true ? 'global' : 'personal'
         );
         if (offData?.status === 1 && offData.product) {
           const food = mapOpenFoodFactsProduct(offData.product, {
@@ -1082,15 +1172,24 @@ async function lookupBarcode(
       // Only look up a credentialed OFF provider when none is already
       // resolved. Avoids an extra DB round-trip on every OFF barcode lookup
       // for users without configured credentials.
-      let offProviderId = null;
+      let offProvider: {
+        id: string;
+        scope: 'personal' | 'global';
+      } | null = null;
       if (provider?.provider_type === 'openfoodfacts') {
-        offProviderId = provider.id;
+        offProvider = {
+          id: provider.id,
+          scope: provider.is_public === true ? 'global' : 'personal',
+        };
       } else {
         try {
-          offProviderId =
+          const offProviderId =
             await externalProviderService.getActiveOpenFoodFactsProviderId(
               credentialUserId
             );
+          offProvider = offProviderId
+            ? { id: offProviderId, scope: 'personal' }
+            : null;
         } catch (fallbackError) {
           log(
             'debug',
@@ -1104,8 +1203,9 @@ async function lookupBarcode(
           barcode,
           undefined,
           language,
-          offProviderId ? credentialUserId : undefined,
-          offProviderId || undefined
+          offProvider ? credentialUserId : undefined,
+          offProvider?.id,
+          offProvider?.scope ?? 'personal'
         );
         if (offData?.status === 1 && offData.product) {
           const food = mapOpenFoodFactsProduct(offData.product, {
@@ -1156,6 +1256,8 @@ export { createFood };
 export { getFoodById };
 export { updateFood };
 export { deleteFood };
+export { isFoodDeleteMode };
+export type { FoodDeleteMode };
 export { getFoodsWithPagination };
 export { getFoodVariantById };
 export { createFoodVariant };
@@ -1179,6 +1281,7 @@ export default {
   getFoodById,
   updateFood,
   deleteFood,
+  isFoodDeleteMode,
   getFoodsWithPagination,
   getFoodVariantById,
   createFoodVariant,

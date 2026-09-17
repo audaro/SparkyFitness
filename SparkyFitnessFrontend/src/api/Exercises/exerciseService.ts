@@ -3,6 +3,7 @@ import { ExerciseCSVData } from '@/pages/Exercises/ExerciseImportCSV';
 import {
   Exercise,
   ExerciseDeletionImpact,
+  ExerciseDeleteMode,
   ExerciseOwnershipFilter,
   HistoryImportEntry,
 } from '@/types/exercises';
@@ -159,11 +160,12 @@ export const updateExercise = async (
 
 export const deleteExercise = async (
   id: string,
-  forceDelete: boolean = false
+  mode: ExerciseDeleteMode = 'delete',
+  clientDate?: string
 ): Promise<{ message?: string; status?: string } | void> => {
-  const params = new URLSearchParams();
-  if (forceDelete) {
-    params.append('forceDelete', 'true');
+  const params = new URLSearchParams({ mode });
+  if (clientDate) {
+    params.set('clientDate', clientDate);
   }
   return apiCall(`/exercises/${id}?${params.toString()}`, {
     method: 'DELETE',
@@ -197,17 +199,12 @@ export const getExerciseDeletionImpact = async (
     response.otherUserReferences ?? response.otherUserReferencesCount ?? 0;
   return {
     exerciseEntriesCount: response.exerciseEntriesCount ?? 0,
+    workoutPlansCount: response.workoutPlansCount ?? 0,
+    workoutPresetsCount: response.workoutPresetsCount ?? 0,
+    totalReferences: response.totalReferences ?? 0,
     isUsedByOthers: (otherUserRefs || 0) > 0,
     otherUserReferences: otherUserRefs || 0,
   } as ExerciseDeletionImpact;
-};
-
-export const getSuggestedExercises = async (
-  limit: number
-): Promise<{ recentExercises: Exercise[]; topExercises: Exercise[] }> => {
-  return apiCall(`/exercises/suggested?limit=${limit}`, {
-    method: 'GET',
-  });
 };
 
 export const updateExerciseEntriesSnapshot = async (
@@ -234,20 +231,6 @@ export const getExerciseById = async (id: string): Promise<Exercise> => {
   };
 };
 
-export const importExercisesFromCSV = async (
-  formData: FormData
-): Promise<{
-  created: number;
-  updated: number;
-  failed: number;
-  failedRows: unknown[];
-}> => {
-  return apiCall('/exercises/import', {
-    method: 'POST',
-    body: formData,
-    isFormData: true,
-  });
-};
 export const importExercisesFromJson = async (
   exercises: Omit<ExerciseCSVData, 'id'>[]
 ): Promise<unknown> => {

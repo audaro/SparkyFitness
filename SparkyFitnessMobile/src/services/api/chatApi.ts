@@ -23,7 +23,9 @@ export interface ChatHistoryEntry {
  * Imported as a type only so this module stays free of the assistant-ui
  * runtime's ESM/web-fetch dependency chain (it's loaded in plain unit tests).
  */
-type InitialMessages = NonNullable<Parameters<typeof useChatRuntime>[0]>['messages'];
+type InitialMessages = NonNullable<
+  Parameters<typeof useChatRuntime>[0]
+>['messages'];
 
 /**
  * Fetches the user's recent chat history (server returns the ~50 most recent
@@ -91,7 +93,9 @@ function isSeedableParts(parts: unknown): parts is { type: string }[] {
  * dropped (mobile can neither render nor send images). The `id` fallback
  * guards a missing key colliding in the AI-SDK store.
  */
-export function mapHistoryToInitialMessages(entries: ChatHistoryEntry[]): InitialMessages {
+export function mapHistoryToInitialMessages(
+  entries: ChatHistoryEntry[]
+): InitialMessages {
   return entries.map((entry, i) => {
     const parts = isSeedableParts(entry.parts)
       ? entry.parts
@@ -99,7 +103,10 @@ export function mapHistoryToInitialMessages(entries: ChatHistoryEntry[]): Initia
 
     return {
       id: entry.id || `history-${i}`,
-      role: entry.message_type === 'user' ? ('user' as const) : ('assistant' as const),
+      role:
+        entry.message_type === 'user'
+          ? ('user' as const)
+          : ('assistant' as const),
       content: entry.content,
       parts,
     };

@@ -53,7 +53,7 @@ jest.mock(
         <View testID={`pregnancy-view-${section}`} />
       ),
     };
-  },
+  }
 );
 
 jest.mock('../../src/hooks/useCycleSettings', () => ({
@@ -148,7 +148,7 @@ function renderScreen() {
         <QueryClientProvider client={queryClient}>
           <CycleHubScreen navigation={mockNavigation} route={mockRoute} />
         </QueryClientProvider>
-      </NavigationContainer>,
+      </NavigationContainer>
     ),
   };
 }

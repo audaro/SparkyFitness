@@ -8,9 +8,16 @@ const GITHUB_RAW_BASE_URL =
 const EXERCISES_PATH = 'exercises'; // No leading slash for API
 // Initialize cache for GitHub API responses (e.g., 1 hour TTL)
 const githubCache = new NodeCache({ stdTTL: 3600 });
+const DATASET_TTL_MS = 60 * 60 * 1000;
+// Bound a stalled shared download so it cannot block every exercise search indefinitely.
+const DATASET_REQUEST_TIMEOUT_MS = 15 * 1000;
+// Avoid hammering GitHub and making every search wait during an upstream outage.
+const STALE_RETRY_INTERVAL_MS = 5 * 60 * 1000;
 
 // Shape of one upstream free-exercise-db record (dist/exercises.json entry).
-// Only the fields this service and its callers actually touch are typed.
+// Only the fields this service and its callers actually touch are typed;
+// `equipment` is widened because the catalog import path reads array-valued
+// equipment from the mirror as well.
 export interface FreeExerciseDbExercise {
   id: string;
   name: string;
@@ -20,6 +27,27 @@ export interface FreeExerciseDbExercise {
   secondaryMuscles?: string[];
   [key: string]: unknown;
 }
+
+interface DatasetHolder {
+  data: FreeExerciseDbExercise[];
+  fetchedAt: number;
+}
+
+function isExerciseDataset(value: unknown): value is FreeExerciseDbExercise[] {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  return value.every(
+    (exercise: unknown) =>
+      typeof exercise === 'object' &&
+      exercise !== null &&
+      'name' in exercise &&
+      typeof exercise.name === 'string'
+  );
+}
+
+let dataset: DatasetHolder | null = null;
+let exercisesDatasetPromise: Promise<FreeExerciseDbExercise[]> | null = null;
+let lastDatasetFetchFailureAt: number | null = null;
+
 class FreeExerciseDBService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exerciseList: any;
@@ -62,36 +90,68 @@ class FreeExerciseDBService {
       return null;
     }
   }
-  /**
-   * The full upstream dataset, cached under a single fixed key. Every search
-   * previously fetched the multi-megabyte exercises.json again because the
-   * per-query result cache keys never overlap between queries.
-   */
   async getAllExercises(): Promise<FreeExerciseDbExercise[]> {
-    const cacheKey = 'all_exercises_dataset';
-    const cached = githubCache.get<FreeExerciseDbExercise[]>(cacheKey);
-    if (cached) {
-      return cached;
+    const now = Date.now();
+    if (dataset && now - dataset.fetchedAt < DATASET_TTL_MS) {
+      return dataset.data;
     }
-    const exercisesJsonUrl =
-      'https://api.github.com/repos/yuhonas/free-exercise-db/contents/dist/exercises.json';
-    log(
-      'debug',
-      `[FreeExerciseDBService] Fetching exercises from: ${exercisesJsonUrl}`
-    );
-    const response = await axios.get<FreeExerciseDbExercise[]>(
-      exercisesJsonUrl,
-      {
-        headers: { Accept: 'application/vnd.github.raw+json' },
-        // Exercise creation can be waiting on this fetch; a hung GitHub
-        // connection must fail instead of stalling the caller indefinitely.
-        timeout: 10_000,
+    if (
+      lastDatasetFetchFailureAt !== null &&
+      now - lastDatasetFetchFailureAt < STALE_RETRY_INTERVAL_MS
+    ) {
+      if (dataset) {
+        return dataset.data;
       }
-    );
-    githubCache.set(cacheKey, response.data);
-    return response.data;
+      log(
+        'warn',
+        '[FreeExerciseDBService] Skipping exercise dataset fetch during retry interval after a cold-start failure'
+      );
+      throw new Error('Exercise dataset fetch retry interval is active');
+    }
+    if (!exercisesDatasetPromise) {
+      const exercisesJsonUrl = `${GITHUB_RAW_BASE_URL}/dist/exercises.json`;
+      const currentPromise = axios
+        .get<unknown>(exercisesJsonUrl, {
+          timeout: DATASET_REQUEST_TIMEOUT_MS,
+        })
+        .then((response) => {
+          if (!isExerciseDataset(response.data)) {
+            log(
+              'warn',
+              '[FreeExerciseDBService] Rejected invalid exercise dataset response'
+            );
+            throw new Error('Invalid exercise dataset response');
+          }
+          if (exercisesDatasetPromise === currentPromise) {
+            dataset = { data: response.data, fetchedAt: Date.now() };
+            lastDatasetFetchFailureAt = null;
+          }
+          return response.data;
+        })
+        .catch((error: unknown) => {
+          if (exercisesDatasetPromise === currentPromise) {
+            lastDatasetFetchFailureAt = Date.now();
+          }
+          if (dataset) {
+            const age = Date.now() - dataset.fetchedAt;
+            log(
+              'warn',
+              `[FreeExerciseDBService] Serving stale exercise dataset after a refresh failure; age: ${age}ms`,
+              error instanceof Error ? error.message : error
+            );
+            return dataset.data;
+          }
+          throw error;
+        })
+        .finally(() => {
+          if (exercisesDatasetPromise === currentPromise) {
+            exercisesDatasetPromise = null;
+          }
+        });
+      exercisesDatasetPromise = currentPromise;
+    }
+    return exercisesDatasetPromise;
   }
-
   async searchExercises(
     query: string | null | undefined,
     equipmentFilter: string[] = [],
@@ -99,14 +159,6 @@ class FreeExerciseDBService {
     limit = 50,
     offset = 0
   ) {
-    const cacheKey = `search_exercises_${query}_${equipmentFilter.join(',')}_${muscleGroupFilter.join(',')}_${limit}_${offset}`;
-    const cachedResults = githubCache.get(cacheKey);
-    if (cachedResults) {
-      console.log(
-        `[FreeExerciseDBService] Cache hit for search query: ${query}, equipment: ${equipmentFilter}, muscles: ${muscleGroupFilter}, limit: ${limit}, offset: ${offset}`
-      );
-      return cachedResults;
-    }
     try {
       const allExercises = await this.getAllExercises();
 
@@ -131,7 +183,7 @@ class FreeExerciseDBService {
       // 2. Filter and sort by search query using the shared utility
       const filteredExercises = filterAndSortByTerms(
         preFiltered,
-        (ex) => ex.name,
+        (exercise) => exercise.name,
         query || ''
       );
 
@@ -140,14 +192,12 @@ class FreeExerciseDBService {
         offset,
         offset + limit
       );
-      const result = { exercises: paginatedExercises, totalCount };
-      githubCache.set(cacheKey, result);
-      return result;
+      return { exercises: paginatedExercises, totalCount };
     } catch (error) {
-      console.error(
+      log(
+        'error',
         `[FreeExerciseDBService] Error searching exercises for query "${query}" with limit ${limit}:`,
-        // @ts-expect-error TS(2571): Object is of type 'unknown'.
-        error.message
+        error instanceof Error ? error.message : error
       );
       return { exercises: [], totalCount: 0 };
     }
@@ -165,5 +215,13 @@ class FreeExerciseDBService {
     return imageUrl;
   }
 }
+
+export function resetFreeExerciseDBCache() {
+  githubCache.flushAll();
+  dataset = null;
+  exercisesDatasetPromise = null;
+  lastDatasetFetchFailureAt = null;
+}
+
 const freeExerciseDBService = new FreeExerciseDBService();
 export default freeExerciseDBService;

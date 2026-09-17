@@ -4,6 +4,7 @@ import {
   createNativeHeaderDatePickerItems,
   setNativeHeaderDatePickerOptions,
 } from '../../src/utils/nativeHeaderDatePicker';
+import type { TFunction } from 'i18next';
 
 describe('nativeHeaderDatePicker', () => {
   const onPreviousDate = jest.fn();
@@ -16,10 +17,9 @@ describe('nativeHeaderDatePicker', () => {
     onNextDate,
     tintColor: '#0A84FF',
     accessibilityLabel: 'Choose diary date',
-    // The picker only reads `t` for the optional label overrides, which these
-    // cases leave unset, so the identity function is enough.
-    t: ((key: string) => key) as unknown as import('i18next').TFunction,
-    locale: 'en',
+    t: ((key: string, values?: { defaultValue?: string }) =>
+      values?.defaultValue ?? key) as TFunction,
+    locale: 'en-US',
   };
 
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe('nativeHeaderDatePicker', () => {
     // Every item the picker builds is a button; the union needs saying so before
     // its button-only fields are readable.
     const items = createNativeHeaderDatePickerItems(
-      options,
+      options
     ) as NativeStackHeaderItemButton[];
 
     expect(items).toHaveLength(3);
@@ -60,7 +60,65 @@ describe('nativeHeaderDatePicker', () => {
     const configuredOptions = setOptions.mock.calls[0]?.[0];
     expect(configuredOptions).toEqual({
       unstable_headerRightItems: expect.any(Function),
+      unstable_headerLeftItems: undefined,
     });
     expect(configuredOptions.unstable_headerRightItems()).toHaveLength(3);
+  });
+
+  it('adds a leading family diary action when one is supplied', () => {
+    const onPress = jest.fn();
+    const setOptions = jest.fn();
+
+    setNativeHeaderDatePickerOptions(
+      { setOptions },
+      {
+        ...options,
+        leadingAction: {
+          sfSymbol: 'person.2.fill',
+          onPress,
+          accessibilityLabel: 'Open family diaries',
+          identifier: 'family-diaries',
+        },
+      }
+    );
+
+    const configuredOptions = setOptions.mock.calls[0]?.[0];
+    const leadingItems = configuredOptions.unstable_headerLeftItems();
+    expect(leadingItems).toEqual([
+      expect.objectContaining({
+        icon: { type: 'sfSymbol', name: 'person.2.fill' },
+        accessibilityLabel: 'Open family diaries',
+        identifier: 'family-diaries',
+      }),
+    ]);
+    leadingItems[0]?.onPress();
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears a previously configured leading action when access disappears', () => {
+    let configuredOptions: Record<string, unknown> = {};
+    const setOptions = jest.fn((nextOptions: Record<string, unknown>) => {
+      configuredOptions = { ...configuredOptions, ...nextOptions };
+    });
+
+    setNativeHeaderDatePickerOptions(
+      { setOptions },
+      {
+        ...options,
+        leadingAction: {
+          sfSymbol: 'person.2.fill',
+          onPress: jest.fn(),
+          accessibilityLabel: 'Open family diaries',
+          identifier: 'family-diaries',
+        },
+      }
+    );
+    expect(configuredOptions.unstable_headerLeftItems).toEqual(
+      expect.any(Function)
+    );
+
+    setNativeHeaderDatePickerOptions({ setOptions }, options);
+
+    expect(configuredOptions.unstable_headerLeftItems).toBeUndefined();
   });
 });

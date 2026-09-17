@@ -141,12 +141,18 @@ router.delete('/:id', authenticate, async (req, res, next) => {
       typeof req.query.currentClientDate === 'string'
         ? req.query.currentClientDate
         : undefined;
-    await mealPlanTemplateService.deleteMealPlanTemplate(
+    const deleted = await mealPlanTemplateService.deleteMealPlanTemplate(
       req.params.id,
 
       req.userId,
       currentClientDate
     );
+    // The repository DELETE is RLS-scoped and returns the deleted row (or
+    // undefined). A missing or not-owned id deletes nothing — return 404
+    // instead of a misleading 204 that implies success.
+    if (!deleted) {
+      return res.status(404).json({ error: 'Meal plan template not found.' });
+    }
     res.status(204).send();
   } catch (error) {
     next(error);

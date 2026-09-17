@@ -81,11 +81,22 @@ const garminMeasurementMapping: GarminMeasurementMappingRecord = {
     frequency: 'Daily',
   },
   bmr_calories: {
-    targetType: 'custom',
-    name: 'basal_metabolic_rate',
+    targetType: 'check_in',
+    field: 'bmr',
     dataType: 'numeric',
     measurementType: 'kcal',
-    frequency: 'Daily',
+  },
+  bmr: {
+    targetType: 'check_in',
+    field: 'bmr',
+    dataType: 'numeric',
+    measurementType: 'kcal',
+  },
+  basal_metabolic_rate: {
+    targetType: 'check_in',
+    field: 'bmr',
+    dataType: 'numeric',
+    measurementType: 'kcal',
   },
   total_calories: {
     targetType: 'custom',
@@ -568,7 +579,8 @@ export function parseGarminHealthMeasurements(
               value === 0 &&
               mapping.targetType === 'check_in' &&
               (mapping.field === 'weight' ||
-                mapping.field === 'body_fat_percentage')
+                mapping.field === 'body_fat_percentage' ||
+                mapping.field === 'water')
             ) {
               continue;
             }

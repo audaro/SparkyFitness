@@ -1,4 +1,5 @@
 import { getClient } from '../db/poolManager.js';
+import { sanitizeNotes } from '@workspace/shared';
 import type { PoolClient } from 'pg';
 import type {
   MealInput,
@@ -69,6 +70,9 @@ const MEAL_FOODS_SELECT = `
          COALESCE(mf.vitamin_c, fv.vitamin_c)                     AS vitamin_c,
          COALESCE(mf.calcium, fv.calcium)                         AS calcium,
          COALESCE(mf.iron, fv.iron)                               AS iron,
+         COALESCE(mf.caffeine_mg, fv.caffeine_mg)                 AS caffeine_mg,
+         COALESCE(mf.water_ml, fv.water_ml)                       AS water_ml,
+         COALESCE(mf.alcohol_g, fv.alcohol_g)                     AS alcohol_g,
          COALESCE(mf.glycemic_index, fv.glycemic_index)           AS glycemic_index,
          COALESCE(mf.custom_nutrients, fv.custom_nutrients)       AS custom_nutrients
   FROM meal_foods mf
@@ -133,6 +137,9 @@ function buildMealFoodValues(mealId: string) {
       item.iron ?? null,
       item.glycemic_index ?? null,
       item.custom_nutrients ?? null,
+      item.caffeine_mg ?? null,
+      item.water_ml ?? null,
+      item.alcohol_g ?? null,
     ];
   };
 }
@@ -142,8 +149,8 @@ async function createMeal(mealData: MealInput) {
   try {
     await client.query('BEGIN');
     const mealResult = await client.query(
-      `INSERT INTO meals (user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, now(), now()) RETURNING id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, created_at, updated_at`,
+      `INSERT INTO meals (user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, notes, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, now(), now()) RETURNING id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, notes, created_at, updated_at`,
       [
         mealData.user_id,
         mealData.name,
@@ -153,6 +160,7 @@ async function createMeal(mealData: MealInput) {
         mealData.serving_unit,
         mealData.total_servings,
         JSON.stringify(toImageArray(mealData.images)),
+        sanitizeNotes(mealData.notes) ?? null,
       ]
     );
     const newMeal = mealResult.rows[0];
@@ -167,7 +175,7 @@ async function createMeal(mealData: MealInput) {
            saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
            cholesterol, sodium, potassium, dietary_fiber, sugars,
            vitamin_a, vitamin_c, calcium, iron, glycemic_index,
-           custom_nutrients
+           custom_nutrients, caffeine_mg, water_ml, alcohol_g
          ) VALUES %L RETURNING id`,
         mealFoodsValues
       );
@@ -208,7 +216,7 @@ async function getMeals(userId: string, filter = 'all') {
   const client = await getClient(userId); // User-specific operation
   try {
     let query = `
-      SELECT id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, created_at, updated_at
+      SELECT id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, notes, created_at, updated_at
       FROM meals
       WHERE 1=1`; // Start with a true condition to easily append AND clauses
     const queryParams = [];
@@ -255,7 +263,7 @@ async function searchMeals(
     }
 
     let query = `
-      SELECT id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images
+      SELECT id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, notes
       FROM meals
       ${whereSql}
       ORDER BY ${orderClause}`;
@@ -275,7 +283,7 @@ async function getMealById(mealId: string, userId: string) {
   const client = await getClient(userId); // User-specific operation (RLS will handle access)
   try {
     const mealResult = await client.query(
-      `SELECT id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, created_at, updated_at
+      `SELECT id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, notes, created_at, updated_at
        FROM meals WHERE id = $1`,
       [mealId]
     );
@@ -296,6 +304,13 @@ async function updateMeal(
   const client = await getClient(userId); // User-specific operation
   try {
     await client.query('BEGIN');
+    const notesKeyPresent = Object.prototype.hasOwnProperty.call(
+      updateData,
+      'notes'
+    );
+    const notesValue = notesKeyPresent
+      ? (sanitizeNotes(updateData.notes) ?? null)
+      : null;
     const result = await client.query(
       `UPDATE meals SET
         name = COALESCE($1, name),
@@ -305,9 +320,10 @@ async function updateMeal(
         serving_unit = COALESCE($5, serving_unit),
         total_servings = COALESCE($6, total_servings),
         images = COALESCE($7::jsonb, images),
+        notes = CASE WHEN $8::boolean THEN $9 ELSE notes END,
         updated_at = now()
-       WHERE id = $8
-       RETURNING id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, created_at, updated_at`,
+       WHERE id = $10
+       RETURNING id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, notes, created_at, updated_at`,
       [
         updateData.name,
         updateData.description,
@@ -319,6 +335,10 @@ async function updateMeal(
         updateData.images === undefined
           ? null
           : JSON.stringify(toImageArray(updateData.images)),
+        // COALESCE cannot express "clear to null", and a user deleting their
+        // note must be able to. Key presence decides; see models/food.ts.
+        notesKeyPresent,
+        notesValue,
         mealId,
       ]
     );
@@ -338,7 +358,7 @@ async function updateMeal(
              saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
              cholesterol, sodium, potassium, dietary_fiber, sugars,
              vitamin_a, vitamin_c, calcium, iron, glycemic_index,
-             custom_nutrients
+             custom_nutrients, caffeine_mg, water_ml, alcohol_g
            ) VALUES %L RETURNING id`,
           mealFoodsValues
         );
@@ -653,6 +673,7 @@ async function getRecentMeals(userId: string, limit = 3) {
         m.serving_unit,
         m.total_servings,
         m.images,
+        m.notes,
         m.created_at,
         m.updated_at,
         lu.last_used_date
@@ -705,6 +726,7 @@ async function getTopMeals(userId: string, limit = 3) {
         m.serving_unit,
         m.total_servings,
         m.images,
+        m.notes,
         m.created_at,
         m.updated_at,
         COUNT(*) AS usage_count
@@ -954,7 +976,7 @@ async function getPublicMeals(userId: string) {
   const client = await getClient(userId); // User-specific operation for RLS
   try {
     const result =
-      await client.query(`SELECT id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, created_at, updated_at
+      await client.query(`SELECT id, user_id, name, description, is_public, serving_size, serving_unit, total_servings, images, notes, created_at, updated_at
        FROM meals
        WHERE is_public = TRUE
        ORDER BY name ASC`);
@@ -972,7 +994,7 @@ async function getFamilyMeals(userId: string) {
     // For now, let's assume it fetches meals shared with the user via family access.
     // This might need to be refined based on actual family sharing implementation.
     const result = await client.query(
-      `SELECT m.id, m.user_id, m.name, m.description, m.is_public, m.serving_size, m.serving_unit, m.total_servings, m.images, m.created_at, m.updated_at
+      `SELECT m.id, m.user_id, m.name, m.description, m.is_public, m.serving_size, m.serving_unit, m.total_servings, m.images, m.notes, m.created_at, m.updated_at
        FROM meals m
        JOIN family_access fa ON m.user_id = fa.owner_user_id
        WHERE fa.family_user_id = $1 AND fa.is_active = TRUE
@@ -999,6 +1021,7 @@ async function getFavoriteMeals(userId: string) {
         m.serving_unit,
         m.total_servings,
         m.images,
+        m.notes,
         m.created_at,
         m.updated_at,
         ff.created_at AS favorited_at

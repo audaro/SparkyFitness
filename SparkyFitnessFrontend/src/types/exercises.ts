@@ -56,19 +56,31 @@ export interface HistoryImportEntry {
   activity_details?: unknown[];
 }
 
+/**
+ * What a delete should do to everything pointing at the exercise.
+ *
+ * - `hide` stops it appearing in search and changes nothing else.
+ * - `delete` removes it from the library and from presets/plans, keeping diary
+ *   history (entries carry their own snapshot).
+ * - `delete_with_history` also removes the caller's own diary entries.
+ *
+ * Another user's diary is never affected; if anyone else still references the
+ * exercise the server hides it instead and says so in `status`.
+ */
+export type ExerciseDeleteMode = 'hide' | 'delete' | 'delete_with_history';
+
 export interface ExerciseDeletionImpact {
   exerciseEntriesCount: number;
+  workoutPlansCount: number;
+  workoutPresetsCount: number;
+  totalReferences: number;
   // server returns counts; normalize to a boolean for backward compatible UI use
   isUsedByOthers: boolean;
   otherUserReferences?: number;
 }
 
 export type ExerciseOwnershipFilter =
-  | 'all'
-  | 'own'
-  | 'family'
-  | 'public'
-  | 'needs-review';
+  'all' | 'own' | 'family' | 'public' | 'needs-review';
 
 export interface LapDTO {
   lapIndex?: number;

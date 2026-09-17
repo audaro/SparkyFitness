@@ -29,7 +29,9 @@ import {
 
 type AppSettingsScreenProps = RootStackScreenProps<'AppSettings'>;
 
-const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => {
+const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
+  navigation,
+}) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
@@ -38,17 +40,33 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
   const setHapticsEnabled = useAppPreferencesStore((s) => s.setHapticsEnabled);
   const soundsEnabled = useAppPreferencesStore((s) => s.soundsEnabled);
   const setSoundsEnabled = useAppPreferencesStore((s) => s.setSoundsEnabled);
-  const liquidGlassEnabled = useAppPreferencesStore((s) => s.liquidGlassTabBarEnabled);
-  const setLiquidGlassTabBarEnabled = useAppPreferencesStore(
-    (s) => s.setLiquidGlassTabBarEnabled,
+  const liquidGlassEnabled = useAppPreferencesStore(
+    (s) => s.liquidGlassTabBarEnabled
   );
-  const languagePreference = useAppPreferencesStore((s) => s.languagePreference);
-  const voiceButtonVisible = useAppPreferencesStore((s) => s.voiceButtonVisible);
-  const setVoiceButtonVisible = useAppPreferencesStore((s) => s.setVoiceButtonVisible);
-  const voiceRepliesEnabled = useAppPreferencesStore((s) => s.voiceRepliesEnabled);
-  const setVoiceRepliesEnabled = useAppPreferencesStore((s) => s.setVoiceRepliesEnabled);
-  const voiceAutoStopEnabled = useAppPreferencesStore((s) => s.voiceAutoStopEnabled);
-  const setVoiceAutoStopEnabled = useAppPreferencesStore((s) => s.setVoiceAutoStopEnabled);
+  const setLiquidGlassTabBarEnabled = useAppPreferencesStore(
+    (s) => s.setLiquidGlassTabBarEnabled
+  );
+  const languagePreference = useAppPreferencesStore(
+    (s) => s.languagePreference
+  );
+  const voiceButtonVisible = useAppPreferencesStore(
+    (s) => s.voiceButtonVisible
+  );
+  const setVoiceButtonVisible = useAppPreferencesStore(
+    (s) => s.setVoiceButtonVisible
+  );
+  const voiceRepliesEnabled = useAppPreferencesStore(
+    (s) => s.voiceRepliesEnabled
+  );
+  const setVoiceRepliesEnabled = useAppPreferencesStore(
+    (s) => s.setVoiceRepliesEnabled
+  );
+  const voiceAutoStopEnabled = useAppPreferencesStore(
+    (s) => s.voiceAutoStopEnabled
+  );
+  const setVoiceAutoStopEnabled = useAppPreferencesStore(
+    (s) => s.setVoiceAutoStopEnabled
+  );
   const isIOS = Platform.OS === 'ios';
   const iosLanguage = isIOS ? getNativeIOSLanguage() : null;
   const supportsLiquidGlassTabBar = canUseLiquidGlass();
@@ -63,25 +81,46 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
         // the previous store/native/i18n state itself, so the screen only
         // needs to surface the error. Do not mutate the preferences store here.
         const message = error instanceof Error ? error.message : String(error);
-        void addLog(`[AppSettings] Failed to change app language: ${message}`, 'ERROR');
+        void addLog(
+          `[AppSettings] Failed to change app language: ${message}`,
+          'ERROR'
+        );
         Toast.show({
           type: 'error',
-          text1: t('settings.language.changeFailed', "Couldn't change the language"),
+          text1: t(
+            'settings.language.changeFailed',
+            "Couldn't change the language"
+          ),
         });
       }
     },
-    [t],
+    [t]
   );
 
   const themeOptions: { label: string; value: ThemePreference }[] = [
-    { label: t('settings.theme.light', { defaultValue: 'Light' }), value: 'Light' },
-    { label: t('settings.theme.dark', { defaultValue: 'Dark' }), value: 'Dark' },
-    { label: t('settings.theme.amoled', { defaultValue: 'AMOLED' }), value: 'Amoled' },
-    { label: t('settings.theme.system', { defaultValue: 'System' }), value: 'System' },
+    {
+      label: t('settings.theme.light', { defaultValue: 'Light' }),
+      value: 'Light',
+    },
+    {
+      label: t('settings.theme.dark', { defaultValue: 'Dark' }),
+      value: 'Dark',
+    },
+    {
+      label: t('settings.theme.amoled', { defaultValue: 'AMOLED' }),
+      value: 'Amoled',
+    },
+    {
+      label: t('settings.theme.system', { defaultValue: 'System' }),
+      value: 'System',
+    },
   ];
 
   const languagePickerOptions = [
-    { label: t('settings.language.system', 'System'), value: 'system' as LanguagePreference },
+    {
+      label: t('settings.language.system', 'System'),
+      value: 'system' as LanguagePreference,
+    },
     ...Object.entries(SHIPPED_LOCALES).map(([value, metadata]) => ({
       // i18n-audit-ignore-next-line dynamic-i18n-key -- registry metadata is a bounded static translation-key map
       label: t(metadata.displayNameKey, metadata.defaultDisplayName),
@@ -96,26 +135,37 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
       const message = error instanceof Error ? error.message : String(error);
       void addLog(
         `[AppSettings] iOS openSettings failed while opening language settings; language unchanged: ${message}`,
-        'WARNING',
+        'WARNING'
       );
       Toast.show({
         type: 'error',
-        text1: t('settings.language.openSettingsFailed', 'Could not open iOS Settings'),
+        text1: t(
+          'settings.language.openSettingsFailed',
+          'Could not open iOS Settings'
+        ),
       });
     }
   }, [t]);
 
-  const header = useScreenHeader({ title: t('settings.app', 'App Settings'), left: { kind: 'back' } });
+  const header = useScreenHeader({
+    title: t('settings.app', 'App Settings'),
+    left: { kind: 'back' },
+  });
 
   return (
-    <View className="flex-1 bg-background" style={usesNativeHeader ? undefined : { paddingTop: insets.top }}>
+    <View
+      className="flex-1 bg-background"
+      style={usesNativeHeader ? undefined : { paddingTop: insets.top }}
+    >
       {header}
       <ScrollView
         contentContainerStyle={{
           padding: 16,
           paddingBottom: insets.bottom + 80 + activeWorkoutBarPadding,
         }}
-        contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior={
+          usesNativeHeader ? 'automatic' : 'never'
+        }
       >
         <SettingsRow
           title={t('settings.theme.title', { defaultValue: 'Theme' })}
@@ -138,20 +188,28 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
               // i18n-audit-ignore-next-line dynamic-i18n-key -- registry metadata is a bounded static translation-key map
               language: t(
                 SHIPPED_LOCALES[iosLanguage ?? 'en'].displayNameKey,
-                SHIPPED_LOCALES[iosLanguage ?? 'en'].defaultDisplayName,
+                SHIPPED_LOCALES[iosLanguage ?? 'en'].defaultDisplayName
               ),
-              managedBy: t('settings.language.managedByIOS', { defaultValue: 'Managed by iOS' }),
+              managedBy: t('settings.language.managedByIOS', {
+                defaultValue: 'Managed by iOS',
+              }),
             })}
             subtitleNumberOfLines={0}
             onPress={openIOSLanguageSettings}
             accessibilityLabel={t('settings.language.title', 'Language')}
-            accessibilityHint={t('settings.language.iosSettingsHint', "Change this app's language in iOS Settings")}
+            accessibilityHint={t(
+              'settings.language.iosSettingsHint',
+              "Change this app's language in iOS Settings"
+            )}
             testID="ios-language-row"
           />
         ) : (
           <SettingsRow
             title={t('settings.language.title', 'Language')}
-            subtitle={t('languageSettings.subtitle', 'Use your device language or choose a language for SparkyFitness.')}
+            subtitle={t(
+              'languageSettings.subtitle',
+              'Use your device language or choose a language for SparkyFitness.'
+            )}
             subtitleNumberOfLines={0}
             rightAccessory={
               <BottomSheetPicker
@@ -159,7 +217,10 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
                 options={languagePickerOptions}
                 onSelect={handleLanguageSelect}
                 title={t('settings.language.title', 'Language')}
-                accessibilityHint={t('settings.language.pickerHint', 'Opens language selection menu')}
+                accessibilityHint={t(
+                  'settings.language.pickerHint',
+                  'Opens language selection menu'
+                )}
                 containerStyle={{ flex: 1, maxWidth: 200 }}
               />
             }
@@ -168,8 +229,12 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
 
         {supportsLiquidGlassTabBar && (
           <SettingsRow
-            title={t('settings.liquidGlass.title', { defaultValue: 'Liquid Glass navigation' })}
-            subtitle={t('settings.liquidGlass.subtitle', { defaultValue: 'Use the iOS 26 glass tab bar and screen headers.' })}
+            title={t('settings.liquidGlass.title', {
+              defaultValue: 'Liquid Glass navigation',
+            })}
+            subtitle={t('settings.liquidGlass.subtitle', {
+              defaultValue: 'Use the iOS 26 glass tab bar and screen headers.',
+            })}
             subtitleNumberOfLines={0}
             rightAccessory={
               <Switch
@@ -180,26 +245,34 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
           />
         )}
         <SettingsRow
-          title={t('settings.notifications.title', { defaultValue: 'Notifications' })}
-          subtitle={t('settings.notifications.subtitle', { defaultValue: 'Rest timers, fasting goals, and medication reminders.' })}
+          title={t('settings.notifications.title', {
+            defaultValue: 'Notifications',
+          })}
+          subtitle={t('settings.notifications.subtitle', {
+            defaultValue:
+              'Rest timers, fasting goals, and medication reminders.',
+          })}
           subtitleNumberOfLines={0}
           onPress={() => navigation.navigate('NotificationSettings')}
         />
 
         <SettingsRow
-          title={t('settings.haptics.title', { defaultValue: 'Haptic Feedback' })}
-          subtitle={t('settings.haptics.subtitle', { defaultValue: 'Light vibrations for timers and confirmations.' })}
+          title={t('settings.haptics.title', {
+            defaultValue: 'Haptic Feedback',
+          })}
+          subtitle={t('settings.haptics.subtitle', {
+            defaultValue: 'Light vibrations for timers and confirmations.',
+          })}
           subtitleNumberOfLines={0}
           rightAccessory={
-            <Switch
-              value={hapticsEnabled}
-              onValueChange={setHapticsEnabled}
-            />
+            <Switch value={hapticsEnabled} onValueChange={setHapticsEnabled} />
           }
         />
 
         <SettingsRow
-          title={t('appSettings.voiceButton', { defaultValue: 'Talk to Sparky button' })}
+          title={t('appSettings.voiceButton', {
+            defaultValue: 'Talk to Sparky button',
+          })}
           subtitle={t('appSettings.voiceButtonHelp', {
             defaultValue:
               'Show the floating mic on every screen. Speech is transcribed on this device.',
@@ -214,7 +287,9 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
         />
 
         <SettingsRow
-          title={t('appSettings.voiceReplies', { defaultValue: 'Sparky speaks replies' })}
+          title={t('appSettings.voiceReplies', {
+            defaultValue: 'Sparky speaks replies',
+          })}
           subtitle={t('appSettings.voiceRepliesHelp', {
             defaultValue:
               "Read Sparky's answers aloud after voice questions and in chat.",
@@ -246,14 +321,15 @@ const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => 
         />
 
         <SettingsRow
-          title={t('settings.cameraShutter.title', { defaultValue: 'Camera shutter' })}
-          subtitle={t('settings.cameraShutter.subtitle', { defaultValue: 'Play a sound when capturing photos.' })}
+          title={t('settings.cameraShutter.title', {
+            defaultValue: 'Camera shutter',
+          })}
+          subtitle={t('settings.cameraShutter.subtitle', {
+            defaultValue: 'Play a sound when capturing photos.',
+          })}
           subtitleNumberOfLines={0}
           rightAccessory={
-            <Switch
-              value={soundsEnabled}
-              onValueChange={setSoundsEnabled}
-            />
+            <Switch value={soundsEnabled} onValueChange={setSoundsEnabled} />
           }
         />
       </ScrollView>

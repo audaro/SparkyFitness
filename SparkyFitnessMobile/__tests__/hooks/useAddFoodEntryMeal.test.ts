@@ -1,7 +1,11 @@
 import { renderHook, waitFor, act } from '@testing-library/react-native';
 import { useAddFoodEntryMeal } from '../../src/hooks/useAddFoodEntryMeal';
 import { createFoodEntryMeal } from '../../src/services/api/foodEntryMealsApi';
-import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import {
+  createTestQueryClient,
+  createQueryWrapper,
+  type QueryClient,
+} from './queryTestUtils';
 
 jest.mock('../../src/services/api/foodEntryMealsApi', () => ({
   createFoodEntryMeal: jest.fn(),
@@ -11,7 +15,9 @@ jest.mock('../../src/services/LogService', () => ({
   addLog: jest.fn(),
 }));
 
-const mockCreateFoodEntryMeal = createFoodEntryMeal as jest.MockedFunction<typeof createFoodEntryMeal>;
+const mockCreateFoodEntryMeal = createFoodEntryMeal as jest.MockedFunction<
+  typeof createFoodEntryMeal
+>;
 
 describe('useAddFoodEntryMeal', () => {
   let queryClient: QueryClient;
@@ -36,6 +42,7 @@ describe('useAddFoodEntryMeal', () => {
       entry_date: '2026-05-15',
       name: 'My Meal',
       description: null,
+      notes: null,
       quantity: 1,
       unit: 'serving',
       foods: [],
@@ -78,7 +85,9 @@ describe('useAddFoodEntryMeal', () => {
       result.current.invalidateCache('2026-05-15');
     });
 
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['dailySummary', '2026-05-15'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['dailySummary', '2026-05-15'],
+    });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['foods'] });
 
     invalidateSpy.mockRestore();

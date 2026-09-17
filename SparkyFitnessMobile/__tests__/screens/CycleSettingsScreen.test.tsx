@@ -15,7 +15,10 @@ const mockPutSettings = putSettings as jest.MockedFunction<typeof putSettings>;
 
 jest.mock('../../src/components/BottomSheetPicker', () => {
   const { View } = require('react-native');
-  return { __esModule: true, default: () => <View testID="bottom-sheet-picker" /> };
+  return {
+    __esModule: true,
+    default: () => <View testID="bottom-sheet-picker" />,
+  };
 });
 
 jest.mock('../../src/components/StepperInput', () => {
@@ -79,7 +82,7 @@ function renderScreen(initialSettings: any, { seed = true }: { seed?: boolean } 
     ...render(
       <QueryClientProvider client={queryClient}>
         <CycleSettingsScreen navigation={mockNavigation} route={mockRoute} />
-      </QueryClientProvider>,
+      </QueryClientProvider>
     ),
   };
 }
@@ -120,12 +123,17 @@ describe('CycleSettingsScreen', () => {
       view.unmount();
       return mockNavigation.setOptions.mock.calls
         .map(([options]: [{ title?: string }]) => options?.title)
-        .filter((title: string | undefined): title is string => typeof title === 'string')
+        .filter(
+          (title: string | undefined): title is string =>
+            typeof title === 'string'
+        )
         .pop();
     };
 
     expect(nativeTitleFor(baseSettings)).toBe('Cycle & Pregnancy');
-    expect(nativeTitleFor({ ...baseSettings, discreet_mode: true })).toBe('Wellness Settings');
+    expect(nativeTitleFor({ ...baseSettings, discreet_mode: true })).toBe(
+      'Wellness Settings'
+    );
   });
 
   // The server answers null — not a 404, and not an empty object — until this
@@ -170,7 +178,9 @@ describe('CycleSettingsScreen', () => {
     fireEvent(cycleLengthInput, 'blur');
 
     await waitFor(() => {
-      expect(mockPutSettings).toHaveBeenCalledWith({ avg_cycle_length_override: null });
+      expect(mockPutSettings).toHaveBeenCalledWith({
+        avg_cycle_length_override: null,
+      });
     });
   });
 });
@@ -179,14 +189,18 @@ describe('CycleSettingsScreen localization contracts', () => {
   it('keeps shared birth-control and condition values covered by both catalogs', () => {
     const en = require('../../src/localization/locales/en/translation.json');
     const pl = require('../../src/localization/locales/pl/translation.json');
-    const { BIRTH_CONTROL_METHODS, CYCLE_CONDITIONS } = require('@workspace/shared');
+    const {
+      BIRTH_CONTROL_METHODS,
+      CYCLE_CONDITIONS,
+    } = require('@workspace/shared');
 
     for (const method of BIRTH_CONTROL_METHODS) {
-      const key = method.value === 'iud_hormonal'
-        ? 'iudHormonal'
-        : method.value === 'iud_copper'
-          ? 'iudCopper'
-          : method.value;
+      const key =
+        method.value === 'iud_hormonal'
+          ? 'iudHormonal'
+          : method.value === 'iud_copper'
+            ? 'iudCopper'
+            : method.value;
       expect(en.cycleSettings.birthControl[key]).toBeTruthy();
       expect(pl.cycleSettings.birthControl[key]).toBeTruthy();
     }

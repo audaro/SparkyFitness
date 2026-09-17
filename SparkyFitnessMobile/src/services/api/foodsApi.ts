@@ -60,8 +60,15 @@ export const fetchFoodsPage = async ({
 /**
  * Searches foods by name with server-side pagination.
  */
-export const searchFoods = async (searchTerm: string): Promise<FoodSearchResponse> => {
-  const response = await fetchFoodsPage({ searchTerm, page: 1, itemsPerPage: 20, sortBy: 'name:asc' });
+export const searchFoods = async (
+  searchTerm: string
+): Promise<FoodSearchResponse> => {
+  const response = await fetchFoodsPage({
+    searchTerm,
+    page: 1,
+    itemsPerPage: 20,
+    sortBy: 'name:asc',
+  });
   return {
     foods: response.foods,
     totalCount: response.pagination.totalCount,
@@ -71,7 +78,9 @@ export const searchFoods = async (searchTerm: string): Promise<FoodSearchRespons
 /**
  * Fetches all variants for a given food item.
  */
-export const fetchFoodVariants = async (foodId: string): Promise<FoodVariantDetail[]> => {
+export const fetchFoodVariants = async (
+  foodId: string
+): Promise<FoodVariantDetail[]> => {
   return apiFetch<FoodVariantDetail[]>({
     endpoint: `/api/foods/food-variants?food_id=${foodId}`,
     serviceName: 'Foods API',
@@ -100,6 +109,9 @@ export interface CreateFoodVariantPayload {
   cholesterol?: number;
   vitamin_a?: number;
   vitamin_c?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   glycemic_index?: string;
   custom_nutrients?: Record<string, string | number>;
   // AI-Assisted Unit Conversions provenance — optional; server defaults
@@ -111,7 +123,9 @@ export interface CreateFoodVariantPayload {
 /**
  * Creates a new food variant for an existing food.
  */
-export const createFoodVariant = async (payload: CreateFoodVariantPayload): Promise<FoodVariantDetail> => {
+export const createFoodVariant = async (
+  payload: CreateFoodVariantPayload
+): Promise<FoodVariantDetail> => {
   return apiFetch<FoodVariantDetail>({
     endpoint: '/api/foods/food-variants',
     serviceName: 'Foods API',
@@ -121,10 +135,10 @@ export const createFoodVariant = async (payload: CreateFoodVariantPayload): Prom
   });
 };
 
-
 export interface SaveFoodPayload {
   name: string;
   brand: string | null;
+  notes?: string | null;
   serving_size: number;
   serving_unit: string;
   calories: number;
@@ -142,6 +156,9 @@ export interface SaveFoodPayload {
   cholesterol?: number;
   vitamin_a?: number;
   vitamin_c?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   is_custom?: boolean;
   is_quick_food?: boolean;
   is_default?: boolean;
@@ -168,7 +185,7 @@ export interface SaveFoodPayload {
  */
 export const saveFood = async (
   food: SaveFoodPayload,
-  images?: ImageUploadArgs,
+  images?: ImageUploadArgs
 ): Promise<FoodItem> => {
   const sendJson = (payload: Record<string, unknown>) =>
     apiFetch<FoodItem>({
@@ -217,6 +234,9 @@ export interface UpdateFoodVariantPayload {
   cholesterol?: number;
   vitamin_a?: number;
   vitamin_c?: number;
+  caffeine_mg?: number;
+  water_ml?: number;
+  alcohol_g?: number;
   glycemic_index?: string;
   custom_nutrients?: Record<string, string | number>;
 }
@@ -224,7 +244,10 @@ export interface UpdateFoodVariantPayload {
 /**
  * Updates a food variant's nutrition values.
  */
-export const updateFoodVariant = async (variantId: string, payload: UpdateFoodVariantPayload): Promise<FoodVariantDetail> => {
+export const updateFoodVariant = async (
+  variantId: string,
+  payload: UpdateFoodVariantPayload
+): Promise<FoodVariantDetail> => {
   return apiFetch<FoodVariantDetail>({
     endpoint: `/api/foods/food-variants/${variantId}`,
     serviceName: 'Foods API',
@@ -241,7 +264,9 @@ export interface DeleteFoodVariantResponse {
 /**
  * Deletes a food variant by ID.
  */
-export const deleteFoodVariant = async (variantId: string): Promise<DeleteFoodVariantResponse> => {
+export const deleteFoodVariant = async (
+  variantId: string
+): Promise<DeleteFoodVariantResponse> => {
   return apiFetch<DeleteFoodVariantResponse>({
     endpoint: `/api/foods/food-variants/${variantId}`,
     serviceName: 'Foods API',
@@ -260,11 +285,57 @@ export interface UpdateFoodPayload {
   brand?: string;
   barcode?: string | null;
   shared_with_public?: boolean;
+  /**
+   * Key presence is the update signal (see the note above): omit it to leave
+   * the stored note alone, send null to clear it.
+   */
+  notes?: string | null;
 }
 
 export interface DeleteFoodResponse {
   message: string;
+  status?: 'hidden' | 'deleted' | 'deleted_with_history';
 }
+
+/**
+ * What a delete should do to everything pointing at the food.
+ *
+ * - `hide` stops it appearing in search and changes nothing else.
+ * - `delete` removes it from the library and from meals/meal plans, keeping
+ *   diary history (entries carry their own snapshot).
+ * - `delete_with_history` also removes this user's own diary entries.
+ *
+ * Another user's diary is never affected; if anyone else still references the
+ * food the server hides it instead and reports `status: 'hidden'`.
+ */
+export type FoodDeleteMode = 'hide' | 'delete' | 'delete_with_history';
+
+export interface FoodDeletionImpact {
+  foodEntriesCount: number;
+  mealFoodsCount: number;
+  mealPlansCount: number;
+  mealPlanTemplateAssignmentsCount: number;
+  totalReferences: number;
+  otherUserReferences: number;
+}
+
+export const getFoodDeletionImpact = async (
+  foodId: string
+): Promise<FoodDeletionImpact> => {
+  const raw = await apiFetch<Partial<FoodDeletionImpact>>({
+    endpoint: `/api/foods/${foodId}/deletion-impact`,
+    serviceName: 'Foods API',
+    operation: 'get food deletion impact',
+  });
+  return {
+    foodEntriesCount: raw.foodEntriesCount ?? 0,
+    mealFoodsCount: raw.mealFoodsCount ?? 0,
+    mealPlansCount: raw.mealPlansCount ?? 0,
+    mealPlanTemplateAssignmentsCount: raw.mealPlanTemplateAssignmentsCount ?? 0,
+    totalReferences: raw.totalReferences ?? 0,
+    otherUserReferences: raw.otherUserReferences ?? 0,
+  };
+};
 
 /**
  * Updates a food item's metadata (name, brand, images).
@@ -272,7 +343,7 @@ export interface DeleteFoodResponse {
 export const updateFood = async (
   foodId: string,
   payload: UpdateFoodPayload,
-  images?: ImageUploadArgs,
+  images?: ImageUploadArgs
 ): Promise<FoodItem> => {
   const sendJson = (body: Record<string, unknown>) =>
     apiFetch<FoodItem>({
@@ -318,7 +389,7 @@ export const updateFoodEntriesSnapshot = async (
    * replacing photos the user set on individual diary entries. `false`
    * rewrites nutrition only and leaves every entry's photo untouched.
    */
-  syncImages: boolean = true,
+  syncImages: boolean = true
 ): Promise<void> => {
   return apiFetch<void>({
     endpoint: '/api/foods/update-snapshot',
@@ -334,9 +405,12 @@ export const updateFoodEntriesSnapshot = async (
 /**
  * Deletes a food item by ID.
  */
-export const deleteFood = async (foodId: string): Promise<DeleteFoodResponse> => {
+export const deleteFood = async (
+  foodId: string,
+  mode: FoodDeleteMode = 'delete'
+): Promise<DeleteFoodResponse> => {
   return apiFetch<DeleteFoodResponse>({
-    endpoint: `/api/foods/${foodId}`,
+    endpoint: `/api/foods/${foodId}?mode=${mode}`,
     serviceName: 'Foods API',
     operation: 'delete food',
     method: 'DELETE',

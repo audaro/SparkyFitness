@@ -64,8 +64,12 @@ jest.mock('@react-navigation/native', () => ({
   useNavigation: () => mockNavigation,
 }));
 
-const mockUseCreateExercise = useCreateExercise as jest.MockedFunction<typeof useCreateExercise>;
-const mockUseUpdateExercise = useUpdateExercise as jest.MockedFunction<typeof useUpdateExercise>;
+const mockUseCreateExercise = useCreateExercise as jest.MockedFunction<
+  typeof useCreateExercise
+>;
+const mockUseUpdateExercise = useUpdateExercise as jest.MockedFunction<
+  typeof useUpdateExercise
+>;
 
 const insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const frame = { x: 0, y: 0, width: 390, height: 844 };
@@ -92,7 +96,10 @@ const baseExercise: Exercise = {
 
 describe('ExerciseFormScreen — helpers', () => {
   it('splitCsvList trims, dedupes, and drops empties', () => {
-    expect(splitCsvList(' barbell, bench, barbell ,, ')).toEqual(['barbell', 'bench']);
+    expect(splitCsvList(' barbell, bench, barbell ,, ')).toEqual([
+      'barbell',
+      'bench',
+    ]);
   });
 
   it('joinCsvList round-trips', () => {
@@ -136,7 +143,11 @@ describe('ExerciseFormScreen — buildCreatePayload', () => {
 
   it('always carries the effective modality', () => {
     expect(
-      buildCreatePayload('Plank', { ...blankState, modality: 'duration' }, undefined),
+      buildCreatePayload(
+        'Plank',
+        { ...blankState, modality: 'duration' },
+        undefined
+      )
     ).toMatchObject({ modality: 'duration' });
   });
 
@@ -172,7 +183,7 @@ describe('ExerciseFormScreen — buildCreatePayload', () => {
 
   it('defaults missing category to "general"', () => {
     expect(
-      buildCreatePayload('Lunges', { ...blankState, category: null }, undefined),
+      buildCreatePayload('Lunges', { ...blankState, category: null }, undefined)
     ).toMatchObject({ category: 'general' });
   });
 });
@@ -195,7 +206,9 @@ describe('ExerciseFormScreen — buildEditPayload', () => {
       mechanic: baseExercise.mechanic ?? null,
     };
 
-    expect(buildEditPayload(baseExercise, state, baseExercise.calories_per_hour)).toEqual({});
+    expect(
+      buildEditPayload(baseExercise, state, baseExercise.calories_per_hour)
+    ).toEqual({});
   });
 
   it('includes only fields that changed', () => {
@@ -241,7 +254,11 @@ describe('ExerciseFormScreen — buildEditPayload', () => {
       mechanic: baseExercise.mechanic ?? null,
     };
 
-    const payload = buildEditPayload(baseExercise, state, baseExercise.calories_per_hour);
+    const payload = buildEditPayload(
+      baseExercise,
+      state,
+      baseExercise.calories_per_hour
+    );
     expect(payload).toEqual({ description: '' });
   });
 
@@ -265,7 +282,7 @@ describe('ExerciseFormScreen — buildEditPayload', () => {
     // Matches the category-derived value → not sent (unrelated edits never
     // imply a modality choice).
     expect(
-      buildEditPayload(baseExercise, state, baseExercise.calories_per_hour),
+      buildEditPayload(baseExercise, state, baseExercise.calories_per_hour)
     ).toEqual({});
 
     // A real change is sent alone.
@@ -273,8 +290,8 @@ describe('ExerciseFormScreen — buildEditPayload', () => {
       buildEditPayload(
         baseExercise,
         { ...state, modality: 'duration' },
-        baseExercise.calories_per_hour,
-      ),
+        baseExercise.calories_per_hour
+      )
     ).toEqual({ modality: 'duration' });
 
     // Diff is against the STORED modality when the exercise has one.
@@ -282,8 +299,8 @@ describe('ExerciseFormScreen — buildEditPayload', () => {
       buildEditPayload(
         { ...baseExercise, modality: 'duration' },
         { ...state, modality: 'duration' },
-        baseExercise.calories_per_hour,
-      ),
+        baseExercise.calories_per_hour
+      )
     ).toEqual({});
   });
 });
@@ -294,7 +311,9 @@ describe('ExerciseFormScreen — create mode', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseCreateExercise.mockReturnValue({
-      createExerciseAsync: jest.fn().mockResolvedValue({ id: 'ex-new', name: 'Lunges' }),
+      createExerciseAsync: jest
+        .fn()
+        .mockResolvedValue({ id: 'ex-new', name: 'Lunges' }),
       isPending: false,
     } as any);
     mockUseUpdateExercise.mockReturnValue({
@@ -312,21 +331,24 @@ describe('ExerciseFormScreen — create mode', () => {
     const screen = render(
       <SafeAreaProvider initialMetrics={{ insets, frame }}>
         <ExerciseFormScreen navigation={navigation} route={route as any} />
-      </SafeAreaProvider>,
+      </SafeAreaProvider>
     );
 
     pressAction(screen, navigation, 'Save');
 
     await waitFor(() => {
       expect(Toast.show).toHaveBeenCalledWith(
-        expect.objectContaining({ text1: 'Missing name' }),
+        expect.objectContaining({ text1: 'Missing name' })
       );
     });
   });
 
   it('follows the category-derived modality until the picker is touched', async () => {
     const createExerciseAsync = jest.fn().mockResolvedValue(baseExercise);
-    mockUseCreateExercise.mockReturnValue({ createExerciseAsync, isPending: false } as any);
+    mockUseCreateExercise.mockReturnValue({
+      createExerciseAsync,
+      isPending: false,
+    } as any);
     const route = {
       key: 'ExerciseForm-key',
       name: 'ExerciseForm' as const,
@@ -335,7 +357,7 @@ describe('ExerciseFormScreen — create mode', () => {
     const screen = render(
       <SafeAreaProvider initialMetrics={{ insets, frame }}>
         <ExerciseFormScreen navigation={navigation} route={route as any} />
-      </SafeAreaProvider>,
+      </SafeAreaProvider>
     );
 
     expect(screen.getByText('Tracking Type')).toBeTruthy();
@@ -344,19 +366,25 @@ describe('ExerciseFormScreen — create mode', () => {
     fireEvent.press(screen.getByText('opt-cardio'));
     fireEvent.changeText(
       screen.getByPlaceholderText('e.g. Bulgarian Split Squat'),
-      'Rowing',
+      'Rowing'
     );
     pressAction(screen, navigation, 'Save');
     await waitFor(() => {
       expect(createExerciseAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ category: 'cardio', modality: 'duration_distance' }),
+        expect.objectContaining({
+          category: 'cardio',
+          modality: 'duration_distance',
+        })
       );
     });
   });
 
   it('pins a manual modality pick across later category changes', async () => {
     const createExerciseAsync = jest.fn().mockResolvedValue(baseExercise);
-    mockUseCreateExercise.mockReturnValue({ createExerciseAsync, isPending: false } as any);
+    mockUseCreateExercise.mockReturnValue({
+      createExerciseAsync,
+      isPending: false,
+    } as any);
     const route = {
       key: 'ExerciseForm-key',
       name: 'ExerciseForm' as const,
@@ -365,19 +393,19 @@ describe('ExerciseFormScreen — create mode', () => {
     const screen = render(
       <SafeAreaProvider initialMetrics={{ insets, frame }}>
         <ExerciseFormScreen navigation={navigation} route={route as any} />
-      </SafeAreaProvider>,
+      </SafeAreaProvider>
     );
 
     fireEvent.press(screen.getByText('opt-duration'));
     fireEvent.press(screen.getByText('opt-cardio'));
     fireEvent.changeText(
       screen.getByPlaceholderText('e.g. Bulgarian Split Squat'),
-      'Plank Intervals',
+      'Plank Intervals'
     );
     pressAction(screen, navigation, 'Save');
     await waitFor(() => {
       expect(createExerciseAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ category: 'cardio', modality: 'duration' }),
+        expect.objectContaining({ category: 'cardio', modality: 'duration' })
       );
     });
   });
@@ -390,7 +418,10 @@ describe('ExerciseFormScreen — edit mode', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    updateExerciseAsync.mockResolvedValue({ ...baseExercise, name: 'Bench Press 2' });
+    updateExerciseAsync.mockResolvedValue({
+      ...baseExercise,
+      name: 'Bench Press 2',
+    });
     mockUseCreateExercise.mockReturnValue({
       createExerciseAsync: jest.fn(),
       isPending: false,
@@ -414,7 +445,7 @@ describe('ExerciseFormScreen — edit mode', () => {
     const screen = render(
       <SafeAreaProvider initialMetrics={{ insets, frame }}>
         <ExerciseFormScreen navigation={navigation} route={route as any} />
-      </SafeAreaProvider>,
+      </SafeAreaProvider>
     );
 
     pressAction(screen, navigation, 'Save');
@@ -439,7 +470,7 @@ describe('ExerciseFormScreen — edit mode', () => {
     const screen = render(
       <SafeAreaProvider initialMetrics={{ insets, frame }}>
         <ExerciseFormScreen navigation={navigation} route={route as any} />
-      </SafeAreaProvider>,
+      </SafeAreaProvider>
     );
 
     // Change the name field to force a diff. Find the Name input by its placeholder.
@@ -461,7 +492,7 @@ describe('ExerciseFormScreen — edit mode', () => {
           updatedItem: expect.objectContaining({ name: 'Bench Press 2' }),
         }),
         source: 'ExerciseDetail-key',
-      }),
+      })
     );
     expect(navigation.goBack).toHaveBeenCalled();
   });

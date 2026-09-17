@@ -47,6 +47,7 @@ import SleepStageChart from './SleepStageChart';
 import SleepSummaryCard from './SleepSummaryCard';
 import SpO2Card from './SpO2Card';
 import { useSleepDebtQuery } from '@/hooks/SleepScience/useSleepScience';
+import { axisLabelText } from '@/utils/chartUtils';
 
 interface SpO2DataPoint {
   date: string;
@@ -320,8 +321,8 @@ const SleepAnalyticsCharts = ({
                 ) : (
                   <>
                     {t('sleepAnalyticsCharts.showAll', {
+                      defaultValue: 'Show All ({{count}})',
                       count: sortedHypnograms.length,
-                      defaultValue: `Show All (${sortedHypnograms.length})`,
                     })}
                     <ChevronDown className="w-4 h-4 ml-1" />
                   </>
@@ -483,7 +484,10 @@ const SleepAnalyticsCharts = ({
                         />
                         <Tooltip
                           labelFormatter={(label) =>
-                            formatDateInUserTimezone(label, dateFormat)
+                            formatDateInUserTimezone(
+                              axisLabelText(label),
+                              dateFormat
+                            )
                           }
                           formatter={(
                             value:
@@ -598,7 +602,10 @@ const SleepAnalyticsCharts = ({
                         />
                         <Tooltip
                           labelFormatter={(label) =>
-                            formatDateInUserTimezone(label, dateFormat)
+                            formatDateInUserTimezone(
+                              axisLabelText(label),
+                              dateFormat
+                            )
                           }
                           formatter={(
                             value:
@@ -698,7 +705,10 @@ const SleepAnalyticsCharts = ({
                         />
                         <Tooltip
                           labelFormatter={(label) =>
-                            formatDateInUserTimezone(label, dateFormat)
+                            formatDateInUserTimezone(
+                              axisLabelText(label),
+                              dateFormat
+                            )
                           }
                           formatter={(
                             value:

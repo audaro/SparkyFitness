@@ -71,7 +71,7 @@ const RestPeriodSheet = forwardRef<RestPeriodSheetRef, RestPeriodSheetProps>(
         onChange(seconds);
         bottomSheetRef.current?.dismiss();
       },
-      [onChange],
+      [onChange]
     );
 
     const parsedCustom = useMemo(() => {
@@ -130,7 +130,10 @@ const RestPeriodSheet = forwardRef<RestPeriodSheetRef, RestPeriodSheetProps>(
             {t('restPeriod.title', { defaultValue: 'Rest period' })}
           </Text>
 
-          <View className="flex-row flex-wrap justify-center" style={{ gap: 8 }}>
+          <View
+            className="flex-row flex-wrap justify-center"
+            style={{ gap: 8 }}
+          >
             {REST_PRESETS.map((preset) => {
               const selected = preset === currentValue;
               return (
@@ -148,7 +151,10 @@ const RestPeriodSheet = forwardRef<RestPeriodSheetRef, RestPeriodSheetProps>(
                     className="text-sm font-medium"
                     style={{ color: selected ? '#fff' : textMuted }}
                   >
-                    {formatRestLabel(preset, t('restPeriod.off', { defaultValue: 'Off' }))}
+                    {formatRestLabel(
+                      preset,
+                      t('restPeriod.off', { defaultValue: 'Off' })
+                    )}
                   </Text>
                 </TouchableOpacity>
               );
@@ -173,7 +179,10 @@ const RestPeriodSheet = forwardRef<RestPeriodSheetRef, RestPeriodSheetProps>(
                   InputComponent={BottomSheetTextInput}
                 />
                 <Text className="text-text-secondary text-base ml-3">
-                  {formatRestLabel(Number.isNaN(parsedCustom) ? currentValue : parsedCustom, t('restPeriod.off', { defaultValue: 'Off' }))}
+                  {formatRestLabel(
+                    Number.isNaN(parsedCustom) ? currentValue : parsedCustom,
+                    t('restPeriod.off', { defaultValue: 'Off' })
+                  )}
                 </Text>
               </View>
               <Button variant="primary" onPress={handleCustomSave}>
@@ -184,7 +193,7 @@ const RestPeriodSheet = forwardRef<RestPeriodSheetRef, RestPeriodSheetProps>(
         </BottomSheetView>
       </BottomSheetModal>
     );
-  },
+  }
 );
 
 RestPeriodSheet.displayName = 'RestPeriodSheet';

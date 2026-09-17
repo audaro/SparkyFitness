@@ -4,6 +4,7 @@ import {
   requestMagicLink,
   registerUser,
   loginUser,
+  demoLogin,
   getLoginSettings,
   initiateOidcLogin,
   resetPassword,
@@ -13,6 +14,20 @@ import {
 } from '@/api/Auth/auth';
 import { authKeys } from '@/api/keys/auth';
 import { getErrorMessage } from '@/utils/api';
+
+export const useDemoLoginMutation = () => {
+  const { t } = useTranslation();
+  return useMutation({
+    mutationFn: () => demoLogin(),
+    meta: {
+      successMessage: t(
+        'auth.demoLoginSuccess',
+        'Welcome to SparkyFitness Demo!'
+      ),
+      errorMessage: (error: unknown) => getErrorMessage(error),
+    },
+  });
+};
 
 export const useLoginUserMutation = () => {
   const { t } = useTranslation();
@@ -89,6 +104,11 @@ export const useAuthSettings = () => {
   return useQuery({
     queryKey: authKeys.settings,
     queryFn: getLoginSettings,
+    // Login settings change only when the operator edits server config, so a
+    // short stale window is plenty. `staleTime: 0` with `refetchOnMount:
+    // 'always'` handed the Auth page a new object identity on every refetch,
+    // re-running the effect that arms the 800ms OIDC auto-redirect timer.
+    staleTime: 1000 * 60 * 5,
   });
 };
 

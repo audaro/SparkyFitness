@@ -1,5 +1,19 @@
 import { log } from '../../config/logging.js';
-// Using native fetch (standard in Node 22+)
+import {
+  type AiNetworkPolicy,
+  createGuardedFetch,
+} from '../../utils/outboundUrlPolicy.js';
+
+// Admins (allowPrivateNetwork) keep plain fetch — identical to the prior
+// behavior, so split-horizon LAN hostnames and any redirect-following stay
+// working. Non-admins get the guarded fetch, which applies the private-address
+// lookup guard and redirect:'manual', closing redirect-to-internal and
+// DNS-rebinding SSRF at request time.
+function resolveFoodFetch(policy?: AiNetworkPolicy): typeof fetch {
+  return policy && !policy.allowPrivateNetwork
+    ? createGuardedFetch(policy)
+    : fetch;
+}
 
 interface MealieNutrition {
   calories?: string | number;
@@ -57,7 +71,12 @@ function extractMealieProviderNutrients(
 class MealieService {
   accessToken?: string;
   baseUrl: string;
-  constructor(baseUrl: string, apiKey?: string) {
+  private networkPolicy?: AiNetworkPolicy;
+  constructor(
+    baseUrl: string,
+    apiKey?: string,
+    networkPolicy?: AiNetworkPolicy
+  ) {
     if (
       baseUrl &&
       !baseUrl.startsWith('http://') &&
@@ -68,6 +87,7 @@ class MealieService {
       this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     }
     this.accessToken = apiKey; // Directly use the provided API key as the access token
+    this.networkPolicy = networkPolicy;
   }
   async searchRecipes(
     query: string,
@@ -91,14 +111,17 @@ class MealieService {
     url.searchParams.append('perPage', String(perPage));
     url.searchParams.append('page', String(page));
     try {
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          Accept: 'application/json',
-          ...options.headers,
-        },
-      });
+      const response = await resolveFoodFetch(this.networkPolicy)(
+        url.toString(),
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            Accept: 'application/json',
+            ...options.headers,
+          },
+        }
+      );
       if (!response.ok) {
         const errorText = await response.text();
         log('error', `Mealie API Error Response (Raw): ${errorText}`);
@@ -150,7 +173,7 @@ class MealieService {
     }
     const url = `${this.baseUrl}/api/recipes/${slug}`;
     try {
-      const response = await fetch(url, {
+      const response = await resolveFoodFetch(this.networkPolicy)(url, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${this.accessToken}`,

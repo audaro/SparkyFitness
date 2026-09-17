@@ -16,7 +16,13 @@
 | `react-native-nitro-modules` | `@kingstinct/react-native-healthkit` |
 | `expo-asset` | expo |
 
-`expo-health-connect` contains only an expo config module that enables the use of `react-native-health-connect` in expo projects. The actual native module is in `react-native-health-connect`. Both must be installed.
+`react-native-health-connect` ships both the native module and its own Expo config
+plugin. The separate `expo-health-connect` package that used to supply that plugin is
+deprecated and archived upstream — everything it did moved into
+`react-native-health-connect` as of v4, and installing both causes Android build
+failures from duplicate classes. The plugin writes two AndroidManifest entries Google
+Play requires for Health Connect: the `ACTION_SHOW_PERMISSIONS_RATIONALE` intent filter
+for Android 13 and below, and the `ViewPermissionUsageActivity` alias for Android 14+.
 
 ### Troubleshooting
 

@@ -1,6 +1,7 @@
 import { vi, beforeEach, describe, expect, it } from 'vitest';
 import { buildHabitTools } from '../ai/tools/habitTools.js';
 import habitRepository from '../models/habitRepository.js';
+import { toolOpts } from './helpers/toolExecutionOptions.js';
 
 vi.mock('../models/habitRepository', () => ({
   default: {
@@ -13,7 +14,7 @@ vi.mock('../config/logging', () => ({
   log: vi.fn(),
 }));
 
-const opts = { toolCallId: 'tc-1', messages: [] };
+const opts = toolOpts;
 const HABIT_ID = '123e4567-e89b-12d3-a456-426614174000';
 const DB_ERROR_TEXT =
   'Error [DB_ERROR]: A database error occurred.\n\nSuggestion: Do NOT retry the same call — it will fail the same way. Tell the user what failed and stop.';

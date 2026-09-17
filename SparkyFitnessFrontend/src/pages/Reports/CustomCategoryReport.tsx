@@ -12,10 +12,23 @@ import { Activity } from 'lucide-react';
 import ZoomableChart from '@/components/ZoomableChart';
 import { useTranslation } from 'react-i18next';
 import { BODY_BATTERY_METRICS } from './BodyBatteryCard';
-import { RESPIRATION_METRICS } from './RespirationCard';
+import { RESPIRATION_METRICS } from './respirationMetrics';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { formatCustomChartData } from '@/utils/reportUtil';
-import { calculateSmartYAxisDomain, getChartConfig } from '@/utils/chartUtils';
+import {
+  calculateSmartYAxisDomain,
+  createDateTickFormatter,
+  createTimeSyncMethod,
+  getChartConfig,
+  getTimeXAxisProps,
+  prepareTimeChartData,
+  REPORTS_CHART_SYNC_ID,
+} from '@/utils/chartUtils';
+import { useMemo } from 'react';
+import {
+  healthMetricLabel,
+  healthMetricUnitLabel,
+} from '@/utils/healthMetricLabels';
 import {
   CustomCategoriesResponse,
   CustomMeasurementsResponse,
@@ -44,7 +57,22 @@ export const CustomCategoryReport = ({
     measurementUnit: defaultMeasurementUnit,
     convertMeasurement,
     loggingLevel,
+    chartScaleMode,
+    formatDateInUserTimezone,
   } = usePreferences();
+
+  // One instance shared by every category chart below. The parse cache it
+  // holds is keyed by raw axis value, so sharing it across charts only makes
+  // it hit more often.
+  const syncMethod = useMemo(() => createTimeSyncMethod(), []);
+
+  // In time mode the axis label Recharts hands the tooltip is a numeric
+  // timestamp, not the day string, so the header needs the same formatter the
+  // ticks use.
+  const formatChartDate = useMemo(
+    () => createDateTickFormatter(formatDateInUserTimezone),
+    [formatDateInUserTimezone]
+  );
 
   // Helper function to get smart Y-axis domain for custom measurements
   const getCustomYAxisDomain = (data: { value: number | null }[]) => {
@@ -68,15 +96,27 @@ export const CustomCategoryReport = ({
               !HIDDEN_CUSTOM_METRICS.includes(c.name)
           )
           .map((category) => {
+            const categoryLabel = healthMetricLabel(
+              category.name,
+              category.display_name,
+              t
+            );
+            const categoryUnit = healthMetricUnitLabel(
+              category.measurement_type,
+              t
+            );
             const data = customMeasurementsData.filter(
               (m) => m.category_id === category.id
             );
-            const chartData = formatCustomChartData(
-              category,
-              data,
-              loggingLevel,
-              convertMeasurement,
-              defaultMeasurementUnit
+            const chartData = prepareTimeChartData(
+              formatCustomChartData(
+                category,
+                data,
+                loggingLevel,
+                convertMeasurement,
+                defaultMeasurementUnit
+              ),
+              chartScaleMode
             );
 
             return (
@@ -86,8 +126,8 @@ export const CustomCategoryReport = ({
                   'reports.customMeasurementChartTitle',
                   '{{categoryName}} ({{measurementType}})',
                   {
-                    categoryName: category.display_name || category.name,
-                    measurementType: category.measurement_type,
+                    categoryName: categoryLabel,
+                    measurementType: categoryUnit,
                   }
                 )}
               >
@@ -97,8 +137,8 @@ export const CustomCategoryReport = ({
                       <Activity className="w-5 h-5 mr-2" />
                       {category.measurement_type.toLowerCase() === 'length' ||
                       category.measurement_type.toLowerCase() === 'distance'
-                        ? `${category.display_name || category.name} (${defaultMeasurementUnit})`
-                        : `${category.display_name || category.name} (${category.measurement_type})`}
+                        ? `${categoryLabel} (${defaultMeasurementUnit})`
+                        : `${categoryLabel} (${categoryUnit})`}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -110,9 +150,18 @@ export const CustomCategoryReport = ({
                         minHeight={0}
                         debounce={100}
                       >
-                        <LineChart data={chartData} syncId="nutrition-charts">
+                        <LineChart
+                          data={chartData}
+                          syncId={REPORTS_CHART_SYNC_ID}
+                          syncMethod={syncMethod}
+                        >
                           <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="date" />
+                          <XAxis
+                            {...getTimeXAxisProps({
+                              chartScaleMode,
+                              formatDate: formatDateInUserTimezone,
+                            })}
+                          />
                           <YAxis
                             type="number"
                             domain={
@@ -142,7 +191,7 @@ export const CustomCategoryReport = ({
 
                                 return (
                                   <div className="p-2 bg-background border rounded-md shadow-md">
-                                    <p className="label">{`${label} `}</p>
+                                    <p className="label">{`${formatChartDate(label)} `}</p>
                                     {!isNaN(numericValue) ? (
                                       <p className="intro">{`${numericValue.toFixed(getPrecision('measurement', unit))} ${unit} `}</p>
                                     ) : (

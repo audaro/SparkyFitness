@@ -8,6 +8,7 @@ export const getFoodsNeedingReview = foodDb.getFoodsNeedingReview;
 export const clearUserIgnoredUpdate = foodDb.clearUserIgnoredUpdate;
 export const getFoodEntryById = foodEntryDb.getFoodEntryById;
 export const deleteFoodAndDependencies = foodDb.deleteFoodAndDependencies;
+export const deleteFoodEntriesForUser = foodDb.deleteFoodEntriesForUser;
 export default {
   ...foodDb,
   ...foodVariantDb,
@@ -19,4 +20,5 @@ export default {
   clearUserIgnoredUpdate,
   getFoodEntryById,
   deleteFoodAndDependencies,
+  deleteFoodEntriesForUser,
 };

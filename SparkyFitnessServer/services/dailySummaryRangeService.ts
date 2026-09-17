@@ -4,10 +4,11 @@ import exerciseEntryRepository from '../models/exerciseEntry.js';
 import measurementRepository from '../models/measurementRepository.js';
 import userRepository from '../models/userRepository.js';
 import preferenceRepository from '../models/preferenceRepository.js';
+import * as genericHealthRepository from '../models/genericHealthRepository.js';
 import { log } from '../config/logging.js';
 import {
   computeCalorieBalance,
-  resolveDayFraction,
+  resolveDeviceProjectionSnapshot,
   type CalorieBalanceMeasurements,
 } from './calorieBalanceService.js';
 import {
@@ -30,6 +31,7 @@ import type { DailyCalorieBalanceRow } from '@workspace/shared';
  */
 
 export interface DailySummaryRangeOptions {
+  actorUserId: string;
   targetUserId: string;
   startDate: string;
   endDate: string;
@@ -51,11 +53,17 @@ interface CheckInRow {
   weight?: number | string | null;
   height?: number | string | null;
   body_fat_percentage?: number | string | null;
+  bmr?: number | string | null;
 }
 
 /**
  * Body-composition fields the BMR formula reads. Each is carried forward on its own,
  * mirroring the per-field subselects in `getLatestCheckInMeasurementsOnOrBeforeDate`.
+ *
+ * `bmr` is deliberately absent: a measured BMR describes the day it was recorded, so
+ * it is resolved per date below rather than carried. Leaving it here reported a
+ * single Sept 1 reading as `measured` for Sept 2 and 3 as well, which put this
+ * endpoint (Reports) and the Diary in disagreement about the same day.
  */
 const MEASUREMENT_FIELDS = [
   'weight',
@@ -79,7 +87,13 @@ function enumerateDays(startDate: string, endDate: string): string[] {
   return days;
 }
 
+/**
+ * Returns a balance for every day in the inclusive range without per-day queries.
+ * Step estimates can use the earliest later weight or height when no prior value
+ * exists; body-composition inputs for BMR remain prior-only.
+ */
 export async function getDailySummaryRange({
+  actorUserId,
   targetUserId,
   startDate,
   endDate,
@@ -94,6 +108,7 @@ export async function getDailySummaryRange({
     latestWeightHeight,
     userProfile,
     userPreferences,
+    healthConnectTotalRows,
   ] = await Promise.all([
     // Only `calories` is needed, so the custom-nutrient catalog is deliberately not
     // passed — it would inflate the dynamic SQL for columns nothing here reads.
@@ -125,26 +140,29 @@ export async function getDailySummaryRange({
       : null,
     includeCheckin
       ? measurementRepository
-          .getLatestWeightHeight(targetUserId)
+          .getLatestWeightHeight(targetUserId, startDate)
           .catch(() => ({ weightKg: null, heightCm: null }))
       : { weightKg: null, heightCm: null },
     userRepository.getUserProfile(targetUserId),
     preferenceRepository.getUserPreferences(targetUserId),
-  ]);
-
-  const externalBmrByDate =
-    userPreferences?.use_external_bmr && includeCheckin
-      ? await measurementRepository
-          .getExternalBmrByDateRange(targetUserId, startDate, endDate)
+    includeCheckin
+      ? genericHealthRepository
+          .getHealthConnectTotalCaloriesByDateRange(
+            targetUserId,
+            actorUserId,
+            startDate,
+            endDate
+          )
           .catch((error: unknown) => {
             log(
               'warn',
-              `External BMR range fetch failed for user ${targetUserId}:`,
+              `Health Connect total-calorie range fetch failed for user ${targetUserId} (${startDate}..${endDate}):`,
               error
             );
-            return new Map<string, number>();
+            return [];
           })
-      : new Map<string, number>();
+      : [],
+  ]);
 
   const eatenByDate = new Map<string, number>();
   for (const row of nutritionRows as Array<{
@@ -156,6 +174,15 @@ export async function getDailySummaryRange({
 
   const splitByDate = new Map(
     exerciseSplits.map((split) => [split.entry_date, split])
+  );
+  const healthConnectTotalByDate = new Map(
+    healthConnectTotalRows.map((row) => [
+      row.entry_date,
+      {
+        totalCalories: Number(row.total_calories),
+        capturedAt: row.captured_at,
+      },
+    ])
   );
 
   // Sorted ascending once, then walked with a cursor in the day loop. Filtering and
@@ -185,6 +212,17 @@ export async function getDailySummaryRange({
     body_fat_percentage: (seedMeasurement as CalorieBalanceMeasurements | null)
       ?.body_fat_percentage,
   };
+
+  // Exact-date lookup for the one field that is not carried forward.
+  const bmrByDate = new Map<string, string | number | null>();
+  for (const row of measurementsAsc) {
+    if (row.bmr !== null && row.bmr !== undefined && Number(row.bmr) > 0) {
+      bmrByDate.set(
+        String(row.entry_date).slice(0, 10),
+        row.bmr as string | number
+      );
+    }
+  }
 
   const days: DailyCalorieBalanceRow[] = [];
 
@@ -216,14 +254,21 @@ export async function getDailySummaryRange({
       ? resolveBackgroundStepCalories({
           totalSteps,
           activitySteps: exercise.activitySteps,
-          weightKg: latestWeightHeight.weightKg,
-          heightCm: latestWeightHeight.heightCm,
+          weightKg: Number(carried.weight ?? latestWeightHeight.weightKg),
+          heightCm: Number(carried.height ?? latestWeightHeight.heightCm),
         })
       : 0;
 
     const dayGoals = (goalsByDate as Record<string, { calories?: unknown }>)[
       date
     ];
+    const healthConnectTotal = healthConnectTotalByDate.get(date);
+    const deviceProjectionSnapshot = resolveDeviceProjectionSnapshot({
+      date,
+      timezone: tz,
+      deviceTotal: healthConnectTotal,
+      now,
+    });
 
     days.push({
       date,
@@ -235,9 +280,8 @@ export async function getDailySummaryRange({
         adjustedGoalCalories: Number(dayGoals?.calories) || 2000,
         userProfile,
         userPreferences,
-        measurements: carried,
-        externalBmr: externalBmrByDate.get(date) ?? null,
-        dayFraction: resolveDayFraction(date, tz, now),
+        measurements: { ...carried, bmr: bmrByDate.get(date) ?? null },
+        ...deviceProjectionSnapshot,
       }),
     });
   }

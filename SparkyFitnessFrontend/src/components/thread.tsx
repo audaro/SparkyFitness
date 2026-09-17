@@ -12,6 +12,7 @@ import {
 } from '@workspace/shared';
 import { AskUserToolUI } from '@/components/ai/AskUserToolUI';
 import { FoodConfirmToolUI } from '@/components/ai/FoodConfirmToolUI';
+import { FoodPhotoEstimateToolUI } from '@/components/ai/FoodPhotoEstimateToolUI';
 import { WorkoutPresetProposalToolUI } from '@/components/ai/WorkoutPresetProposalToolUI';
 import { ToolFallback } from '@/components/tool-fallback';
 import { TooltipIconButton } from '@/components/tooltip-icon-button';
@@ -556,6 +557,7 @@ const AssistantMessage: FC = () => {
                 [ASK_USER_TOOL_NAME]: AskUserToolUI,
                 [CONFIRM_FOOD_TOOL_NAME]: FoodConfirmToolUI,
                 [PROPOSE_WORKOUT_PRESET_TOOL_NAME]: WorkoutPresetProposalToolUI,
+                sparky_analyze_food_image: FoodPhotoEstimateToolUI,
               },
               Fallback: ToolFallback,
             },

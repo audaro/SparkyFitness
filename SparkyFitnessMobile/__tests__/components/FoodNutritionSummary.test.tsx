@@ -3,7 +3,12 @@ import FoodNutritionSummary from '../../src/components/FoodNutritionSummary';
 
 jest.mock('../../src/hooks', () => ({
   useServerConnection: jest.fn(() => ({ isConnected: true, isLoading: false })),
-  useCustomNutrients: jest.fn(() => ({ customNutrients: [], isLoading: false, isError: false, refetch: jest.fn() })),
+  useCustomNutrients: jest.fn(() => ({
+    customNutrients: [],
+    isLoading: false,
+    isError: false,
+    refetch: jest.fn(),
+  })),
 }));
 
 jest.mock('../../src/components/MacroCompositionRing', () => {
@@ -34,14 +39,18 @@ describe('FoodNutritionSummary — Total Carbs row', () => {
   describe('default behavior (showNetCarbs off)', () => {
     it('does not render a Total Carbs row', () => {
       const { queryByText } = render(
-        <FoodNutritionSummary name="Oats" values={baseValues} />,
+        <FoodNutritionSummary name="Oats" values={baseValues} />
       );
       expect(queryByText('Total Carbs')).toBeNull();
     });
 
     it('renders the compact verified badge when provider_verified is set', () => {
       const { getByLabelText, getByTestId } = render(
-        <FoodNutritionSummary name="Verified YAZIO food" values={baseValues} provider_verified />,
+        <FoodNutritionSummary
+          name="Verified YAZIO food"
+          values={baseValues}
+          provider_verified
+        />
       );
 
       expect(getByTestId('verified-badge')).toBeTruthy();
@@ -57,7 +66,7 @@ describe('FoodNutritionSummary — Total Carbs row', () => {
           values={baseValues}
           servings={1}
           showNetCarbs
-        />,
+        />
       );
       expect(getByText('Total Carbs')).toBeTruthy();
       // 30g raw carbs * 1 serving = 30g
@@ -71,7 +80,7 @@ describe('FoodNutritionSummary — Total Carbs row', () => {
           values={baseValues}
           servings={2.5}
           showNetCarbs
-        />,
+        />
       );
       expect(getByText('Total Carbs')).toBeTruthy();
       // 30g raw carbs * 2.5 servings = 75g
@@ -95,7 +104,7 @@ describe('FoodNutritionSummary — Total Carbs row', () => {
           values={distinctValues}
           servings={2}
           showNetCarbs
-        />,
+        />
       );
       // Fiber 8 * 2 = 16g
       expect(getByText('16g')).toBeTruthy();
@@ -114,7 +123,7 @@ describe('FoodNutritionSummary — Total Carbs row', () => {
           name="Plain food"
           values={valuesWithoutFiber}
           showNetCarbs
-        />,
+        />
       );
       // The macro bar in NutritionMacroCard falls back to "Carbs" with total
       // carbs in this case; we shouldn't add a redundant Total Carbs row.

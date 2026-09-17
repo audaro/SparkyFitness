@@ -15,6 +15,7 @@ import {
   useCheckInMeasurementsForDate,
   useLatestCheckInMeasurements,
   useExistingCustomMeasurements,
+  useLatestManualCustomEntriesOnOrBefore,
   useRecentCustomMeasurements,
   useRecentStandardMeasurements,
   useSaveCheckInMeasurementsMutation,
@@ -60,6 +61,7 @@ export function buildCheckInMeasurementsPayload(
     muscleMassKg: string;
     boneMassKg: string;
     bodyWaterPercentage: string;
+    bmr: string;
   },
   existing: CheckInMeasurementsResponse | null | undefined
 ): UpdateCheckInMeasurementsRequest {
@@ -76,7 +78,8 @@ export function buildCheckInMeasurementsPayload(
       | 'body_fat_percentage'
       | 'muscle_mass_kg'
       | 'bone_mass_kg'
-      | 'body_water_percentage',
+      | 'body_water_percentage'
+      | 'bmr',
     raw: string | undefined,
     parse: (value: string) => number
   ) => {
@@ -102,6 +105,7 @@ export function buildCheckInMeasurementsPayload(
   apply('muscle_mass_kg', form.muscleMassKg, parseFloat);
   apply('bone_mass_kg', form.boneMassKg, parseFloat);
   apply('body_water_percentage', form.bodyWaterPercentage, parseFloat);
+  apply('bmr', form.bmr, parseFloat);
 
   return payload;
 }
@@ -178,6 +182,10 @@ export const useCheckInLogic = (currentUserId: string | undefined) => {
   const { data: existingCheckIn } = useCheckInMeasurementsForDate(selectedDate);
   const { data: latestCheckIn } = useLatestCheckInMeasurements(selectedDate);
   const { data: existingCustom } = useExistingCustomMeasurements(selectedDate);
+  // Previous manual values per custom category, shown as placeholders so past
+  // entries give context without being resubmitted.
+  const { data: latestManualCustom = [] } =
+    useLatestManualCustomEntriesOnOrBefore(selectedDate);
   const { data: existingMood } = useMoodEntryByDate(selectedDate);
 
   const { data: recentCustom = [] } = useRecentCustomMeasurements();
@@ -188,6 +196,32 @@ export const useCheckInLogic = (currentUserId: string | undefined) => {
     endDate
   );
   const { data: recentFasting = [] } = useFastingHistory(10, 0);
+
+  /**
+   * Per-category previous values, keyed by category id.
+   *
+   * Only categories the check-in actually renders are considered, and a
+   * category whose selected day already holds a value keeps that value as the
+   * editable one: the hint is only offered while its input is empty.
+   */
+  const customPlaceholders = useMemo(() => {
+    const placeholders: Record<string, number | string | null> = {};
+
+    for (const entry of latestManualCustom) {
+      const category = customCategories.find((c) => c.id === entry.category_id);
+      if (!category) continue;
+      if (existingCustom?.some((m) => m.category_id === entry.category_id)) {
+        continue;
+      }
+
+      // Numeric categories keep the metric string the API returned; UnitInput
+      // converts it for display. Text categories use it verbatim.
+      placeholders[entry.category_id] =
+        category.data_type === 'numeric' ? entry.value : entry.value;
+    }
+
+    return placeholders;
+  }, [latestManualCustom, customCategories, existingCustom]);
 
   const [useMostRecentForCalculation, setUseMostRecentForCalculation] =
     useState(true);
@@ -253,6 +287,10 @@ export const useCheckInLogic = (currentUserId: string | undefined) => {
   const derivedBodyWater = useMemo(() => {
     return existingCheckIn?.body_water_percentage?.toString() || '';
   }, [existingCheckIn?.body_water_percentage]);
+
+  const derivedBmr = useMemo(() => {
+    return existingCheckIn?.bmr?.toString() || '';
+  }, [existingCheckIn?.bmr]);
 
   const derivedMood = useMemo(() => {
     return existingMood?.mood_value ?? 50;
@@ -325,6 +363,7 @@ export const useCheckInLogic = (currentUserId: string | undefined) => {
     derivedBodyWater,
     selectedDate
   );
+  const [bmr, setBmr] = useDerivedState<string>(derivedBmr, selectedDate);
   const [bodyFatPercentage, setBodyFatPercentage] = useDerivedState<string>(
     derivedBodyFat,
     selectedDate
@@ -356,6 +395,7 @@ export const useCheckInLogic = (currentUserId: string | undefined) => {
       hips: latestCheckIn?.hips ?? null,
       height: latestCheckIn?.height ?? null,
       bodyFatPercentage: latestCheckIn?.body_fat_percentage ?? null,
+      bmr: latestCheckIn?.bmr ?? null,
     }),
     [latestCheckIn]
   );
@@ -601,6 +641,7 @@ export const useCheckInLogic = (currentUserId: string | undefined) => {
           muscleMassKg,
           boneMassKg,
           bodyWaterPercentage,
+          bmr,
         },
         existingCheckIn
       );
@@ -778,8 +819,10 @@ export const useCheckInLogic = (currentUserId: string | undefined) => {
     boneMassKg,
     bodyWaterPercentage,
     muscleMassKg,
+    bmr,
     customCategories,
     customNotes,
+    customPlaceholders,
     customValues,
     handleCalculateBodyFat,
     handleDeleteMeasurementClick,
@@ -798,6 +841,7 @@ export const useCheckInLogic = (currentUserId: string | undefined) => {
     setBoneMassKg,
     setBodyWaterPercentage,
     setMuscleMassKg,
+    setBmr,
     setCustomNotes,
     setCustomValues,
     setHeight,

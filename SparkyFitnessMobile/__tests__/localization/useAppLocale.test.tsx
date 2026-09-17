@@ -35,5 +35,12 @@ describe('useAppLocale', () => {
     await waitFor(() => {
       expect(screen.getByTestId('locale').props.children).toBe('pl-PL');
     });
+
+    await act(async () => {
+      await i18n.changeLanguage('es');
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('locale').props.children).toBe('es-ES');
+    });
   });
 });

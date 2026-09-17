@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next';
 import { getAppLocale } from '../localization';
 import type { SharedScheduleRule } from '@workspace/shared';
+import { formatTimeLabel, type EntryTimeFormat } from './entryTimeDisplay';
 
 type ScheduleFields = Pick<
   SharedScheduleRule,
@@ -34,7 +35,9 @@ export function localizedMealTimingLabel(t: TFunction, value: string): string {
     case 'after':
       return t('medications.types.afterMeal', { defaultValue: 'After meal' });
     case 'away_from_meals':
-      return t('medications.mealRelation.awayFromMeals', { defaultValue: 'Away from meals' });
+      return t('medications.mealRelation.awayFromMeals', {
+        defaultValue: 'Away from meals',
+      });
     default:
       return value;
   }
@@ -47,7 +50,9 @@ function localizedFrequency(t: TFunction, schedule: ScheduleFields): string {
   }
   if (type === 'weekly' || type === 'specific_days') {
     if (!schedule.days_of_week?.length) {
-      return t('medications.scheduleSummary.weekly', { defaultValue: 'Weekly' });
+      return t('medications.scheduleSummary.weekly', {
+        defaultValue: 'Weekly',
+      });
     }
     const days = localizedWeekdayLabels(t);
     return [...schedule.days_of_week]
@@ -56,7 +61,11 @@ function localizedFrequency(t: TFunction, schedule: ScheduleFields): string {
       .filter(Boolean)
       .join(', ');
   }
-  if (type === 'every_n_days' && schedule.interval_days != null && schedule.interval_days > 0) {
+  if (
+    type === 'every_n_days' &&
+    schedule.interval_days != null &&
+    schedule.interval_days > 0
+  ) {
     if (schedule.interval_days === 1) {
       return t('medications.scheduleSummary.daily', { defaultValue: 'Daily' });
     }
@@ -73,7 +82,11 @@ function localizedFrequency(t: TFunction, schedule: ScheduleFields): string {
         })
       : t('medications.scheduleSummary.monthly', { defaultValue: 'Monthly' });
   }
-  if (type === 'cyclic' && schedule.cycle_on_days != null && schedule.cycle_on_days > 0) {
+  if (
+    type === 'cyclic' &&
+    schedule.cycle_on_days != null &&
+    schedule.cycle_on_days > 0
+  ) {
     const onDays = schedule.cycle_on_days;
     const offDays = schedule.cycle_off_days ?? 0;
     const onText = t('medications.scheduleSummary.cycleOn', {
@@ -91,7 +104,9 @@ function localizedFrequency(t: TFunction, schedule: ScheduleFields): string {
     });
   }
   if (type === 'prn') {
-    return t('medications.scheduleSummary.asNeeded', { defaultValue: 'As needed' });
+    return t('medications.scheduleSummary.asNeeded', {
+      defaultValue: 'As needed',
+    });
   }
   if (type === 'taper') {
     return t('medications.scheduleSummary.taper', { defaultValue: 'Taper' });
@@ -99,13 +114,21 @@ function localizedFrequency(t: TFunction, schedule: ScheduleFields): string {
   return t('medications.scheduleSummary.unknown', { defaultValue: 'Schedule' });
 }
 
-export function localizedDescribeSchedule(t: TFunction, schedule: ScheduleFields): string {
+export function localizedDescribeSchedule(
+  t: TFunction,
+  schedule: ScheduleFields,
+  timeFormat?: EntryTimeFormat | null
+): string {
   const frequency = localizedFrequency(t, schedule);
   if (schedule.schedule_type_id !== 'prn' && schedule.time_of_day) {
     return t('medications.scheduleSummary.at', {
       defaultValue: '{{frequency}} at {{time}}',
       frequency,
-      time: formatLocalizedTimeOfDay(schedule.time_of_day),
+      time: formatLocalizedTimeOfDay(
+        schedule.time_of_day,
+        undefined,
+        timeFormat
+      ),
     });
   }
   return frequency;
@@ -118,21 +141,28 @@ function scheduleFrequencyIdentity(schedule: ScheduleFields): string {
   }
   if (type === 'every_n_days') return `${type}:${schedule.interval_days ?? ''}`;
   if (type === 'monthly') return `${type}:${schedule.day_of_month ?? ''}`;
-  if (type === 'cyclic') return `${type}:${schedule.cycle_on_days ?? ''}:${schedule.cycle_off_days ?? 0}`;
+  if (type === 'cyclic')
+    return `${type}:${schedule.cycle_on_days ?? ''}:${schedule.cycle_off_days ?? 0}`;
   return type;
 }
 
 export function localizedDescribeSchedules(
   t: TFunction,
   schedules: (ScheduleFields & { active?: boolean | null })[],
+  timeFormat?: EntryTimeFormat | null
 ): string {
   if (schedules.length === 0) {
-    return t('medications.scheduleSummary.asNeeded', { defaultValue: 'As needed' });
+    return t('medications.scheduleSummary.asNeeded', {
+      defaultValue: 'As needed',
+    });
   }
   const active = schedules.filter((schedule) => schedule.active !== false);
   if (active.length === 0) return '';
 
-  const grouped = new Map<string, { schedule: ScheduleFields; times: string[] }>();
+  const grouped = new Map<
+    string,
+    { schedule: ScheduleFields; times: string[] }
+  >();
   for (const schedule of active) {
     const key = scheduleFrequencyIdentity(schedule);
     const group = grouped.get(key) ?? { schedule, times: [] };
@@ -145,8 +175,11 @@ export function localizedDescribeSchedules(
   return [...grouped.values()]
     .map(({ schedule, times }) => {
       const frequency = localizedFrequency(t, schedule);
-      if (times.length === 0 || schedule.schedule_type_id === 'prn') return frequency;
-      const formattedTimes = [...new Set(times)].sort().map((time) => formatLocalizedTimeOfDay(time));
+      if (times.length === 0 || schedule.schedule_type_id === 'prn')
+        return frequency;
+      const formattedTimes = [...new Set(times)]
+        .sort()
+        .map((time) => formatLocalizedTimeOfDay(time, undefined, timeFormat));
       return t('medications.scheduleSummary.at', {
         defaultValue: '{{frequency}} at {{time}}',
         frequency,
@@ -156,7 +189,15 @@ export function localizedDescribeSchedules(
     .join('; ');
 }
 
-export function formatLocalizedTimeOfDay(timeOfDay: string, locale = getAppLocale()): string {
+export function formatLocalizedTimeOfDay(
+  timeOfDay: string,
+  locale = getAppLocale(),
+  timeFormat?: EntryTimeFormat | null
+): string {
+  if (timeFormat) {
+    const formatted = formatTimeLabel(timeOfDay, timeFormat);
+    if (formatted) return formatted;
+  }
   const [hours, minutes] = timeOfDay.split(':').map(Number);
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return timeOfDay;
   return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString(locale, {

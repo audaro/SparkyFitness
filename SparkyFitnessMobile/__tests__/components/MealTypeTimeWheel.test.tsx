@@ -22,14 +22,14 @@ function pickerProps(queries: { getByTestId: (id: string) => any }) {
 
 function hhmm(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(
-    d.getMinutes(),
+    d.getMinutes()
   ).padStart(2, '0')}`;
 }
 
 describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', () => {
   it('owns a deterministic FULL-WIDTH stretchable layout (no alignItems:center shrink wrapper)', () => {
     const queries = render(
-      <MealTypeTimeWheel value="17:30" onChange={jest.fn()} testID="wheel" />,
+      <MealTypeTimeWheel value="17:30" onChange={jest.fn()} testID="wheel" />
     );
     const wrapper = queries.getByTestId('wheel');
     // The shared wheel root must be full-width + stretchable so the picker's
@@ -47,7 +47,7 @@ describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', 
 
   it('passes a full-width stretchable style to the picker itself (mirrors TimeSheet under BottomSheetView)', () => {
     const queries = render(
-      <MealTypeTimeWheel value="17:30" onChange={jest.fn()} />,
+      <MealTypeTimeWheel value="17:30" onChange={jest.fn()} />
     );
     const picker = pickerProps(queries);
     expect(picker.style.width).toBe('100%');
@@ -56,7 +56,7 @@ describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', 
 
   it('renders the picker with the supported sizing props', () => {
     const queries = render(
-      <MealTypeTimeWheel value="17:30" onChange={jest.fn()} />,
+      <MealTypeTimeWheel value="17:30" onChange={jest.fn()} />
     );
     const picker = pickerProps(queries);
     expect(picker.mode).toBe('single');
@@ -68,7 +68,7 @@ describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', 
 
   it('uses 24-hour presentation (no use12Hours) so 17 and 23 remain representable', () => {
     const queries = render(
-      <MealTypeTimeWheel value="23:59" onChange={jest.fn()} />,
+      <MealTypeTimeWheel value="23:59" onChange={jest.fn()} />
     );
     const picker = pickerProps(queries);
     // No AM/PM third column: use12Hours must be absent/false.
@@ -76,12 +76,16 @@ describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', 
   });
 
   it('seeds 17:30 and 23:59 correctly (24h values survive through the Date)', () => {
-    const p17 = render(<MealTypeTimeWheel value="17:30" onChange={jest.fn()} />);
+    const p17 = render(
+      <MealTypeTimeWheel value="17:30" onChange={jest.fn()} />
+    );
     const d17 = pickerProps(p17).date as Date;
     expect(d17.getHours()).toBe(17);
     expect(d17.getMinutes()).toBe(30);
 
-    const p23 = render(<MealTypeTimeWheel value="23:59" onChange={jest.fn()} />);
+    const p23 = render(
+      <MealTypeTimeWheel value="23:59" onChange={jest.fn()} />
+    );
     const d23 = pickerProps(p23).date as Date;
     expect(d23.getHours()).toBe(23);
     expect(d23.getMinutes()).toBe(59);
@@ -90,7 +94,7 @@ describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', 
   it('seeds the wheel with the current visible time when the value is unset', () => {
     const before = new Date();
     const queries = render(
-      <MealTypeTimeWheel value={null} onChange={jest.fn()} />,
+      <MealTypeTimeWheel value={null} onChange={jest.fn()} />
     );
     const d = pickerProps(queries).date as Date;
     const after = new Date();
@@ -104,7 +108,7 @@ describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', 
   it('converts a wheel change back to canonical HH:MM (hour change)', () => {
     const onChange = jest.fn();
     const queries = render(
-      <MealTypeTimeWheel value="17:30" onChange={onChange} />,
+      <MealTypeTimeWheel value="17:30" onChange={onChange} />
     );
     act(() => {
       pickerProps(queries).onChange({ date: new Date(2026, 7, 9, 18, 30) });
@@ -115,7 +119,7 @@ describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', 
   it('converts a wheel change back to canonical HH:MM (minute change)', () => {
     const onChange = jest.fn();
     const queries = render(
-      <MealTypeTimeWheel value="17:30" onChange={onChange} />,
+      <MealTypeTimeWheel value="17:30" onChange={onChange} />
     );
     act(() => {
       pickerProps(queries).onChange({ date: new Date(2026, 7, 9, 17, 45) });
@@ -126,7 +130,7 @@ describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', 
   it('ignores empty onChange payloads (no commit of an undefined time)', () => {
     const onChange = jest.fn();
     const queries = render(
-      <MealTypeTimeWheel value="17:30" onChange={onChange} />,
+      <MealTypeTimeWheel value="17:30" onChange={onChange} />
     );
     act(() => {
       pickerProps(queries).onChange({ date: null });
@@ -136,7 +140,7 @@ describe('MealTypeTimeWheel — visible large wheel (physical-Android bugfix)', 
 
   it('uses the picker-specific style keys with a prominent 28pt time label', () => {
     const queries = render(
-      <MealTypeTimeWheel value="17:30" onChange={jest.fn()} />,
+      <MealTypeTimeWheel value="17:30" onChange={jest.fn()} />
     );
     const styles = pickerProps(queries).styles;
     expect(styles.time_label.fontSize).toBe(28);

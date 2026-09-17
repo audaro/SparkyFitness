@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import type { FoodEntry } from '@/types/food';
 import { useAuth } from '@/hooks/useAuth';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import { calculateAge } from '@workspace/shared';
-import { dailyProgressKeys, foodEntryKeys } from '@/api/keys/diary';
-import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations';
+import {
+  calculateAge,
+  isUsableMeasuredBmr,
+  todayInZone,
+} from '@workspace/shared';
+import { dailyProgressKeys } from '@/api/keys/diary';
 import { userManagementService } from '@/api/Admin/userManagementService';
 import {
   getMostRecentMeasurement,
@@ -15,7 +17,6 @@ import { adaptiveTdeeService } from '@/api/Settings/adaptiveTdeeService';
 import { calculateBmr, BmrAlgorithm } from '@/services/bmrService';
 import { userKeys } from '@/api/keys/admin';
 import { exerciseEntryKeys } from '@/api/keys/exercises';
-import { loadFoodEntries } from '@/api/Diary/foodEntryService';
 import { loadDailySummary } from '@/api/Diary/dailySummaryService';
 import { fetchExerciseEntries } from '@/api/Exercises/exerciseEntryService';
 
@@ -37,46 +38,6 @@ export const useDailySummary = (date: string) => {
       errorMessage: t(
         'dailyProgress.summaryLoadError',
         'Failed to load daily summary.'
-      ),
-    },
-  });
-};
-
-export const useDailyFoodIntake = (date: string) => {
-  const { t } = useTranslation();
-  return useQuery({
-    queryKey: foodEntryKeys.foodIntake(date),
-    queryFn: () => loadFoodEntries(date),
-    enabled: !!date,
-    select: (entries: FoodEntry[]) => {
-      const totals = entries.reduce(
-        (acc, entry) => {
-          const nutrition = calculateFoodEntryNutrition(entry);
-          acc.calories += nutrition.calories;
-          acc.protein += nutrition.protein;
-          acc.carbs += nutrition.carbs;
-          acc.fat += nutrition.fat;
-          acc.water_ml += nutrition.water_ml;
-          return acc;
-        },
-        { calories: 0, protein: 0, carbs: 0, fat: 0, water_ml: 0 }
-      );
-
-      return {
-        entries,
-        totals: {
-          calories: Math.round(totals.calories),
-          protein: Math.round(totals.protein),
-          carbs: Math.round(totals.carbs),
-          fat: Math.round(totals.fat),
-          water_ml: Math.round(totals.water_ml),
-        },
-      };
-    },
-    meta: {
-      errorMessage: t(
-        'dailyProgress.foodLoadError',
-        'Failed to load food entries.'
       ),
     },
   });
@@ -190,9 +151,48 @@ export const useMostRecentBodyFatQuery = (enabled = true) => {
   });
 };
 
-export const useCalculatedBMR = () => {
+/**
+ * Measured BMR for a single day.
+ *
+ * Unlike weight or height this is never carried forward: a measured BMR describes
+ * the day it was recorded, so on a day without a reading the caller falls back to
+ * the user's chosen formula. Carrying it forward kept a stale reading driving the
+ * calorie target long after syncing stopped (issue #2395).
+ */
+export const useMostRecentBmrQuery = (onDate: string, enabled = true) => {
+  const { t } = useTranslation();
+
+  return useQuery({
+    queryKey: dailyProgressKeys.measurements.mostRecent('bmr', onDate),
+    queryFn: () => getMostRecentMeasurement('bmr', onDate),
+    enabled: enabled && Boolean(onDate),
+    meta: {
+      errorMessage: t(
+        'measurements.errorLoadingBmr',
+        'Failed to load most recent BMR.'
+      ),
+    },
+  });
+};
+
+/**
+ * @param overrides Unsaved values to preview against. The Settings page holds its
+ * pending edits in local state, so without these the live preview would keep
+ * showing the last *saved* preference and only catch up after a save and reload.
+ */
+export const useCalculatedBMR = (overrides?: {
+  bmrAlgorithm?: string;
+  useExternalBmr?: boolean;
+}) => {
   const { user } = useAuth();
-  const { bmrAlgorithm, includeBmrInNetCalories, timezone } = usePreferences();
+  const {
+    bmrAlgorithm: savedBmrAlgorithm,
+    includeBmrInNetCalories,
+    useExternalBmr: savedUseExternalBmr,
+    timezone,
+  } = usePreferences();
+  const bmrAlgorithm = overrides?.bmrAlgorithm ?? savedBmrAlgorithm;
+  const useExternalBmr = overrides?.useExternalBmr ?? savedUseExternalBmr;
 
   const { data: userProfile } = useQuery({
     queryKey: userKeys.profile(user?.id ?? ''),
@@ -203,37 +203,78 @@ export const useCalculatedBMR = () => {
   const { data: weightData } = useMostRecentWeightQuery();
   const { data: heightData } = useMostRecentHeightQuery();
   const { data: bodyFatData } = useMostRecentBodyFatQuery();
+  const { data: bmrData } = useMostRecentBmrQuery(todayInZone(timezone));
 
+  const rawMeasured = bmrData?.bmr ? Number(bmrData.bmr) : null;
+
+  // The formula estimate is computed first, because a measured reading is only
+  // trusted once it has been checked against this person's own estimate. It stays
+  // null when the profile is too incomplete to compute one, in which case the
+  // absolute bounds decide alone. Mirrors the server (calorieBalanceService).
+  const canComputeFormula = Boolean(
+    userProfile &&
+    weightData?.weight &&
+    heightData?.height &&
+    userProfile.gender
+  );
+
+  let formulaBmr: number | null = null;
+  if (canComputeFormula) {
+    const age = userProfile!.date_of_birth
+      ? calculateAge(userProfile!.date_of_birth, timezone)
+      : 0;
+    try {
+      const computed = calculateBmr(
+        bmrAlgorithm as BmrAlgorithm,
+        weightData!.weight,
+        heightData!.height,
+        age,
+        userProfile!.gender as 'male' | 'female',
+        bodyFatData?.body_fat_percentage
+      );
+      // `calculateBmr` does not throw on incomplete input — it warns and returns 0
+      // (e.g. Katch-McArdle with no body-fat reading). A zero is "no estimate", not
+      // an estimate of zero, so it must not reach the ratio check or the caller.
+      formulaBmr = computed > 0 ? computed : null;
+    } catch {
+      formulaBmr = null;
+    }
+  }
+
+  // Same opt-in gate as the server: without it the Diary would show a measured
+  // BMR the goal calculation had already discarded.
   if (
-    !userProfile ||
-    !weightData?.weight ||
-    !heightData?.height ||
-    !userProfile.gender
+    useExternalBmr &&
+    isUsableMeasuredBmr(rawMeasured, formulaBmr) &&
+    rawMeasured !== null
   ) {
-    return { bmr: 0, includeInNet: false };
-  }
-
-  const age = userProfile.date_of_birth
-    ? calculateAge(userProfile.date_of_birth, timezone)
-    : 0;
-
-  try {
-    const bmr = calculateBmr(
-      bmrAlgorithm as BmrAlgorithm,
-      weightData.weight,
-      heightData.height,
-      age,
-      userProfile.gender as 'male' | 'female',
-      bodyFatData?.body_fat_percentage
-    );
-
     return {
-      bmr,
+      bmr: rawMeasured,
+      measuredBmr: rawMeasured,
       includeInNet: includeBmrInNetCalories || false,
-      weight: weightData.weight,
-      height: heightData.height,
+      weight: weightData?.weight || 0,
+      height: heightData?.height || 0,
     };
-  } catch (err) {
-    return { bmr: 0, includeInNet: false, weight: 0, height: 0 };
   }
+
+  // One shape for every outcome, so consumers never have to branch on which keys
+  // are present. With no usable BMR there is nothing to subtract, so net calories
+  // must exclude it regardless of the user's preference.
+  if (formulaBmr === null) {
+    return {
+      bmr: 0,
+      measuredBmr: null,
+      includeInNet: false,
+      weight: weightData?.weight || 0,
+      height: heightData?.height || 0,
+    };
+  }
+
+  return {
+    bmr: formulaBmr,
+    measuredBmr: null,
+    includeInNet: includeBmrInNetCalories || false,
+    weight: weightData!.weight,
+    height: heightData!.height,
+  };
 };

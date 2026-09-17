@@ -9,6 +9,16 @@ import {
 import MealieService from '../integrations/mealie/mealieService.js';
 import TandoorService from '../integrations/tandoor/tandoorService.js';
 import NorishService from '../integrations/norish/norishService.js';
+import { resolveIsAdminByUserId } from '../utils/adminCheck.js';
+import { deriveFoodProviderNetworkPolicy } from '../utils/outboundUrlPolicy.js';
+
+// Non-admins get a guarded outbound fetch (blocks redirect-to-internal and
+// private-resolving hostnames); admins keep the plain fetch. Resolved per call
+// from the acting user so it reflects their current role.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function foodProviderPolicyFor(userId: any) {
+  return deriveFoodProviderNetworkPolicy(await resolveIsAdminByUserId(userId));
+}
 
 async function searchFatSecretFoods(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -264,8 +274,8 @@ async function searchMealieFoods(
     `searchMealieFoods: query: ${query}, baseUrl: ${baseUrl}, apiKey: ${apiKey ? '***' : 'none'}, userId: ${userId}, providerId: ${providerId}, page: ${page}`
   );
   try {
-    // @ts-expect-error TS(2554): Expected 2 arguments, but got 3.
-    const mealieService = new MealieService(baseUrl, apiKey, providerId);
+    const networkPolicy = await foodProviderPolicyFor(userId);
+    const mealieService = new MealieService(baseUrl, apiKey, networkPolicy);
     const { items: searchResults, pagination } =
       await mealieService.searchRecipes(query, page);
     // Concurrently fetch details for all recipes
@@ -310,8 +320,8 @@ async function getMealieFoodDetails(
     `getMealieFoodDetails: slug: ${slug}, baseUrl: ${baseUrl}, apiKey: ${apiKey ? '***' : 'none'}, userId: ${userId}, providerId: ${providerId}`
   );
   try {
-    // @ts-expect-error TS(2554): Expected 2 arguments, but got 3.
-    const mealieService = new MealieService(baseUrl, apiKey, providerId);
+    const networkPolicy = await foodProviderPolicyFor(userId);
+    const mealieService = new MealieService(baseUrl, apiKey, networkPolicy);
     const mealieRecipe = await mealieService.getRecipeDetails(slug);
     if (!mealieRecipe) {
       return null;
@@ -342,7 +352,8 @@ async function searchTandoorFoods(
     `searchTandoorFoods: query: ${query}, baseUrl: ${baseUrl}, apiKey: ${apiKey ? '***' : 'none'}, userId: ${userId}, providerId: ${providerId}`
   );
   try {
-    const tandoorService = new TandoorService(baseUrl, apiKey);
+    const networkPolicy = await foodProviderPolicyFor(userId);
+    const tandoorService = new TandoorService(baseUrl, apiKey, networkPolicy);
     const searchResults = await tandoorService.searchRecipes(query);
     const detailedRecipes = await Promise.all(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -382,7 +393,8 @@ async function getTandoorFoodDetails(
     `getTandoorFoodDetails: id: ${id}, baseUrl: ${baseUrl}, apiKey: ${apiKey ? '***' : 'none'}, userId: ${userId}, providerId: ${providerId}`
   );
   try {
-    const tandoorService = new TandoorService(baseUrl, apiKey);
+    const networkPolicy = await foodProviderPolicyFor(userId);
+    const tandoorService = new TandoorService(baseUrl, apiKey, networkPolicy);
     const tandoorRecipe = await tandoorService.getRecipeDetails(id);
     if (!tandoorRecipe) {
       return null;
@@ -410,7 +422,8 @@ async function searchNorishFoods(
     `searchNorishFoods: query: ${query}, baseUrl: ${baseUrl}, apiKey: ${apiKey ? '***' : 'none'}, userId: ${userId}, providerId: ${providerId}`
   );
   try {
-    const norishService = new NorishService(baseUrl, apiKey);
+    const networkPolicy = await foodProviderPolicyFor(userId);
+    const norishService = new NorishService(baseUrl, apiKey, networkPolicy);
     const searchResults = await norishService.searchRecipes(query);
     const detailedRecipes = await Promise.all(
       searchResults.map((recipe) => norishService.getRecipeDetails(recipe.id))
@@ -445,7 +458,8 @@ async function getNorishFoodDetails(
     `getNorishFoodDetails: id: ${id}, baseUrl: ${baseUrl}, apiKey: ${apiKey ? '***' : 'none'}, userId: ${userId}, providerId: ${providerId}`
   );
   try {
-    const norishService = new NorishService(baseUrl, apiKey);
+    const networkPolicy = await foodProviderPolicyFor(userId);
+    const norishService = new NorishService(baseUrl, apiKey, networkPolicy);
     const norishRecipe = await norishService.getRecipeDetails(id);
     if (!norishRecipe) {
       return null;

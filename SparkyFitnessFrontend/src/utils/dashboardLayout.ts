@@ -271,9 +271,6 @@ export const mealWidgetKey = (mealTypeId: string) =>
 
 export const isMealWidgetKey = (key: string) => key.startsWith(MEAL_KEY_PREFIX);
 
-export const mealTypeIdFromKey = (key: string) =>
-  key.slice(MEAL_KEY_PREFIX.length);
-
 /**
  * The diary's exercise widget. It is only rendered while acting on behalf of
  * another user — for everyone else the day's exercise lives on the Exercise
@@ -302,6 +299,7 @@ export function buildWidgetKeys(
     ...(hasDisplayableHealthMetrics ? ['healthMetrics'] : []),
     ...visibleMealTypeIds.map(mealWidgetKey),
     ...(includeExercise ? [EXERCISE_WIDGET_KEY] : []),
+    'caffeine',
   ];
 }
 
@@ -309,6 +307,11 @@ export function buildWidgetKeys(
  * Generate sensible default layouts for every breakpoint, parameterized by the
  * actual meal widget keys (count varies per user). Used for first-time users
  * and as the source of default tiles when reconciling newly-added widgets.
+ *
+ * Every non-meal widget rendered by the grid must have a tile here. A widget
+ * added to the page's registry but not to this list reaches react-grid-layout
+ * with no layout item and is placed in a 1x1 cell, which reads as the widget
+ * simply never appearing -- which is what happened to the caffeine card.
  */
 export function generateDefaultLayouts(
   mealKeys: string[],
@@ -337,7 +340,11 @@ export function generateDefaultLayouts(
       minW: 3,
       minH: 3,
     });
+    lgY += 4;
   }
+  // Full width and last: the caffeine card carries a curve, which is
+  // unreadable in a quarter-width tile.
+  lg.push({ i: 'caffeine', x: 0, y: lgY, w: 12, h: 11, minW: 4, minH: 7 });
 
   // md (10 cols): energy + nutrition top row, water below, then meals.
   const md: WidgetLayout[] = [
@@ -361,7 +368,9 @@ export function generateDefaultLayouts(
       minW: 3,
       minH: 3,
     });
+    mdY += 4;
   }
+  md.push({ i: 'caffeine', x: 0, y: mdY, w: 10, h: 11, minW: 4, minH: 7 });
 
   // sm / xs: single column, everything stacked.
   const stacked = (cols: number): WidgetLayout[] => {
@@ -378,6 +387,7 @@ export function generateDefaultLayouts(
     push('healthMetrics', 6, 4);
     for (const key of mealKeys) push(key, 4, 3);
     if (includeExercise) push(EXERCISE_WIDGET_KEY, 4, 3);
+    push('caffeine', 11, 7);
     return out;
   };
 
