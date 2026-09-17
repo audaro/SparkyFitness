@@ -458,6 +458,38 @@ async function processHealthData(
       `[processHealthData] Timezone metadata present by type: ${details}`
     );
   }
+  // The per-record contract below reports failures in the body, which is all
+  // the client can surface: "N records were rejected by the server. See logs."
+  // Several of the reject branches never log (the missing-required-fields one
+  // above, and every batch outcome), so without this summary those logs have
+  // nothing to see and the banner points at an empty file. Grouped by type and
+  // reason rather than one line per record.
+  //
+  // The reason is sanitized, not merely truncated: the invalid-date branch
+  // builds its message as `...for entry: ${JSON.stringify(dataEntry)}`, so the
+  // leading characters of that one carry the record's own value, date and
+  // source. This log is a WARN, which emits at the default level, and debug
+  // logging is an explicit opt-in here precisely because health payloads must
+  // not land in a log by accident. Cutting at the first brace drops any
+  // embedded object while keeping the human-readable prefix that identifies
+  // which check failed.
+  if (errors.length > 0) {
+    const byReason = new Map();
+    for (const { error, entry } of errors) {
+      const reason = String(error).split('{')[0].trim().slice(0, 120);
+      const key = `${entry?.type ?? 'unknown'}: ${reason}`;
+      byReason.set(key, (byReason.get(key) ?? 0) + 1);
+    }
+    const summary = [...byReason.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([key, count]) => `${count}x ${key}`)
+      .join(' | ');
+    log(
+      'warn',
+      `[processHealthData] Rejected ${errors.length} of ${healthDataArray.length} record(s): ${summary}`
+    );
+  }
   // Per-record error contract: the request succeeded even if individual
   // records did not, so per-record failures are reported in the body rather
   // than thrown. `errors` and `skipped` are always present (possibly empty).
