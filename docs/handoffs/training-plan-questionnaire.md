@@ -64,8 +64,11 @@ suites rerun (43 tests). The server is untouched since `2233a59ae`.
 
 ## Exact next step
 
-1. **Push.** Ten commits `d5b567370..2870295d8` are local only. `audaro/SparkyFitness` is
-   public — the commit messages were written in product terms, but re-read them before pushing.
+1. **Push.** ~~Eleven commits `d5b567370..a64849a0e` are local only~~ — done: they went out
+   with the upstream sync, see `docs/handoffs/upstream-sync-2026-09-16.md`. (The count read
+   "ten" here because the handoff commit itself landed after this list was written.)
+   `audaro/SparkyFitness` is public — the commit messages were written in product terms, but
+   re-read them before pushing.
 2. **Answer the questionnaire on a real device** and confirm the ring moves. Nothing here has
    been exercised against the live account; every verdict so far is from tests.
 3. **Maestro is still dead** (`ExpoVideo` missing from a stale August binary). A QA scenario for
