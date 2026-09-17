@@ -63,20 +63,46 @@ export function useGymProfileMutations() {
   const create = useMutation({
     mutationFn: (body: GymProfileCreatePayload) => createGymProfile(body),
     onSuccess: invalidate,
-    onError: (error) => errorToast(t, t('gymProfiles.createFailed', { defaultValue: 'Could not create gym profile' }), error),
+    onError: (error) =>
+      errorToast(
+        t,
+        t('gymProfiles.createFailed', {
+          defaultValue: 'Could not create gym profile',
+        }),
+        error
+      ),
   });
 
   const update = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: GymProfileUpdatePayload }) =>
-      updateGymProfile(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: GymProfileUpdatePayload;
+    }) => updateGymProfile(id, payload),
     onSuccess: invalidate,
-    onError: (error) => errorToast(t, t('gymProfiles.saveFailed', { defaultValue: 'Could not save gym profile' }), error),
+    onError: (error) =>
+      errorToast(
+        t,
+        t('gymProfiles.saveFailed', {
+          defaultValue: 'Could not save gym profile',
+        }),
+        error
+      ),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteGymProfile(id),
     onSuccess: invalidate,
-    onError: (error) => errorToast(t, t('gymProfiles.deleteFailed', { defaultValue: 'Could not delete gym profile' }), error),
+    onError: (error) =>
+      errorToast(
+        t,
+        t('gymProfiles.deleteFailed', {
+          defaultValue: 'Could not delete gym profile',
+        }),
+        error
+      ),
   });
 
   // Activation flips two rows server-side, so refetch rather than patching the
@@ -84,7 +110,14 @@ export function useGymProfileMutations() {
   const activate = useMutation({
     mutationFn: (id: string) => activateGymProfile(id),
     onSuccess: invalidate,
-    onError: (error) => errorToast(t, t('gymProfiles.switchFailed', { defaultValue: 'Could not switch gym profile' }), error),
+    onError: (error) =>
+      errorToast(
+        t,
+        t('gymProfiles.switchFailed', {
+          defaultValue: 'Could not switch gym profile',
+        }),
+        error
+      ),
   });
 
   return {

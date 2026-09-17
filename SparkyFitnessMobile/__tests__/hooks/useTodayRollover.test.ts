@@ -7,7 +7,9 @@ jest.mock('@react-navigation/native', () => ({
   useFocusEffect: jest.fn(),
 }));
 
-const mockUseFocusEffect = useFocusEffect as jest.MockedFunction<typeof useFocusEffect>;
+const mockUseFocusEffect = useFocusEffect as jest.MockedFunction<
+  typeof useFocusEffect
+>;
 
 describe('useTodayRollover', () => {
   let focusCallback: (() => void) | undefined;
@@ -27,7 +29,9 @@ describe('useTodayRollover', () => {
       .spyOn(AppState, 'addEventListener')
       .mockImplementation((_event, handler) => {
         appStateCallback = handler as (state: AppStateStatus) => void;
-        return { remove: removeListener } as ReturnType<typeof AppState.addEventListener>;
+        return { remove: removeListener } as ReturnType<
+          typeof AppState.addEventListener
+        >;
       });
   });
 

@@ -44,8 +44,14 @@ const DILUENT_PARTS: Record<
   sterile_saline: { preservative: 'sterile', fluid: 'saline' },
 };
 
-const DILUENT_BY_PARTS: Record<DiluentPreservative, Record<DiluentFluid, ReconstitutionDiluent>> = {
-  bacteriostatic: { water: 'bacteriostatic_water', saline: 'bacteriostatic_saline' },
+const DILUENT_BY_PARTS: Record<
+  DiluentPreservative,
+  Record<DiluentFluid, ReconstitutionDiluent>
+> = {
+  bacteriostatic: {
+    water: 'bacteriostatic_water',
+    saline: 'bacteriostatic_saline',
+  },
   sterile: { water: 'sterile_water', saline: 'sterile_saline' },
 };
 
@@ -93,19 +99,27 @@ export default function ReconstitutionCalculator({
 }) {
   const { t } = useTranslation();
   const [vialAmount, setVialAmount] = useState(
-    initialRecord ? String(initialRecord.vial_amount) : '',
+    initialRecord ? String(initialRecord.vial_amount) : ''
   );
-  const [vialUnit, setVialUnit] = useState<ReconstitutionUnit>(initialRecord?.vial_unit ?? 'mg');
+  const [vialUnit, setVialUnit] = useState<ReconstitutionUnit>(
+    initialRecord?.vial_unit ?? 'mg'
+  );
   const [diluentMl, setDiluentMl] = useState(
-    initialRecord ? String(initialRecord.diluent_ml) : '',
+    initialRecord ? String(initialRecord.diluent_ml) : ''
   );
-  const [doseAmount, setDoseAmount] = useState(initialDose ? String(initialDose.amount) : '');
-  const [doseUnit, setDoseUnit] = useState<ReconstitutionUnit>(initialDose?.unit ?? 'mg');
-  const [syringe, setSyringe] = useState<SyringeStandard>(initialRecord?.syringe ?? 'U-100');
+  const [doseAmount, setDoseAmount] = useState(
+    initialDose ? String(initialDose.amount) : ''
+  );
+  const [doseUnit, setDoseUnit] = useState<ReconstitutionUnit>(
+    initialDose?.unit ?? 'mg'
+  );
+  const [syringe, setSyringe] = useState<SyringeStandard>(
+    initialRecord?.syringe ?? 'U-100'
+  );
   // A record saved before this field existed reads back as null — "not stated", not "no
   // preservative" — so the picker opens on the common case rather than inheriting the ambiguity.
   const [diluent, setDiluent] = useState<ReconstitutionDiluent>(
-    initialRecord?.diluent ?? DEFAULT_DILUENT,
+    initialRecord?.diluent ?? DEFAULT_DILUENT
   );
   const diluentParts = DILUENT_PARTS[diluent];
 
@@ -116,7 +130,9 @@ export default function ReconstitutionCalculator({
       ? t('medications.recon.diluentPreservatives.bacteriostatic', {
           defaultValue: 'Bacteriostatic',
         })
-      : t('medications.recon.diluentPreservatives.sterile', { defaultValue: 'Sterile' });
+      : t('medications.recon.diluentPreservatives.sterile', {
+          defaultValue: 'Sterile',
+        });
 
   const fluidLabel = (value: DiluentFluid) =>
     value === 'water'
@@ -136,18 +152,31 @@ export default function ReconstitutionCalculator({
       syringe,
       intervalDays: intervalDays ?? null,
     });
-  }, [complete, vialAmount, vialUnit, diluentMl, doseAmount, doseUnit, syringe, intervalDays]);
+  }, [
+    complete,
+    vialAmount,
+    vialUnit,
+    diluentMl,
+    doseAmount,
+    doseUnit,
+    syringe,
+    intervalDays,
+  ]);
 
   return (
     <View className="gap-3 rounded-lg border border-border-subtle p-3">
       <Text className="text-text-primary text-sm font-semibold">
-        {t('medications.recon.title', { defaultValue: 'Reconstitution calculator' })}
+        {t('medications.recon.title', {
+          defaultValue: 'Reconstitution calculator',
+        })}
       </Text>
 
       {vialSuggestions.length > 0 && (
         <View className="flex-row flex-wrap items-center gap-2">
           <Text className="text-text-muted text-xs">
-            {t('medications.recon.commonVials', { defaultValue: 'Common vials:' })}
+            {t('medications.recon.commonVials', {
+              defaultValue: 'Common vials:',
+            })}
           </Text>
           {vialSuggestions.map((vial) => (
             <TouchableOpacity
@@ -179,7 +208,10 @@ export default function ReconstitutionCalculator({
           onChangeText={setVialAmount}
         />
         <SegmentedControl
-          segments={UNITS.map((unit) => ({ key: unit, label: unitLabel(unit) }))}
+          segments={UNITS.map((unit) => ({
+            key: unit,
+            label: unitLabel(unit),
+          }))}
           activeKey={vialUnit}
           onSelect={setVialUnit}
         />
@@ -208,12 +240,19 @@ export default function ReconstitutionCalculator({
             label: preservativeLabel(value),
           }))}
           activeKey={diluentParts.preservative}
-          onSelect={(value) => setDiluent(DILUENT_BY_PARTS[value][diluentParts.fluid])}
+          onSelect={(value) =>
+            setDiluent(DILUENT_BY_PARTS[value][diluentParts.fluid])
+          }
         />
         <SegmentedControl
-          segments={FLUIDS.map((value) => ({ key: value, label: fluidLabel(value) }))}
+          segments={FLUIDS.map((value) => ({
+            key: value,
+            label: fluidLabel(value),
+          }))}
           activeKey={diluentParts.fluid}
-          onSelect={(value) => setDiluent(DILUENT_BY_PARTS[diluentParts.preservative][value])}
+          onSelect={(value) =>
+            setDiluent(DILUENT_BY_PARTS[diluentParts.preservative][value])
+          }
         />
         <Text className="text-text-muted text-xs">
           {t('medications.recon.diluentHint', {
@@ -235,7 +274,10 @@ export default function ReconstitutionCalculator({
           onChangeText={setDoseAmount}
         />
         <SegmentedControl
-          segments={UNITS.map((unit) => ({ key: unit, label: unitLabel(unit) }))}
+          segments={UNITS.map((unit) => ({
+            key: unit,
+            label: unitLabel(unit),
+          }))}
           activeKey={doseUnit}
           onSelect={setDoseUnit}
         />
@@ -269,10 +311,14 @@ export default function ReconstitutionCalculator({
               syringe={result.syringe}
               capacityUnits={result.syringeCapacityUnits}
             />
-            <Text testID="recon-units" className="text-text-primary text-2xl font-bold">
+            <Text
+              testID="recon-units"
+              className="text-text-primary text-2xl font-bold"
+            >
               {result.syringeUnits}{' '}
               <Text className="text-text-muted text-base font-medium">
-                {t('medications.recon.units', { defaultValue: 'units' })} ({result.syringe})
+                {t('medications.recon.units', { defaultValue: 'units' })} (
+                {result.syringe})
               </Text>
             </Text>
             <Text className="text-text-muted text-sm">
@@ -323,7 +369,9 @@ export default function ReconstitutionCalculator({
               }
             >
               <Text className="text-text-primary text-sm font-medium">
-                {t('medications.recon.apply', { defaultValue: 'Use these numbers' })}
+                {t('medications.recon.apply', {
+                  defaultValue: 'Use these numbers',
+                })}
               </Text>
             </TouchableOpacity>
           )}

@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SvgXml } from 'react-native-svg';
 import { useCSSVariable } from 'uniwind';
@@ -34,7 +41,10 @@ import Switch from '../components/ui/Switch';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
-import { useGymProfiles, useGymProfileMutations } from '../hooks/useGymProfiles';
+import {
+  useGymProfiles,
+  useGymProfileMutations,
+} from '../hooks/useGymProfiles';
 import {
   localizeEquipmentItem,
   localizeEquipmentItemCategory,
@@ -71,7 +81,9 @@ function equipmentSummary(t: TFunction, profile: GymProfile): string {
         });
   }
   if (profile.equipment.length === 0)
-    return t('gymProfiles.noEquipment', { defaultValue: 'No equipment selected' });
+    return t('gymProfiles.noEquipment', {
+      defaultValue: 'No equipment selected',
+    });
   return profile.equipment.map(equipmentLabel).join(', ');
 }
 
@@ -82,13 +94,15 @@ function equipmentSummary(t: TFunction, profile: GymProfile): string {
  * validation.
  */
 function toCanonicalList(equipment: string[]): Equipment[] {
-  return equipment.filter((value): value is Equipment => isKnownEquipment(value));
+  return equipment.filter((value): value is Equipment =>
+    isKnownEquipment(value)
+  );
 }
 
 /** Same stale-row defense as {@link toCanonicalList}, for apparatus. */
 function toCanonicalApparatus(apparatus: string[]): ExerciseApparatus[] {
   return apparatus.filter((value): value is ExerciseApparatus =>
-    (EXERCISE_APPARATUS as readonly string[]).includes(value),
+    (EXERCISE_APPARATUS as readonly string[]).includes(value)
   );
 }
 
@@ -112,7 +126,7 @@ type PreferenceSegmentKey = EquipmentPreference | typeof PREFERENCE_UNSET;
  * reject it.
  */
 function toCanonicalPreference(
-  preference: string | null | undefined,
+  preference: string | null | undefined
 ): EquipmentPreference | null {
   return (EQUIPMENT_PREFERENCES as readonly string[]).includes(preference ?? '')
     ? (preference as EquipmentPreference)
@@ -169,10 +183,21 @@ const SelectableChip: React.FC<SelectableChipProps> = ({
       ) : null}
       {iconXml ? (
         <View className="mr-1.5">
-          <SvgXml xml={iconXml} width={16} height={16} color={selected ? '#FFFFFF' : textPrimary} />
+          <SvgXml
+            xml={iconXml}
+            width={16}
+            height={16}
+            color={selected ? '#FFFFFF' : textPrimary}
+          />
         </View>
       ) : null}
-      <Text className={selected ? 'text-sm font-semibold text-white' : 'text-sm text-text-primary'}>
+      <Text
+        className={
+          selected
+            ? 'text-sm font-semibold text-white'
+            : 'text-sm text-text-primary'
+        }
+      >
         {label}
       </Text>
     </Pressable>
@@ -217,7 +242,9 @@ interface EditorState {
   makeActive: boolean;
 }
 
-const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => {
+const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({
+  navigation,
+}) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
@@ -262,7 +289,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
             // A first profile that is not active would change nothing, so
             // default it on; later ones are created inactive until switched to.
             makeActive: profiles.length === 0,
-          },
+          }
     );
   }, [profiles.length]);
 
@@ -283,15 +310,19 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
         // "never stated", the same as SQL NULL.
         apparatusSpecified: Array.isArray(profile.apparatus),
         apparatus: toCanonicalApparatus(profile.apparatus ?? []),
-        equipmentPreference: toCanonicalPreference(profile.equipment_preference),
+        equipmentPreference: toCanonicalPreference(
+          profile.equipment_preference
+        ),
         dumbbellMaxInput:
           dumbbellMaxKg === undefined
             ? ''
-            : String(Math.round(weightFromKg(dumbbellMaxKg, weightUnit) * 100) / 100),
+            : String(
+                Math.round(weightFromKg(dumbbellMaxKg, weightUnit) * 100) / 100
+              ),
         makeActive: profile.is_active,
       });
     },
-    [weightUnit],
+    [weightUnit]
   );
 
   const closeEditor = useCallback(() => setEditor(null), []);
@@ -355,23 +386,30 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
     // A prefill, not a merge: tapping a template answers "what kind of gym is
     // this", and layering it over a half-made selection would answer neither.
     setEditor((current) =>
-      current ? { ...current, items: [...GYM_TEMPLATES[template]] } : current,
+      current ? { ...current, items: [...GYM_TEMPLATES[template]] } : current
     );
   }, []);
 
-  const setCategoryItems = useCallback((category: EquipmentItemCategory, selected: boolean) => {
-    const categorySlugs = EQUIPMENT_ITEMS.filter((item) => item.category === category).map(
-      (item) => item.slug,
-    );
-    setEditor((current) => {
-      if (!current) return current;
-      const withoutCategory = current.items.filter((item) => !categorySlugs.includes(item));
-      return {
-        ...current,
-        items: selected ? [...withoutCategory, ...categorySlugs] : withoutCategory,
-      };
-    });
-  }, []);
+  const setCategoryItems = useCallback(
+    (category: EquipmentItemCategory, selected: boolean) => {
+      const categorySlugs = EQUIPMENT_ITEMS.filter(
+        (item) => item.category === category
+      ).map((item) => item.slug);
+      setEditor((current) => {
+        if (!current) return current;
+        const withoutCategory = current.items.filter(
+          (item) => !categorySlugs.includes(item)
+        );
+        return {
+          ...current,
+          items: selected
+            ? [...withoutCategory, ...categorySlugs]
+            : withoutCategory,
+        };
+      });
+    },
+    []
+  );
 
   const upgradeToDetailed = useCallback(() => {
     // Never silently: this runs from its own button on a legacy profile, and
@@ -385,7 +423,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
         detailed: true,
         items: expandCoarseEquipment(
           current.equipment,
-          current.apparatusSpecified ? current.apparatus : null,
+          current.apparatusSpecified ? current.apparatus : null
         ),
       };
     });
@@ -400,12 +438,13 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
     (input: string): { kg: number | null; invalid: boolean } => {
       if (input.trim() === '') return { kg: null, invalid: false };
       const value = parseDecimalInput(input);
-      if (!Number.isFinite(value) || value <= 0) return { kg: null, invalid: true };
+      if (!Number.isFinite(value) || value <= 0)
+        return { kg: null, invalid: true };
       const kg = Math.round(weightToKg(value, weightUnit) * 100) / 100;
       if (kg > MAX_LOAD_LIMIT_KG) return { kg: null, invalid: true };
       return { kg, invalid: false };
     },
-    [weightUnit],
+    [weightUnit]
   );
 
   const dumbbellMax = parseDumbbellMax(editor?.dumbbellMaxInput ?? '');
@@ -416,7 +455,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
   const handleSave = useCallback(async () => {
     if (!editor || editor.name.trim().length === 0) return;
     const name = editor.name.trim();
-    const { kg: dumbbellMaxKg, invalid } = parseDumbbellMax(editor.dumbbellMaxInput);
+    const { kg: dumbbellMaxKg, invalid } = parseDumbbellMax(
+      editor.dumbbellMaxInput
+    );
     if (invalid) return;
     // Only the dumbbell ceiling is edited here, but load_limits replaces the
     // whole column — carry the row's other entries (and any increment
@@ -426,7 +467,10 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
     if (dumbbellMaxKg === null) {
       delete nextLimits.dumbbell;
     } else {
-      nextLimits.dumbbell = { ...existingLimits?.dumbbell, max_kg: dumbbellMaxKg };
+      nextLimits.dumbbell = {
+        ...existingLimits?.dumbbell,
+        max_kg: dumbbellMaxKg,
+      };
     }
     const loadLimits = Object.keys(nextLimits).length > 0 ? nextLimits : null;
     const apparatus = editor.apparatusSpecified ? editor.apparatus : null;
@@ -491,7 +535,13 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
       // The mutation hooks already toast; keep the editor open so the entered
       // values are not lost.
     }
-  }, [editor, parseDumbbellMax, updateProfileAsync, activateProfileAsync, createProfileAsync]);
+  }, [
+    editor,
+    parseDumbbellMax,
+    updateProfileAsync,
+    activateProfileAsync,
+    createProfileAsync,
+  ]);
 
   const handleDelete = useCallback(() => {
     const profile = editor?.profile;
@@ -504,7 +554,10 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
         name: profile.name,
       }),
       [
-        { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+        {
+          text: t('common.cancel', { defaultValue: 'Cancel' }),
+          style: 'cancel',
+        },
         {
           text: t('common.delete', { defaultValue: 'Delete' }),
           style: 'destructive',
@@ -516,7 +569,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
               });
           },
         },
-      ],
+      ]
     );
   }, [t, editor, deleteProfileAsync]);
 
@@ -527,7 +580,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
         // Toasted by the mutation hook.
       });
     },
-    [activateProfileAsync, isActivating],
+    [activateProfileAsync, isActivating]
   );
 
   // One primary action at a time: the editor owns Save, the list owns the add
@@ -566,7 +619,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
           sfSymbol: 'plus',
           ionicon: 'add',
           onPress: openCreate,
-          accessibilityLabel: t('gymProfiles.add', { defaultValue: 'Add gym profile' }),
+          accessibilityLabel: t('gymProfiles.add', {
+            defaultValue: 'Add gym profile',
+          }),
           identifier: 'gym-profiles-add',
         },
   });
@@ -582,7 +637,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
           padding: 16,
           paddingBottom: insets.bottom + 80 + activeWorkoutBarPadding,
         }}
-        contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior={
+          usesNativeHeader ? 'automatic' : 'never'
+        }
         keyboardShouldPersistTaps="handled"
       >
         {editor ? (
@@ -593,7 +650,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
             <FormInput
               value={editor.name}
               onChangeText={(name) =>
-                setEditor((current) => (current ? { ...current, name } : current))
+                setEditor((current) =>
+                  current ? { ...current, name } : current
+                )
               }
               placeholder={t('gymProfiles.namePlaceholder', {
                 defaultValue: 'Home, Planet Fitness…',
@@ -608,7 +667,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
             {editor.detailed ? (
               <>
                 <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-2">
-                  {t('gymProfiles.templatesLabel', { defaultValue: 'Start from a template' })}
+                  {t('gymProfiles.templatesLabel', {
+                    defaultValue: 'Start from a template',
+                  })}
                 </Text>
                 <View className="flex-row flex-wrap gap-2">
                   {GYM_TEMPLATE_SLUGS.map((template) => (
@@ -628,7 +689,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                 </View>
 
                 <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
-                  {t('gymProfiles.equipmentLabel', { defaultValue: 'Equipment' })}
+                  {t('gymProfiles.equipmentLabel', {
+                    defaultValue: 'Equipment',
+                  })}
                 </Text>
                 <Text className="text-sm text-text-secondary mb-3">
                   {t('gymProfiles.detailedHelp', {
@@ -639,7 +702,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                 <FormInput
                   value={editor.itemFilter}
                   onChangeText={(itemFilter) =>
-                    setEditor((current) => (current ? { ...current, itemFilter } : current))
+                    setEditor((current) =>
+                      current ? { ...current, itemFilter } : current
+                    )
                   }
                   placeholder={t('gymProfiles.itemSearchPlaceholder', {
                     defaultValue: 'Search equipment…',
@@ -653,11 +718,13 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                 {EQUIPMENT_ITEM_CATEGORIES.map((category) => {
                   const filter = editor.itemFilter.trim().toLowerCase();
                   const categoryItems = EQUIPMENT_ITEMS.filter(
-                    (item) => item.category === category,
+                    (item) => item.category === category
                   ).filter(
                     (item) =>
                       filter === '' ||
-                      localizeEquipmentItem(t, item.slug).toLowerCase().includes(filter),
+                      localizeEquipmentItem(t, item.slug)
+                        .toLowerCase()
+                        .includes(filter)
                   );
                   if (categoryItems.length === 0) return null;
                   return (
@@ -675,7 +742,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                             })}
                             testID={`gym-profile-item-all-${categoryTestSlug(category)}`}
                           >
-                            {t('gymProfiles.selectAll', { defaultValue: 'All' })}
+                            {t('gymProfiles.selectAll', {
+                              defaultValue: 'All',
+                            })}
                           </Button>
                           <Button
                             variant="ghost"
@@ -685,7 +754,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                             })}
                             testID={`gym-profile-item-none-${categoryTestSlug(category)}`}
                           >
-                            {t('gymProfiles.selectNone', { defaultValue: 'None' })}
+                            {t('gymProfiles.selectNone', {
+                              defaultValue: 'None',
+                            })}
                           </Button>
                         </View>
                       </View>
@@ -708,7 +779,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
             ) : (
               <>
                 <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
-                  {t('gymProfiles.equipmentLabel', { defaultValue: 'Equipment' })}
+                  {t('gymProfiles.equipmentLabel', {
+                    defaultValue: 'Equipment',
+                  })}
                 </Text>
                 <Text className="text-sm text-text-secondary mb-3">
                   {t('gymProfiles.equipmentHelp', {
@@ -729,7 +802,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                 </View>
 
                 <Text className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-6 mb-1">
-                  {t('gymProfiles.apparatusLabel', { defaultValue: 'Apparatus' })}
+                  {t('gymProfiles.apparatusLabel', {
+                    defaultValue: 'Apparatus',
+                  })}
                 </Text>
                 <Text className="text-sm text-text-secondary mb-3">
                   {t('gymProfiles.apparatusHelp', {
@@ -755,8 +830,12 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                       onPress={() =>
                         setEditor((current) =>
                           current
-                            ? { ...current, apparatusSpecified: false, apparatus: [] }
-                            : current,
+                            ? {
+                                ...current,
+                                apparatusSpecified: false,
+                                apparatus: [],
+                              }
+                            : current
                         )
                       }
                       className="mt-2 self-start"
@@ -765,7 +844,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                       })}
                       testID="gym-profile-apparatus-clear"
                     >
-                      {t('gymProfiles.apparatusClear', { defaultValue: 'Let Sparky assume' })}
+                      {t('gymProfiles.apparatusClear', {
+                        defaultValue: 'Let Sparky assume',
+                      })}
                     </Button>
                   </>
                 ) : (
@@ -773,7 +854,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                     variant="secondary"
                     onPress={() =>
                       setEditor((current) =>
-                        current ? { ...current, apparatusSpecified: true } : current,
+                        current
+                          ? { ...current, apparatusSpecified: true }
+                          : current
                       )
                     }
                     className="self-start"
@@ -782,7 +865,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                     })}
                     testID="gym-profile-apparatus-specify"
                   >
-                    {t('gymProfiles.apparatusSpecify', { defaultValue: 'Specify apparatus' })}
+                    {t('gymProfiles.apparatusSpecify', {
+                      defaultValue: 'Specify apparatus',
+                    })}
                   </Button>
                 )}
 
@@ -796,7 +881,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                     })}
                     testID="gym-profile-upgrade"
                   >
-                    {t('gymProfiles.upgrade', { defaultValue: 'Upgrade to detailed equipment' })}
+                    {t('gymProfiles.upgrade', {
+                      defaultValue: 'Upgrade to detailed equipment',
+                    })}
                   </Button>
                   <Text className="text-sm text-text-secondary mt-2">
                     {t('gymProfiles.upgradeHelp', {
@@ -849,7 +936,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                         equipmentPreference:
                           key === PREFERENCE_UNSET ? null : key,
                       }
-                    : current,
+                    : current
                 )
               }
             />
@@ -870,7 +957,7 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
               value={editor.dumbbellMaxInput}
               onChangeText={(dumbbellMaxInput) =>
                 setEditor((current) =>
-                  current ? { ...current, dumbbellMaxInput } : current,
+                  current ? { ...current, dumbbellMaxInput } : current
                 )
               }
               placeholder={t('gymProfiles.dumbbellMaxPlaceholder', {
@@ -893,18 +980,23 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
             <View className="flex-row items-center justify-between bg-surface rounded-xl p-4 mt-6">
               <View className="flex-1 mr-3">
                 <Text className="text-base font-semibold text-text-primary">
-                  {t('gymProfiles.useThis', { defaultValue: 'Use this profile' })}
+                  {t('gymProfiles.useThis', {
+                    defaultValue: 'Use this profile',
+                  })}
                 </Text>
                 <Text className="text-sm text-text-secondary mt-0.5">
                   {t('gymProfiles.useThisHelp', {
-                    defaultValue: 'Makes it the active profile for workout suggestions.',
+                    defaultValue:
+                      'Makes it the active profile for workout suggestions.',
                   })}
                 </Text>
               </View>
               <Switch
                 value={editor.makeActive}
                 onValueChange={(makeActive) =>
-                  setEditor((current) => (current ? { ...current, makeActive } : current))
+                  setEditor((current) =>
+                    current ? { ...current, makeActive } : current
+                  )
                 }
                 // Turning the active profile off has no meaning — activate a
                 // different one instead.
@@ -925,7 +1017,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                 })}
                 testID="gym-profile-delete"
               >
-                {t('gymProfiles.deleteAction', { defaultValue: 'Delete profile' })}
+                {t('gymProfiles.deleteAction', {
+                  defaultValue: 'Delete profile',
+                })}
               </Button>
             ) : null}
           </View>
@@ -940,7 +1034,9 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
             ) : profiles.length === 0 ? (
               <View className="items-center py-12">
                 <Text className="text-base font-semibold text-text-primary mb-1">
-                  {t('gymProfiles.emptyTitle', { defaultValue: 'No gym profiles yet' })}
+                  {t('gymProfiles.emptyTitle', {
+                    defaultValue: 'No gym profiles yet',
+                  })}
                 </Text>
                 <Text className="text-sm text-text-secondary text-center mb-6">
                   {t('gymProfiles.emptySubtitle', {
@@ -996,7 +1092,10 @@ const GymProfilesScreen: React.FC<GymProfilesScreenProps> = ({ navigation }) => 
                         >
                           {profile.name}
                         </Text>
-                        <Text className="text-sm text-text-secondary mt-0.5" numberOfLines={2}>
+                        <Text
+                          className="text-sm text-text-secondary mt-0.5"
+                          numberOfLines={2}
+                        >
                           {equipmentSummary(t, profile)}
                         </Text>
                       </View>

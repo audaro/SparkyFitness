@@ -63,7 +63,9 @@ export function useWorkoutRecommendation({
     onError: (error) => {
       Toast.show({
         type: 'error',
-        text1: t('upNext.generateFailed', { defaultValue: 'Could not build a workout' }),
+        text1: t('upNext.generateFailed', {
+          defaultValue: 'Could not build a workout',
+        }),
         // 422 is the engine reporting it had nothing to program with — a fresh
         // catalog, or a gym profile so narrow no exercise survives the filter.
         // That is the user's to fix, so it gets its own message.
@@ -101,8 +103,13 @@ export function useUpdateRecommendationStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: WorkoutRecommendationStatus }) =>
-      patchRecommendationStatus(id, status),
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: WorkoutRecommendationStatus;
+    }) => patchRecommendationStatus(id, status),
     onSuccess: (recommendation) => {
       queryClient.setQueryData(workoutRecommendationQueryKey, recommendation);
     },
@@ -162,7 +169,8 @@ export function useReplaceRecommendationExercise() {
         text2:
           (error instanceof ApiError && error.statusCode === 422
             ? getApiErrorMessage(error)
-            : null) ?? t('common.tryAgain', { defaultValue: 'Please try again.' }),
+            : null) ??
+          t('common.tryAgain', { defaultValue: 'Please try again.' }),
       });
     },
   });

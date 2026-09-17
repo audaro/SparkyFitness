@@ -56,7 +56,10 @@ describe('formatElapsed', () => {
 
 describe('buildExerciseProgress', () => {
   it('counts completed sets per exercise', () => {
-    const progress = buildExerciseProgress(makeSession(), { '101': COMPLETED_AT, '301': COMPLETED_AT });
+    const progress = buildExerciseProgress(makeSession(), {
+      '101': COMPLETED_AT,
+      '301': COMPLETED_AT,
+    });
     expect(progress).toEqual([
       { entryId: 'ex-1', totalSets: 2, completedSets: 1 },
       { entryId: 'ex-2', totalSets: 1, completedSets: 0 },
@@ -115,11 +118,12 @@ describe('ActiveWorkoutHeader', () => {
 
   it('shows one segment per exercise and the done count', () => {
     // ex-1 fully done (2/2), ex-3 partial (1/2), ex-2 untouched.
-    const { getByText, getAllByTestId, queryAllByTestId } = renderHeaderComponent({
-      '101': COMPLETED_AT,
-      '102': COMPLETED_AT,
-      '301': COMPLETED_AT,
-    });
+    const { getByText, getAllByTestId, queryAllByTestId } =
+      renderHeaderComponent({
+        '101': COMPLETED_AT,
+        '102': COMPLETED_AT,
+        '301': COMPLETED_AT,
+      });
     expect(getByText('1 / 3 exercises')).toBeTruthy();
     expect(getAllByTestId('header-segment-done')).toHaveLength(1);
     expect(queryAllByTestId('header-segment')).toHaveLength(2);

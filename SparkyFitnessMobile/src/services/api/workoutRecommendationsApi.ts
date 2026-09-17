@@ -13,7 +13,8 @@ import { ApiError } from './errors';
 // Payload shapes are the shared request schemas the server validates against;
 // these aliases keep the mobile-local names the screens were written against.
 export type WorkoutRecommendation = WorkoutRecommendationResponse;
-export type GenerateRecommendationPayload = GenerateWorkoutRecommendationRequest;
+export type GenerateRecommendationPayload =
+  GenerateWorkoutRecommendationRequest;
 
 const SERVICE_NAME = 'Workout Recommendations API';
 
@@ -25,22 +26,23 @@ const SERVICE_NAME = 'Workout Recommendations API';
  * put a retry screen in front of every new user instead of the Generate CTA.
  * Every other status still throws.
  */
-export const fetchRecommendation = async (): Promise<WorkoutRecommendation | null> => {
-  try {
-    return await apiFetch<WorkoutRecommendation>({
-      endpoint: '/api/workout-recommendations',
-      serviceName: SERVICE_NAME,
-      operation: 'fetch workout recommendation',
-      // The 404 below is this endpoint's "none generated yet", so it must not
-      // be written to the app log as an error — every account sees it on the
-      // Exercise tab until it generates its first workout.
-      expectedStatuses: [404],
-    });
-  } catch (error) {
-    if (error instanceof ApiError && error.statusCode === 404) return null;
-    throw error;
-  }
-};
+export const fetchRecommendation =
+  async (): Promise<WorkoutRecommendation | null> => {
+    try {
+      return await apiFetch<WorkoutRecommendation>({
+        endpoint: '/api/workout-recommendations',
+        serviceName: SERVICE_NAME,
+        operation: 'fetch workout recommendation',
+        // The 404 below is this endpoint's "none generated yet", so it must not
+        // be written to the app log as an error — every account sees it on the
+        // Exercise tab until it generates its first workout.
+        expectedStatuses: [404],
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 404) return null;
+      throw error;
+    }
+  };
 
 /**
  * Per-muscle recovery for today, in the user's timezone, freshest first.
@@ -52,13 +54,14 @@ export const fetchRecommendation = async (): Promise<WorkoutRecommendation | nul
  * `freshness` is **0.0–1.0, not a percentage**. `tunables` rides along because
  * `fatigue_sets` is meaningless without `full_fatigue_sets` to read it against.
  */
-export const fetchMuscleRecovery = async (): Promise<MuscleRecoveryResponse> => {
-  return apiFetch<MuscleRecoveryResponse>({
-    endpoint: '/api/workout-recommendations/recovery',
-    serviceName: SERVICE_NAME,
-    operation: 'fetch muscle recovery',
-  });
-};
+export const fetchMuscleRecovery =
+  async (): Promise<MuscleRecoveryResponse> => {
+    return apiFetch<MuscleRecoveryResponse>({
+      endpoint: '/api/workout-recommendations/recovery',
+      serviceName: SERVICE_NAME,
+      operation: 'fetch muscle recovery',
+    });
+  };
 
 /**
  * Generate (or regenerate) the workout. Also the whole-workout Swap: generation
@@ -67,7 +70,7 @@ export const fetchMuscleRecovery = async (): Promise<MuscleRecoveryResponse> => 
  * the same muscles.
  */
 export const generateRecommendation = async (
-  body: GenerateRecommendationPayload = {},
+  body: GenerateRecommendationPayload = {}
 ): Promise<WorkoutRecommendation> => {
   return apiFetch<WorkoutRecommendation>({
     endpoint: '/api/workout-recommendations/generate',
@@ -90,7 +93,7 @@ export const generateRecommendation = async (
  */
 export const fetchAlternatives = async (
   exerciseId: string,
-  limit = 10,
+  limit = 10
 ): Promise<AlternativeExercise[]> => {
   const response = await apiFetch<AlternativeExercisesResponse>({
     endpoint: `/api/workout-recommendations/alternatives/${exerciseId}?limit=${limit}`,
@@ -110,7 +113,7 @@ export const fetchAlternatives = async (
  * recommendation, so callers write it into the cache the way generate does.
  */
 export const replaceRecommendationExercise = async (
-  body: ReplaceRecommendationExerciseRequest,
+  body: ReplaceRecommendationExerciseRequest
 ): Promise<WorkoutRecommendation> => {
   return apiFetch<WorkoutRecommendation>({
     endpoint: '/api/workout-recommendations/replace',
@@ -124,7 +127,7 @@ export const replaceRecommendationExercise = async (
 /** Lifecycle only — the payload itself is never client-edited. */
 export const patchRecommendationStatus = async (
   id: string,
-  status: WorkoutRecommendationStatus,
+  status: WorkoutRecommendationStatus
 ): Promise<WorkoutRecommendation> => {
   return apiFetch<WorkoutRecommendation>({
     endpoint: `/api/workout-recommendations/${id}`,

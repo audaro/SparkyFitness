@@ -84,13 +84,31 @@ export default function SyringeDiagram({
         units: barrel.units,
       })}
     >
-      <Svg width="100%" height="100%" viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}>
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+      >
         {/* Needle and its hub, at the barrel's 0 end, so the fill grows away from the needle as
             it does in the hand. Decoration, but the kind that carries meaning: it is what makes
             the shape read as a syringe rather than as a progress bar, and it is what says which
             end the fill is at. */}
-        <Rect x={0} y={22.4} width={30} height={1.2} fill={detailColor} opacity={0.6} />
-        <Rect x={30} y={21} width={8} height={4} fill={detailColor} opacity={0.4} />
+        <Rect
+          x={0}
+          y={22.4}
+          width={30}
+          height={1.2}
+          fill={detailColor}
+          opacity={0.6}
+        />
+        <Rect
+          x={30}
+          y={21}
+          width={8}
+          height={4}
+          fill={detailColor}
+          opacity={0.4}
+        />
 
         {/* Plunger rod and thumb flange, at the far end. */}
         <Rect
@@ -140,7 +158,9 @@ export default function SyringeDiagram({
             x1={BARREL_X + BARREL_WIDTH * tick.position}
             y1={BARREL_Y}
             x2={BARREL_X + BARREL_WIDTH * tick.position}
-            y2={BARREL_Y + (tick.labelled ? MAJOR_TICK_HEIGHT : MINOR_TICK_HEIGHT)}
+            y2={
+              BARREL_Y + (tick.labelled ? MAJOR_TICK_HEIGHT : MINOR_TICK_HEIGHT)
+            }
             stroke={detailColor}
             strokeOpacity={0.6}
             strokeWidth={tick.labelled ? 1 : 0.5}

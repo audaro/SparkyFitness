@@ -188,7 +188,10 @@ const DiarySettingsScreen: React.FC<DiarySettingsScreenProps> = () => {
     );
   };
 
-  const header = useScreenHeader({ title: t('diarySettings.title', { defaultValue: 'Food Diary Settings' }), left: { kind: 'back' } });
+  const header = useScreenHeader({
+    title: t('diarySettings.title', { defaultValue: 'Food Diary Settings' }),
+    left: { kind: 'back' },
+  });
 
   return (
     <View

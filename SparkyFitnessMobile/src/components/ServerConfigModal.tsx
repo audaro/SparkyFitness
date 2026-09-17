@@ -22,8 +22,15 @@ import Animated, {
 import Icon from './Icon';
 import FormInput, { UnfocusedInputEcho } from './FormInput';
 import SegmentedControl from './SegmentedControl';
-import MfaForm, { ErrorBanner, OidcProviderLogo, PrimaryButton } from './MfaForm';
-import { classifyLoginError, loginErrorMessage } from '../services/api/authErrors';
+import MfaForm, {
+  ErrorBanner,
+  OidcProviderLogo,
+  PrimaryButton,
+} from './MfaForm';
+import {
+  classifyLoginError,
+  loginErrorMessage,
+} from '../services/api/authErrors';
 import {
   login,
   LoginError,

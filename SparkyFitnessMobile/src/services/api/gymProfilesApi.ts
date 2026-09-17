@@ -24,7 +24,7 @@ export const fetchGymProfiles = async (): Promise<GymProfile[]> => {
 };
 
 export const createGymProfile = async (
-  body: GymProfileCreatePayload,
+  body: GymProfileCreatePayload
 ): Promise<GymProfile> => {
   return apiFetch<GymProfile>({
     endpoint: '/api/gym-equipment-profiles',
@@ -37,7 +37,7 @@ export const createGymProfile = async (
 
 export const updateGymProfile = async (
   id: string,
-  body: GymProfileUpdatePayload,
+  body: GymProfileUpdatePayload
 ): Promise<GymProfile> => {
   return apiFetch<GymProfile>({
     endpoint: `/api/gym-equipment-profiles/${id}`,
@@ -48,7 +48,9 @@ export const updateGymProfile = async (
   });
 };
 
-export const deleteGymProfile = async (id: string): Promise<{ message: string }> => {
+export const deleteGymProfile = async (
+  id: string
+): Promise<{ message: string }> => {
   return apiFetch<{ message: string }>({
     endpoint: `/api/gym-equipment-profiles/${id}`,
     method: 'DELETE',

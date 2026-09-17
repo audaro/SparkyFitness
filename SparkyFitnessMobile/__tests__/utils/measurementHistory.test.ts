@@ -47,7 +47,10 @@ describe('deriveStandardFieldHints', () => {
   });
 
   it('produces no suggestion for fields with no history', () => {
-    const hints = deriveStandardFieldHints({ entry_date: '2026-01-01', weight: 80 }, METRIC);
+    const hints = deriveStandardFieldHints(
+      { entry_date: '2026-01-01', weight: 80 },
+      METRIC
+    );
     expect(hints.weight).toBeDefined();
     expect(hints.waist).toBeUndefined();
     expect(hints.hips).toBeUndefined();
@@ -117,7 +120,10 @@ describe('deriveStandardFieldHints', () => {
   });
 
   it('adopting a single-input field writes exactly that one key', () => {
-    const hints = deriveStandardFieldHints({ entry_date: '2026-01-01', waist: 90 }, METRIC);
+    const hints = deriveStandardFieldHints(
+      { entry_date: '2026-01-01', waist: 90 },
+      METRIC
+    );
     expect(hints.waist?.adopt).toEqual({ waist: '90' });
     expect(hints.waist?.companionDisplay).toBeNull();
   });
@@ -125,7 +131,10 @@ describe('deriveStandardFieldHints', () => {
 
 describe('selectedDayDisplayValues / hasSelectedDayValue', () => {
   it('reports which fields the selected day actually recorded', () => {
-    const values = selectedDayDisplayValues({ entry_date: '2026-01-01', weight: 80 }, METRIC);
+    const values = selectedDayDisplayValues(
+      { entry_date: '2026-01-01', weight: 80 },
+      METRIC
+    );
     expect(hasSelectedDayValue('weight', values)).toBe(true);
     expect(hasSelectedDayValue('waist', values)).toBe(false);
   });
@@ -137,7 +146,10 @@ describe('selectedDayDisplayValues / hasSelectedDayValue', () => {
 
   it('does not treat a recorded zero weight as absent', () => {
     // 0 is a real stored number; the form shows '0', not ''.
-    const values = selectedDayDisplayValues({ entry_date: '2026-01-01', weight: 0 }, METRIC);
+    const values = selectedDayDisplayValues(
+      { entry_date: '2026-01-01', weight: 0 },
+      METRIC
+    );
     expect(hasSelectedDayValue('weight', values)).toBe(true);
   });
 });
@@ -166,7 +178,10 @@ describe('shouldOfferStandardHint', () => {
     expect(
       shouldOfferStandardHint({
         currentRaw: '',
-        selectedDayValues: selectedDayDisplayValues({ entry_date: '2026-01-01', weight: 80 }, METRIC),
+        selectedDayValues: selectedDayDisplayValues(
+          { entry_date: '2026-01-01', weight: 80 },
+          METRIC
+        ),
         field: 'weight',
         hint,
       })

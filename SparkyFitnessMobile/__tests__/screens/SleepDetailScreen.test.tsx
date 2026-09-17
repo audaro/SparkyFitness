@@ -93,7 +93,10 @@ const setupScreen = (overrides: Partial<DetailResult> = {}) => {
   const route = { params: { entryId: ENTRY_ID, day: DAY } };
   return render(
     <SleepDetailScreen
-      {...({ route, navigation: { navigate: jest.fn() } } as unknown as ComponentProps<typeof SleepDetailScreen>)}
+      {...({
+        route,
+        navigation: { navigate: jest.fn() },
+      } as unknown as ComponentProps<typeof SleepDetailScreen>)}
     />
   );
 };

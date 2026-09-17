@@ -440,9 +440,18 @@ describe('healthConnectService.ts (Android)', () => {
       // `find()` the wrong one.
       mockReadRecords.mockResolvedValue({
         records: [
-          { startTime: '2024-01-15T08:00:00', samples: [{ beatsPerMinute: 60 }] },
-          { startTime: '2024-01-15T12:00:00', samples: [{ beatsPerMinute: 80 }] },
-          { startTime: '2024-01-15T18:00:00', samples: [{ beatsPerMinute: 70 }] },
+          {
+            startTime: '2024-01-15T08:00:00',
+            samples: [{ beatsPerMinute: 60 }],
+          },
+          {
+            startTime: '2024-01-15T12:00:00',
+            samples: [{ beatsPerMinute: 80 }],
+          },
+          {
+            startTime: '2024-01-15T18:00:00',
+            samples: [{ beatsPerMinute: 70 }],
+          },
         ],
       });
 

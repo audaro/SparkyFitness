@@ -19,5 +19,7 @@ export const apiError = (statusCode: number, body = 'nope'): ApiError =>
  * The same, with the JSON body the server sends when it wants a specific
  * message shown — the shape `getApiErrorMessage` knows how to read.
  */
-export const apiErrorWithMessage = (statusCode: number, message: string): ApiError =>
-  apiError(statusCode, JSON.stringify({ error: message }));
+export const apiErrorWithMessage = (
+  statusCode: number,
+  message: string
+): ApiError => apiError(statusCode, JSON.stringify({ error: message }));

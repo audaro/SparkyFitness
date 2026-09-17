@@ -20,8 +20,15 @@ import {
   exerciseAlternativesQueryKey,
   workoutRecommendationQueryKey,
 } from '../../src/hooks/queryKeys';
-import { createQueryWrapper, createTestQueryClient, type QueryClient } from './queryTestUtils';
-import { apiError as rawApiError, apiErrorWithMessage } from '../helpers/apiError';
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+  type QueryClient,
+} from './queryTestUtils';
+import {
+  apiError as rawApiError,
+  apiErrorWithMessage,
+} from '../helpers/apiError';
 
 jest.mock('../../src/services/api/workoutRecommendationsApi', () => ({
   fetchRecommendation: jest.fn(),
@@ -44,19 +51,29 @@ jest.mock('react-native-toast-message', () => ({
   default: { show: jest.fn() },
 }));
 
-const mockFetch = fetchRecommendation as jest.MockedFunction<typeof fetchRecommendation>;
-const mockGenerate = generateRecommendation as jest.MockedFunction<typeof generateRecommendation>;
+const mockFetch = fetchRecommendation as jest.MockedFunction<
+  typeof fetchRecommendation
+>;
+const mockGenerate = generateRecommendation as jest.MockedFunction<
+  typeof generateRecommendation
+>;
 const mockPatchStatus = patchRecommendationStatus as jest.MockedFunction<
   typeof patchRecommendationStatus
 >;
-const mockFetchAlternatives = fetchAlternatives as jest.MockedFunction<typeof fetchAlternatives>;
+const mockFetchAlternatives = fetchAlternatives as jest.MockedFunction<
+  typeof fetchAlternatives
+>;
 const mockReplace = replaceRecommendationExercise as jest.MockedFunction<
   typeof replaceRecommendationExercise
 >;
-const mockRefetchOnFocus = useRefetchOnFocus as jest.MockedFunction<typeof useRefetchOnFocus>;
+const mockRefetchOnFocus = useRefetchOnFocus as jest.MockedFunction<
+  typeof useRefetchOnFocus
+>;
 const mockToast = Toast.show as jest.MockedFunction<typeof Toast.show>;
 
-const recommendation = (overrides?: Partial<WorkoutRecommendation>): WorkoutRecommendation => ({
+const recommendation = (
+  overrides?: Partial<WorkoutRecommendation>
+): WorkoutRecommendation => ({
   id: '11111111-1111-4111-8111-111111111111',
   status: 'active',
   target_duration_minutes: 45,
@@ -96,9 +113,14 @@ const recommendation = (overrides?: Partial<WorkoutRecommendation>): WorkoutReco
 
 /** A 422 carrying a server message, the shape `getApiErrorMessage` can read. */
 const apiError = (statusCode: number, message?: string) =>
-  message ? apiErrorWithMessage(statusCode, message) : rawApiError(statusCode, '');
+  message
+    ? apiErrorWithMessage(statusCode, message)
+    : rawApiError(statusCode, '');
 
-function renderWithClient<T>(hook: () => T, client: QueryClient = createTestQueryClient()) {
+function renderWithClient<T>(
+  hook: () => T,
+  client: QueryClient = createTestQueryClient()
+) {
   const rendered = renderHook(hook, { wrapper: createQueryWrapper(client) });
   return { ...rendered, client };
 }
@@ -134,12 +156,17 @@ describe('useWorkoutRecommendation', () => {
   test('subscribes its refetch to focus, gated on the same enabled flag', () => {
     mockFetch.mockResolvedValue(null);
 
-    const { result } = renderWithClient(() => useWorkoutRecommendation({ enabled: false }));
+    const { result } = renderWithClient(() =>
+      useWorkoutRecommendation({ enabled: false })
+    );
 
     // The stored row goes stale on a day rollover and on a workout generated
     // from another device; `staleTime` is Infinity app-wide, so without this
     // the card holds whatever it fetched at launch.
-    expect(mockRefetchOnFocus).toHaveBeenCalledWith(result.current.refetch, false);
+    expect(mockRefetchOnFocus).toHaveBeenCalledWith(
+      result.current.refetch,
+      false
+    );
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -158,7 +185,10 @@ describe('useWorkoutRecommendation', () => {
     mockGenerate.mockResolvedValue(fresh);
 
     const client = createTestQueryClient();
-    const { result } = renderWithClient(() => useWorkoutRecommendation(), client);
+    const { result } = renderWithClient(
+      () => useWorkoutRecommendation(),
+      client
+    );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     mockFetch.mockClear();
 
@@ -205,9 +235,10 @@ describe('useWorkoutRecommendation', () => {
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'error',
-          text2: 'No exercises matched your gym equipment. Try another gym profile.',
-        }),
-      ),
+          text2:
+            'No exercises matched your gym equipment. Try another gym profile.',
+        })
+      )
     );
   });
 
@@ -224,8 +255,8 @@ describe('useWorkoutRecommendation', () => {
 
     await waitFor(() =>
       expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ text2: 'Please try again.' }),
-      ),
+        expect.objectContaining({ text2: 'Please try again.' })
+      )
     );
   });
 
@@ -235,7 +266,9 @@ describe('useWorkoutRecommendation', () => {
     mockGenerate.mockRejectedValue(apiError(422));
 
     const { result } = renderWithClient(() => useWorkoutRecommendation());
-    await waitFor(() => expect(result.current.recommendation).toEqual(existing));
+    await waitFor(() =>
+      expect(result.current.recommendation).toEqual(existing)
+    );
 
     await act(async () => {
       result.current.generate({});
@@ -251,7 +284,7 @@ describe('useWorkoutRecommendation', () => {
     mockGenerate.mockReturnValue(
       new Promise<WorkoutRecommendation>((resolve) => {
         settle = resolve;
-      }),
+      })
     );
 
     const { result } = renderWithClient(() => useWorkoutRecommendation());
@@ -276,7 +309,10 @@ describe('useUpdateRecommendationStatus', () => {
     mockPatchStatus.mockResolvedValue(started);
 
     const client = createTestQueryClient();
-    const { result } = renderWithClient(() => useUpdateRecommendationStatus(), client);
+    const { result } = renderWithClient(
+      () => useUpdateRecommendationStatus(),
+      client
+    );
 
     await act(async () => {
       await result.current.mutateAsync({ id: started.id, status: 'started' });
@@ -317,7 +353,9 @@ describe('useExerciseAlternatives', () => {
   };
 
   test('costs nothing when no exercise is named', () => {
-    const { result } = renderWithClient(() => useExerciseAlternatives(undefined));
+    const { result } = renderWithClient(() =>
+      useExerciseAlternatives(undefined)
+    );
 
     // The same search screen reached from Add must not pay for a lookup it
     // has no subject for.
@@ -332,14 +370,16 @@ describe('useExerciseAlternatives', () => {
     const client = createTestQueryClient();
     const { result } = renderWithClient(
       () => useExerciseAlternatives(alternative.exercise_id),
-      client,
+      client
     );
 
-    await waitFor(() => expect(result.current.alternatives).toEqual([alternative]));
+    await waitFor(() =>
+      expect(result.current.alternatives).toEqual([alternative])
+    );
     expect(mockFetchAlternatives).toHaveBeenCalledWith(alternative.exercise_id);
-    expect(client.getQueryData(exerciseAlternativesQueryKey(alternative.exercise_id))).toEqual([
-      alternative,
-    ]);
+    expect(
+      client.getQueryData(exerciseAlternativesQueryKey(alternative.exercise_id))
+    ).toEqual([alternative]);
   });
 
   test('a failed lookup leaves the user with a plain search, not an error screen', async () => {
@@ -363,7 +403,10 @@ describe('useReplaceRecommendationExercise', () => {
     mockReplace.mockResolvedValue(swapped);
 
     const client = createTestQueryClient();
-    const { result } = renderWithClient(() => useReplaceRecommendationExercise(), client);
+    const { result } = renderWithClient(
+      () => useReplaceRecommendationExercise(),
+      client
+    );
 
     await act(async () => {
       await result.current.mutateAsync(body);
@@ -376,9 +419,13 @@ describe('useReplaceRecommendationExercise', () => {
   test("a 422's own message is surfaced verbatim", async () => {
     // The server says which refusal it is — already in the workout, or not in
     // the catalog — and that is the user's to act on.
-    mockReplace.mockRejectedValue(apiError(422, 'That exercise is already in this workout.'));
+    mockReplace.mockRejectedValue(
+      apiError(422, 'That exercise is already in this workout.')
+    );
 
-    const { result } = renderWithClient(() => useReplaceRecommendationExercise());
+    const { result } = renderWithClient(() =>
+      useReplaceRecommendationExercise()
+    );
 
     await act(async () => {
       result.current.mutate(body);
@@ -386,15 +433,19 @@ describe('useReplaceRecommendationExercise', () => {
 
     await waitFor(() =>
       expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ text2: 'That exercise is already in this workout.' }),
-      ),
+        expect.objectContaining({
+          text2: 'That exercise is already in this workout.',
+        })
+      )
     );
   });
 
   test('a 422 with no readable message still gets a usable one', async () => {
     mockReplace.mockRejectedValue(apiError(422));
 
-    const { result } = renderWithClient(() => useReplaceRecommendationExercise());
+    const { result } = renderWithClient(() =>
+      useReplaceRecommendationExercise()
+    );
 
     await act(async () => {
       result.current.mutate(body);
@@ -402,15 +453,19 @@ describe('useReplaceRecommendationExercise', () => {
 
     await waitFor(() =>
       expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ text2: 'Please try again.' }),
-      ),
+        expect.objectContaining({ text2: 'Please try again.' })
+      )
     );
   });
 
   test('a non-422 failure never surfaces the server text', async () => {
-    mockReplace.mockRejectedValue(apiError(500, 'Internal database error at line 42'));
+    mockReplace.mockRejectedValue(
+      apiError(500, 'Internal database error at line 42')
+    );
 
-    const { result } = renderWithClient(() => useReplaceRecommendationExercise());
+    const { result } = renderWithClient(() =>
+      useReplaceRecommendationExercise()
+    );
 
     await act(async () => {
       result.current.mutate(body);
@@ -418,8 +473,8 @@ describe('useReplaceRecommendationExercise', () => {
 
     await waitFor(() =>
       expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ text2: 'Please try again.' }),
-      ),
+        expect.objectContaining({ text2: 'Please try again.' })
+      )
     );
   });
 });

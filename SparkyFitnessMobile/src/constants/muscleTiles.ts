@@ -101,7 +101,9 @@ export const MUSCLE_TILES: readonly MuscleTileDefinition[] =
  * both of them are drawn: tapping either lights up both, which is honest, since
  * both are what the request would carry.
  */
-export function tileForMuscle(muscle: Muscle): MuscleTileDefinition | undefined {
+export function tileForMuscle(
+  muscle: Muscle
+): MuscleTileDefinition | undefined {
   return MUSCLE_TILES.find((tile) => tile.muscles.includes(muscle));
 }
 
@@ -113,12 +115,12 @@ export function tileForMuscle(muscle: Muscle): MuscleTileDefinition | undefined 
  * reordered itself would make two identical picks look like two different
  * workouts in the logs.
  */
-export function musclesForTiles(
-  tileIds: readonly string[],
-): Muscle[] {
+export function musclesForTiles(tileIds: readonly string[]): Muscle[] {
   const picked = new Set(tileIds);
   const selected = new Set(
-    MUSCLE_TILES.filter((tile) => picked.has(tile.id)).flatMap((tile) => tile.muscles),
+    MUSCLE_TILES.filter((tile) => picked.has(tile.id)).flatMap(
+      (tile) => tile.muscles
+    )
   );
   return MUSCLES.filter((muscle) => selected.has(muscle));
 }

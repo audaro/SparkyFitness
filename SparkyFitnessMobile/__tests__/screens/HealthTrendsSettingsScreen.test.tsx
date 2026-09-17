@@ -38,7 +38,9 @@ const navigation = { navigate: jest.fn(), goBack: jest.fn() };
 const renderScreen = () =>
   render(
     <HealthTrendsSettingsScreen
-      {...({ navigation, route: { params: {} } } as unknown as ComponentProps<typeof HealthTrendsSettingsScreen>)}
+      {...({ navigation, route: { params: {} } } as unknown as ComponentProps<
+        typeof HealthTrendsSettingsScreen
+      >)}
     />
   );
 

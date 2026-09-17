@@ -593,8 +593,13 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
       return;
     }
     Alert.alert(
-      t('activeWorkout.bar.clearWorkoutTitle', { defaultValue: 'Clear workout?' }),
-      t('activeWorkout.bar.endWithoutSaving', { defaultValue: 'Saves what it can, then removes this workout from this device.' }),
+      t('activeWorkout.bar.clearWorkoutTitle', {
+        defaultValue: 'Clear workout?',
+      }),
+      t('activeWorkout.bar.endWithoutSaving', {
+        defaultValue:
+          'Saves what it can, then removes this workout from this device.',
+      }),
       [
         {
           text: t('common.cancel', { defaultValue: 'Cancel' }),

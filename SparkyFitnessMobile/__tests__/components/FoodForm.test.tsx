@@ -330,7 +330,7 @@ describe('FoodForm', () => {
           ...selection.variant,
           id: 'variant-oz',
         },
-      }),
+      })
     );
 
     const screen = render(

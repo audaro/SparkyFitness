@@ -37,9 +37,17 @@ export function useUpdateFoodEntryMeal({
     },
     onError: (error) => {
       const message = hasApiStatus(error, 403)
-        ? i18n.t('editLoggedMeal.errors.permission', { defaultValue: "You don't have permission to edit this meal." })
+        ? i18n.t('editLoggedMeal.errors.permission', {
+            defaultValue: "You don't have permission to edit this meal.",
+          })
         : i18n.t('common.tryAgain', { defaultValue: 'Please try again.' });
-      Toast.show({ type: 'error', text1: i18n.t('editLoggedMeal.errors.saveFailed', { defaultValue: 'Failed to save meal' }), text2: message });
+      Toast.show({
+        type: 'error',
+        text1: i18n.t('editLoggedMeal.errors.saveFailed', {
+          defaultValue: 'Failed to save meal',
+        }),
+        text2: message,
+      });
     },
   });
 

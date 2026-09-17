@@ -167,7 +167,19 @@ describe('WorkoutPresetDetailScreen', () => {
 
   it('renders application-owned strings in Polish while preserving literal user content', async () => {
     await i18n.changeLanguage('pl');
-    const preset = buildPreset({ exercises: [{ id: 1, exercise_id: 'ex-1', exercise_name: 'Bench Press', image_url: null, category: null, superset_group: null, sets: [buildSet()] }] });
+    const preset = buildPreset({
+      exercises: [
+        {
+          id: 1,
+          exercise_id: 'ex-1',
+          exercise_name: 'Bench Press',
+          image_url: null,
+          category: null,
+          superset_group: null,
+          sets: [buildSet()],
+        },
+      ],
+    });
     const screen = renderScreen(preset);
     expect(screen.getByText('Rozpocznij trening')).toBeTruthy();
     expect(screen.getByText('Zapisz wcześniejszy trening')).toBeTruthy();
@@ -178,7 +190,21 @@ describe('WorkoutPresetDetailScreen', () => {
   });
 
   it('updates visible strings on an EN to PL runtime language switch without remounting', async () => {
-    const screen = renderScreen(buildPreset({ exercises: [{ id: 1, exercise_id: 'ex-1', exercise_name: 'Bench Press', image_url: null, category: null, superset_group: null, sets: [buildSet()] }] }));
+    const screen = renderScreen(
+      buildPreset({
+        exercises: [
+          {
+            id: 1,
+            exercise_id: 'ex-1',
+            exercise_name: 'Bench Press',
+            image_url: null,
+            category: null,
+            superset_group: null,
+            sets: [buildSet()],
+          },
+        ],
+      })
+    );
     expect(screen.getByText('Start workout')).toBeTruthy();
     expect(screen.getByText('Duplicate preset')).toBeTruthy();
     await act(async () => {
@@ -410,22 +436,25 @@ describe('WorkoutPresetDetailScreen', () => {
     [5, '5 ćwiczeń'],
     [22, '22 ćwiczenia'],
     [25, '25 ćwiczeń'],
-  ])('renders the Polish exercise count for %i exercises', async (count, expected) => {
-    await i18n.changeLanguage('pl');
-    const preset = buildPreset({
-      exercises: Array.from({ length: count as number }, (_, index) => ({
-        id: index + 1,
-        exercise_id: `ex-${index + 1}`,
-        exercise_name: `Exercise ${index + 1}`,
-        image_url: null,
-        category: null,
-        superset_group: null,
-        sets: [buildSet()],
-      })),
-    });
-    const screen = renderScreen(preset);
-    expect(screen.getByText(expected as string)).toBeTruthy();
-  });
+  ])(
+    'renders the Polish exercise count for %i exercises',
+    async (count, expected) => {
+      await i18n.changeLanguage('pl');
+      const preset = buildPreset({
+        exercises: Array.from({ length: count as number }, (_, index) => ({
+          id: index + 1,
+          exercise_id: `ex-${index + 1}`,
+          exercise_name: `Exercise ${index + 1}`,
+          image_url: null,
+          category: null,
+          superset_group: null,
+          sets: [buildSet()],
+        })),
+      });
+      const screen = renderScreen(preset);
+      expect(screen.getByText(expected as string)).toBeTruthy();
+    }
+  );
 
   it('renders preset name, description, and exercise count', () => {
     const preset = buildPreset({
@@ -564,9 +593,27 @@ describe('WorkoutPresetDetailScreen', () => {
           category: null,
           superset_group: null,
           sets: [
-            buildSet({ id: 1, set_number: 1, reps: 5, weight: 100, rest_time: 45 }),
-            buildSet({ id: 2, set_number: 2, reps: 5, weight: 100, rest_time: 90 }),
-            buildSet({ id: 3, set_number: 3, reps: 5, weight: 100, rest_time: 120 }),
+            buildSet({
+              id: 1,
+              set_number: 1,
+              reps: 5,
+              weight: 100,
+              rest_time: 45,
+            }),
+            buildSet({
+              id: 2,
+              set_number: 2,
+              reps: 5,
+              weight: 100,
+              rest_time: 90,
+            }),
+            buildSet({
+              id: 3,
+              set_number: 3,
+              reps: 5,
+              weight: 100,
+              rest_time: 120,
+            }),
           ],
         },
       ],

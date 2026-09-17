@@ -1,5 +1,9 @@
 import type { useChatRuntime } from '@assistant-ui/react-ai-sdk';
-import { ASK_USER_TOOL_NAME, CONFIRM_FOOD_PART_TYPE, PROPOSAL_PART_TYPES } from '@workspace/shared';
+import {
+  ASK_USER_TOOL_NAME,
+  CONFIRM_FOOD_PART_TYPE,
+  PROPOSAL_PART_TYPES,
+} from '@workspace/shared';
 import { apiFetch } from './apiClient';
 
 /**
@@ -78,7 +82,9 @@ function isSeedableParts(parts: unknown): parts is { type: string }[] {
       if (type === 'text') {
         return typeof (part as { text?: unknown }).text === 'string';
       }
-      return typeof type === 'string' && SEEDABLE_TOOL_PART_TYPES.includes(type);
+      return (
+        typeof type === 'string' && SEEDABLE_TOOL_PART_TYPES.includes(type)
+      );
     })
   );
 }

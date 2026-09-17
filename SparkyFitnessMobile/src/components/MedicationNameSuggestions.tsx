@@ -75,9 +75,10 @@ export default function MedicationNameSuggestions({
   // No `active` flag is passed because this component *is* the flag: the form mounts it only
   // while the suggestion list is open, so an edit that never touches the name never renders it
   // and never asks.
-  const { products: rxTermsProducts, correctedTerms } = useMedicationCatalogSearch(query, {
-    limit: MAX_RXTERMS,
-  });
+  const { products: rxTermsProducts, correctedTerms } =
+    useMedicationCatalogSearch(query, {
+      limit: MAX_RXTERMS,
+    });
 
   const rows = useMemo<Row[]>(() => {
     const trimmed = query.trim();
@@ -85,7 +86,11 @@ export default function MedicationNameSuggestions({
 
     // Ranked by use rather than by alphabet: with more matches than rows, the drugs this user
     // actually takes are the ones worth the three slots. See `rankOwnMedications`.
-    const own = rankOwnMedications(ownMedications ?? [], trimmed, MAX_OWN).map<Row>((med) => ({
+    const own = rankOwnMedications(
+      ownMedications ?? [],
+      trimmed,
+      MAX_OWN
+    ).map<Row>((med) => ({
       key: `own:${med.id}`,
       kind: 'existing',
       medication: med,
@@ -94,7 +99,9 @@ export default function MedicationNameSuggestions({
     // A drug the user already has under that name is better represented by their own row, which
     // carries their strength and schedule.
     const ownNames = new Set(
-      own.map((row) => (row.kind === 'existing' ? row.medication.name.trim().toLowerCase() : '')),
+      own.map((row) =>
+        row.kind === 'existing' ? row.medication.name.trim().toLowerCase() : ''
+      )
     );
 
     const catalog = searchCatalog(trimmed, MAX_CATALOG)
@@ -133,7 +140,8 @@ export default function MedicationNameSuggestions({
   // `searchCatalog` runs its fuzzy pass only when the substring pass found nothing, so tier 2 is
   // all-or-nothing here and the first row speaks for the whole group.
   const firstCatalogRow = rows[firstCatalogIndex];
-  const catalogViaTypo = firstCatalogRow?.kind === 'catalog' && firstCatalogRow.viaTypo;
+  const catalogViaTypo =
+    firstCatalogRow?.kind === 'catalog' && firstCatalogRow.viaTypo;
 
   /** The right-hand hint on a tier 3 row, in words. Which case a product is in is shared logic. */
   const strengthHintText = (product: RxTermsProduct): string => {
@@ -153,7 +161,9 @@ export default function MedicationNameSuggestions({
         <View key={row.key}>
           {index === 0 && hasOwn && (
             <Text className="px-3 pt-2 pb-1 text-text-muted text-xs font-semibold uppercase">
-              {t('medications.search.yours', { defaultValue: 'Your medications' })}
+              {t('medications.search.yours', {
+                defaultValue: 'Your medications',
+              })}
             </Text>
           )}
           {index === firstCatalogIndex && firstCatalogIndex >= 0 && (
@@ -162,15 +172,21 @@ export default function MedicationNameSuggestions({
                   is a drug spelled a bit like what you typed" is the difference between a
                   suggestion and a wrong medication record. */}
               {catalogViaTypo
-                ? t('medications.search.knownTypo', { defaultValue: 'Did you mean' })
-                : t('medications.search.known', { defaultValue: 'Known drugs' })}
+                ? t('medications.search.knownTypo', {
+                    defaultValue: 'Did you mean',
+                  })
+                : t('medications.search.known', {
+                    defaultValue: 'Known drugs',
+                  })}
             </Text>
           )}
           {index === firstRxTermsIndex && firstRxTermsIndex >= 0 && (
             <View className="px-3 pt-2 pb-1">
               <View className="flex-row items-center gap-1.5">
                 <Text className="text-text-muted text-xs font-semibold uppercase">
-                  {t('medications.search.usCatalog', { defaultValue: 'US drug catalog' })}
+                  {t('medications.search.usCatalog', {
+                    defaultValue: 'US drug catalog',
+                  })}
                 </Text>
                 {/* Named, not just styled. These rows come from someone else's data — the NIH's —
                     and a user comparing a row against their own label deserves to know which list
@@ -201,7 +217,11 @@ export default function MedicationNameSuggestions({
               if (row.kind === 'existing') {
                 onPick({ kind: 'existing', medication: row.medication });
               } else if (row.kind === 'catalog') {
-                onPick({ kind: 'catalog', drug: row.drug, matchedOn: row.matchedOn });
+                onPick({
+                  kind: 'catalog',
+                  drug: row.drug,
+                  matchedOn: row.matchedOn,
+                });
               } else if (row.kind === 'rxterms') {
                 onPick({ kind: 'rxterms', product: row.product });
               } else {
@@ -222,45 +242,54 @@ export default function MedicationNameSuggestions({
               size={18}
               color={textMuted}
             />
-            <Text className="flex-1 text-text-primary text-base" numberOfLines={1}>
-              {row.kind === 'existing'
-                ? row.medication.display_name || row.medication.name
-                : row.kind === 'catalog'
-                  ? row.matchedOn
-                  : row.kind === 'rxterms'
-                    ? // The dose form is part of the identity, not decoration: RxTerms lists
-                      // Testosterone as an injectable, a topical and a patch, and the three rows
-                      // are otherwise the same word.
-                      <>
-                        {row.product.baseName}
-                        {row.product.doseForm && (
-                          <Text className="text-text-muted text-xs">
-                            {' '}
-                            {row.product.doseForm}
-                          </Text>
-                        )}
-                      </>
-                    : t('medications.search.addCustom', {
-                        defaultValue: 'Add "{{name}}" as a custom medication',
-                        name: query.trim(),
-                      })}
+            <Text
+              className="flex-1 text-text-primary text-base"
+              numberOfLines={1}
+            >
+              {row.kind === 'existing' ? (
+                row.medication.display_name || row.medication.name
+              ) : row.kind === 'catalog' ? (
+                row.matchedOn
+              ) : row.kind === 'rxterms' ? (
+                // The dose form is part of the identity, not decoration: RxTerms lists
+                // Testosterone as an injectable, a topical and a patch, and the three rows
+                // are otherwise the same word.
+                <>
+                  {row.product.baseName}
+                  {row.product.doseForm && (
+                    <Text className="text-text-muted text-xs">
+                      {' '}
+                      {row.product.doseForm}
+                    </Text>
+                  )}
+                </>
+              ) : (
+                t('medications.search.addCustom', {
+                  defaultValue: 'Add "{{name}}" as a custom medication',
+                  name: query.trim(),
+                })
+              )}
             </Text>
-            {row.kind === 'catalog' && catalogRowSubtitle(row.drug, row.viaAlias) && (
-              <Text className="text-text-muted text-xs">
-                {catalogRowSubtitle(row.drug, row.viaAlias)}
-              </Text>
-            )}
-            {row.kind === 'existing' && row.medication.strength_value != null && (
-              <Text className="text-text-muted text-xs">
-                {row.medication.strength_value}
-                {row.medication.strength_unit ?? ''}
-              </Text>
-            )}
+            {row.kind === 'catalog' &&
+              catalogRowSubtitle(row.drug, row.viaAlias) && (
+                <Text className="text-text-muted text-xs">
+                  {catalogRowSubtitle(row.drug, row.viaAlias)}
+                </Text>
+              )}
+            {row.kind === 'existing' &&
+              row.medication.strength_value != null && (
+                <Text className="text-text-muted text-xs">
+                  {row.medication.strength_value}
+                  {row.medication.strength_unit ?? ''}
+                </Text>
+              )}
             {/* What the pick is worth, said before it is made. One strength fills the field
                 outright; several mean a choice follows, and the count is the honest way to say so
                 without listing eight products under one name. */}
             {row.kind === 'rxterms' && (
-              <Text className="text-text-muted text-xs">{strengthHintText(row.product)}</Text>
+              <Text className="text-text-muted text-xs">
+                {strengthHintText(row.product)}
+              </Text>
             )}
           </TouchableOpacity>
         </View>

@@ -115,7 +115,12 @@ export function useStartLiveWorkout(navigation: StartLiveWorkoutNavigation): {
   // guard has cleared. Split out so the "Workout in progress" prompt can
   // clear the in-progress session and then call straight through.
   const runStart = useCallback(
-    async ({ name, exercises, sourcePresetId, sourceRecommendationId }: StartLiveWorkoutArgs) => {
+    async ({
+      name,
+      exercises,
+      sourcePresetId,
+      sourceRecommendationId,
+    }: StartLiveWorkoutArgs) => {
       if (exercises.length === 0) {
         Toast.show({
           type: 'error',

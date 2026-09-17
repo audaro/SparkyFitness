@@ -3,7 +3,11 @@ import Toast from 'react-native-toast-message';
 import { useUpdateFoodEntry } from '../../src/hooks/useUpdateFoodEntry';
 import { updateFoodEntry } from '../../src/services/api/foodEntriesApi';
 import { dailySummaryQueryKey } from '../../src/hooks/queryKeys';
-import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import {
+  createTestQueryClient,
+  createQueryWrapper,
+  type QueryClient,
+} from './queryTestUtils';
 import { apiError } from '../helpers/apiError';
 
 jest.mock('../../src/services/api/foodEntriesApi', () => ({
@@ -124,11 +128,13 @@ describe('useUpdateFoodEntry', () => {
     // the message, which `apiClient` builds as `Server error: ${status} -
     // ${body}` — so a body carrying them told the user they lacked permission
     // for an entry that was theirs, and pointed them at nothing they could fix.
-    mockUpdateFoodEntry.mockRejectedValue(apiError(500, 'entry 403abc-dead-beef is corrupt'));
+    mockUpdateFoodEntry.mockRejectedValue(
+      apiError(500, 'entry 403abc-dead-beef is corrupt')
+    );
 
     const { result } = renderHook(
       () => useUpdateFoodEntry({ entryId: 'entry-1', entryDate: '2026-03-01' }),
-      { wrapper: createQueryWrapper(queryClient) },
+      { wrapper: createQueryWrapper(queryClient) }
     );
 
     await act(async () => {
@@ -137,7 +143,7 @@ describe('useUpdateFoodEntry', () => {
 
     await waitFor(() => {
       expect(Toast.show).toHaveBeenCalledWith(
-        expect.objectContaining({ text2: 'Please try again.' }),
+        expect.objectContaining({ text2: 'Please try again.' })
       );
     });
   });

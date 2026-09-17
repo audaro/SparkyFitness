@@ -17,7 +17,10 @@ export interface MuscleRecoveryItem extends MuscleFreshnessResponse {
   tone: FreshnessTone;
 }
 
-export interface MuscleRecovery extends Omit<MuscleRecoveryResponse, 'muscles'> {
+export interface MuscleRecovery extends Omit<
+  MuscleRecoveryResponse,
+  'muscles'
+> {
   muscles: MuscleRecoveryItem[];
 }
 

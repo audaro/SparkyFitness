@@ -92,9 +92,17 @@ export async function apiFetch<T>(options: ApiFetchOptions): Promise<T> {
       }
       const errorText = await response.text();
       if (!expectedStatuses?.includes(response.status)) {
-        addLog(`[${serviceName}] Failed to ${operation}: ${response.status}`, 'ERROR', [errorText]);
+        addLog(
+          `[${serviceName}] Failed to ${operation}: ${response.status}`,
+          'ERROR',
+          [errorText]
+        );
       }
-      throw new ApiError(`Server error: ${response.status} - ${errorText}`, response.status, errorText);
+      throw new ApiError(
+        `Server error: ${response.status} - ${errorText}`,
+        response.status,
+        errorText
+      );
     }
 
     if (

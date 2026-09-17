@@ -19,7 +19,7 @@ import {
 
 function failure(
   reason: ReconstitutionErrorReason,
-  details: Record<string, string | number> = {},
+  details: Record<string, string | number> = {}
 ): ReconstitutionFailure {
   // `message` is the English fallback the localizer deliberately never reads; a value here that
   // could never be rendered is the point — if it leaks, the wiring is wrong.
@@ -28,7 +28,7 @@ function failure(
 
 function warning(
   code: ReconstitutionWarningCode,
-  details: Record<string, string | number>,
+  details: Record<string, string | number>
 ): ReconstitutionWarning {
   return { code, message: 'UNTRANSLATED', details };
 }
@@ -99,13 +99,15 @@ describe('reconstitution message localization', () => {
         expect(text).not.toContain('UNTRANSLATED');
         expect(text).not.toContain(w.code);
       }
-    },
+    }
   );
 
   it('has a real Polish string for every reason, not an English fallback', async () => {
-    const english = FAILURES.map((f) => localizeReconstitutionFailure(i18n.t, f));
+    const english = FAILURES.map((f) =>
+      localizeReconstitutionFailure(i18n.t, f)
+    );
     const englishWarnings = WARNINGS.map((w) =>
-      localizeReconstitutionWarning(i18n.t, w),
+      localizeReconstitutionWarning(i18n.t, w)
     );
 
     await i18n.changeLanguage('pl');
@@ -117,7 +119,7 @@ describe('reconstitution message localization', () => {
     });
     WARNINGS.forEach((w, index) => {
       expect(localizeReconstitutionWarning(i18n.t, w)).not.toBe(
-        englishWarnings[index],
+        englishWarnings[index]
       );
     });
   });
@@ -126,7 +128,7 @@ describe('reconstitution message localization', () => {
     const exceedsVial = FAILURES_BY_REASON.dose_exceeds_vial;
 
     expect(localizeReconstitutionFailure(i18n.t, exceedsVial)).toBe(
-      'A 20 mg dose is more than the vial holds (10 mg).',
+      'A 20 mg dose is more than the vial holds (10 mg).'
     );
 
     await i18n.changeLanguage('pl');
@@ -134,6 +136,8 @@ describe('reconstitution message localization', () => {
 
     expect(polish).toContain('20 mg');
     expect(polish).toContain('10 mg');
-    expect(polish).not.toBe('A 20 mg dose is more than the vial holds (10 mg).');
+    expect(polish).not.toBe(
+      'A 20 mg dose is more than the vial holds (10 mg).'
+    );
   });
 });

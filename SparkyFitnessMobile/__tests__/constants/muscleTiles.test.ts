@@ -46,7 +46,9 @@ describe('muscle tiles', () => {
   });
 
   it('de-duplicates and ignores unknown tile ids', () => {
-    expect(musclesForTiles(['chest', 'chest', 'not-a-tile'])).toEqual(['chest']);
+    expect(musclesForTiles(['chest', 'chest', 'not-a-tile'])).toEqual([
+      'chest',
+    ]);
     expect(musclesForTiles([])).toEqual([]);
   });
 

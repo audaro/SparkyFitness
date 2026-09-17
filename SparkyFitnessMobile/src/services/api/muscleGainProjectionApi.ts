@@ -18,7 +18,7 @@ const SERVICE_NAME = 'Muscle Gain Projection API';
  * Owner-only, like the rest of the coach profile.
  */
 export const fetchMuscleGainProjection = async (
-  weeks: number,
+  weeks: number
 ): Promise<MuscleGainProjection> => {
   return apiFetch<MuscleGainProjection>({
     endpoint: `/api/coach-profile/projection?weeks=${weeks}`,

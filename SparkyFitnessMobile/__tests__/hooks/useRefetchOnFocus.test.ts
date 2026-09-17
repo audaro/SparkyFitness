@@ -35,7 +35,9 @@ describe('useRefetchOnFocus', () => {
       .spyOn(AppState, 'addEventListener')
       .mockImplementation((_event, handler) => {
         appStateCallback = handler as (state: AppStateStatus) => void;
-        return { remove: removeListener } as ReturnType<typeof AppState.addEventListener>;
+        return { remove: removeListener } as ReturnType<
+          typeof AppState.addEventListener
+        >;
       });
     jest.spyOn(Date, 'now').mockReturnValue(0);
   });

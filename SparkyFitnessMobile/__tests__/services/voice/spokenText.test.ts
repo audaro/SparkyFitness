@@ -8,8 +8,11 @@ describe('markdownToSpokenText', () => {
   });
 
   it('strips emphasis, headings, and list markers but keeps the words', () => {
-    const md = '## Today\n**Breakfast** was *good*:\n- 2 eggs\n- 1 toast\n1. water';
-    expect(markdownToSpokenText(md)).toBe('Today\nBreakfast was good:\n2 eggs\n1 toast\nwater');
+    const md =
+      '## Today\n**Breakfast** was *good*:\n- 2 eggs\n- 1 toast\n1. water';
+    expect(markdownToSpokenText(md)).toBe(
+      'Today\nBreakfast was good:\n2 eggs\n1 toast\nwater'
+    );
   });
 
   it('drops the server checkmark convention and code blocks', () => {
@@ -22,9 +25,11 @@ describe('markdownToSpokenText', () => {
   });
 
   it('keeps link labels and inline code content', () => {
-    expect(markdownToSpokenText('See [your report](https://x.example) and `protein`.')).toBe(
-      'See your report and protein.'
-    );
+    expect(
+      markdownToSpokenText(
+        'See [your report](https://x.example) and `protein`.'
+      )
+    ).toBe('See your report and protein.');
   });
 
   it('reads table cells as pauses and drops separator rows', () => {

@@ -36,7 +36,11 @@ import {
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import { useServerConfigs, useServerConnection } from '../hooks';
-import { activeAiServiceSettingQueryKey, serverConfigsQueryKey, serverConnectionQueryKey } from '../hooks/queryKeys';
+import {
+  activeAiServiceSettingQueryKey,
+  serverConfigsQueryKey,
+  serverConnectionQueryKey,
+} from '../hooks/queryKeys';
 import type { RootStackScreenProps } from '../types/navigation';
 
 type ServerSettingsScreenProps = RootStackScreenProps<'ServerSettings'>;
@@ -99,8 +103,15 @@ const ServerSettingsScreen: React.FC<ServerSettingsScreenProps> = ({
       await refetchServerConfigs();
       refetchConnection();
       // A different server has a different (or no) AI provider.
-      queryClient.invalidateQueries({ queryKey: activeAiServiceSettingQueryKey });
-      Toast.show({ type: 'success', text1: t('serverSettingsUi.activeServerChanged', { defaultValue: 'Active server changed' }) });
+      queryClient.invalidateQueries({
+        queryKey: activeAiServiceSettingQueryKey,
+      });
+      Toast.show({
+        type: 'success',
+        text1: t('serverSettingsUi.activeServerChanged', {
+          defaultValue: 'Active server changed',
+        }),
+      });
       addLog('Active server configuration changed.', 'INFO');
     } catch (error) {
       const errorMessage =
@@ -501,7 +512,9 @@ const ServerSettingsScreen: React.FC<ServerSettingsScreenProps> = ({
           setUnifiedModalVisible(false);
           invalidateServerConfigs();
           queryClient.invalidateQueries({ queryKey: serverConnectionQueryKey });
-          queryClient.invalidateQueries({ queryKey: activeAiServiceSettingQueryKey });
+          queryClient.invalidateQueries({
+            queryKey: activeAiServiceSettingQueryKey,
+          });
           refetchConnection();
         }}
         onDismiss={() => setUnifiedModalVisible(false)}

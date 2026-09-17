@@ -18,7 +18,11 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-const mockNavigation = { goBack: jest.fn(), setOptions: jest.fn(), navigate: jest.fn() } as never;
+const mockNavigation = {
+  goBack: jest.fn(),
+  setOptions: jest.fn(),
+  navigate: jest.fn(),
+} as never;
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => mockNavigation,
@@ -33,9 +37,11 @@ const renderScreen = (initialPrefs: Record<string, unknown> | undefined) => {
     <QueryClientProvider client={queryClient}>
       <MedicationSettingsScreen
         navigation={mockNavigation}
-        route={{ key: 'k', name: 'MedicationSettings', params: undefined } as never}
+        route={
+          { key: 'k', name: 'MedicationSettings', params: undefined } as never
+        }
       />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 };
 
@@ -83,7 +89,9 @@ describe('MedicationSettingsScreen', () => {
     await waitFor(() =>
       // Only this key: the server merges a partial payload, and resending the rest would clobber
       // a preference changed elsewhere.
-      expect(spy).toHaveBeenCalledWith({ medication_catalog_lookup_enabled: true }),
+      expect(spy).toHaveBeenCalledWith({
+        medication_catalog_lookup_enabled: true,
+      })
     );
   });
 
@@ -91,22 +99,26 @@ describe('MedicationSettingsScreen', () => {
     // Held open so the optimistic state can be observed before the failure lands — otherwise a
     // switch that never moved at all would pass this test.
     let fail: (error: Error) => void = () => {};
-    jest
-      .spyOn(preferencesApi, 'updatePreferences')
-      .mockReturnValue(new Promise((_resolve, reject) => {
+    jest.spyOn(preferencesApi, 'updatePreferences').mockReturnValue(
+      new Promise((_resolve, reject) => {
         fail = reject;
-      }) as never);
+      }) as never
+    );
     const { UNSAFE_getAllByType } = renderScreen({
       medication_catalog_lookup_enabled: false,
     });
 
     fireEvent(UNSAFE_getAllByType(Switch)[0], 'valueChange', true);
-    await waitFor(() => expect(UNSAFE_getAllByType(Switch)[0]?.props.value).toBe(true));
+    await waitFor(() =>
+      expect(UNSAFE_getAllByType(Switch)[0]?.props.value).toBe(true)
+    );
 
     fail(new Error('server down'));
 
     // A switch reporting a state the server did not record is the worst kind of wrong here: the
     // user would believe lookups were on when nothing had been saved.
-    await waitFor(() => expect(UNSAFE_getAllByType(Switch)[0]?.props.value).toBe(false));
+    await waitFor(() =>
+      expect(UNSAFE_getAllByType(Switch)[0]?.props.value).toBe(false)
+    );
   });
 });

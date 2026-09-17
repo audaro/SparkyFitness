@@ -101,13 +101,15 @@ const LIMITATION_PRESETS = [
 ] as const;
 
 const PRESET_LIMITATION_VALUES: readonly string[] = LIMITATION_PRESETS.map(
-  (preset) => preset.value,
+  (preset) => preset.value
 );
 
 function primaryGoalLabel(t: TFunction, goal: PrimaryGoal): string {
   switch (goal) {
     case 'build_muscle':
-      return t('trainingPlan.goal.buildMuscle', { defaultValue: 'Build muscle' });
+      return t('trainingPlan.goal.buildMuscle', {
+        defaultValue: 'Build muscle',
+      });
     case 'lose_fat':
       return t('trainingPlan.goal.loseFat', { defaultValue: 'Lose fat' });
     case 'recomp':
@@ -135,7 +137,8 @@ function primaryGoalDetail(t: TFunction, goal: PrimaryGoal): string {
       });
     case 'recomp':
       return t('trainingPlan.goalDetail.recomp', {
-        defaultValue: 'Trained like a muscle-building block, eaten differently.',
+        defaultValue:
+          'Trained like a muscle-building block, eaten differently.',
       });
     case 'strength':
       return t('trainingPlan.goalDetail.strength', {
@@ -168,7 +171,9 @@ function physiqueLabel(t: TFunction, target: PhysiqueTarget): string {
 function experienceLabel(t: TFunction, level: ExperienceLevel): string {
   switch (level) {
     case 'beginner':
-      return t('trainingPlan.experience.beginner', { defaultValue: 'Beginner' });
+      return t('trainingPlan.experience.beginner', {
+        defaultValue: 'Beginner',
+      });
     case 'intermediate':
       return t('trainingPlan.experience.intermediate', {
         defaultValue: 'Intermediate',
@@ -198,13 +203,19 @@ function experienceDetail(t: TFunction, level: ExperienceLevel): string {
 function groupLabel(t: TFunction, group: MuscleGroup): string {
   switch (group) {
     case 'push':
-      return t('weeklySetTargets.groups.push', { defaultValue: 'Push Muscles' });
+      return t('weeklySetTargets.groups.push', {
+        defaultValue: 'Push Muscles',
+      });
     case 'pull':
-      return t('weeklySetTargets.groups.pull', { defaultValue: 'Pull Muscles' });
+      return t('weeklySetTargets.groups.pull', {
+        defaultValue: 'Pull Muscles',
+      });
     case 'legs':
       return t('weeklySetTargets.groups.legs', { defaultValue: 'Leg Muscles' });
     case 'core':
-      return t('weeklySetTargets.groups.core', { defaultValue: 'Core Muscles' });
+      return t('weeklySetTargets.groups.core', {
+        defaultValue: 'Core Muscles',
+      });
   }
 }
 
@@ -242,7 +253,7 @@ function esterLabel(t: TFunction, ester: TestosteroneEster): string {
 
 function limitationLabel(
   t: TFunction,
-  key: (typeof LIMITATION_PRESETS)[number]['key'],
+  key: (typeof LIMITATION_PRESETS)[number]['key']
 ): string {
   switch (key) {
     case 'shoulder':
@@ -297,7 +308,8 @@ function storedSignature(profile: CoachProfile): string {
   return JSON.stringify({
     primary_goal: profile.primary_goal,
     physique_target: profile.physique_target,
-    goals: profile.goals !== null && profile.goals.length > 0 ? profile.goals : null,
+    goals:
+      profile.goals !== null && profile.goals.length > 0 ? profile.goals : null,
     training_days_per_week: profile.training_days_per_week,
     session_minutes: profile.session_minutes,
     experience_level: profile.experience_level,
@@ -343,14 +355,13 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
   const [seeded, setSeeded] = useState(false);
   const [primaryGoal, setPrimaryGoal] = useState<PrimaryGoal | null>(null);
   const [physiqueTarget, setPhysiqueTarget] = useState<PhysiqueTarget | null>(
-    null,
+    null
   );
   const [goalsNote, setGoalsNote] = useState('');
   const [trainingDays, setTrainingDays] = useState(4);
   const [sessionMinutes, setSessionMinutes] = useState(60);
-  const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel | null>(
-    null,
-  );
+  const [experienceLevel, setExperienceLevel] =
+    useState<ExperienceLevel | null>(null);
   const [priorities, setPriorities] = useState<MuscleGroup[]>([]);
   const [limitations, setLimitations] = useState<string[]>([]);
   const [limitationsNote, setLimitationsNote] = useState('');
@@ -375,13 +386,13 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
     setPriorities(profile.priority_muscle_groups ?? []);
     setLimitations(
       profile.limitations.filter((item) =>
-        PRESET_LIMITATION_VALUES.includes(item),
-      ),
+        PRESET_LIMITATION_VALUES.includes(item)
+      )
     );
     setLimitationsNote(
       profile.limitations
         .filter((item) => !PRESET_LIMITATION_VALUES.includes(item))
-        .join(', '),
+        .join(', ')
     );
     const stated = profile.enhancement;
     if (stated) {
@@ -415,7 +426,8 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
   // Shown for undecanoate, which is the ester long protocols use — and for a
   // profile that already states one, so re-opening the questionnaire can never
   // quietly rewrite an interval the user gave.
-  const showsInterval = !isNatural && (ester === 'undecanoate' || intervalWeeks !== 1);
+  const showsInterval =
+    !isNatural && (ester === 'undecanoate' || intervalWeeks !== 1);
 
   const derivedTargets = deriveDefaultWeeklySetTargets({
     trainingDaysPerWeek: trainingDays,
@@ -429,7 +441,9 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
     ? { status: 'natural' as const }
     : {
         status: enhancementStatus,
-        ...(dosePerDose === null ? {} : { testosterone_mg_per_dose: dosePerDose }),
+        ...(dosePerDose === null
+          ? {}
+          : { testosterone_mg_per_dose: dosePerDose }),
         ...(dosePerDose !== null && showsInterval
           ? { dose_interval_weeks: intervalWeeks }
           : {}),
@@ -467,7 +481,7 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
 
   const { projection, isLoading: projectionLoading } = useMuscleGainProjection(
     12,
-    step === TOTAL_STEPS && planIsSaved,
+    step === TOTAL_STEPS && planIsSaved
   );
 
   const header = useScreenHeader({
@@ -480,7 +494,9 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
       kind: 'primary',
       label: t('common.back', { defaultValue: 'Back' }),
       onPress: () =>
-        step > 1 ? setStep((current: number) => current - 1) : navigation.goBack(),
+        step > 1
+          ? setStep((current: number) => current - 1)
+          : navigation.goBack(),
     },
   });
 
@@ -500,7 +516,7 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
     setLimitations((current) =>
       current.includes(value)
         ? current.filter((item) => item !== value)
-        : [...current, value],
+        : [...current, value]
     );
   };
 
@@ -515,7 +531,7 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
         const cleared = await clearWeeklySetTargets(WEEKLY_SET_HISTORY_WEEKS);
         queryClient.setQueryData(
           weeklySetTargetsQueryKey(WEEKLY_SET_HISTORY_WEEKS),
-          cleared,
+          cleared
         );
       }
       setSavedSignature(signature);
@@ -523,8 +539,12 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
       // reads; the stored workout deliberately stays put until regenerated,
       // but its card has to stop claiming the old plan produced it.
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: weeklySetTargetsRootQueryKey }),
-        queryClient.invalidateQueries({ queryKey: workoutRecommendationQueryKey }),
+        queryClient.invalidateQueries({
+          queryKey: weeklySetTargetsRootQueryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: workoutRecommendationQueryKey,
+        }),
         queryClient.invalidateQueries({
           queryKey: muscleGainProjectionRootQueryKey,
         }),
@@ -533,7 +553,7 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
       addLog(
         'Failed to save training plan',
         'ERROR',
-        error instanceof Error ? [error.message] : undefined,
+        error instanceof Error ? [error.message] : undefined
       );
     } finally {
       setSaving(false);
@@ -566,7 +586,7 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
             }),
             onPress: () => void writePlan(true),
           },
-        ],
+        ]
       );
       return;
     }
@@ -582,7 +602,7 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
     title: string,
     subtitle: string | undefined,
     onPress: () => void,
-    testID: string,
+    testID: string
   ) => (
     <SettingsRow
       key={value}
@@ -612,7 +632,9 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
           padding: 16,
           paddingBottom: insets.bottom + 100,
         }}
-        contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior={
+          usesNativeHeader ? 'automatic' : 'never'
+        }
       >
         {step === 1 && (
           <View className="gap-4">
@@ -643,7 +665,9 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                 title={t('trainingPlan.aboutAge', { defaultValue: 'Age' })}
                 subtitle={
                   age === null
-                    ? t('trainingPlan.notStated', { defaultValue: 'Not stated' })
+                    ? t('trainingPlan.notStated', {
+                        defaultValue: 'Not stated',
+                      })
                     : t('trainingPlan.years', {
                         count: age,
                         formattedCount: formatLocalizedNumber(age),
@@ -655,7 +679,9 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                 testID="training-plan-about-age"
               />
               <SettingsRow
-                title={t('trainingPlan.aboutWeight', { defaultValue: 'Weight' })}
+                title={t('trainingPlan.aboutWeight', {
+                  defaultValue: 'Weight',
+                })}
                 subtitle={
                   bodyweightKg === null || bodyweightKg === undefined
                     ? t('trainingPlan.noWeighIn', {
@@ -673,7 +699,9 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                 subtitle={
                   measurement?.body_fat_percentage === null ||
                   measurement?.body_fat_percentage === undefined
-                    ? t('trainingPlan.notStated', { defaultValue: 'Not stated' })
+                    ? t('trainingPlan.notStated', {
+                        defaultValue: 'Not stated',
+                      })
                     : `${formatLocalizedNumber(measurement.body_fat_percentage)}%`
                 }
                 onPress={() => navigation.navigate('MeasurementsAdd')}
@@ -704,8 +732,8 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                   primaryGoalLabel(t, goal),
                   primaryGoalDetail(t, goal),
                   () => setPrimaryGoal(goal),
-                  `training-plan-goal-${goal}`,
-                ),
+                  `training-plan-goal-${goal}`
+                )
               )}
             </SettingsRowGroup>
 
@@ -722,8 +750,8 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                   physiqueLabel(t, target),
                   undefined,
                   () => setPhysiqueTarget(target),
-                  `training-plan-physique-${target}`,
-                ),
+                  `training-plan-physique-${target}`
+                )
               )}
             </SettingsRowGroup>
 
@@ -781,8 +809,8 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                   experienceLabel(t, level),
                   experienceDetail(t, level),
                   () => setExperienceLevel(level),
-                  `training-plan-experience-${level}`,
-                ),
+                  `training-plan-experience-${level}`
+                )
               )}
             </SettingsRowGroup>
 
@@ -897,8 +925,8 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                   enhancementLabel(t, status),
                   undefined,
                   () => setEnhancementStatus(status),
-                  `training-plan-enhancement-${status}`,
-                ),
+                  `training-plan-enhancement-${status}`
+                )
               )}
             </SettingsRowGroup>
 
@@ -924,7 +952,9 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                 />
 
                 <Text className="text-base font-semibold text-text-primary">
-                  {t('trainingPlan.esterTitle', { defaultValue: 'Which ester?' })}
+                  {t('trainingPlan.esterTitle', {
+                    defaultValue: 'Which ester?',
+                  })}
                 </Text>
                 <SettingsRowGroup>
                   {TESTOSTERONE_ESTERS.map((option) =>
@@ -942,8 +972,8 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                           setIntervalWeeks(DEFAULT_UNDECANOATE_INTERVAL_WEEKS);
                         }
                       },
-                      `training-plan-ester-${option}`,
-                    ),
+                      `training-plan-ester-${option}`
+                    )
                   )}
                 </SettingsRowGroup>
 
@@ -977,8 +1007,10 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                                 count: weeks,
                                 formattedCount: formatLocalizedNumber(weeks),
                                 defaultValue: 'every {{formattedCount}} weeks',
-                                defaultValue_one: 'every {{formattedCount}} week',
-                                defaultValue_other: 'every {{formattedCount}} weeks',
+                                defaultValue_one:
+                                  'every {{formattedCount}} week',
+                                defaultValue_other:
+                                  'every {{formattedCount}} weeks',
                               })}
                             </Text>
                           </Pressable>
@@ -1016,7 +1048,9 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                   <Text className="text-base font-semibold text-text-primary">
                     {t('trainingPlan.setsPerWeek', {
                       count: derivedTargets[group],
-                      formattedCount: formatLocalizedNumber(derivedTargets[group]),
+                      formattedCount: formatLocalizedNumber(
+                        derivedTargets[group]
+                      ),
                       defaultValue: '{{formattedCount}} sets / week',
                       defaultValue_one: '{{formattedCount}} set / week',
                       defaultValue_other: '{{formattedCount}} sets / week',
@@ -1031,7 +1065,10 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                 defaultValue: 'What twelve weeks could add',
               })}
             </Text>
-            <View className="rounded-2xl bg-surface p-4" testID="training-plan-projection">
+            <View
+              className="rounded-2xl bg-surface p-4"
+              testID="training-plan-projection"
+            >
               {!planIsSaved ? (
                 <Text className="text-sm text-text-secondary">
                   {t('trainingPlan.projectionNeedsSave', {
@@ -1060,16 +1097,16 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                       low: formatLocalizedNumber(
                         weightFromKg(
                           projection.projection.total_kg.low_kg,
-                          weightUnit,
+                          weightUnit
                         ),
-                        { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+                        { minimumFractionDigits: 1, maximumFractionDigits: 1 }
                       ),
                       high: formatLocalizedNumber(
                         weightFromKg(
                           projection.projection.total_kg.high_kg,
-                          weightUnit,
+                          weightUnit
                         ),
-                        { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+                        { minimumFractionDigits: 1, maximumFractionDigits: 1 }
                       ),
                       unit: weightUnit,
                     })}
@@ -1093,7 +1130,7 @@ const TrainingPlanScreen: React.FC<TrainingPlanScreenProps> = ({
                         defaultValue:
                           'At the {{percent}}% of your targets you have been hitting.',
                         percent: formatLocalizedNumber(
-                          Math.round(projection.inputs.adherence * 100),
+                          Math.round(projection.inputs.adherence * 100)
                         ),
                       })}
                     </Text>

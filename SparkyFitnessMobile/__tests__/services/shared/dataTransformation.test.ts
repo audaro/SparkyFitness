@@ -129,12 +129,15 @@ describe('createTransformHealthRecords', () => {
 
   describe('index forwarding', () => {
     test('value transformers receive the record index as third argument', () => {
-      const valueTransformer = jest.fn<ReturnType<ValueTransformer>, Parameters<ValueTransformer>>(
-        () => ({ value: 1, date: '2024-01-15' }),
+      const valueTransformer = jest.fn<
+        ReturnType<ValueTransformer>,
+        Parameters<ValueTransformer>
+      >(() => ({ value: 1, date: '2024-01-15' }));
+      const transform = createTransformHealthRecords(
+        baseConfig({
+          valueTransformers: { Widget: valueTransformer },
+        })
       );
-      const transform = createTransformHealthRecords(baseConfig({
-        valueTransformers: { Widget: valueTransformer },
-      }));
       transform([{ a: 1 }, { a: 2 }, { a: 3 }], METRIC);
       expect(valueTransformer).toHaveBeenNthCalledWith(1, { a: 1 }, METRIC, 0);
       expect(valueTransformer).toHaveBeenNthCalledWith(2, { a: 2 }, METRIC, 1);

@@ -1,20 +1,34 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import type { ToolCallMessagePart } from '@assistant-ui/react-native';
 import { useAui, useAuiState } from '@assistant-ui/react-native';
 import { useCSSVariable } from 'uniwind';
-import type { ProposedPresetExercise, ProposeWorkoutPresetInput } from '@workspace/shared';
+import type {
+  ProposedPresetExercise,
+  ProposeWorkoutPresetInput,
+} from '@workspace/shared';
 
 import { usePreferences } from '../../hooks/usePreferences';
 import { useCreateWorkoutPreset } from '../../hooks/useWorkoutPresetMutations';
 import type { WorkoutPresetCreatePayload } from '../../services/api/workoutPresetsApi';
 import { formatLocalizedNumber } from '../../localization';
 import { weightFromKg } from '../../utils/unitConversions';
-import { formatDuration, normalizeWeightUnit } from '../../utils/workoutSession';
+import {
+  formatDuration,
+  normalizeWeightUnit,
+} from '../../utils/workoutSession';
 
 /** An exercise is renderable once it has a name and at least one set. */
-function isRenderable(exercise: Partial<ProposedPresetExercise> | undefined): exercise is ProposedPresetExercise {
+function isRenderable(
+  exercise: Partial<ProposedPresetExercise> | undefined
+): exercise is ProposedPresetExercise {
   return (
     !!exercise?.exercise_name &&
     !!exercise.exercise_id &&
@@ -31,7 +45,7 @@ function isRenderable(exercise: Partial<ProposedPresetExercise> | undefined): ex
 function toCreatePayload(
   name: string,
   description: string | null | undefined,
-  exercises: ProposedPresetExercise[],
+  exercises: ProposedPresetExercise[]
 ): WorkoutPresetCreatePayload {
   return {
     name,
@@ -65,7 +79,11 @@ function toCreatePayload(
  * so as a plain user message; Request changes asks for one line of feedback
  * and sends it the same way, so the model revises in the same thread.
  */
-export default function WorkoutProposalCard({ part }: { part: ToolCallMessagePart }) {
+export default function WorkoutProposalCard({
+  part,
+}: {
+  part: ToolCallMessagePart;
+}) {
   const { t } = useTranslation();
   const aui = useAui();
   const isLast = useAuiState((s) => s.message.isLast);
@@ -81,12 +99,17 @@ export default function WorkoutProposalCard({ part }: { part: ToolCallMessagePar
 
   const args = part.args as Partial<ProposeWorkoutPresetInput> | undefined;
   const name = typeof args?.name === 'string' ? args.name : '';
-  const exercises = (Array.isArray(args?.exercises) ? args.exercises : []).filter(isRenderable);
+  const exercises = (
+    Array.isArray(args?.exercises) ? args.exercises : []
+  ).filter(isRenderable);
   // The input streams in as partial JSON — nothing to show until the routine
   // has a name and one complete exercise.
   if (!name || exercises.length === 0) return null;
 
-  const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+  const totalSets = exercises.reduce(
+    (sum, exercise) => sum + exercise.sets.length,
+    0
+  );
   // A card on an older message would act on a proposal the chat has moved
   // past; only the last message keeps its buttons live.
   const stale = !isLast || isRunning;
@@ -94,12 +117,21 @@ export default function WorkoutProposalCard({ part }: { part: ToolCallMessagePar
 
   const formatSet = (set: ProposedPresetExercise['sets'][number]): string => {
     const parts: string[] = [];
-    if (set.reps != null) parts.push(`${set.reps} ${t('workoutProposal.reps', { defaultValue: 'reps' })}`);
+    if (set.reps != null)
+      parts.push(
+        `${set.reps} ${t('workoutProposal.reps', { defaultValue: 'reps' })}`
+      );
     if (set.weight != null && set.weight > 0) {
-      parts.push(`${formatLocalizedNumber(weightFromKg(set.weight, weightUnit), { maximumFractionDigits: 1 })} ${weightUnit}`);
+      parts.push(
+        `${formatLocalizedNumber(weightFromKg(set.weight, weightUnit), { maximumFractionDigits: 1 })} ${weightUnit}`
+      );
     }
-    if (set.duration != null && set.duration > 0) parts.push(formatDuration(Math.round(set.duration / 60)));
-    if (set.distance != null && set.distance > 0) parts.push(`${formatLocalizedNumber(set.distance, { maximumFractionDigits: 2 })} km`);
+    if (set.duration != null && set.duration > 0)
+      parts.push(formatDuration(Math.round(set.duration / 60)));
+    if (set.distance != null && set.distance > 0)
+      parts.push(
+        `${formatLocalizedNumber(set.distance, { maximumFractionDigits: 2 })} km`
+      );
     return parts.join(' · ');
   };
 
@@ -107,20 +139,24 @@ export default function WorkoutProposalCard({ part }: { part: ToolCallMessagePar
   const summarizeSets = (sets: ProposedPresetExercise['sets']): string[] => {
     const lines = sets.map(formatSet);
     if (lines.every((line) => line === lines[0])) {
-      return [`${sets.length} × ${lines[0] || t('workoutProposal.setNoun', { defaultValue: 'set' })}`];
+      return [
+        `${sets.length} × ${lines[0] || t('workoutProposal.setNoun', { defaultValue: 'set' })}`,
+      ];
     }
     return lines.map((line, index) => `${index + 1}. ${line}`);
   };
 
   const handleAccept = async () => {
     try {
-      await createPresetAsync(toCreatePayload(name, args?.description, exercises));
+      await createPresetAsync(
+        toCreatePayload(name, args?.description, exercises)
+      );
       setCreatedName(name);
       aui.thread().append(
         t('workoutProposal.acceptedMessage', {
           defaultValue: 'I accepted the proposed routine "{{name}}".',
           name,
-        }),
+        })
       );
     } catch {
       // useCreateWorkoutPreset already showed the failure toast.
@@ -134,7 +170,7 @@ export default function WorkoutProposalCard({ part }: { part: ToolCallMessagePar
       t('workoutProposal.reviseMessage', {
         defaultValue: 'Please revise the proposal: {{feedback}}',
         feedback: trimmed,
-      }),
+      })
     );
     setRevising(false);
     setFeedback('');
@@ -150,7 +186,9 @@ export default function WorkoutProposalCard({ part }: { part: ToolCallMessagePar
           <Text className="text-text-secondary text-xs">
             {createdName != null
               ? t('workoutProposal.createdBadge', { defaultValue: 'Saved ✓' })
-              : t('workoutProposal.proposalBadge', { defaultValue: 'Proposed routine' })}
+              : t('workoutProposal.proposalBadge', {
+                  defaultValue: 'Proposed routine',
+                })}
           </Text>
         </View>
         <Text className="text-text-muted text-xs">
@@ -220,7 +258,9 @@ export default function WorkoutProposalCard({ part }: { part: ToolCallMessagePar
             testID="workout-proposal-revise"
           >
             <Text className="text-text-primary text-sm font-semibold">
-              {t('workoutProposal.regenerate', { defaultValue: 'Request changes' })}
+              {t('workoutProposal.regenerate', {
+                defaultValue: 'Request changes',
+              })}
             </Text>
           </Pressable>
         </View>
@@ -232,7 +272,8 @@ export default function WorkoutProposalCard({ part }: { part: ToolCallMessagePar
             value={feedback}
             onChangeText={setFeedback}
             placeholder={t('workoutProposal.revisionPlaceholder', {
-              defaultValue: 'What should change? e.g. less volume, no barbell work',
+              defaultValue:
+                'What should change? e.g. less volume, no barbell work',
             })}
             className="border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary"
             multiline

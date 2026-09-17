@@ -5,7 +5,10 @@ import {
   useAppPreferencesStore,
   __resetAppPreferencesStoreForTests,
 } from '../../src/stores/appPreferencesStore';
-import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from '../hooks/queryTestUtils';
 
 const mockPresent = jest.fn();
 let sheetOnChange: ((seconds: number) => void) | null = null;
@@ -35,7 +38,11 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-const mockNavigation = { goBack: jest.fn(), setOptions: jest.fn(), navigate: jest.fn() } as any;
+const mockNavigation = {
+  goBack: jest.fn(),
+  setOptions: jest.fn(),
+  navigate: jest.fn(),
+} as any;
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => mockNavigation,
@@ -45,9 +52,12 @@ const navigation = mockNavigation;
 const route = { params: {} } as any;
 
 function renderScreen() {
-  return render(<WorkoutSettingsScreen navigation={navigation} route={route} />, {
-    wrapper: createQueryWrapper(createTestQueryClient()),
-  });
+  return render(
+    <WorkoutSettingsScreen navigation={navigation} route={route} />,
+    {
+      wrapper: createQueryWrapper(createTestQueryClient()),
+    }
+  );
 }
 
 describe('WorkoutSettingsScreen', () => {

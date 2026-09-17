@@ -35,13 +35,19 @@ const MAX_TARGET = 100;
 function groupLabel(t: TFunction, group: MuscleGroup): string {
   switch (group) {
     case 'push':
-      return t('weeklySetTargets.groups.push', { defaultValue: 'Push Muscles' });
+      return t('weeklySetTargets.groups.push', {
+        defaultValue: 'Push Muscles',
+      });
     case 'pull':
-      return t('weeklySetTargets.groups.pull', { defaultValue: 'Pull Muscles' });
+      return t('weeklySetTargets.groups.pull', {
+        defaultValue: 'Pull Muscles',
+      });
     case 'legs':
       return t('weeklySetTargets.groups.legs', { defaultValue: 'Leg Muscles' });
     case 'core':
-      return t('weeklySetTargets.groups.core', { defaultValue: 'Core Muscles' });
+      return t('weeklySetTargets.groups.core', {
+        defaultValue: 'Core Muscles',
+      });
   }
 }
 
@@ -145,7 +151,7 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = ({
 
   const adjustDraft = useCallback((delta: number) => {
     setDraftTarget((current) =>
-      Math.max(0, Math.min(MAX_TARGET, current + delta)),
+      Math.max(0, Math.min(MAX_TARGET, current + delta))
     );
   }, []);
 
@@ -158,7 +164,9 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = ({
         {header}
         <StatusView
           loading
-          title={t('weeklySetTargets.loading', { defaultValue: 'Loading your week…' })}
+          title={t('weeklySetTargets.loading', {
+            defaultValue: 'Loading your week…',
+          })}
         />
       </View>
     );
@@ -202,7 +210,9 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = ({
           padding: 16,
           paddingBottom: insets.bottom + 80 + activeWorkoutBarPadding,
         }}
-        contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior={
+          usesNativeHeader ? 'automatic' : 'never'
+        }
       >
         <Text className="text-sm text-text-secondary">
           {weekRangeLabel(data.current)}
@@ -257,9 +267,7 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = ({
             >
               <Pressable
                 className="flex-row items-center"
-                onPress={() =>
-                  isEditing ? commitEdit() : startEditing(group)
-                }
+                onPress={() => (isEditing ? commitEdit() : startEditing(group))}
                 accessibilityRole="button"
                 accessibilityLabel={t('weeklySetTargets.groupA11y', {
                   defaultValue: '{{group}}, {{completed}} of {{target}} sets',
@@ -287,13 +295,13 @@ const WeeklySetTargetsScreen: React.FC<WeeklySetTargetsScreenProps> = ({
                 </View>
                 <View className="items-end">
                   <Text className="text-base font-semibold text-text-primary">
-                    {group.target === 0
-                      ? '—'
-                      : formatSetCount(group.remaining)}
+                    {group.target === 0 ? '—' : formatSetCount(group.remaining)}
                   </Text>
                   <Text className="text-xs text-text-muted">
                     {group.target === 0
-                      ? t('weeklySetTargets.notTracked', { defaultValue: 'not tracked' })
+                      ? t('weeklySetTargets.notTracked', {
+                          defaultValue: 'not tracked',
+                        })
                       : t('weeklySetTargets.toGo', { defaultValue: 'to go' })}
                   </Text>
                 </View>

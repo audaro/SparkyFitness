@@ -29,7 +29,7 @@ const mockUpdate = updateWeeklySetTargets as jest.MockedFunction<
 
 function response(
   targets: { push: number; pull: number; legs: number; core: number },
-  custom = false,
+  custom = false
 ): WeeklySetTargetsResponse {
   return {
     current: {
@@ -55,7 +55,9 @@ describe('useWeeklySetTargets', () => {
   });
 
   it('requests the history depth it is asked for', async () => {
-    mockFetch.mockResolvedValue(response({ push: 11, pull: 11, legs: 11, core: 5 }));
+    mockFetch.mockResolvedValue(
+      response({ push: 11, pull: 11, legs: 11, core: 5 })
+    );
 
     const { result } = renderHook(() => useWeeklySetTargets(4), {
       wrapper: createQueryWrapper(createTestQueryClient()),
@@ -76,7 +78,7 @@ describe('useUpdateWeeklySetTargets', () => {
   // edit made elsewhere between load and save.
   it('sends only the group that changed', async () => {
     mockUpdate.mockResolvedValue(
-      response({ push: 11, pull: 11, legs: 20, core: 5 }, true),
+      response({ push: 11, pull: 11, legs: 20, core: 5 }, true)
     );
 
     const { result } = renderHook(() => useUpdateWeeklySetTargets(2), {
@@ -105,7 +107,9 @@ describe('useUpdateWeeklySetTargets', () => {
       await result.current.mutateAsync({ legs: 20 });
     });
 
-    expect(queryClient.getQueryData(weeklySetTargetsQueryKey(2))).toEqual(saved);
+    expect(queryClient.getQueryData(weeklySetTargetsQueryKey(2))).toEqual(
+      saved
+    );
   });
 
   // Stepping legs and then immediately tapping push puts two saves in flight.
@@ -122,7 +126,7 @@ describe('useUpdateWeeklySetTargets', () => {
         () =>
           new Promise<WeeklySetTargetsResponse>((resolve) => {
             releaseFirst = resolve;
-          }),
+          })
       )
       .mockResolvedValueOnce(fresh);
 
@@ -138,7 +142,9 @@ describe('useUpdateWeeklySetTargets', () => {
       await first;
     });
 
-    expect(queryClient.getQueryData(weeklySetTargetsQueryKey(2))).toEqual(fresh);
+    expect(queryClient.getQueryData(weeklySetTargetsQueryKey(2))).toEqual(
+      fresh
+    );
   });
 
   // The seq guard alone would drop the successful save on the floor: its
@@ -156,13 +162,13 @@ describe('useUpdateWeeklySetTargets', () => {
         () =>
           new Promise<WeeklySetTargetsResponse>((resolve) => {
             releaseFirst = resolve;
-          }),
+          })
       )
       .mockImplementationOnce(
         () =>
           new Promise<WeeklySetTargetsResponse>((_resolve, reject) => {
             rejectSecond = reject;
-          }),
+          })
       );
 
     // The read hook has to be mounted too: an invalidate only refetches a query
@@ -172,7 +178,7 @@ describe('useUpdateWeeklySetTargets', () => {
         query: useWeeklySetTargets(2),
         update: useUpdateWeeklySetTargets(2),
       }),
-      { wrapper: createQueryWrapper(queryClient) },
+      { wrapper: createQueryWrapper(queryClient) }
     );
     await waitFor(() => expect(result.current.query.isLoading).toBe(false));
     mockFetch.mockClear();
@@ -213,7 +219,7 @@ describe('useUpdateWeeklySetTargets', () => {
     });
 
     expect(
-      queryClient.getQueryData(weeklySetTargetsQueryKey(2)),
+      queryClient.getQueryData(weeklySetTargetsQueryKey(2))
     ).toBeUndefined();
   });
 });

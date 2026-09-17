@@ -18,7 +18,11 @@ const labelFor = (muscle: Muscle): string =>
   muscle.replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 /** What a region announces: its name, whether it is picked, how recovered it is. */
-const describe = (muscle: Muscle, percent: number | null, selected: boolean): string => {
+const describe = (
+  muscle: Muscle,
+  percent: number | null,
+  selected: boolean
+): string => {
   const parts = [labelFor(muscle)];
   if (selected) parts.push('selected');
   if (percent !== null) parts.push(`${percent}% recovered`);
@@ -52,7 +56,8 @@ function figure(view: BodyView): Figure {
   const paths = BODY_PATHS.filter((path) => path.view === view);
   const speaker = new Map<Muscle, number>();
   paths.forEach((path, index) => {
-    if (path.kind === 'muscle' && !speaker.has(path.muscle)) speaker.set(path.muscle, index);
+    if (path.kind === 'muscle' && !speaker.has(path.muscle))
+      speaker.set(path.muscle, index);
   });
   return { paths, speaker };
 }
@@ -99,7 +104,10 @@ export interface MuscleBodyMapProps {
    * **Never the raw 0.0–1.0 `freshness`.** The ×100 happens once, in the hook's
    * `select`.
    */
-  recoveryByMuscle: ReadonlyMap<Muscle, { percent: number; tone: FreshnessTone }>;
+  recoveryByMuscle: ReadonlyMap<
+    Muscle,
+    { percent: number; tone: FreshnessTone }
+  >;
   selected: readonly Muscle[];
   onToggle: (muscle: Muscle) => void;
   testID?: string;
@@ -134,12 +142,13 @@ const MuscleBodyMap: React.FC<MuscleBodyMapProps> = ({
   onToggle,
   testID,
 }) => {
-  const [accentPrimary, silhouetteColor, detailColor, trackColor] = useCSSVariable([
-    '--color-accent-primary',
-    '--color-surface',
-    '--color-text-secondary',
-    '--color-progress-track',
-  ]) as [string, string, string, string];
+  const [accentPrimary, silhouetteColor, detailColor, trackColor] =
+    useCSSVariable([
+      '--color-accent-primary',
+      '--color-surface',
+      '--color-text-secondary',
+      '--color-progress-track',
+    ]) as [string, string, string, string];
 
   const toneColors = useFreshnessToneColors();
   const selectedSet = useMemo(() => new Set(selected), [selected]);
@@ -148,14 +157,24 @@ const MuscleBodyMap: React.FC<MuscleBodyMapProps> = ({
   return (
     // The figure keeps the illustration's own proportions; without an explicit
     // ratio the Svg has no intrinsic height and collapses to nothing.
-    <View testID={testID} style={{ width: '100%', aspectRatio: BODY_VIEW_ASPECT }}>
+    <View
+      testID={testID}
+      style={{ width: '100%', aspectRatio: BODY_VIEW_ASPECT }}
+    >
       <Svg width="100%" height="100%" viewBox={BODY_VIEWS[view].viewBox}>
         {paths.map((path, index) => {
           if (path.kind === 'silhouette') {
             return <Path key={index} d={path.d} fill={silhouetteColor} />;
           }
           if (path.kind === 'detail') {
-            return <Path key={index} d={path.d} fill={detailColor} opacity={DETAIL_OPACITY} />;
+            return (
+              <Path
+                key={index}
+                d={path.d}
+                fill={detailColor}
+                opacity={DETAIL_OPACITY}
+              />
+            );
           }
 
           const entry = recoveryByMuscle.get(path.muscle);
@@ -165,7 +184,13 @@ const MuscleBodyMap: React.FC<MuscleBodyMapProps> = ({
             <Path
               key={index}
               d={path.d}
-              fill={isSelected ? accentPrimary : entry ? toneColors[entry.tone] : trackColor}
+              fill={
+                isSelected
+                  ? accentPrimary
+                  : entry
+                    ? toneColors[entry.tone]
+                    : trackColor
+              }
               // Every path of a muscle carries the handler, so tapping any part
               // of a region the illustration draws in pieces picks the whole
               // muscle.
@@ -179,7 +204,9 @@ const MuscleBodyMap: React.FC<MuscleBodyMapProps> = ({
               // `accessibilityLabel` through to a path — there is no role or
               // checked state to set — so both have to be said in the label.
               accessibilityLabel={
-                speaks ? describe(path.muscle, entry?.percent ?? null, isSelected) : undefined
+                speaks
+                  ? describe(path.muscle, entry?.percent ?? null, isSelected)
+                  : undefined
               }
               testID={speaks && testID ? `${testID}-${path.muscle}` : undefined}
             />

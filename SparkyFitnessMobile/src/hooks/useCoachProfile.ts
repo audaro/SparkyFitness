@@ -10,7 +10,10 @@ import {
 import { coachProfileQueryKey } from './queryKeys';
 import { useRefetchOnFocus } from './useRefetchOnFocus';
 
-export type { CoachProfile, CoachProfilePatch } from '../services/api/coachProfileApi';
+export type {
+  CoachProfile,
+  CoachProfilePatch,
+} from '../services/api/coachProfileApi';
 
 /**
  * The coach profile the workout engine reads. The chat coach edits the same

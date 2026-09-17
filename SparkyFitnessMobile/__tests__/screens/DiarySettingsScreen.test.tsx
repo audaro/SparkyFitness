@@ -46,7 +46,11 @@ const renderScreen = () => {
   return render(
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider initialMetrics={{ frame, insets }}>
-        <DiarySettingsScreen {...({ navigation: {}, route: {} } as unknown as ComponentProps<typeof DiarySettingsScreen>)} />
+        <DiarySettingsScreen
+          {...({ navigation: {}, route: {} } as unknown as ComponentProps<
+            typeof DiarySettingsScreen
+          >)}
+        />
       </SafeAreaProvider>
     </QueryClientProvider>
   );

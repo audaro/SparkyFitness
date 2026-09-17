@@ -42,7 +42,7 @@ describe('MuscleRecoveryStrip', () => {
   it('draws a tile for every canonical muscle', () => {
     setState({
       muscles: MUSCLES.map((muscle, index) =>
-        item(muscle, 1 - index / MUSCLES.length),
+        item(muscle, 1 - index / MUSCLES.length)
       ),
     });
 
@@ -50,7 +50,9 @@ describe('MuscleRecoveryStrip', () => {
 
     expect(screen.getByTestId('exercise-home-recovery-card')).toBeTruthy();
     for (const muscle of MUSCLES) {
-      expect(screen.getByTestId(`exercise-home-recovery-${muscle}`)).toBeTruthy();
+      expect(
+        screen.getByTestId(`exercise-home-recovery-${muscle}`)
+      ).toBeTruthy();
     }
   });
 
@@ -79,7 +81,7 @@ describe('MuscleRecoveryStrip', () => {
 
     const screen = render(<MuscleRecoveryStrip />);
     const tiles = screen.getAllByTestId(
-      /^exercise-home-recovery-(?!card$|strip$)/,
+      /^exercise-home-recovery-(?!card$|strip$)/
     );
 
     expect(tiles.map((node) => node.props.testID)).toEqual([

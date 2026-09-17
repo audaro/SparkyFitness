@@ -19,7 +19,8 @@ const mockAuiState = {
 jest.mock('@assistant-ui/react-native', () => ({
   __esModule: true,
   useAui: () => ({ thread: () => ({ append: mockAppend }) }),
-  useAuiState: (selector: (s: typeof mockAuiState) => unknown) => selector(mockAuiState),
+  useAuiState: (selector: (s: typeof mockAuiState) => unknown) =>
+    selector(mockAuiState),
 }));
 
 beforeEach(() => {
@@ -138,7 +139,10 @@ describe('FoodConfirmCards', () => {
   it('renders nothing while no candidate has finished streaming', () => {
     const { toJSON } = render(
       <FoodConfirmCards
-        part={{ ...confirmPart, args: { question: 'Which?', candidates: [{ label: 'Half' }] } }}
+        part={{
+          ...confirmPart,
+          args: { question: 'Which?', candidates: [{ label: 'Half' }] },
+        }}
       />
     );
     expect(toJSON()).toBeNull();

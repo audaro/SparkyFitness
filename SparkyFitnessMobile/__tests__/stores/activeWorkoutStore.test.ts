@@ -1990,11 +1990,16 @@ describe('activeWorkoutStore', () => {
         completed_at: '2026-03-20T10:00:00.000Z',
         is_pr: true,
       } as any;
-      updated.exercises[0].sets[1] = { ...updated.exercises[0].sets[1], id: 902 } as any;
+      updated.exercises[0].sets[1] = {
+        ...updated.exercises[0].sets[1],
+        id: 902,
+      } as any;
       useActiveWorkoutStore.getState().reconcileWithSession(updated);
 
       const state = useActiveWorkoutStore.getState();
-      expect(state.completedSetIds['901']).toBe(Date.parse('2026-03-20T10:00:00.000Z'));
+      expect(state.completedSetIds['901']).toBe(
+        Date.parse('2026-03-20T10:00:00.000Z')
+      );
       expect(state.completedSetIds['902']).toBeUndefined();
       expect(state.prSetIds['901']).toBe(true);
       expect(state.activeSetId).toBe('902');
@@ -2012,7 +2017,9 @@ describe('activeWorkoutStore', () => {
       } as any;
       useActiveWorkoutStore.getState().reconcileWithSession(updated);
 
-      expect(useActiveWorkoutStore.getState().completedSetIds['101']).toBeUndefined();
+      expect(
+        useActiveWorkoutStore.getState().completedSetIds['101']
+      ).toBeUndefined();
     });
 
     it('drops completedSetIds entries whose IDs no longer exist', async () => {

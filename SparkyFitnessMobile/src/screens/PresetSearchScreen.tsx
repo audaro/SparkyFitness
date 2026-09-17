@@ -465,7 +465,8 @@ const PresetSearchScreen: React.FC<PresetSearchScreenProps> = ({
           </Text>
           <Text className="text-sm mt-0.5" style={{ color: textSecondary }}>
             {t('presetSearch.upNextSubtitle', {
-              defaultValue: 'A workout built for the muscles you have recovered',
+              defaultValue:
+                'A workout built for the muscles you have recovered',
             })}
           </Text>
         </View>

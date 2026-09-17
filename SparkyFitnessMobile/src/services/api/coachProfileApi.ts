@@ -34,7 +34,7 @@ export const fetchCoachProfile = async (): Promise<CoachProfile> => {
  * omitting the field. An empty patch is a 400, so never send one.
  */
 export const updateCoachProfile = async (
-  patch: CoachProfilePatch,
+  patch: CoachProfilePatch
 ): Promise<CoachProfile> => {
   return apiFetch<CoachProfile>({
     endpoint: '/api/coach-profile',

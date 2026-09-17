@@ -475,7 +475,8 @@ function WorkoutCompleteScreen({ navigation, route }: Props) {
   const { profile } = useProfile();
   const isFocused = useIsFocused();
   const { updatePresetAsync } = useUpdateWorkoutPreset();
-  const { mutate: updateRecommendationStatus } = useUpdateRecommendationStatus();
+  const { mutate: updateRecommendationStatus } =
+    useUpdateRecommendationStatus();
 
   // Reaching this screen is the one moment the app knows an Up Next workout
   // was carried through, so the recommendation is marked completed here. The
@@ -485,7 +486,10 @@ function WorkoutCompleteScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (markedRef.current || sourceRecommendationId == null) return;
     markedRef.current = true;
-    updateRecommendationStatus({ id: sourceRecommendationId, status: 'completed' });
+    updateRecommendationStatus({
+      id: sourceRecommendationId,
+      status: 'completed',
+    });
   }, [sourceRecommendationId, updateRecommendationStatus]);
   const [sourcePreset, setSourcePreset] = useState<WorkoutPreset | null>(null);
   const promptedRef = useRef(false);
@@ -607,7 +611,11 @@ function WorkoutCompleteScreen({ navigation, route }: Props) {
         // Skipped sets get their programmed values back: a routine saved from
         // a live start would otherwise carry blank sets for everything the
         // user did not get to.
-        sourceSession: backfillPlannedSetValues(sessionForDetail, completedSetIds, plannedSetValues),
+        sourceSession: backfillPlannedSetValues(
+          sessionForDetail,
+          completedSetIds,
+          plannedSetValues
+        ),
       });
     });
   };

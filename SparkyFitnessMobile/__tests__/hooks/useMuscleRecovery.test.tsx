@@ -14,10 +14,12 @@ jest.mock('../../src/hooks/useRefetchOnFocus', () => ({
   useRefetchOnFocus: jest.fn(),
 }));
 
-const mockFetch = fetchMuscleRecovery as jest.MockedFunction<typeof fetchMuscleRecovery>;
+const mockFetch = fetchMuscleRecovery as jest.MockedFunction<
+  typeof fetchMuscleRecovery
+>;
 
 function response(
-  muscles: { muscle: string; freshness: number }[],
+  muscles: { muscle: string; freshness: number }[]
 ): MuscleRecoveryResponse {
   return {
     date: '2026-08-24',
@@ -42,7 +44,7 @@ function fullVector(): MuscleRecoveryResponse {
     MUSCLES.map((muscle, index) => ({
       muscle,
       freshness: 1 - index / MUSCLES.length,
-    })),
+    }))
   );
 }
 
@@ -66,7 +68,7 @@ describe('useMuscleRecovery', () => {
         { muscle: 'quadriceps', freshness: 0.844 },
         { muscle: 'hamstrings', freshness: 0.005 },
         { muscle: 'glutes', freshness: 0 },
-      ]),
+      ])
     );
 
     const { result } = render();
@@ -86,7 +88,7 @@ describe('useMuscleRecovery', () => {
         { muscle: 'lats', freshness: 0.65 },
         { muscle: 'quadriceps', freshness: 0.33 },
         { muscle: 'hamstrings', freshness: 0.32 },
-      ]),
+      ])
     );
 
     const { result } = render();
@@ -109,7 +111,7 @@ describe('useMuscleRecovery', () => {
 
     expect(result.current.muscles).toHaveLength(MUSCLES.length);
     expect(result.current.muscles.map((entry) => entry.muscle)).toEqual(
-      server.muscles.map((entry) => entry.muscle),
+      server.muscles.map((entry) => entry.muscle)
     );
   });
 

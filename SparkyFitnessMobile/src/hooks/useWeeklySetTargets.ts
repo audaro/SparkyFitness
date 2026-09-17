@@ -15,7 +15,7 @@ import { useRefetchOnFocus } from './useRefetchOnFocus';
 export const WEEKLY_SET_HISTORY_WEEKS = 8;
 
 export function useWeeklySetTargets(
-  historyWeeks: number = WEEKLY_SET_HISTORY_WEEKS,
+  historyWeeks: number = WEEKLY_SET_HISTORY_WEEKS
 ) {
   const query = useQuery<WeeklySetTargetsResponse>({
     queryKey: weeklySetTargetsQueryKey(historyWeeks),
@@ -41,7 +41,7 @@ export function useWeeklySetTargets(
  * made on another device between load and save.
  */
 export function useUpdateWeeklySetTargets(
-  historyWeeks: number = WEEKLY_SET_HISTORY_WEEKS,
+  historyWeeks: number = WEEKLY_SET_HISTORY_WEEKS
 ) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -78,7 +78,7 @@ export function useUpdateWeeklySetTargets(
       if (saveId === latestSaveRef.current) {
         queryClient.setQueryData(
           weeklySetTargetsQueryKey(historyWeeks),
-          response,
+          response
         );
       }
       Toast.show({
@@ -90,7 +90,9 @@ export function useUpdateWeeklySetTargets(
       needsReconcileRef.current = true;
       Toast.show({
         type: 'error',
-        text1: t('weeklySetTargets.saveFailed', { defaultValue: 'Could not save targets' }),
+        text1: t('weeklySetTargets.saveFailed', {
+          defaultValue: 'Could not save targets',
+        }),
         text2: t('common.connectionRetry', {
           defaultValue: 'Please check your connection and try again.',
         }),

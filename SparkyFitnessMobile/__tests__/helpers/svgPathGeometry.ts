@@ -62,13 +62,23 @@ export function flattenPath(d: string, steps = 12): Point[] {
         const t = step / steps;
         const u = 1 - t;
         points.push({
-          x: u * u * u * cursor.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
-          y: u * u * u * cursor.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+          x:
+            u * u * u * cursor.x +
+            3 * u * u * t * p1.x +
+            3 * u * t * t * p2.x +
+            t * t * t * p3.x,
+          y:
+            u * u * u * cursor.y +
+            3 * u * u * t * p1.y +
+            3 * u * t * t * p2.y +
+            t * t * t * p3.y,
         });
       }
       cursor = p3;
     } else {
-      throw new Error(`Unsupported path command "${command}": ${d.slice(0, 60)}…`);
+      throw new Error(
+        `Unsupported path command "${command}": ${d.slice(0, 60)}…`
+      );
     }
   }
 

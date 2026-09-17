@@ -187,26 +187,28 @@ const FastingHistorySheet = forwardRef<FastingHistorySheetRef>(
       );
     };
 
-  return (
-    <>
-      <BottomSheetModal
-        // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
-        // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
-        accessible={false}
-        ref={bottomSheetRef}
-        enableDynamicSizing
-        backdropComponent={renderBackdrop}
-        containerComponent={sheetContainer}
-        backgroundStyle={{ backgroundColor: surfaceBg }}
-        handleIndicatorStyle={{ backgroundColor: textMuted }}
-      >
-        <BottomSheetScrollView contentContainerClassName="bg-surface px-5 pb-safe-or-8">
-          <Text className="text-lg font-semibold text-text-primary text-center mb-1">
-            {t('fastingHistory.title', { defaultValue: 'Fasting history' })}
-          </Text>
-          <Text className="text-center text-text-muted text-xs mb-4">
-            {t('fastingHistory.hint', { defaultValue: 'Tap to edit · swipe left to delete' })}
-          </Text>
+    return (
+      <>
+        <BottomSheetModal
+          // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
+          // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
+          accessible={false}
+          ref={bottomSheetRef}
+          enableDynamicSizing
+          backdropComponent={renderBackdrop}
+          containerComponent={sheetContainer}
+          backgroundStyle={{ backgroundColor: surfaceBg }}
+          handleIndicatorStyle={{ backgroundColor: textMuted }}
+        >
+          <BottomSheetScrollView contentContainerClassName="bg-surface px-5 pb-safe-or-8">
+            <Text className="text-lg font-semibold text-text-primary text-center mb-1">
+              {t('fastingHistory.title', { defaultValue: 'Fasting history' })}
+            </Text>
+            <Text className="text-center text-text-muted text-xs mb-4">
+              {t('fastingHistory.hint', {
+                defaultValue: 'Tap to edit · swipe left to delete',
+              })}
+            </Text>
 
             {isLoading && pastFasts.length === 0 ? (
               <View className="items-center py-8">

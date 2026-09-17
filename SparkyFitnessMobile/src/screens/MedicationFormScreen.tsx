@@ -6,7 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import BottomSheetPicker from '../components/BottomSheetPicker';
-import MedicationNameSuggestions, { type MedicationNamePick } from '../components/MedicationNameSuggestions';
+import MedicationNameSuggestions, {
+  type MedicationNamePick,
+} from '../components/MedicationNameSuggestions';
 import ReconstitutionCalculator from '../components/ReconstitutionCalculator';
 import {
   concentrationDraw,
@@ -22,7 +24,12 @@ import {
   type ReconstitutionRecord,
   type ReconstitutionUnit,
 } from '@workspace/shared';
-import { useMedications, useMedicationDetail, useCreateMedication, useUpdateMedication } from '../hooks/useMedications';
+import {
+  useMedications,
+  useMedicationDetail,
+  useCreateMedication,
+  useUpdateMedication,
+} from '../hooks/useMedications';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import FormInput from '../components/FormInput';
@@ -178,7 +185,9 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
   const { data: ownMedications } = useMedications({ enabled: suggestionsOpen });
   // null until the user toggles, same as the details section: a medication saved with a mix
   // opens on it, rather than hiding the user's own numbers behind a ghost link.
-  const [calculatorToggle, setCalculatorToggle] = useState<boolean | null>(null);
+  const [calculatorToggle, setCalculatorToggle] = useState<boolean | null>(
+    null
+  );
   const showCalculator = calculatorToggle ?? form.reconstitution !== null;
   // Bumped on every name pick to remount the calculator on the new medication's numbers.
   const [calcSeed, setCalcSeed] = useState(0);
@@ -186,11 +195,15 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
   // The US-catalog product behind this row, when the name came off tier 3. Held for the life of
   // this screen only, to populate the strength picker below — the durable record of that pick is
   // `rxcui` above, so an edit rehydrates the identifier and not the product.
-  const [rxTermsProduct, setRxTermsProduct] = useState<RxTermsProduct | null>(null);
+  const [rxTermsProduct, setRxTermsProduct] = useState<RxTermsProduct | null>(
+    null
+  );
   // Which of that product's strengths is selected, by its raw label. The raw string is the key
   // because it is the one thing every strength has: two entries can share a parsed value and unit
   // (different pack sizes) and an unparsed one has neither.
-  const [rxTermsStrengthRaw, setRxTermsStrengthRaw] = useState<string | null>(null);
+  const [rxTermsStrengthRaw, setRxTermsStrengthRaw] = useState<string | null>(
+    null
+  );
 
   /**
    * Take one RxTerms strength as the row's strength.
@@ -218,13 +231,17 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
   }, []);
 
   const catalogDrug = useMemo(
-    () => (form.catalogId ? (resolveCatalogDrug(form.catalogId) ?? null) : null),
-    [form.catalogId],
+    () =>
+      form.catalogId ? (resolveCatalogDrug(form.catalogId) ?? null) : null,
+    [form.catalogId]
   );
 
   // The dose as the calculator understands it. 'tablet' and friends have no draw volume, so
   // only a mass or IU dose seeds the calculator's third field.
-  const savedDose = useMemo((): { amount: number; unit: ReconstitutionUnit } | null => {
+  const savedDose = useMemo((): {
+    amount: number;
+    unit: ReconstitutionUnit;
+  } | null => {
     const amount = parseFloat(form.doseAmount);
     if (!Number.isFinite(amount) || amount <= 0) return null;
     const unit = form.doseUnit.trim().toLowerCase();
@@ -245,7 +262,13 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
         doseUnit: form.doseUnit.trim().toLowerCase(),
         syringe: form.reconstitution?.syringe ?? null,
       }),
-    [form.strengthValue, form.strengthUnit, form.doseAmount, form.doseUnit, form.reconstitution],
+    [
+      form.strengthValue,
+      form.strengthUnit,
+      form.doseAmount,
+      form.doseUnit,
+      form.reconstitution,
+    ]
   );
 
   const handleNamePick = useCallback(
@@ -281,7 +304,8 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
           // undefined would blank a type the medication being edited already carries.
           ...(med.type_id ? { typeId: med.type_id } : {}),
           routeId: med.route_id ?? null,
-          strengthValue: med.strength_value != null ? String(med.strength_value) : '',
+          strengthValue:
+            med.strength_value != null ? String(med.strength_value) : '',
           strengthUnit: med.strength_unit ?? EMPTY_FORM.strengthUnit,
           doseAmount: med.dose_amount != null ? String(med.dose_amount) : '',
           doseUnit: med.dose_unit ?? EMPTY_FORM.doseUnit,
@@ -343,7 +367,7 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
       // ladder gets neither; see `catalogOpensCalculator`.
       setCalculatorToggle(catalogOpensCalculator(drug));
     },
-    [clearRxTerms],
+    [clearRxTerms]
   );
 
   const handleSave = useCallback(() => {
@@ -443,7 +467,16 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
         }
       );
     }
-  }, [form, existingMed, isEditing, medicationId, createMedication, updateMedication, navigation, t]);
+  }, [
+    form,
+    existingMed,
+    isEditing,
+    medicationId,
+    createMedication,
+    updateMedication,
+    navigation,
+    t,
+  ]);
 
   const header = useScreenHeader({
     title: isEditing
@@ -505,7 +538,12 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
                 // `catalog_id` or an RXCUI on a medication renamed to something else would
                 // attribute the wrong drug's data to it.
                 clearRxTerms();
-                setEdits((prev) => ({ ...prev, name: v, catalogId: null, rxcui: null }));
+                setEdits((prev) => ({
+                  ...prev,
+                  name: v,
+                  catalogId: null,
+                  rxcui: null,
+                }));
               }}
               autoCapitalize="words"
             />
@@ -545,11 +583,13 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
                 }))}
                 onSelect={(raw) => {
                   const choice = rxTermsProduct.strengths.find(
-                    (candidate) => candidate.raw === raw,
+                    (candidate) => candidate.raw === raw
                   );
                   if (choice) applyRxTermsStrength(choice);
                 }}
-                title={t('medications.form.rxTermsStrengthTitle', { defaultValue: 'Strength' })}
+                title={t('medications.form.rxTermsStrengthTitle', {
+                  defaultValue: 'Strength',
+                })}
                 placeholder={t('medications.form.rxTermsStrengthPlaceholder', {
                   defaultValue: 'Choose a strength',
                 })}
@@ -636,7 +676,8 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
           {draw && (
             <Text testID="med-draw" className="text-text-muted text-sm">
               {t('medications.form.draw', {
-                defaultValue: 'Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe',
+                defaultValue:
+                  'Draw {{volume}} mL — {{units}} units on a {{syringe}} syringe',
                 volume: draw.drawVolumeMl,
                 units: draw.syringeUnits,
                 syringe: draw.syringe,
@@ -650,12 +691,16 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
           {catalogDrug?.strengths && (
             <View className="gap-1.5">
               <Text className="text-text-secondary text-sm font-medium">
-                {t('medications.form.labelStrengths', { defaultValue: 'Label strengths' })}
+                {t('medications.form.labelStrengths', {
+                  defaultValue: 'Label strengths',
+                })}
               </Text>
               <View className="flex-row flex-wrap gap-2">
                 {catalogDrug.strengths.values.map((value) => {
                   const unit = catalogDrug.strengths?.unit ?? '';
-                  const selected = form.strengthValue === String(value) && form.strengthUnit === unit;
+                  const selected =
+                    form.strengthValue === String(value) &&
+                    form.strengthUnit === unit;
                   return (
                     <TouchableOpacity
                       key={value}
@@ -679,7 +724,8 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
               </View>
               <Text className="text-text-muted text-xs">
                 {t('medications.form.labelStrengthsHint', {
-                  defaultValue: 'From the approved label. Type your own above if yours differs.',
+                  defaultValue:
+                    'From the approved label. Type your own above if yours differs.',
                 })}
               </Text>
             </View>
@@ -690,7 +736,11 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
               key={calcSeed}
               vialSuggestions={catalogDrug?.vialSizes ?? []}
               intervalDays={
-                catalogDrug?.cadence === 'weekly' ? 7 : catalogDrug?.cadence === 'daily' ? 1 : null
+                catalogDrug?.cadence === 'weekly'
+                  ? 7
+                  : catalogDrug?.cadence === 'daily'
+                    ? 1
+                    : null
               }
               initialRecord={form.reconstitution}
               initialDose={savedDose}
@@ -702,7 +752,9 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
                 setEdits((prev) => ({
                   ...prev,
                   strengthValue: String(applied.concentration),
-                  strengthUnit: concentrationUnitLabel(applied.concentrationUnit),
+                  strengthUnit: concentrationUnitLabel(
+                    applied.concentrationUnit
+                  ),
                   doseAmount: String(applied.doseAmount),
                   doseUnit: applied.doseUnit,
                   reconstitution: applied.record,
@@ -718,7 +770,8 @@ const MedicationFormScreen: React.FC<MedicationFormScreenProps> = ({
             >
               <Text className="text-text-muted text-sm">
                 {t('medications.form.openCalculator', {
-                  defaultValue: 'Reconstituting a vial? Work out the syringe units',
+                  defaultValue:
+                    'Reconstituting a vial? Work out the syringe units',
                 })}
               </Text>
             </TouchableOpacity>

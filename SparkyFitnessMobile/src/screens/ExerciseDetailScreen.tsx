@@ -1,8 +1,22 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { CommonActions, StackActions, useIsFocused } from '@react-navigation/native';
-import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  CommonActions,
+  StackActions,
+  useIsFocused,
+} from '@react-navigation/native';
+import {
+  Directions,
+  Gesture,
+  GestureDetector,
+} from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PagerView from 'react-native-pager-view';

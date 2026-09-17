@@ -1,4 +1,9 @@
-import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import {
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from '@testing-library/react-native';
 import Toast from 'react-native-toast-message';
 import FoodUnitSelectorSheet from '../../src/components/FoodUnitSelectorSheet';
 

@@ -219,7 +219,10 @@ const DashboardSettingsScreen: React.FC<DashboardSettingsScreenProps> = ({
     );
   };
 
-  const header = useScreenHeader({ title: t('dashboardSettings.title', { defaultValue: 'Home Settings' }), left: { kind: 'back' } });
+  const header = useScreenHeader({
+    title: t('dashboardSettings.title', { defaultValue: 'Home Settings' }),
+    left: { kind: 'back' },
+  });
 
   return (
     <View

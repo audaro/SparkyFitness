@@ -284,7 +284,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
               {isConnected && (
                 <SettingsRow
                   icon="diary-settings"
-                  title={t('settings.rows.diary', { defaultValue: 'Food Diary' })}
+                  title={t('settings.rows.diary', {
+                    defaultValue: 'Food Diary',
+                  })}
                   onPress={() => navigation.navigate('DiarySettings')}
                   iconColor={catTeal}
                 />
@@ -314,7 +316,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
               {isConnected && (
                 <SettingsRow
                   icon="medication"
-                  title={t('settings.rows.medications', { defaultValue: 'Medications' })}
+                  title={t('settings.rows.medications', {
+                    defaultValue: 'Medications',
+                  })}
                   onPress={() => navigation.navigate('MedicationSettings')}
                   iconColor={catViolet}
                 />

@@ -342,7 +342,10 @@ describe('authService', () => {
         status: 401,
         text: () =>
           Promise.resolve(
-            JSON.stringify({ message: 'Two factor cookie missing', code: 'INVALID_TWO_FACTOR_COOKIE' }),
+            JSON.stringify({
+              message: 'Two factor cookie missing',
+              code: 'INVALID_TWO_FACTOR_COOKIE',
+            })
           ),
       });
 
@@ -351,7 +354,9 @@ describe('authService', () => {
         fail('Expected LoginError to be thrown');
       } catch (error) {
         expect((error as LoginError).code).toBe('INVALID_TWO_FACTOR_COOKIE');
-        expect((error as LoginError).message).toContain('(INVALID_TWO_FACTOR_COOKIE)');
+        expect((error as LoginError).message).toContain(
+          '(INVALID_TWO_FACTOR_COOKIE)'
+        );
       }
     });
 
@@ -359,7 +364,10 @@ describe('authService', () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
-        text: () => Promise.resolve(JSON.stringify({ code: 'INVALID_TWO_FACTOR_COOKIE' })),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ code: 'INVALID_TWO_FACTOR_COOKIE' })
+          ),
       });
 
       try {
@@ -374,7 +382,8 @@ describe('authService', () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 403,
-        text: () => Promise.resolve(JSON.stringify({ message: 'Account locked' })),
+        text: () =>
+          Promise.resolve(JSON.stringify({ message: 'Account locked' })),
       });
 
       try {
@@ -562,7 +571,12 @@ describe('authService', () => {
           ok: false,
           status: 401,
           text: () =>
-            Promise.resolve(JSON.stringify({ message: 'Nope', code: 'INVALID_TWO_FACTOR_COOKIE' })),
+            Promise.resolve(
+              JSON.stringify({
+                message: 'Nope',
+                code: 'INVALID_TWO_FACTOR_COOKIE',
+              })
+            ),
         });
 
       try {

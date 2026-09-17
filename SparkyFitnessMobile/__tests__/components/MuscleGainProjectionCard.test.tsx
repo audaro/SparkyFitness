@@ -28,7 +28,7 @@ const { usePreferences } = jest.requireMock('../../src/hooks/usePreferences');
 function projection(
   weeks: number,
   overrides: Partial<MuscleGainProjection['projection']> = {},
-  inputs: Partial<MuscleGainProjection['inputs']> = {},
+  inputs: Partial<MuscleGainProjection['inputs']> = {}
 ): MuscleGainProjection {
   return {
     horizon_weeks: weeks,
@@ -64,7 +64,7 @@ function renderCard(enabled = true) {
   return render(
     <QueryClientProvider client={queryClient}>
       <MuscleGainProjectionCard enabled={enabled} onPress={onPress} />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 }
 
@@ -89,7 +89,9 @@ describe('MuscleGainProjectionCard', () => {
   // put a number on screen that no answer of the user's produced.
   it('asks for nothing until the plan has been answered', async () => {
     const { queryByTestId } = renderCard(false);
-    await waitFor(() => expect(queryByTestId('exercise-home-projection-card')).toBeNull());
+    await waitFor(() =>
+      expect(queryByTestId('exercise-home-projection-card')).toBeNull()
+    );
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -97,7 +99,11 @@ describe('MuscleGainProjectionCard', () => {
   // nothing to say is worse than no card on a tab with plenty else on it.
   it('stays off screen when there is no bodyweight to estimate from', async () => {
     mockFetch.mockResolvedValue(
-      projection(12, { total_kg: null, natural_kg: null }, { bodyweight_kg: null }),
+      projection(
+        12,
+        { total_kg: null, natural_kg: null },
+        { bodyweight_kg: null }
+      )
     );
     const { queryByTestId } = renderCard();
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
@@ -107,7 +113,8 @@ describe('MuscleGainProjectionCard', () => {
   // The year is the model run well past the trials behind it, so it has to say
   // so rather than sit next to the twelve-week figure looking equally solid.
   it('names the year as an extrapolation and asks the server for it', async () => {
-    const { getByText, getByTestId, queryByTestId, findByTestId } = renderCard();
+    const { getByText, getByTestId, queryByTestId, findByTestId } =
+      renderCard();
     await findByTestId('exercise-home-projection-range');
     expect(queryByTestId('exercise-home-projection-extrapolation')).toBeNull();
 
@@ -131,20 +138,23 @@ describe('MuscleGainProjectionCard', () => {
 
     let resolveYear: (value: MuscleGainProjection) => void = () => {};
     mockFetch.mockImplementation(
-      () => new Promise((resolve) => { resolveYear = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          resolveYear = resolve;
+        })
     );
     fireEvent.press(getByText('1 year'));
 
     expect(getByTestId('exercise-home-projection-card')).toBeTruthy();
     expect(getByTestId('exercise-home-projection-range').props.children).toBe(
-      'Working it out…',
+      'Working it out…'
     );
 
     resolveYear(projection(52, { total_kg: { low_kg: 5, high_kg: 9 } }));
     await waitFor(() =>
       expect(getByTestId('exercise-home-projection-range').props.children).toBe(
-        '+5.0–9.0 kg of lean mass',
-      ),
+        '+5.0–9.0 kg of lean mass'
+      )
     );
   });
 
@@ -161,15 +171,19 @@ describe('MuscleGainProjectionCard', () => {
   // and the card must not imply they have.
   it('says the estimate assumes full adherence when nothing is logged yet', async () => {
     mockFetch.mockResolvedValue(
-      projection(12, {}, { adherence: 1, adherence_basis: 'no_history', adherence_weeks: 0 }),
+      projection(
+        12,
+        {},
+        { adherence: 1, adherence_basis: 'no_history', adherence_weeks: 0 }
+      )
     );
     const { getByText } = renderCard();
     await waitFor(() =>
       expect(
         getByText(
-          'Assumes you hit every target, because there is nothing logged yet to measure against.',
-        ),
-      ).toBeTruthy(),
+          'Assumes you hit every target, because there is nothing logged yet to measure against.'
+        )
+      ).toBeTruthy()
     );
   });
 

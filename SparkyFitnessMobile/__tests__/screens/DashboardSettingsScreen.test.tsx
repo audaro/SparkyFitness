@@ -46,7 +46,10 @@ const renderScreen = () => {
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider initialMetrics={{ frame, insets }}>
         <DashboardSettingsScreen
-          {...({ navigation, route: { params: {} } } as unknown as ComponentProps<typeof DashboardSettingsScreen>)}
+          {...({
+            navigation,
+            route: { params: {} },
+          } as unknown as ComponentProps<typeof DashboardSettingsScreen>)}
         />
       </SafeAreaProvider>
     </QueryClientProvider>

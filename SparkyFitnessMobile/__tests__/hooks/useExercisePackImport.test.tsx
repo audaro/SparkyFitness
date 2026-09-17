@@ -24,7 +24,7 @@ const pack: ExercisePack = {
 };
 
 function batch(
-  overrides: Partial<ExercisePackImportBatch>,
+  overrides: Partial<ExercisePackImportBatch>
 ): ExercisePackImportBatch {
   return {
     packId: 'gym-machines',
@@ -62,7 +62,7 @@ describe('useExercisePackImport', () => {
       .mockResolvedValueOnce(batch({ processed: 10, nextOffset: 10 }))
       .mockResolvedValueOnce(batch({ processed: 20, nextOffset: 20 }))
       .mockResolvedValueOnce(
-        batch({ imported: 5, processed: 25, nextOffset: null, done: true }),
+        batch({ imported: 5, processed: 25, nextOffset: null, done: true })
       );
 
     const { result } = renderImportHook();
@@ -86,7 +86,7 @@ describe('useExercisePackImport', () => {
           skipped: 2,
           failed: 1,
           failures: [{ name: 'Leg Press', reason: 'boom' }],
-        }),
+        })
       )
       .mockResolvedValueOnce(
         batch({
@@ -95,7 +95,7 @@ describe('useExercisePackImport', () => {
           processed: 20,
           nextOffset: null,
           done: true,
-        }),
+        })
       );
 
     const { result } = renderImportHook();
@@ -114,7 +114,7 @@ describe('useExercisePackImport', () => {
   // again simply picks up whatever is still missing.
   it('stops requesting further batches once cancelled', async () => {
     mockImportBatch.mockImplementation(async (_packId, offset) =>
-      batch({ processed: offset + 10, nextOffset: offset + 10 }),
+      batch({ processed: offset + 10, nextOffset: offset + 10 })
     );
 
     const { result } = renderImportHook();
@@ -179,7 +179,7 @@ describe('useExercisePackImport', () => {
 
   it('ignores a second start while one import is already running', async () => {
     mockImportBatch.mockImplementation(async () =>
-      batch({ processed: 25, nextOffset: null, done: true }),
+      batch({ processed: 25, nextOffset: null, done: true })
     );
 
     const { result } = renderImportHook();

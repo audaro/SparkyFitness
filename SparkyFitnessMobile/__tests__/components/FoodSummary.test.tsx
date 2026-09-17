@@ -202,7 +202,11 @@ describe('FoodSummary', () => {
         // A deleted/unknown custom name with no id: falls into its own literal
         // historical group (isSystem=false) and must not receive any target.
         foodEntries={[
-          { id: 'e3', meal_type_id: null, meal_type: 'my deleted custom' } as unknown as FoodEntry,
+          {
+            id: 'e3',
+            meal_type_id: null,
+            meal_type: 'my deleted custom',
+          } as unknown as FoodEntry,
         ]}
         mealTypes={mealTypes}
         goals={goals}

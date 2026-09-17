@@ -50,7 +50,7 @@ export const fetchMeasurements = async (
  * so the two cannot disagree about which weigh-in is current.
  */
 export const fetchLatestCheckIn = async (
-  date: string,
+  date: string
 ): Promise<CheckInMeasurement | null> => {
   const row = await apiFetch<CheckInMeasurement | null>({
     endpoint: `/api/measurements/check-in/latest-on-or-before-date?date=${date}`,

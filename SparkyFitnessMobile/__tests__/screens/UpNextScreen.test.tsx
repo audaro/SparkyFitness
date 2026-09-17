@@ -1,5 +1,11 @@
 import React from 'react';
-import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type {
   RecommendationSet,
@@ -10,7 +16,10 @@ import type {
 import UpNextScreen from '../../src/screens/UpNextScreen';
 import type { ActionSheetItem } from '../../src/components/ActionSheet';
 import { usePreferences } from '../../src/hooks';
-import { useGymProfiles, useGymProfileMutations } from '../../src/hooks/useGymProfiles';
+import {
+  useGymProfiles,
+  useGymProfileMutations,
+} from '../../src/hooks/useGymProfiles';
 import { useScreenHeader } from '../../src/hooks/useScreenHeader';
 import { useStartLiveWorkout } from '../../src/hooks/useStartLiveWorkout';
 import {
@@ -145,24 +154,32 @@ jest.mock('../../src/components/BottomSheetPicker', () => {
   };
 });
 
-const mockUsePreferences = usePreferences as jest.MockedFunction<typeof usePreferences>;
-const mockUseWorkoutRecommendation = useWorkoutRecommendation as jest.MockedFunction<
-  typeof useWorkoutRecommendation
+const mockUsePreferences = usePreferences as jest.MockedFunction<
+  typeof usePreferences
 >;
+const mockUseWorkoutRecommendation =
+  useWorkoutRecommendation as jest.MockedFunction<
+    typeof useWorkoutRecommendation
+  >;
 const mockUseUpdateRecommendationStatus =
-  useUpdateRecommendationStatus as jest.MockedFunction<typeof useUpdateRecommendationStatus>;
+  useUpdateRecommendationStatus as jest.MockedFunction<
+    typeof useUpdateRecommendationStatus
+  >;
 const mockUseReplaceRecommendationExercise =
   useReplaceRecommendationExercise as jest.MockedFunction<
     typeof useReplaceRecommendationExercise
   >;
-const mockUseGymProfiles = useGymProfiles as jest.MockedFunction<typeof useGymProfiles>;
-const mockUseGymProfileMutations = useGymProfileMutations as jest.MockedFunction<
-  typeof useGymProfileMutations
+const mockUseGymProfiles = useGymProfiles as jest.MockedFunction<
+  typeof useGymProfiles
 >;
+const mockUseGymProfileMutations =
+  useGymProfileMutations as jest.MockedFunction<typeof useGymProfileMutations>;
 const mockUseStartLiveWorkout = useStartLiveWorkout as jest.MockedFunction<
   typeof useStartLiveWorkout
 >;
-const mockUseScreenHeader = useScreenHeader as jest.MockedFunction<typeof useScreenHeader>;
+const mockUseScreenHeader = useScreenHeader as jest.MockedFunction<
+  typeof useScreenHeader
+>;
 
 type HeaderTextItem = {
   kind?: string;
@@ -194,14 +211,18 @@ function sheetItem(key: string): ActionSheetItem | undefined {
 /** One row of the superset sheet, by its visible label (an exercise name). */
 function supersetSheetRow(label: string): ActionSheetItem {
   const row = supersetSheet()?.props.items.find((item) => item.label === label);
-  if (!row) throw new Error(`supersetSheetRow: no "${label}" row in the superset sheet`);
+  if (!row)
+    throw new Error(
+      `supersetSheetRow: no "${label}" row in the superset sheet`
+    );
   return row;
 }
 
 /** One row of the ⋯ header menu, by its visible label. */
 function menuAction(label: string): { label: string; onPress: () => void } {
   const action = headerRightItem()?.items?.find((item) => item.label === label);
-  if (!action) throw new Error(`menuAction: no "${label}" row in the overflow menu`);
+  if (!action)
+    throw new Error(`menuAction: no "${label}" row in the overflow menu`);
   return action;
 }
 
@@ -214,7 +235,9 @@ const EX_C = '66666666-6666-4666-8666-666666666666';
 const GYM_A = '33333333-3333-4333-8333-333333333333';
 const GYM_B = '55555555-5555-4555-8555-555555555555';
 
-const makeSet = (overrides: Partial<RecommendationSet> = {}): RecommendationSet => ({
+const makeSet = (
+  overrides: Partial<RecommendationSet> = {}
+): RecommendationSet => ({
   set_number: 1,
   set_type: 'Working Set',
   reps: 8,
@@ -226,7 +249,7 @@ const makeSet = (overrides: Partial<RecommendationSet> = {}): RecommendationSet 
 });
 
 const makeExercise = (
-  overrides: Partial<RecommendedExercise> = {},
+  overrides: Partial<RecommendedExercise> = {}
 ): RecommendedExercise => ({
   exercise_id: EX_A,
   exercise_name: 'Bench Press',
@@ -238,12 +261,15 @@ const makeExercise = (
   sort_order: 0,
   rest_seconds: 120,
   rationale: 'fresh chest · holding last session load',
-  sets: [makeSet({ set_type: 'Warmup', weight: 37.5 }), makeSet({ set_number: 2 })],
+  sets: [
+    makeSet({ set_type: 'Warmup', weight: 37.5 }),
+    makeSet({ set_number: 2 }),
+  ],
   ...overrides,
 });
 
 const makePayload = (
-  overrides: Partial<WorkoutRecommendationPayload> = {},
+  overrides: Partial<WorkoutRecommendationPayload> = {}
 ): WorkoutRecommendationPayload => ({
   muscle_groups: ['chest', 'triceps'],
   estimated_duration_minutes: 38,
@@ -274,7 +300,7 @@ const makeThreeExercisePayload = (): WorkoutRecommendationPayload =>
   });
 
 const makeRecommendation = (
-  overrides: Partial<WorkoutRecommendation> = {},
+  overrides: Partial<WorkoutRecommendation> = {}
 ): WorkoutRecommendation => ({
   id: '44444444-4444-4444-8444-444444444444',
   status: 'active',
@@ -300,7 +326,7 @@ function renderScreen(params: Record<string, unknown> | undefined = undefined) {
         navigation={navigation as never}
         route={{ key: 'UpNext-key', name: 'UpNext', params } as never}
       />
-    </SafeAreaProvider>,
+    </SafeAreaProvider>
   );
 }
 
@@ -313,7 +339,7 @@ describe('UpNextScreen', () => {
 
   function setRecommendation(
     recommendation: WorkoutRecommendation | null,
-    overrides: Record<string, unknown> = {},
+    overrides: Record<string, unknown> = {}
   ) {
     mockUseWorkoutRecommendation.mockReturnValue({
       recommendation,
@@ -337,15 +363,24 @@ describe('UpNextScreen', () => {
     } as never);
     setRecommendation(makeRecommendation());
     mockUseGymProfiles.mockReturnValue({
-      profiles: [{ id: GYM_A, name: 'Planet Fitness', is_active: true, equipment: [] }],
+      profiles: [
+        { id: GYM_A, name: 'Planet Fitness', is_active: true, equipment: [] },
+      ],
       activeProfile: null,
       isLoading: false,
       isError: false,
       refetch: jest.fn(),
     } as never);
-    mockUseGymProfileMutations.mockReturnValue({ activateProfileAsync } as never);
-    mockUseStartLiveWorkout.mockReturnValue({ startLiveWorkout, isStarting: false });
-    mockUseUpdateRecommendationStatus.mockReturnValue({ mutate: updateStatus } as never);
+    mockUseGymProfileMutations.mockReturnValue({
+      activateProfileAsync,
+    } as never);
+    mockUseStartLiveWorkout.mockReturnValue({
+      startLiveWorkout,
+      isStarting: false,
+    });
+    mockUseUpdateRecommendationStatus.mockReturnValue({
+      mutate: updateStatus,
+    } as never);
     mockUseReplaceRecommendationExercise.mockReturnValue({
       mutate: replaceExercise,
       isPending: false,
@@ -371,7 +406,12 @@ describe('UpNextScreen', () => {
         { id: GYM_A, name: 'Planet Fitness', is_active: false, equipment: [] },
         { id: GYM_B, name: 'Home Gym', is_active: true, equipment: [] },
       ],
-      activeProfile: { id: GYM_B, name: 'Home Gym', is_active: true, equipment: [] },
+      activeProfile: {
+        id: GYM_B,
+        name: 'Home Gym',
+        is_active: true,
+        equipment: [],
+      },
       isLoading: false,
       isError: false,
       refetch: jest.fn(),
@@ -379,11 +419,15 @@ describe('UpNextScreen', () => {
 
     const screen = renderScreen();
 
-    expect(within(screen.getByLabelText('Change workout length')).getByText('1h')).toBeTruthy();
+    expect(
+      within(screen.getByLabelText('Change workout length')).getByText('1h')
+    ).toBeTruthy();
     // The workout was built for Planet Fitness; Home Gym has since become
     // active, and the chip must keep describing the workout on screen.
     expect(
-      within(screen.getByLabelText('Change gym equipment')).getByText('Planet Fitness'),
+      within(screen.getByLabelText('Change gym equipment')).getByText(
+        'Planet Fitness'
+      )
     ).toBeTruthy();
   });
 
@@ -397,11 +441,14 @@ describe('UpNextScreen', () => {
     expect(startLiveWorkout).toHaveBeenCalledWith({
       name: "Today's workout",
       exercises: buildRecommendationStartPayload(
-        orderedRecommendationExercises(recommendation.payload),
+        orderedRecommendationExercises(recommendation.payload)
       ),
       sourceRecommendationId: recommendation.id,
     });
-    expect(updateStatus).toHaveBeenCalledWith({ id: recommendation.id, status: 'started' });
+    expect(updateStatus).toHaveBeenCalledWith({
+      id: recommendation.id,
+      status: 'started',
+    });
   });
 
   it('opens the swap sheet instead of regenerating when Swap is pressed', () => {
@@ -424,7 +471,7 @@ describe('UpNextScreen', () => {
         target_muscles: ['chest', 'triceps'],
         duration_minutes: 45,
         gym_profile_id: GYM_A,
-      }),
+      })
     );
   });
 
@@ -437,11 +484,11 @@ describe('UpNextScreen', () => {
         target_muscles: ['chest', 'triceps'],
         duration_minutes: 60,
         gym_profile_id: GYM_A,
-      }),
+      })
     );
     expect(activateProfileAsync).toHaveBeenCalledWith(GYM_A);
     expect(activateProfileAsync.mock.invocationCallOrder[0]).toBeLessThan(
-      generateAsync.mock.invocationCallOrder[0],
+      generateAsync.mock.invocationCallOrder[0]
     );
   });
 
@@ -464,7 +511,7 @@ describe('UpNextScreen', () => {
         target_muscles: ['chest', 'triceps'],
         duration_minutes: 60,
         gym_profile_id: null,
-      }),
+      })
     );
     expect(activateProfileAsync).not.toHaveBeenCalled();
   });
@@ -488,8 +535,10 @@ describe('UpNextScreen', () => {
     it('sends only canonical muscles, normalized and deduplicated', async () => {
       setRecommendation(
         makeRecommendation({
-          payload: makePayload({ muscle_groups: ['Chest', 'chest', 'rotator cuff'] }),
-        }),
+          payload: makePayload({
+            muscle_groups: ['Chest', 'chest', 'rotator cuff'],
+          }),
+        })
       );
 
       const screen = renderScreen();
@@ -500,7 +549,7 @@ describe('UpNextScreen', () => {
           target_muscles: ['chest'],
           duration_minutes: 45,
           gym_profile_id: GYM_A,
-        }),
+        })
       );
     });
 
@@ -511,7 +560,7 @@ describe('UpNextScreen', () => {
       setRecommendation(
         makeRecommendation({
           payload: makePayload({ muscle_groups: ['rotator cuff'] }),
-        }),
+        })
       );
 
       const screen = renderScreen();
@@ -521,7 +570,7 @@ describe('UpNextScreen', () => {
         expect(generateAsync).toHaveBeenCalledWith({
           duration_minutes: 45,
           gym_profile_id: GYM_A,
-        }),
+        })
       );
     });
   });
@@ -635,7 +684,10 @@ describe('UpNextScreen', () => {
 
       it('is blocked while a workout is starting', () => {
         setRecommendation(null);
-        mockUseStartLiveWorkout.mockReturnValue({ startLiveWorkout, isStarting: true });
+        mockUseStartLiveWorkout.mockReturnValue({
+          startLiveWorkout,
+          isStarting: true,
+        });
         renderScreen();
 
         expect(headerRightItem()?.disabled).toBe(true);
@@ -669,7 +721,7 @@ describe('UpNextScreen', () => {
           duration_minutes: 60,
           gym_profile_id: GYM_A,
           swap: true,
-        }),
+        })
       );
     });
 
@@ -709,10 +761,12 @@ describe('UpNextScreen', () => {
       // One exercise: nothing to pair, so the row is omitted rather than shown
       // dead — menu entries carry no disabled state on either header path.
       expect(headerRightItem()?.items?.map((item) => item.label)).not.toContain(
-        'Build superset/circuit',
+        'Build superset/circuit'
       );
 
-      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      setRecommendation(
+        makeRecommendation({ payload: makeThreeExercisePayload() })
+      );
       renderScreen();
       expect(headerRightItem()?.items?.map((item) => item.label)).toEqual([
         'Save workout',
@@ -722,7 +776,9 @@ describe('UpNextScreen', () => {
     });
 
     it('picks the anchor first and the partner second', () => {
-      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      setRecommendation(
+        makeRecommendation({ payload: makeThreeExercisePayload() })
+      );
       renderScreen();
 
       act(() => menuAction('Build superset/circuit').onPress());
@@ -735,7 +791,9 @@ describe('UpNextScreen', () => {
       ]);
       // Stage one keeps the sheet up so stage two can swap in place.
       expect(
-        supersetSheet()?.props.items.every((item) => item.dismissOnPress === false),
+        supersetSheet()?.props.items.every(
+          (item) => item.dismissOnPress === false
+        )
       ).toBe(true);
 
       act(() => supersetSheetRow('Bench Press').onPress());
@@ -751,7 +809,9 @@ describe('UpNextScreen', () => {
     });
 
     it('applies the grouping at start-workout rather than to the recommendation', () => {
-      const recommendation = makeRecommendation({ payload: makeThreeExercisePayload() });
+      const recommendation = makeRecommendation({
+        payload: makeThreeExercisePayload(),
+      });
       setRecommendation(recommendation);
       const screen = renderScreen();
 
@@ -760,23 +820,30 @@ describe('UpNextScreen', () => {
 
       const started = startLiveWorkout.mock.calls.at(-1)?.[0];
       expect(
-        started.exercises.map((exercise: { exercise_id: string }) => exercise.exercise_id),
+        started.exercises.map(
+          (exercise: { exercise_id: string }) => exercise.exercise_id
+        )
       ).toEqual([EX_A, EX_B, EX_C]);
       expect(
         started.exercises.map(
-          (exercise: { superset_group: number | null }) => exercise.superset_group,
-        ),
+          (exercise: { superset_group: number | null }) =>
+            exercise.superset_group
+        )
       ).toEqual([1, 1, null]);
       // Blueprint D9: nothing is written back to the recommendation, so a swap,
       // refresh or replace cannot silently discard a stored grouping.
       expect(generateAsync).not.toHaveBeenCalled();
       expect(
-        recommendation.payload.exercises.every((exercise) => !('superset_group' in exercise)),
+        recommendation.payload.exercises.every(
+          (exercise) => !('superset_group' in exercise)
+        )
       ).toBe(true);
     });
 
     it('harmonizes rest across the run to the anchor', () => {
-      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      setRecommendation(
+        makeRecommendation({ payload: makeThreeExercisePayload() })
+      );
       const screen = renderScreen();
 
       groupFirstTwo();
@@ -787,13 +854,15 @@ describe('UpNextScreen', () => {
       const started = startLiveWorkout.mock.calls.at(-1)?.[0];
       expect(
         started.exercises.map((exercise: { sets: { rest_time: number }[] }) =>
-          exercise.sets.map((set) => set.rest_time),
-        ),
+          exercise.sets.map((set) => set.rest_time)
+        )
       ).toEqual([[120, 120], [120], [45]]);
     });
 
     it('marks each member with the run rail', () => {
-      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      setRecommendation(
+        makeRecommendation({ payload: makeThreeExercisePayload() })
+      );
       const screen = renderScreen();
 
       expect(screen.queryByTestId(`up-next-superset-rail-${EX_A}`)).toBeNull();
@@ -805,11 +874,15 @@ describe('UpNextScreen', () => {
     });
 
     it('ungroups from the row the group is on', () => {
-      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      setRecommendation(
+        makeRecommendation({ payload: makeThreeExercisePayload() })
+      );
       const screen = renderScreen();
 
       // Ungrouped rows do not offer it at all.
-      fireEvent.press(screen.getByLabelText('More options for Triceps Pushdown'));
+      fireEvent.press(
+        screen.getByLabelText('More options for Triceps Pushdown')
+      );
       expect(screen.queryByText('Remove from superset')).toBeNull();
       fireEvent.press(screen.getByText('Replace exercise'));
 
@@ -823,7 +896,9 @@ describe('UpNextScreen', () => {
     });
 
     it('drops the grouping when the prescription changes underneath it', () => {
-      setRecommendation(makeRecommendation({ payload: makeThreeExercisePayload() }));
+      setRecommendation(
+        makeRecommendation({ payload: makeThreeExercisePayload() })
+      );
       const screen = renderScreen();
       groupFirstTwo();
       expect(screen.getByTestId(`up-next-superset-rail-${EX_A}`)).toBeTruthy();
@@ -835,18 +910,24 @@ describe('UpNextScreen', () => {
           payload: makePayload({
             exercises: [
               makeExercise({ sort_order: 0 }),
-              makeExercise({ exercise_id: EX_B, exercise_name: 'Cable Fly', sort_order: 1 }),
+              makeExercise({
+                exercise_id: EX_B,
+                exercise_name: 'Cable Fly',
+                sort_order: 1,
+              }),
             ],
           }),
-        }),
+        })
       );
       screen.rerender(
         <SafeAreaProvider initialMetrics={{ insets, frame }}>
           <UpNextScreen
             navigation={navigation as never}
-            route={{ key: 'UpNext-key', name: 'UpNext', params: undefined } as never}
+            route={
+              { key: 'UpNext-key', name: 'UpNext', params: undefined } as never
+            }
           />
-        </SafeAreaProvider>,
+        </SafeAreaProvider>
       );
 
       expect(screen.queryByTestId(`up-next-superset-rail-${EX_A}`)).toBeNull();
@@ -854,8 +935,9 @@ describe('UpNextScreen', () => {
       const started = startLiveWorkout.mock.calls.at(-1)?.[0];
       expect(
         started.exercises.map(
-          (exercise: { superset_group: number | null }) => exercise.superset_group,
-        ),
+          (exercise: { superset_group: number | null }) =>
+            exercise.superset_group
+        )
       ).toEqual([null, null]);
     });
   });
@@ -869,7 +951,7 @@ describe('UpNextScreen', () => {
       expect.objectContaining({
         hideWorkoutActions: true,
         item: expect.objectContaining({ id: EX_A, name: 'Bench Press' }),
-      }),
+      })
     );
   });
 
@@ -907,7 +989,7 @@ describe('UpNextScreen', () => {
               } as never
             }
           />
-        </SafeAreaProvider>,
+        </SafeAreaProvider>
       );
 
       expect(replaceExercise).toHaveBeenCalledWith({
@@ -946,7 +1028,7 @@ describe('UpNextScreen', () => {
               } as never
             }
           />
-        </SafeAreaProvider>,
+        </SafeAreaProvider>
       );
 
       expect(replaceExercise).not.toHaveBeenCalled();

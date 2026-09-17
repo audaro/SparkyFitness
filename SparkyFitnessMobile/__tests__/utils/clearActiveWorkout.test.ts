@@ -16,7 +16,9 @@ jest.mock('../../src/services/notifications', () => ({
   cancelRestNotification: jest.fn(),
 }));
 
-const mockPatch = patchRecommendationStatus as jest.MockedFunction<typeof patchRecommendationStatus>;
+const mockPatch = patchRecommendationStatus as jest.MockedFunction<
+  typeof patchRecommendationStatus
+>;
 const mockAddLog = addLog as jest.MockedFunction<typeof addLog>;
 
 function flushPromises() {
@@ -42,10 +44,12 @@ describe('clearActiveWorkout', () => {
     expect(mockPatch).not.toHaveBeenCalled();
   });
 
-  it('hands an abandoned Today\'s Workout back by marking the recommendation active again', async () => {
+  it("hands an abandoned Today's Workout back by marking the recommendation active again", async () => {
     useActiveWorkoutStore.setState({ sourceRecommendationId: 'rec-1' });
     mockPatch.mockResolvedValue({ id: 'rec-1', status: 'active' } as never);
-    const invalidate = jest.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    const invalidate = jest
+      .spyOn(queryClient, 'invalidateQueries')
+      .mockResolvedValue();
 
     clearActiveWorkout(queryClient, 'abandoned');
     await flushPromises();
@@ -53,7 +57,9 @@ describe('clearActiveWorkout', () => {
     expect(useActiveWorkoutStore.getState().sessionId).toBeNull();
     expect(useActiveWorkoutStore.getState().sourceRecommendationId).toBeNull();
     expect(mockPatch).toHaveBeenCalledWith('rec-1', 'active');
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: workoutRecommendationQueryKey });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: workoutRecommendationQueryKey,
+    });
   });
 
   it('marks the recommendation completed when a fully-done workout is dismissed from the HUD', async () => {
@@ -74,6 +80,9 @@ describe('clearActiveWorkout', () => {
     await flushPromises();
 
     expect(useActiveWorkoutStore.getState().sessionId).toBeNull();
-    expect(mockAddLog).toHaveBeenCalledWith(expect.stringContaining('offline'), 'WARNING');
+    expect(mockAddLog).toHaveBeenCalledWith(
+      expect.stringContaining('offline'),
+      'WARNING'
+    );
   });
 });

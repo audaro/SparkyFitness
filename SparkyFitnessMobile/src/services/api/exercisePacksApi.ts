@@ -48,7 +48,7 @@ const PACK_IMPORT_TIMEOUT_MS = 180_000;
 export const importExercisePackBatch = async (
   packId: string,
   offset: number,
-  limit: number,
+  limit: number
 ): Promise<ExercisePackImportBatch> => {
   return apiFetch<ExercisePackImportBatch>({
     endpoint: `/api/exercises/packs/${packId}/import`,

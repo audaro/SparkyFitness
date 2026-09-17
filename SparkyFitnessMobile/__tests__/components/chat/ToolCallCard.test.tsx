@@ -82,7 +82,8 @@ describe('ToolCallCard', () => {
       <ToolCallCard
         part={{
           ...baseFoodPart,
-          result: 'Error [VALIDATION]: Food "Banana" not found in the database.',
+          result:
+            'Error [VALIDATION]: Food "Banana" not found in the database.',
         }}
       />
     );

@@ -4,14 +4,18 @@ import { freshnessPercent, freshnessTone, MUSCLES } from '@workspace/shared';
 import PickMusclesScreen from '../../src/screens/PickMusclesScreen';
 import { useMuscleRecovery } from '../../src/hooks/useMuscleRecovery';
 import { BODY_PATHS } from '../../src/constants/muscleArt.generated';
-import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from '../hooks/queryTestUtils';
 
 const mockGenerateRecommendation = jest.fn();
 const mockFetchRecommendation = jest.fn();
 
 jest.mock('../../src/services/api/workoutRecommendationsApi', () => ({
   fetchRecommendation: (...args: unknown[]) => mockFetchRecommendation(...args),
-  generateRecommendation: (...args: unknown[]) => mockGenerateRecommendation(...args),
+  generateRecommendation: (...args: unknown[]) =>
+    mockGenerateRecommendation(...args),
   fetchAlternatives: jest.fn(),
   replaceRecommendationExercise: jest.fn(),
   patchRecommendationStatus: jest.fn(),
@@ -47,9 +51,10 @@ const mockNavigation = {
 };
 
 /** The `beforeRemove` handler the screen registered, if it registered one. */
-function beforeRemoveListener(): ((event: { preventDefault: () => void }) => void) | null {
+function beforeRemoveListener():
+  ((event: { preventDefault: () => void }) => void) | null {
   const call = mockAddListener.mock.calls.find(
-    ([event]: unknown[]) => event === 'beforeRemove',
+    ([event]: unknown[]) => event === 'beforeRemove'
   ) as [string, (event: { preventDefault: () => void }) => void] | undefined;
   return call ? call[1] : null;
 }
@@ -91,10 +96,17 @@ function setRecovery(muscles: ReturnType<typeof item>[]) {
 }
 
 function renderScreen() {
-  const route = { key: 'PickMuscles-1', name: 'PickMuscles', params: undefined } as never;
-  return render(<PickMusclesScreen navigation={mockNavigation as never} route={route} />, {
-    wrapper: createQueryWrapper(createTestQueryClient()),
-  });
+  const route = {
+    key: 'PickMuscles-1',
+    name: 'PickMuscles',
+    params: undefined,
+  } as never;
+  return render(
+    <PickMusclesScreen navigation={mockNavigation as never} route={route} />,
+    {
+      wrapper: createQueryWrapper(createTestQueryClient()),
+    }
+  );
 }
 
 /** Every muscle fully fresh, so the screen always has a complete vector. */
@@ -115,7 +127,9 @@ describe('PickMusclesScreen', () => {
 
       fireEvent.press(screen.getByTestId('pick-muscles-split-push'));
 
-      await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(mockGenerateRecommendation).toHaveBeenCalled()
+      );
       expect(mockGenerateRecommendation).toHaveBeenCalledWith({
         target_muscles: ['chest', 'shoulders', 'triceps'],
       });
@@ -126,7 +140,9 @@ describe('PickMusclesScreen', () => {
 
       fireEvent.press(screen.getByTestId('pick-muscles-split-upper-body'));
 
-      await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(mockGenerateRecommendation).toHaveBeenCalled()
+      );
       const body = mockGenerateRecommendation.mock.calls[0][0] as {
         target_muscles: string[];
       };
@@ -143,7 +159,9 @@ describe('PickMusclesScreen', () => {
 
       fireEvent.press(screen.getByTestId('pick-muscles-split-full-body'));
 
-      await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(mockGenerateRecommendation).toHaveBeenCalled()
+      );
       expect(mockGenerateRecommendation).toHaveBeenCalledWith({
         target_muscles: [...MUSCLES],
       });
@@ -157,9 +175,14 @@ describe('PickMusclesScreen', () => {
 
       fireEvent.press(screen.getByTestId('pick-muscles-recovered'));
 
-      await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(mockGenerateRecommendation).toHaveBeenCalled()
+      );
       expect(mockGenerateRecommendation).toHaveBeenCalledWith({});
-      const body = mockGenerateRecommendation.mock.calls[0][0] as Record<string, unknown>;
+      const body = mockGenerateRecommendation.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
       expect('target_muscles' in body).toBe(false);
     });
 
@@ -168,7 +191,9 @@ describe('PickMusclesScreen', () => {
 
       fireEvent.press(screen.getByTestId('pick-muscles-split-pull'));
 
-      await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('UpNext'));
+      await waitFor(() =>
+        expect(mockNavigation.navigate).toHaveBeenCalledWith('UpNext')
+      );
     });
 
     it('stays put when generation fails', async () => {
@@ -177,7 +202,9 @@ describe('PickMusclesScreen', () => {
 
       fireEvent.press(screen.getByTestId('pick-muscles-split-pull'));
 
-      await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(mockGenerateRecommendation).toHaveBeenCalled()
+      );
       expect(mockNavigation.navigate).not.toHaveBeenCalled();
       expect(screen.getByTestId('pick-muscles-splits')).toBeTruthy();
     });
@@ -195,7 +222,7 @@ describe('PickMusclesScreen', () => {
       mockGenerateRecommendation.mockReturnValue(
         new Promise((resolve) => {
           settle = resolve;
-        }),
+        })
       );
       const screen = renderScreen();
 
@@ -216,7 +243,9 @@ describe('PickMusclesScreen', () => {
       fireEvent.press(row);
       fireEvent.press(row);
 
-      await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(mockGenerateRecommendation).toHaveBeenCalled()
+      );
       expect(mockGenerateRecommendation).toHaveBeenCalledTimes(1);
     });
   });
@@ -237,8 +266,8 @@ describe('PickMusclesScreen', () => {
     const drawnOn = (view: 'front' | 'back') =>
       new Set(
         BODY_PATHS.flatMap((path) =>
-          path.kind === 'muscle' && path.view === view ? [path.muscle] : [],
-        ),
+          path.kind === 'muscle' && path.view === view ? [path.muscle] : []
+        )
       );
 
     // Every canonical muscle is on the figure now — five of them only because
@@ -258,7 +287,9 @@ describe('PickMusclesScreen', () => {
         expect(screen.getByTestId(`pick-muscles-body-${muscle}`)).toBeTruthy();
       }
 
-      expect([...new Set([...front, ...back])].sort()).toEqual([...MUSCLES].sort());
+      expect([...new Set([...front, ...back])].sort()).toEqual(
+        [...MUSCLES].sort()
+      );
     });
 
     it('sends canonical muscle names for the picked tiles', async () => {
@@ -271,7 +302,9 @@ describe('PickMusclesScreen', () => {
       fireEvent.press(screen.getByTestId('pick-muscles-body-lats'));
       fireEvent.press(screen.getByText('Build workout'));
 
-      await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(mockGenerateRecommendation).toHaveBeenCalled()
+      );
       expect(mockGenerateRecommendation).toHaveBeenCalledWith({
         target_muscles: ['lats', 'middle back', 'quadriceps'],
       });
@@ -297,7 +330,9 @@ describe('PickMusclesScreen', () => {
       fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
       fireEvent.press(screen.getByText('Build workout'));
 
-      await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(mockGenerateRecommendation).toHaveBeenCalled()
+      );
       expect(mockGenerateRecommendation).toHaveBeenCalledWith({
         target_muscles: ['biceps'],
       });
@@ -323,9 +358,9 @@ describe('PickMusclesScreen', () => {
     // must not claim the fresher one's number.
     it('shows the more fatigued muscle on a tile that covers two', () => {
       setRecovery([
-        ...MUSCLES.filter((muscle) => muscle !== 'lats' && muscle !== 'middle back').map(
-          (muscle) => item(muscle, 1),
-        ),
+        ...MUSCLES.filter(
+          (muscle) => muscle !== 'lats' && muscle !== 'middle back'
+        ).map((muscle) => item(muscle, 1)),
         item('lats', 1),
         item('middle back', 0.2),
       ]);
@@ -367,8 +402,12 @@ describe('PickMusclesScreen', () => {
         expect(screen.queryByTestId('pick-muscles-selected-chest')).toBeNull();
 
         fireEvent.press(screen.getByText('Build workout'));
-        await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
-        expect(mockGenerateRecommendation).toHaveBeenCalledWith({ target_muscles: ['biceps'] });
+        await waitFor(() =>
+          expect(mockGenerateRecommendation).toHaveBeenCalled()
+        );
+        expect(mockGenerateRecommendation).toHaveBeenCalledWith({
+          target_muscles: ['biceps'],
+        });
       });
     });
 
@@ -389,7 +428,9 @@ describe('PickMusclesScreen', () => {
 
       fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
 
-      expect(screen.getByLabelText('Chest, selected, 100% recovered')).toBeTruthy();
+      expect(
+        screen.getByLabelText('Chest, selected, 100% recovered')
+      ).toBeTruthy();
     });
 
     it('a muscle drawn in pieces is one control, not eight', () => {
@@ -398,7 +439,9 @@ describe('PickMusclesScreen', () => {
       // screen reader reads the same checkbox eight times.
       const screen = openGrid(renderScreen());
 
-      expect(screen.getAllByTestId('pick-muscles-body-quadriceps')).toHaveLength(1);
+      expect(
+        screen.getAllByTestId('pick-muscles-body-quadriceps')
+      ).toHaveLength(1);
       expect(screen.getAllByLabelText(/^Quadriceps/)).toHaveLength(1);
     });
 
@@ -433,7 +476,9 @@ describe('PickMusclesScreen', () => {
 
       fireEvent.press(screen.getByTestId('pick-muscles-body-chest'));
       fireEvent.press(screen.getByText('Build workout'));
-      await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('UpNext'));
+      await waitFor(() =>
+        expect(mockNavigation.navigate).toHaveBeenCalledWith('UpNext')
+      );
 
       const event = { preventDefault: jest.fn() };
       act(() => beforeRemoveListener()?.(event));

@@ -20,8 +20,15 @@ import Button from '../components/ui/Button';
 import Icon from '../components/Icon';
 import FormInput, { UnfocusedInputEcho } from '../components/FormInput';
 import SegmentedControl from '../components/SegmentedControl';
-import MfaForm, { ErrorBanner, OidcProviderLogo, PrimaryButton } from '../components/MfaForm';
-import { classifyLoginError, loginErrorMessage } from '../services/api/authErrors';
+import MfaForm, {
+  ErrorBanner,
+  OidcProviderLogo,
+  PrimaryButton,
+} from '../components/MfaForm';
+import {
+  classifyLoginError,
+  loginErrorMessage,
+} from '../services/api/authErrors';
 import {
   login,
   LoginError,
@@ -47,7 +54,11 @@ import {
   fetchWithTimeout,
 } from '../utils/concurrency';
 import { markCurrentVersionSeen } from '../services/whatsNewBanner';
-import { activeAiServiceSettingQueryKey, queryClient, serverConnectionQueryKey } from '../hooks';
+import {
+  activeAiServiceSettingQueryKey,
+  queryClient,
+  serverConnectionQueryKey,
+} from '../hooks';
 import type { RootStackScreenProps } from '../types/navigation';
 
 type AuthTab = 'signIn' | 'apiKey';

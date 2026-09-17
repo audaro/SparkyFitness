@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { RXTERMS_MIN_TERM_LENGTH, type RxTermsProduct } from '@workspace/shared';
+import {
+  RXTERMS_MIN_TERM_LENGTH,
+  type RxTermsProduct,
+} from '@workspace/shared';
 import { searchMedicationCatalog } from '../services/api/medicationsApi';
 import { medicationCatalogSearchQueryKey } from './queryKeys';
 import { useDebounce } from './useDebounce';
@@ -56,7 +59,7 @@ export function useMedicationCatalogSearch(
      * list even on screen.
      */
     active?: boolean;
-  },
+  }
 ): MedicationCatalogSearchState {
   const { limit, active = true } = options ?? {};
   // The lookup is off by default, so a preferences read that has not landed yet leaves it off.
@@ -97,7 +100,9 @@ export function useMedicationCatalogSearch(
     // Kept together with the products deliberately: a corrected spelling that outlived the rows
     // it explains would caption someone else's list, and rows that outlived their caption would
     // read as matches for what was typed.
-    correctedTerms: usable ? (data?.correctedTerms ?? NO_CORRECTIONS) : NO_CORRECTIONS,
+    correctedTerms: usable
+      ? (data?.correctedTerms ?? NO_CORRECTIONS)
+      : NO_CORRECTIONS,
     isFetching: enabled && isFetching,
   };
 }

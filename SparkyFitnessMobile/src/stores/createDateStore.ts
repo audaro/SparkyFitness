@@ -32,8 +32,10 @@ export function createDateStore() {
     selectedDate: getTodayDate(),
     lastKnownToday: getTodayDate(),
     setSelectedDate: (date) => set({ selectedDate: date }),
-    goToPreviousDay: () => set((state) => ({ selectedDate: addDays(state.selectedDate, -1) })),
-    goToNextDay: () => set((state) => ({ selectedDate: addDays(state.selectedDate, 1) })),
+    goToPreviousDay: () =>
+      set((state) => ({ selectedDate: addDays(state.selectedDate, -1) })),
+    goToNextDay: () =>
+      set((state) => ({ selectedDate: addDays(state.selectedDate, 1) })),
     goToToday: () => set({ selectedDate: getTodayDate() }),
     syncTodayRollover: () => {
       const today = getTodayDate();

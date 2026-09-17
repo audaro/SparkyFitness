@@ -5,11 +5,15 @@ import {
   patchRecommendationStatus,
   replaceRecommendationExercise,
 } from '../../src/services/api/workoutRecommendationsApi';
-import { getActiveServerConfig, ServerConfig } from '../../src/services/storage';
+import {
+  getActiveServerConfig,
+  ServerConfig,
+} from '../../src/services/storage';
 
 jest.mock('../../src/services/storage', () => ({
   getActiveServerConfig: jest.fn(),
-  proxyHeadersToRecord: jest.requireActual('../../src/services/storage').proxyHeadersToRecord,
+  proxyHeadersToRecord: jest.requireActual('../../src/services/storage')
+    .proxyHeadersToRecord,
 }));
 
 jest.mock('../../src/services/LogService', () => ({
@@ -44,12 +48,15 @@ describe('workoutRecommendationsApi', () => {
   describe('fetchRecommendation', () => {
     it('returns the stored recommendation', async () => {
       const row = { id: 'rec-1', status: 'active' };
-      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(row) });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(row),
+      });
 
       await expect(fetchRecommendation()).resolves.toEqual(row);
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/api/workout-recommendations',
-        expect.objectContaining({ method: 'GET' }),
+        expect.objectContaining({ method: 'GET' })
       );
     });
 
@@ -77,7 +84,10 @@ describe('workoutRecommendationsApi', () => {
   });
 
   it('posts the generate request body', async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'rec-1' }) });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ id: 'rec-1' }),
+    });
 
     await generateRecommendation({ swap: true, duration_minutes: 45 });
 
@@ -86,18 +96,21 @@ describe('workoutRecommendationsApi', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ swap: true, duration_minutes: 45 }),
-      }),
+      })
     );
   });
 
   it('sends an empty body when generate is called with no options', async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'rec-1' }) });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ id: 'rec-1' }),
+    });
 
     await generateRecommendation();
 
     expect(mockFetch).toHaveBeenCalledWith(
       'https://example.com/api/workout-recommendations/generate',
-      expect.objectContaining({ method: 'POST', body: '{}' }),
+      expect.objectContaining({ method: 'POST', body: '{}' })
     );
   });
 
@@ -114,7 +127,7 @@ describe('workoutRecommendationsApi', () => {
       await expect(fetchAlternatives('ex-1', 5)).resolves.toEqual(alternatives);
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/api/workout-recommendations/alternatives/ex-1?limit=5',
-        expect.objectContaining({ method: 'GET' }),
+        expect.objectContaining({ method: 'GET' })
       );
     });
 
@@ -127,13 +140,16 @@ describe('workoutRecommendationsApi', () => {
       await expect(fetchAlternatives('ex-1')).resolves.toEqual([]);
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/api/workout-recommendations/alternatives/ex-1?limit=10',
-        expect.objectContaining({ method: 'GET' }),
+        expect.objectContaining({ method: 'GET' })
       );
     });
   });
 
   it('POSTs both ids to replace, and nothing else', async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'rec-1' }) });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ id: 'rec-1' }),
+    });
 
     await replaceRecommendationExercise({
       exercise_id_out: 'ex-1',
@@ -146,13 +162,19 @@ describe('workoutRecommendationsApi', () => {
         method: 'POST',
         // The request schema is `.strict()`; an extra key is a 400, not an
         // ignored field.
-        body: JSON.stringify({ exercise_id_out: 'ex-1', exercise_id_in: 'ex-2' }),
-      }),
+        body: JSON.stringify({
+          exercise_id_out: 'ex-1',
+          exercise_id_in: 'ex-2',
+        }),
+      })
     );
   });
 
   it('PATCHes the status — the route accepts nothing else', async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'rec-1' }) });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ id: 'rec-1' }),
+    });
 
     await patchRecommendationStatus('rec-1', 'started');
 
@@ -161,7 +183,7 @@ describe('workoutRecommendationsApi', () => {
       expect.objectContaining({
         method: 'PATCH',
         body: JSON.stringify({ status: 'started' }),
-      }),
+      })
     );
   });
 });

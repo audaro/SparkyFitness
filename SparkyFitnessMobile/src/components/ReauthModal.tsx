@@ -12,8 +12,15 @@ import Button from './ui/Button';
 import { useCSSVariable } from 'uniwind';
 import Icon from './Icon';
 import FormInput from './FormInput';
-import MfaForm, { ErrorBanner, OidcProviderLogo, PrimaryButton } from './MfaForm';
-import { classifyLoginError, loginErrorMessage } from '../services/api/authErrors';
+import MfaForm, {
+  ErrorBanner,
+  OidcProviderLogo,
+  PrimaryButton,
+} from './MfaForm';
+import {
+  classifyLoginError,
+  loginErrorMessage,
+} from '../services/api/authErrors';
 import {
   login,
   LoginError,

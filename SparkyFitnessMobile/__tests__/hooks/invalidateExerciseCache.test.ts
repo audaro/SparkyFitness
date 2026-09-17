@@ -22,14 +22,16 @@ describe('invalidateExerciseCache', () => {
         // Same reason, same sets: the week's working-set counts move with the
         // workout that was just written.
         ['weeklySetTargets'],
-      ]),
+      ])
     );
   });
 
   it('invalidates weekly set targets by the root key, not one history window', () => {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(['weeklySetTargets', 1], { current: 'tab' });
-    queryClient.setQueryData(['weeklySetTargets', 8], { current: 'targets screen' });
+    queryClient.setQueryData(['weeklySetTargets', 8], {
+      current: 'targets screen',
+    });
 
     invalidateExerciseCache(queryClient, '2026-08-24');
 

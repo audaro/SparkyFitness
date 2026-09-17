@@ -1,6 +1,9 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import GymProfilesScreen from '../../src/screens/GymProfilesScreen';
-import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from '../hooks/queryTestUtils';
 
 const mockFetchGymProfiles = jest.fn();
 const mockCreateGymProfile = jest.fn();
@@ -43,10 +46,12 @@ const mockNavigation = {
 } as any;
 
 /** The `beforeRemove` handler the screen registered, if it registered one. */
-function beforeRemoveListener(): ((event: { preventDefault: () => void }) => void) | null {
+function beforeRemoveListener():
+  ((event: { preventDefault: () => void }) => void) | null {
   const call = mockAddListener.mock.calls.find(
-    ([event]: unknown[]) => event === 'beforeRemove',
-  ) as unknown as [string, (event: { preventDefault: () => void }) => void] | undefined;
+    ([event]: unknown[]) => event === 'beforeRemove'
+  ) as unknown as
+    [string, (event: { preventDefault: () => void }) => void] | undefined;
   return call ? call[1] : null;
 }
 jest.mock('@react-navigation/native', () => ({
@@ -82,9 +87,12 @@ function makeProfile(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 function renderScreen() {
-  return render(<GymProfilesScreen navigation={mockNavigation} route={route} />, {
-    wrapper: createQueryWrapper(createTestQueryClient()),
-  });
+  return render(
+    <GymProfilesScreen navigation={mockNavigation} route={route} />,
+    {
+      wrapper: createQueryWrapper(createTestQueryClient()),
+    }
+  );
 }
 
 describe('GymProfilesScreen', () => {
@@ -97,7 +105,12 @@ describe('GymProfilesScreen', () => {
   it('lists profiles with their equipment, capitalized for display only', async () => {
     mockFetchGymProfiles.mockResolvedValue([
       makeProfile(),
-      makeProfile({ id: 'profile-gym', name: 'Gym', equipment: ['barbell'], is_active: true }),
+      makeProfile({
+        id: 'profile-gym',
+        name: 'Gym',
+        equipment: ['barbell'],
+        is_active: true,
+      }),
     ]);
     const { findByText, getByText } = renderScreen();
 
@@ -114,12 +127,14 @@ describe('GymProfilesScreen', () => {
     ]);
     const { findByTestId, getByTestId } = renderScreen();
 
-    expect((await findByTestId('gym-profile-row-profile-gym')).props.accessibilityState.selected).toBe(
-      true,
-    );
-    expect(getByTestId('gym-profile-row-profile-home').props.accessibilityState.selected).toBe(
-      false,
-    );
+    expect(
+      (await findByTestId('gym-profile-row-profile-gym')).props
+        .accessibilityState.selected
+    ).toBe(true);
+    expect(
+      getByTestId('gym-profile-row-profile-home').props.accessibilityState
+        .selected
+    ).toBe(false);
   });
 
   it('activates a profile when its row is tapped', async () => {
@@ -129,7 +144,9 @@ describe('GymProfilesScreen', () => {
 
     fireEvent.press(await findByTestId('gym-profile-row-profile-home'));
 
-    await waitFor(() => expect(mockActivateGymProfile).toHaveBeenCalledWith('profile-home'));
+    await waitFor(() =>
+      expect(mockActivateGymProfile).toHaveBeenCalledWith('profile-home')
+    );
   });
 
   it('does not re-activate the profile that is already active', async () => {
@@ -142,7 +159,9 @@ describe('GymProfilesScreen', () => {
   });
 
   it('creates a profile with stated equipment items', async () => {
-    mockCreateGymProfile.mockResolvedValue(makeProfile({ id: 'profile-new', name: 'Garage' }));
+    mockCreateGymProfile.mockResolvedValue(
+      makeProfile({ id: 'profile-new', name: 'Garage' })
+    );
     const { findByTestId, getByTestId, getByLabelText } = renderScreen();
 
     // No profiles yet, so the empty state owns the create action. New
@@ -160,7 +179,7 @@ describe('GymProfilesScreen', () => {
         // The first profile defaults to active — an inactive first profile
         // would constrain nothing.
         is_active: true,
-      }),
+      })
     );
   });
 
@@ -175,13 +194,15 @@ describe('GymProfilesScreen', () => {
 
     await waitFor(() =>
       expect(mockCreateGymProfile).toHaveBeenCalledWith(
-        expect.objectContaining({ equipment_items: [] }),
-      ),
+        expect.objectContaining({ equipment_items: [] })
+      )
     );
   });
 
   it('prefills the selection from a template, replacing rather than merging', async () => {
-    mockCreateGymProfile.mockResolvedValue(makeProfile({ id: 'profile-pf', name: 'PF' }));
+    mockCreateGymProfile.mockResolvedValue(
+      makeProfile({ id: 'profile-pf', name: 'PF' })
+    );
     const { findByTestId, getByTestId, getByLabelText } = renderScreen();
 
     fireEvent.press(await findByTestId('gym-profile-empty-create'));
@@ -192,9 +213,12 @@ describe('GymProfilesScreen', () => {
     fireEvent.press(getByTestId('gym-profile-template-planet-fitness'));
 
     expect(
-      getByTestId('gym-profile-item-smith-machine').props.accessibilityState.checked,
+      getByTestId('gym-profile-item-smith-machine').props.accessibilityState
+        .checked
     ).toBe(true);
-    expect(getByTestId('gym-profile-item-barbell').props.accessibilityState.checked).toBe(false);
+    expect(
+      getByTestId('gym-profile-item-barbell').props.accessibilityState.checked
+    ).toBe(false);
 
     // The prefill stays editable.
     fireEvent.press(getByTestId('gym-profile-item-smith-machine'));
@@ -234,14 +258,20 @@ describe('GymProfilesScreen', () => {
       }),
     ]);
     mockUpdateGymProfile.mockResolvedValue(makeProfile());
-    const { findByText, findByTestId, getByTestId, getByLabelText, queryByTestId } =
-      renderScreen();
+    const {
+      findByText,
+      findByTestId,
+      getByTestId,
+      getByLabelText,
+      queryByTestId,
+    } = renderScreen();
 
     expect(await findByText('3 equipment items')).toBeTruthy();
 
     fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
     expect(
-      getByTestId('gym-profile-item-smith-machine').props.accessibilityState.checked,
+      getByTestId('gym-profile-item-smith-machine').props.accessibilityState
+        .checked
     ).toBe(true);
     // Detailed mode has no coarse chips and no apparatus section.
     expect(queryByTestId('gym-profile-equipment-dumbbell')).toBeNull();
@@ -255,13 +285,15 @@ describe('GymProfilesScreen', () => {
         equipment_items: ['smith-machine', 'treadmill'],
         equipment_preference: null,
         load_limits: null,
-      }),
+      })
     );
   });
 
   it('saves an edited profile without an is_active field', async () => {
     mockFetchGymProfiles.mockResolvedValue([makeProfile({ is_active: true })]);
-    mockUpdateGymProfile.mockResolvedValue(makeProfile({ name: 'Home Gym', is_active: true }));
+    mockUpdateGymProfile.mockResolvedValue(
+      makeProfile({ name: 'Home Gym', is_active: true })
+    );
     const { findByTestId, getByTestId, getByLabelText } = renderScreen();
 
     fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
@@ -277,17 +309,22 @@ describe('GymProfilesScreen', () => {
         apparatus: null,
         equipment_preference: null,
         load_limits: null,
-      }),
+      })
     );
     expect(mockActivateGymProfile).not.toHaveBeenCalled();
   });
 
   it('creates a profile with stated items and a dumbbell ceiling', async () => {
-    mockCreateGymProfile.mockResolvedValue(makeProfile({ id: 'profile-pf', name: 'Planet Fitness' }));
+    mockCreateGymProfile.mockResolvedValue(
+      makeProfile({ id: 'profile-pf', name: 'Planet Fitness' })
+    );
     const { findByTestId, getByTestId, getByLabelText } = renderScreen();
 
     fireEvent.press(await findByTestId('gym-profile-empty-create'));
-    fireEvent.changeText(getByTestId('gym-profile-name-input'), 'Planet Fitness');
+    fireEvent.changeText(
+      getByTestId('gym-profile-name-input'),
+      'Planet Fitness'
+    );
     fireEvent.press(getByTestId('gym-profile-item-flat-bench'));
     fireEvent.changeText(getByTestId('gym-profile-dumbbell-max-input'), '22.5');
     fireEvent.press(getByLabelText('Save'));
@@ -298,13 +335,15 @@ describe('GymProfilesScreen', () => {
         equipment_items: ['flat-bench'],
         load_limits: { dumbbell: { max_kg: 22.5 } },
         is_active: true,
-      }),
+      })
     );
   });
 
   it('converts the dumbbell ceiling from the display unit to kg', async () => {
     mockWeightUnit = 'lbs';
-    mockCreateGymProfile.mockResolvedValue(makeProfile({ id: 'profile-hotel', name: 'Hotel' }));
+    mockCreateGymProfile.mockResolvedValue(
+      makeProfile({ id: 'profile-hotel', name: 'Hotel' })
+    );
     const { findByTestId, getByTestId, getByLabelText } = renderScreen();
 
     fireEvent.press(await findByTestId('gym-profile-empty-create'));
@@ -314,8 +353,10 @@ describe('GymProfilesScreen', () => {
 
     await waitFor(() =>
       expect(mockCreateGymProfile).toHaveBeenCalledWith(
-        expect.objectContaining({ load_limits: { dumbbell: { max_kg: 22.68 } } }),
-      ),
+        expect.objectContaining({
+          load_limits: { dumbbell: { max_kg: 22.68 } },
+        })
+      )
     );
   });
 
@@ -330,14 +371,16 @@ describe('GymProfilesScreen', () => {
     const { findByTestId, getByTestId, getByLabelText } = renderScreen();
 
     fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
-    expect(getByTestId('gym-profile-dumbbell-max-input').props.value).toBe('49.6');
+    expect(getByTestId('gym-profile-dumbbell-max-input').props.value).toBe(
+      '49.6'
+    );
     fireEvent.press(getByLabelText('Save'));
 
     await waitFor(() =>
       expect(mockUpdateGymProfile).toHaveBeenCalledWith(
         'profile-home',
-        expect.objectContaining({ load_limits: { dumbbell: { max_kg: 22.5 } } }),
-      ),
+        expect.objectContaining({ load_limits: { dumbbell: { max_kg: 22.5 } } })
+      )
     );
   });
 
@@ -357,7 +400,8 @@ describe('GymProfilesScreen', () => {
     fireEvent.press(await findByTestId('gym-profile-edit-profile-home'));
     // Stated apparatus opens the chip group pre-selected.
     expect(
-      getByTestId('gym-profile-apparatus-bench').props.accessibilityState.checked,
+      getByTestId('gym-profile-apparatus-bench').props.accessibilityState
+        .checked
     ).toBe(true);
     fireEvent.changeText(getByTestId('gym-profile-dumbbell-max-input'), '');
     fireEvent.press(getByLabelText('Save'));
@@ -369,14 +413,14 @@ describe('GymProfilesScreen', () => {
         apparatus: ['bench'],
         equipment_preference: null,
         load_limits: { barbell: { max_kg: 60 } },
-      }),
+      })
     );
   });
 
   it('states an equipment preference and reopens on the stated one', async () => {
     mockFetchGymProfiles.mockResolvedValue([makeProfile()]);
     mockUpdateGymProfile.mockResolvedValue(
-      makeProfile({ equipment_preference: 'machines' }),
+      makeProfile({ equipment_preference: 'machines' })
     );
     const { findByTestId, getByText, getByLabelText } = renderScreen();
 
@@ -384,7 +428,7 @@ describe('GymProfilesScreen', () => {
     // Unstated opens on "No preference" — the absence of a statement, not a
     // third kind of gym.
     expect(getByText('No preference').props.className).toContain(
-      'text-text-primary',
+      'text-text-primary'
     );
     fireEvent.press(getByText('Machines'));
     fireEvent.press(getByLabelText('Save'));
@@ -392,8 +436,8 @@ describe('GymProfilesScreen', () => {
     await waitFor(() =>
       expect(mockUpdateGymProfile).toHaveBeenCalledWith(
         'profile-home',
-        expect.objectContaining({ equipment_preference: 'machines' }),
-      ),
+        expect.objectContaining({ equipment_preference: 'machines' })
+      )
     );
   });
 
@@ -413,8 +457,8 @@ describe('GymProfilesScreen', () => {
     await waitFor(() =>
       expect(mockUpdateGymProfile).toHaveBeenCalledWith(
         'profile-home',
-        expect.objectContaining({ equipment_preference: null }),
-      ),
+        expect.objectContaining({ equipment_preference: null })
+      )
     );
   });
 
@@ -430,8 +474,8 @@ describe('GymProfilesScreen', () => {
     await waitFor(() =>
       expect(mockUpdateGymProfile).toHaveBeenCalledWith(
         'profile-home',
-        expect.objectContaining({ apparatus: null }),
-      ),
+        expect.objectContaining({ apparatus: null })
+      )
     );
   });
 
@@ -442,7 +486,9 @@ describe('GymProfilesScreen', () => {
     fireEvent.changeText(getByTestId('gym-profile-name-input'), 'Garage');
     fireEvent.changeText(getByTestId('gym-profile-dumbbell-max-input'), '0');
 
-    expect(getByText('Enter a weight above zero, or leave it empty.')).toBeTruthy();
+    expect(
+      getByText('Enter a weight above zero, or leave it empty.')
+    ).toBeTruthy();
     expect(mockCreateGymProfile).not.toHaveBeenCalled();
   });
 
@@ -456,7 +502,9 @@ describe('GymProfilesScreen', () => {
     fireEvent(getByLabelText('Use this profile'), 'valueChange', true);
     fireEvent.press(getByLabelText('Save'));
 
-    await waitFor(() => expect(mockActivateGymProfile).toHaveBeenCalledWith('profile-home'));
+    await waitFor(() =>
+      expect(mockActivateGymProfile).toHaveBeenCalledWith('profile-home')
+    );
   });
 
   it('keeps the editor open when the save fails', async () => {

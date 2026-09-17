@@ -56,7 +56,9 @@ const OnDemandWorkoutsScreen: React.FC<OnDemandWorkoutsScreenProps> = ({
           padding: 16,
           paddingBottom: insets.bottom + 80 + activeWorkoutBarPadding,
         }}
-        contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior={
+          usesNativeHeader ? 'automatic' : 'never'
+        }
       >
         <Text className="text-sm mb-4" style={{ color: textMuted }}>
           {t('onDemand.intro', {
@@ -77,7 +79,9 @@ const OnDemandWorkoutsScreen: React.FC<OnDemandWorkoutsScreenProps> = ({
               }
               disabled={isGenerating}
               rightAccessory={
-                pendingKey === theme.id ? <ActivityIndicator size="small" /> : null
+                pendingKey === theme.id ? (
+                  <ActivityIndicator size="small" />
+                ) : null
               }
               testID={`on-demand-${theme.id}`}
             />

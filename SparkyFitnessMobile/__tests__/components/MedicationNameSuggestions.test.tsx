@@ -27,7 +27,7 @@ jest.mock('../../src/components/Icon', () => {
 const strength = (
   raw: string,
   value: number | null,
-  unit: string | null,
+  unit: string | null
 ): RxTermsProduct['strengths'][number] => ({
   raw,
   rxcui: '12345',
@@ -38,7 +38,7 @@ const strength = (
 
 const product = (
   baseName: string,
-  strengths: RxTermsProduct['strengths'] = [],
+  strengths: RxTermsProduct['strengths'] = []
 ): RxTermsProduct => ({
   displayName: `${baseName} (Injectable)`,
   baseName,
@@ -46,7 +46,10 @@ const product = (
   strengths,
 });
 
-const medication = (name: string, overrides: Partial<Medication> = {}): Medication =>
+const medication = (
+  name: string,
+  overrides: Partial<Medication> = {}
+): Medication =>
   ({
     id: `med-${name}`,
     name,
@@ -61,14 +64,14 @@ const medication = (name: string, overrides: Partial<Medication> = {}): Medicati
 const renderList = (
   query: string,
   ownMedications: Medication[] = [],
-  onPick: (pick: unknown) => void = jest.fn(),
+  onPick: (pick: unknown) => void = jest.fn()
 ) =>
   render(
     <MedicationNameSuggestions
       query={query}
       ownMedications={ownMedications}
       onPick={onPick as never}
-    />,
+    />
   );
 
 beforeEach(() => {
@@ -78,7 +81,10 @@ beforeEach(() => {
 
 describe('MedicationNameSuggestions tier 3', () => {
   it('offers catalog products under their own heading, below everything local', () => {
-    mockCatalogProducts = [product('Testosterone'), product('Testosterone enanthate')];
+    mockCatalogProducts = [
+      product('Testosterone'),
+      product('Testosterone enanthate'),
+    ];
     const { getByText, getByTestId } = renderList('testosterone', [
       medication('Testosterone gel'),
     ]);
@@ -88,7 +94,9 @@ describe('MedicationNameSuggestions tier 3', () => {
     expect(getByText('NLM')).toBeTruthy();
     // The user's own row, both catalog rows and the custom row are all present.
     expect(getByTestId('med-suggestion-own:med-Testosterone gel')).toBeTruthy();
-    expect(getByTestId('med-suggestion-rxterms:Testosterone (Injectable)')).toBeTruthy();
+    expect(
+      getByTestId('med-suggestion-rxterms:Testosterone (Injectable)')
+    ).toBeTruthy();
     expect(getByTestId('med-suggestion-custom')).toBeTruthy();
   });
 
@@ -106,23 +114,33 @@ describe('MedicationNameSuggestions tier 3', () => {
     mockCatalogProducts = [testosterone];
 
     const { getByTestId } = renderList('testosterone', [], onPick);
-    fireEvent.press(getByTestId('med-suggestion-rxterms:Testosterone (Injectable)'));
+    fireEvent.press(
+      getByTestId('med-suggestion-rxterms:Testosterone (Injectable)')
+    );
 
     // The product, not a flattened name: the screen decides which of its fields to apply.
-    expect(onPick).toHaveBeenCalledWith({ kind: 'rxterms', product: testosterone });
+    expect(onPick).toHaveBeenCalledWith({
+      kind: 'rxterms',
+      product: testosterone,
+    });
   });
 
   it('does not offer a drug the user already has under that name', () => {
-    mockCatalogProducts = [product('Testosterone'), product('Testosterone enanthate')];
+    mockCatalogProducts = [
+      product('Testosterone'),
+      product('Testosterone enanthate'),
+    ];
     const { queryByTestId, getByTestId } = renderList('testosterone', [
       medication('Testosterone'),
     ]);
 
     // Their own row carries their strength and schedule; a catalog row for the same name is a
     // worse copy of it.
-    expect(queryByTestId('med-suggestion-rxterms:Testosterone (Injectable)')).toBeNull();
     expect(
-      getByTestId('med-suggestion-rxterms:Testosterone enanthate (Injectable)'),
+      queryByTestId('med-suggestion-rxterms:Testosterone (Injectable)')
+    ).toBeNull();
+    expect(
+      getByTestId('med-suggestion-rxterms:Testosterone enanthate (Injectable)')
     ).toBeTruthy();
   });
 
@@ -142,7 +160,9 @@ describe('MedicationNameSuggestions tier 3', () => {
   });
 
   it('shows no number for a lone strength the parser refused', () => {
-    mockCatalogProducts = [product('Testosterone', [strength('1% Gel', null, null)])];
+    mockCatalogProducts = [
+      product('Testosterone', [strength('1% Gel', null, null)]),
+    ];
     const { getByTestId } = renderList('testosterone');
     const row = getByTestId('med-suggestion-rxterms:Testosterone (Injectable)');
     // Nothing invented from a string nobody could read — no number anywhere on the row.

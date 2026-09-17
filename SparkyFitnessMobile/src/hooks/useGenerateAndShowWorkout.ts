@@ -35,7 +35,7 @@ interface UseGenerateAndShowWorkoutOptions {
  */
 export function useGenerateAndShowWorkout(
   navigation: GenerateNavigation,
-  { onBeforeNavigate }: UseGenerateAndShowWorkoutOptions = {},
+  { onBeforeNavigate }: UseGenerateAndShowWorkoutOptions = {}
 ) {
   // Only the mutation is wanted: these screens do not render the stored
   // recommendation, so reading it would be a request for nothing.
@@ -75,7 +75,7 @@ export function useGenerateAndShowWorkout(
         setPendingKey(null);
       }
     },
-    [generateAsync, navigation, onBeforeNavigate],
+    [generateAsync, navigation, onBeforeNavigate]
   );
 
   return { generateAndShow, pendingKey, isGenerating: pendingKey !== null };

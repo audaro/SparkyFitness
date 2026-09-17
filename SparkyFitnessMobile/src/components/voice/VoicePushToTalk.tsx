@@ -63,12 +63,15 @@ const VOICE_HIDDEN_ROUTES = new Set<string>([
   'MedicationScheduleForm',
 ]);
 
-type VoicePhase = 'idle' | 'listening' | 'thinking' | 'speaking' | 'done' | 'error';
+type VoicePhase =
+  'idle' | 'listening' | 'thinking' | 'speaking' | 'done' | 'error';
 
 /** Tracks the top root-route name so the button can hide on conflicting screens. */
 function useTopRouteName(): string | null {
   const [name, setName] = useState<string | null>(() =>
-    navigationRef.isReady() ? (navigationRef.getCurrentRoute()?.name ?? null) : null
+    navigationRef.isReady()
+      ? (navigationRef.getCurrentRoute()?.name ?? null)
+      : null
   );
 
   useEffect(() => {
@@ -89,9 +92,15 @@ function useTopRouteName(): string | null {
 export default function VoicePushToTalk() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const voiceButtonVisible = useAppPreferencesStore((s) => s.voiceButtonVisible);
-  const voiceRepliesEnabled = useAppPreferencesStore((s) => s.voiceRepliesEnabled);
-  const voiceAutoStopEnabled = useAppPreferencesStore((s) => s.voiceAutoStopEnabled);
+  const voiceButtonVisible = useAppPreferencesStore(
+    (s) => s.voiceButtonVisible
+  );
+  const voiceRepliesEnabled = useAppPreferencesStore(
+    (s) => s.voiceRepliesEnabled
+  );
+  const voiceAutoStopEnabled = useAppPreferencesStore(
+    (s) => s.voiceAutoStopEnabled
+  );
   const { data: aiSetting } = useActiveAiServiceSetting();
   const topRoute = useTopRouteName();
   const workoutBarPadding = useActiveWorkoutBarPadding('tabs');
@@ -105,15 +114,16 @@ export default function VoicePushToTalk() {
   const sessionRef = useRef(0);
   const transcriptRef = useRef(createTranscriptAccumulator());
 
-  const [accent, surface, border, textPrimary, muted, dangerText, dangerIcon] = useCSSVariable([
-    '--color-accent-primary',
-    '--color-surface',
-    '--color-border-subtle',
-    '--color-text-primary',
-    '--color-text-muted',
-    '--color-text-danger-subtle',
-    '--color-icon-danger',
-  ]) as [string, string, string, string, string, string, string];
+  const [accent, surface, border, textPrimary, muted, dangerText, dangerIcon] =
+    useCSSVariable([
+      '--color-accent-primary',
+      '--color-surface',
+      '--color-border-subtle',
+      '--color-text-primary',
+      '--color-text-muted',
+      '--color-text-danger-subtle',
+      '--color-icon-danger',
+    ]) as [string, string, string, string, string, string, string];
 
   const resetToIdle = useCallback(() => {
     sessionRef.current += 1;
@@ -157,7 +167,12 @@ export default function VoicePushToTalk() {
   // always invokes the latest closure, so `phase` is current here.
   useSpeechRecognitionEvent('result', (event) => {
     if (phase !== 'listening') return;
-    setTranscript(transcriptRef.current.push(event.results[0]?.transcript ?? '', event.isFinal));
+    setTranscript(
+      transcriptRef.current.push(
+        event.results[0]?.transcript ?? '',
+        event.isFinal
+      )
+    );
   });
 
   useSpeechRecognitionEvent('end', () => {
@@ -177,7 +192,10 @@ export default function VoicePushToTalk() {
     if (phase !== 'listening') return;
     // "no-speech" is a normal outcome of an accidental tap.
     if (event.error !== 'no-speech') {
-      addLog('Voice recognition error', 'WARNING', [event.error, event.message]);
+      addLog('Voice recognition error', 'WARNING', [
+        event.error,
+        event.message,
+      ]);
       Toast.show({
         type: 'error',
         text1: t('voice.couldNotHear', { defaultValue: "Couldn't hear that" }),
@@ -197,7 +215,8 @@ export default function VoicePushToTalk() {
           defaultValue: 'Microphone access needed',
         }),
         text2: t('voice.micPermissionMessage', {
-          defaultValue: 'Enable the microphone and speech recognition in Settings.',
+          defaultValue:
+            'Enable the microphone and speech recognition in Settings.',
         }),
         onPress: () => Linking.openSettings(),
       });
@@ -240,7 +259,10 @@ export default function VoicePushToTalk() {
   }, [resetToIdle]);
 
   // End any in-flight capture if the button gets hidden (route change/setting).
-  const hidden = !voiceButtonVisible || topRoute === null || VOICE_HIDDEN_ROUTES.has(topRoute);
+  const hidden =
+    !voiceButtonVisible ||
+    topRoute === null ||
+    VOICE_HIDDEN_ROUTES.has(topRoute);
   useEffect(() => {
     if (hidden && phase !== 'idle') {
       if (phase === 'listening') abortRecognition();
@@ -256,7 +278,10 @@ export default function VoicePushToTalk() {
   const cardOpen = phase !== 'idle';
 
   return (
-    <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>
+    <View
+      pointerEvents="box-none"
+      style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+    >
       {cardOpen && (
         <View
           style={{
@@ -276,9 +301,17 @@ export default function VoicePushToTalk() {
             elevation: 8,
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginBottom: 8,
+            }}
+          >
             <Icon name="sparkles" size={16} color={accent} />
-            <Text style={{ color: muted, fontSize: 13, marginLeft: 6, flex: 1 }}>
+            <Text
+              style={{ color: muted, fontSize: 13, marginLeft: 6, flex: 1 }}
+            >
               {phase === 'listening' &&
                 (voiceAutoStopEnabled
                   ? t('voice.listening', { defaultValue: 'Listening…' })
@@ -286,22 +319,35 @@ export default function VoicePushToTalk() {
                       defaultValue: 'Listening… tap the mic when done',
                     }))}
               {phase === 'thinking' &&
-                t('voice.thinking', { defaultValue: 'Sparky is working on it…' })}
-              {phase === 'speaking' && t('voice.sparky', { defaultValue: 'Sparky' })}
-              {phase === 'done' && t('voice.sparky', { defaultValue: 'Sparky' })}
+                t('voice.thinking', {
+                  defaultValue: 'Sparky is working on it…',
+                })}
+              {phase === 'speaking' &&
+                t('voice.sparky', { defaultValue: 'Sparky' })}
+              {phase === 'done' &&
+                t('voice.sparky', { defaultValue: 'Sparky' })}
               {phase === 'error' &&
                 t('voice.errorTitle', { defaultValue: 'Something went wrong' })}
             </Text>
-            <Pressable onPress={handleCancel} hitSlop={12} accessibilityLabel={t('voice.close', { defaultValue: 'Close voice card' })}>
+            <Pressable
+              onPress={handleCancel}
+              hitSlop={12}
+              accessibilityLabel={t('voice.close', {
+                defaultValue: 'Close voice card',
+              })}
+            >
               <Icon name="close" size={18} color={muted} />
             </Pressable>
           </View>
 
           {phase === 'listening' || phase === 'thinking' ? (
-            <Text style={{ color: transcript ? textPrimary : muted, fontSize: 16 }}>
+            <Text
+              style={{ color: transcript ? textPrimary : muted, fontSize: 16 }}
+            >
               {transcript ||
                 t('voice.prompt', {
-                  defaultValue: 'Say something like "log two eggs for breakfast".',
+                  defaultValue:
+                    'Say something like "log two eggs for breakfast".',
                 })}
             </Text>
           ) : phase === 'error' ? (
@@ -313,7 +359,14 @@ export default function VoicePushToTalk() {
           )}
 
           {(phase === 'done' || phase === 'speaking' || phase === 'error') && (
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 16, marginTop: 12 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'flex-end',
+                gap: 16,
+                marginTop: 12,
+              }}
+            >
               {phase === 'speaking' && (
                 <Pressable
                   onPress={() => {
@@ -341,7 +394,9 @@ export default function VoicePushToTalk() {
                 })}
               >
                 <Icon name="sparkles" size={16} color={accent} />
-                <Text style={{ color: accent, fontSize: 14, fontWeight: '600' }}>
+                <Text
+                  style={{ color: accent, fontSize: 14, fontWeight: '600' }}
+                >
                   {t('voice.openChat', { defaultValue: 'Open chat' })}
                 </Text>
               </Pressable>
@@ -375,7 +430,13 @@ export default function VoicePushToTalk() {
         }}
       >
         <Icon
-          name={phase === 'listening' ? 'waveform' : phase === 'thinking' ? 'ellipsis-horizontal' : 'mic'}
+          name={
+            phase === 'listening'
+              ? 'waveform'
+              : phase === 'thinking'
+                ? 'ellipsis-horizontal'
+                : 'mic'
+          }
           size={24}
           color="#ffffff"
         />

@@ -268,7 +268,13 @@ describe('MeasurementsSummary', () => {
             value: '75',
             entry_date: '2024-06-15',
             source: 'garmin',
-            custom_categories: { display_name: null, name: 'Heart Rate', measurement_type: 'bpm', frequency: 'Daily', data_type: 'numeric' },
+            custom_categories: {
+              display_name: null,
+              name: 'Heart Rate',
+              measurement_type: 'bpm',
+              frequency: 'Daily',
+              data_type: 'numeric',
+            },
           },
         ]}
       />
@@ -287,7 +293,13 @@ describe('MeasurementsSummary', () => {
             value: '0',
             entry_date: '2024-06-15',
             source: 'manual',
-            custom_categories: { display_name: null, name: 'Zero', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
+            custom_categories: {
+              display_name: null,
+              name: 'Zero',
+              measurement_type: '',
+              frequency: 'Daily',
+              data_type: 'numeric',
+            },
           },
         ]}
       />
@@ -309,7 +321,13 @@ describe('MeasurementsSummary', () => {
             value: 'false',
             entry_date: '2024-06-15',
             source: 'manual',
-            custom_categories: { display_name: null, name: 'Flag', measurement_type: '', frequency: 'Daily', data_type: 'boolean' },
+            custom_categories: {
+              display_name: null,
+              name: 'Flag',
+              measurement_type: '',
+              frequency: 'Daily',
+              data_type: 'boolean',
+            },
           },
         ]}
       />
@@ -330,7 +348,13 @@ describe('MeasurementsSummary', () => {
             value: '50',
             entry_date: '2024-06-15',
             source: 'manual',
-            custom_categories: { display_name: null, name: 'Manual A', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
+            custom_categories: {
+              display_name: null,
+              name: 'Manual A',
+              measurement_type: '',
+              frequency: 'Daily',
+              data_type: 'numeric',
+            },
           },
           {
             id: 'e2',
@@ -338,7 +362,13 @@ describe('MeasurementsSummary', () => {
             value: '60',
             entry_date: '2024-06-15',
             source: 'oura',
-            custom_categories: { display_name: null, name: 'Oura Metric', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
+            custom_categories: {
+              display_name: null,
+              name: 'Oura Metric',
+              measurement_type: '',
+              frequency: 'Daily',
+              data_type: 'numeric',
+            },
           },
           {
             id: 'e3',
@@ -346,7 +376,13 @@ describe('MeasurementsSummary', () => {
             value: '70',
             entry_date: '2024-06-15',
             source: 'withings',
-            custom_categories: { display_name: null, name: 'Withings Metric', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
+            custom_categories: {
+              display_name: null,
+              name: 'Withings Metric',
+              measurement_type: '',
+              frequency: 'Daily',
+              data_type: 'numeric',
+            },
           },
         ]}
       />
@@ -368,7 +404,13 @@ describe('MeasurementsSummary', () => {
             value: '75',
             entry_date: '2024-06-15',
             source: null,
-            custom_categories: { display_name: null, name: 'Null Source', measurement_type: '', frequency: 'Daily', data_type: 'numeric' },
+            custom_categories: {
+              display_name: null,
+              name: 'Null Source',
+              measurement_type: '',
+              frequency: 'Daily',
+              data_type: 'numeric',
+            },
           },
         ]}
       />

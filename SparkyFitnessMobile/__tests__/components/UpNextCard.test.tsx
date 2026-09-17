@@ -8,9 +8,10 @@ jest.mock('../../src/hooks/useWorkoutRecommendation', () => ({
   useWorkoutRecommendation: jest.fn(),
 }));
 
-const mockUseWorkoutRecommendation = useWorkoutRecommendation as jest.MockedFunction<
-  typeof useWorkoutRecommendation
->;
+const mockUseWorkoutRecommendation =
+  useWorkoutRecommendation as jest.MockedFunction<
+    typeof useWorkoutRecommendation
+  >;
 
 const navigation = { navigate: jest.fn() };
 
@@ -98,7 +99,10 @@ describe('UpNextCard', () => {
 
   it('shows In progress while this recommendation is the live workout, whatever the server status says', () => {
     setState({ recommendation: { ...recommendation, status: 'started' } });
-    useActiveWorkoutStore.setState({ sessionId: 'session-1', sourceRecommendationId: 'rec-1' });
+    useActiveWorkoutStore.setState({
+      sessionId: 'session-1',
+      sourceRecommendationId: 'rec-1',
+    });
 
     const screen = render(<UpNextCard navigation={navigation as never} />);
 
@@ -108,7 +112,10 @@ describe('UpNextCard', () => {
 
   it('does not claim In progress when the live workout came from somewhere else', () => {
     setState({ recommendation: { ...recommendation, status: 'started' } });
-    useActiveWorkoutStore.setState({ sessionId: 'session-1', sourceRecommendationId: null });
+    useActiveWorkoutStore.setState({
+      sessionId: 'session-1',
+      sourceRecommendationId: null,
+    });
 
     const screen = render(<UpNextCard navigation={navigation as never} />);
 

@@ -31,7 +31,7 @@ export interface WeeklySetTargetsResponse {
 }
 
 export const fetchWeeklySetTargets = async (
-  historyWeeks: number,
+  historyWeeks: number
 ): Promise<WeeklySetTargetsResponse> => {
   return apiFetch<WeeklySetTargetsResponse>({
     endpoint: `/api/weekly-set-targets?history_weeks=${historyWeeks}`,
@@ -46,7 +46,7 @@ export const fetchWeeklySetTargets = async (
  */
 export const updateWeeklySetTargets = async (
   targets: Partial<Record<MuscleGroup, number>>,
-  historyWeeks: number,
+  historyWeeks: number
 ): Promise<WeeklySetTargetsResponse> => {
   return apiFetch<WeeklySetTargetsResponse>({
     endpoint: `/api/weekly-set-targets?history_weeks=${historyWeeks}`,
@@ -67,7 +67,7 @@ export const updateWeeklySetTargets = async (
  * effect.
  */
 export const clearWeeklySetTargets = async (
-  historyWeeks: number,
+  historyWeeks: number
 ): Promise<WeeklySetTargetsResponse> => {
   return apiFetch<WeeklySetTargetsResponse>({
     endpoint: `/api/weekly-set-targets?history_weeks=${historyWeeks}`,

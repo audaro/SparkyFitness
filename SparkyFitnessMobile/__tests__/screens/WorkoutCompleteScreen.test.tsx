@@ -166,7 +166,7 @@ const baseParams: RootStackParamList['WorkoutComplete'] = {
   finishedAt: new Date('2026-07-15T17:42:00').getTime(),
   sourcePresetId: null,
   sourceServerConfigId: null,
-      sourceRecommendationId: null,
+  sourceRecommendationId: null,
   plannedSetValues: {},
 };
 
@@ -446,7 +446,9 @@ describe('WorkoutCompleteScreen', () => {
 
     fireEvent.press(getByText('Done'));
 
-    expect(navigation.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Exercise' });
+    expect(navigation.navigate).toHaveBeenCalledWith('Tabs', {
+      screen: 'Exercise',
+    });
   });
 
   it('Save as Preset opens the prefilled preset create form', () => {

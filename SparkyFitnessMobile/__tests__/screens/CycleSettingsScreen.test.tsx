@@ -65,14 +65,21 @@ jest.mock('../../src/services/nativeTabBarPreference', () => ({
   useNativeIOSHeadersActive: () => mockNativeHeadersActive,
 }));
 
-const mockNavigation = { goBack: jest.fn(), navigate: jest.fn(), setOptions: jest.fn() } as any;
+const mockNavigation = {
+  goBack: jest.fn(),
+  navigate: jest.fn(),
+  setOptions: jest.fn(),
+} as any;
 const mockRoute = { params: {} } as any;
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => mockNavigation,
 }));
 
-function renderScreen(initialSettings: any, { seed = true }: { seed?: boolean } = {}) {
+function renderScreen(
+  initialSettings: any,
+  { seed = true }: { seed?: boolean } = {}
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
@@ -106,7 +113,10 @@ describe('CycleSettingsScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockNativeHeadersActive = true;
-    mockPutSettings.mockImplementation(async (body) => ({ ...baseSettings, ...body }));
+    mockPutSettings.mockImplementation(async (body) => ({
+      ...baseSettings,
+      ...body,
+    }));
   });
 
   it('renders settings fields when enabled is true', async () => {
@@ -157,7 +167,10 @@ describe('CycleSettingsScreen', () => {
     fireEvent(enableSwitch, 'valueChange', true);
 
     await waitFor(() => {
-      expect(mockPutSettings).toHaveBeenCalledWith({ enabled: true, mark_onboarded: true });
+      expect(mockPutSettings).toHaveBeenCalledWith({
+        enabled: true,
+        mark_onboarded: true,
+      });
     });
   });
 

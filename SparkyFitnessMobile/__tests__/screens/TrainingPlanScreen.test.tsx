@@ -43,7 +43,11 @@ jest.mock('../../src/hooks/useProfile', () => ({
 }));
 jest.mock('../../src/hooks/useLatestCheckIn', () => ({
   useLatestCheckIn: jest.fn(() => ({
-    measurement: { entry_date: '2026-09-15', weight: 82, body_fat_percentage: 18 },
+    measurement: {
+      entry_date: '2026-09-15',
+      weight: 82,
+      body_fat_percentage: 18,
+    },
   })),
 }));
 jest.mock('../../src/hooks/useMuscleGainProjection', () => ({
@@ -75,7 +79,7 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 const { useWeeklySetTargets } = jest.requireMock(
-  '../../src/hooks/useWeeklySetTargets',
+  '../../src/hooks/useWeeklySetTargets'
 );
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() };
@@ -105,7 +109,7 @@ function renderScreen(params?: { initialStep?: number }) {
         navigation={navigation as never}
         route={{ params } as never}
       />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 }
 
@@ -114,10 +118,12 @@ function renderScreen(params?: { initialStep?: number }) {
  * coach profile is loading, and a press on a disabled Pressable is silently
  * dropped, so a test that only waits for the *request* presses nothing.
  */
-async function waitForSaveReady(getByTestId: (id: string) => { props: Record<string, unknown> }) {
+async function waitForSaveReady(
+  getByTestId: (id: string) => { props: Record<string, unknown> }
+) {
   await waitFor(() => {
-    const state = getByTestId('training-plan-save').props
-      .accessibilityState as { disabled?: boolean } | undefined;
+    const state = getByTestId('training-plan-save').props.accessibilityState as
+      { disabled?: boolean } | undefined;
     expect(state?.disabled).not.toBe(true);
   });
 }
@@ -137,7 +143,9 @@ describe('TrainingPlanScreen', () => {
       ...emptyProfile(),
       ...patch,
     }));
-    useWeeklySetTargets.mockReturnValue({ data: { targets_are_custom: false } });
+    useWeeklySetTargets.mockReturnValue({
+      data: { targets_are_custom: false },
+    });
   });
 
   it('sends every answer as one patch, with a completion stamp', async () => {
@@ -188,7 +196,7 @@ describe('TrainingPlanScreen', () => {
 
     await waitFor(() => expect(mockUpdateCoachProfile).toHaveBeenCalled());
     expect(
-      mockUpdateCoachProfile.mock.calls[0][0].priority_muscle_groups,
+      mockUpdateCoachProfile.mock.calls[0][0].priority_muscle_groups
     ).toEqual(['pull', 'legs']);
   });
 
@@ -227,7 +235,7 @@ describe('TrainingPlanScreen', () => {
     });
     const { getByTestId } = renderScreen({ initialStep: 5 });
     await waitFor(() =>
-      expect(getByTestId('training-plan-dose').props.value).toBe('1000'),
+      expect(getByTestId('training-plan-dose').props.value).toBe('1000')
     );
     expect(getByTestId('training-plan-interval-10')).toBeTruthy();
   });
@@ -305,7 +313,7 @@ describe('TrainingPlanScreen', () => {
     await waitFor(() => expect(mockFetchCoachProfile).toHaveBeenCalled());
     expect(getByTestId('training-plan-projection')).toBeTruthy();
     expect(
-      queryByText('Save your plan to see what hitting these targets is worth.'),
+      queryByText('Save your plan to see what hitting these targets is worth.')
     ).toBeTruthy();
   });
 });

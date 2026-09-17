@@ -48,7 +48,11 @@ interface ValidatorError {
 }
 
 interface LocaleValidatorModule {
-  LocaleValidator: new (enPath: string, plPath: string | null, options?: Record<string, unknown>) => LocaleValidatorInstance;
+  LocaleValidator: new (
+    enPath: string,
+    plPath: string | null,
+    options?: Record<string, unknown>
+  ) => LocaleValidatorInstance;
   requiredPluralForms: (intlLocale: string) => string[];
   groupPluralKeys: (keys: string[]) => PluralGroup[];
   PLURAL_SUFFIXES: string[];

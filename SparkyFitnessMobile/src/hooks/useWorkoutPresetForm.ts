@@ -1,5 +1,8 @@
 import { useCallback, useReducer, useRef } from 'react';
-import type { PresetSessionResponse, WorkoutRecommendationPayload } from '@workspace/shared';
+import type {
+  PresetSessionResponse,
+  WorkoutRecommendationPayload,
+} from '@workspace/shared';
 import { distanceFromKm, weightFromKg } from '../utils/unitConversions';
 import {
   buildRecommendationDraftExercises,
@@ -175,7 +178,7 @@ export function presetFormReducer(
           action.payload,
           action.weightUnit,
           action.distanceUnit,
-          action.clientIds,
+          action.clientIds
         ),
       };
 
@@ -279,12 +282,14 @@ export function useWorkoutPresetForm() {
     (
       payload: WorkoutRecommendationPayload,
       weightUnit: 'kg' | 'lbs',
-      distanceUnit: 'km' | 'miles',
+      distanceUnit: 'km' | 'miles'
     ) => {
       // Generated in prescribed order, which is the order the builder maps —
       // array order alone would misalign the ids against a payload whose
       // `sort_order` disagreed with it.
-      const clientIds: PresetClientIds = orderedRecommendationExercises(payload).map(e => ({
+      const clientIds: PresetClientIds = orderedRecommendationExercises(
+        payload
+      ).map((e) => ({
         exerciseClientId: generateClientId(),
         setClientIds: e.sets.map(() => generateClientId()),
       }));
@@ -297,7 +302,7 @@ export function useWorkoutPresetForm() {
         clientIds,
       });
     },
-    [exercisesModifiedRef],
+    [exercisesModifiedRef]
   );
 
   return {

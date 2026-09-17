@@ -36,7 +36,9 @@ interface UpNextCardProps {
 const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const { recommendation, isLoading, isError } = useWorkoutRecommendation();
-  const liveRecommendationId = useActiveWorkoutStore((s) => s.sourceRecommendationId);
+  const liveRecommendationId = useActiveWorkoutStore(
+    (s) => s.sourceRecommendationId
+  );
   const [accentPrimary, textMuted] = useCSSVariable([
     '--color-accent-primary',
     '--color-text-muted',
@@ -64,7 +66,9 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
       className="bg-surface rounded-xl p-4 mb-3 shadow-sm"
       onPress={() => navigation.navigate('UpNext')}
       accessibilityRole="button"
-      accessibilityLabel={t('upNext.card.open', { defaultValue: 'Open your next workout' })}
+      accessibilityLabel={t('upNext.card.open', {
+        defaultValue: 'Open your next workout',
+      })}
       testID="up-next-card"
     >
       <View className="flex-row items-center justify-between mb-2">
@@ -97,7 +101,9 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
         <>
           <Text className="text-text-primary text-base font-medium">
             {payload.muscle_groups
-              .map((muscle) => muscle.replace(/\b[a-z]/g, (letter) => letter.toUpperCase()))
+              .map((muscle) =>
+                muscle.replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+              )
               .join(' · ')}
           </Text>
           <Text className="text-sm mt-1" style={{ color: textMuted }}>
@@ -121,7 +127,9 @@ const UpNextCard: React.FC<UpNextCardProps> = ({ navigation }) => {
       ) : (
         !isLoading && (
           <Text className="text-sm" style={{ color: textMuted }}>
-            {t('upNext.generateToday', { defaultValue: "Build today's workout" })}
+            {t('upNext.generateToday', {
+              defaultValue: "Build today's workout",
+            })}
           </Text>
         )
       )}

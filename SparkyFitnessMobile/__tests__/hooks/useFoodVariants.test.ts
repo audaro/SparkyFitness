@@ -2,7 +2,11 @@ import { renderHook, waitFor } from '@testing-library/react-native';
 import { useFoodVariants } from '../../src/hooks/useFoodVariants';
 import { foodVariantsQueryKey } from '../../src/hooks/queryKeys';
 import { fetchFoodVariants } from '../../src/services/api/foodsApi';
-import { createTestQueryClient, createQueryWrapper, type QueryClient } from './queryTestUtils';
+import {
+  createTestQueryClient,
+  createQueryWrapper,
+  type QueryClient,
+} from './queryTestUtils';
 import type { FoodVariantDetail } from '../../src/types/foods';
 
 jest.mock('../../src/services/api/foodsApi', () => ({

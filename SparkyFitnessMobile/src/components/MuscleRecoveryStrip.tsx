@@ -48,7 +48,9 @@ const MuscleRecoveryStrip: React.FC = () => {
         <Text className="font-bold text-text-secondary">
           {t('recovery.title', { defaultValue: 'Recovery' })}
         </Text>
-        {isLoading ? <ActivityIndicator size="small" color={accentPrimary} /> : null}
+        {isLoading ? (
+          <ActivityIndicator size="small" color={accentPrimary} />
+        ) : null}
       </View>
 
       <Text className="text-xs mt-1" style={{ color: textMuted }}>
@@ -74,7 +76,10 @@ const MuscleRecoveryStrip: React.FC = () => {
                 style={{ width: TILE_WIDTH }}
                 testID={`exercise-home-recovery-${muscle.muscle}`}
               >
-                <Text className="text-sm font-bold" style={{ color: toneColor }}>
+                <Text
+                  className="text-sm font-bold"
+                  style={{ color: toneColor }}
+                >
                   {muscle.percent}%
                 </Text>
                 <View
@@ -83,7 +88,10 @@ const MuscleRecoveryStrip: React.FC = () => {
                 >
                   <View
                     className="h-1.5 rounded-full"
-                    style={{ width: `${muscle.percent}%`, backgroundColor: toneColor }}
+                    style={{
+                      width: `${muscle.percent}%`,
+                      backgroundColor: toneColor,
+                    }}
                   />
                 </View>
                 {/* The name sits under the bar so a two-word muscle

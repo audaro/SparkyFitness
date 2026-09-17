@@ -39,7 +39,17 @@ describe('filterByOwnership', () => {
     is_public: true,
   };
   const noOwner = { id: 'no-owner' };
-  const items: ShareItem[] = [mine, mineCamel, family, familyCamel, publicSnake, publicShared, publicCamel, ownPublic, noOwner];
+  const items: ShareItem[] = [
+    mine,
+    mineCamel,
+    family,
+    familyCamel,
+    publicSnake,
+    publicShared,
+    publicCamel,
+    ownPublic,
+    noOwner,
+  ];
 
   it('returns the input unchanged for the all filter', () => {
     expect(filterByOwnership(items, 'all', CURRENT_USER)).toBe(items);

@@ -188,25 +188,25 @@ const ExerciseSetRestSheet = forwardRef<
     sheetRef.current?.dismiss();
   }, [draftBySetId, initialBySetId, onApply, sets]);
 
-    return (
-      <BottomSheetModal
-        // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
-        // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
-        accessible={false}
-        ref={sheetRef}
-        enableDynamicSizing
-        // On Android the sheet's content pan gesture steals vertical drags from
-        // the wheel picker's FlatLists. Must stay static; toggling it remounts content.
-        enableContentPanningGesture={Platform.OS !== 'android'}
-        containerComponent={sheetContainer}
-        backdropComponent={renderBackdrop}
-        backgroundStyle={{ backgroundColor: surfaceBg }}
-        handleIndicatorStyle={{ backgroundColor: textMuted }}
-      >
-        <BottomSheetView className="px-5 pb-safe-or-8">
-          <Text className="text-lg font-semibold text-text-primary text-center mb-3">
-            {restTitle} — {title}
-          </Text>
+  return (
+    <BottomSheetModal
+      // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
+      // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
+      accessible={false}
+      ref={sheetRef}
+      enableDynamicSizing
+      // On Android the sheet's content pan gesture steals vertical drags from
+      // the wheel picker's FlatLists. Must stay static; toggling it remounts content.
+      enableContentPanningGesture={Platform.OS !== 'android'}
+      containerComponent={sheetContainer}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={{ backgroundColor: surfaceBg }}
+      handleIndicatorStyle={{ backgroundColor: textMuted }}
+    >
+      <BottomSheetView className="px-5 pb-safe-or-8">
+        <Text className="text-lg font-semibold text-text-primary text-center mb-3">
+          {restTitle} — {title}
+        </Text>
 
         <View className="flex-row flex-wrap" style={{ gap: 8 }}>
           <Pressable

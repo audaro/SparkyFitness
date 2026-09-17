@@ -44,7 +44,7 @@ export function useMedicationLabel(
      * at all, rather than a round trip that comes back saying `no_rxcui`.
      */
     rxcui?: string | null;
-  },
+  }
 ): MedicationLabelState {
   const { rxcui } = options ?? {};
   // The lookup is off by default, so a preferences read that has not landed yet leaves it off.

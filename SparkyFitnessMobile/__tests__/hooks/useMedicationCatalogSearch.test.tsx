@@ -40,7 +40,7 @@ let searchSpy: jest.SpyInstance;
 
 const renderSearch = (
   initialTerm: string,
-  options?: { limit?: number; active?: boolean; optedIn?: boolean },
+  options?: { limit?: number; active?: boolean; optedIn?: boolean }
 ) => {
   const { optedIn = true, ...hookOptions } = options ?? {};
   const queryClient = new QueryClient({
@@ -55,7 +55,10 @@ const renderSearch = (
   return renderHook(
     ({ term, active }: { term: string; active?: boolean }) =>
       useMedicationCatalogSearch(term, { ...hookOptions, active }),
-    { wrapper, initialProps: { term: initialTerm, active: hookOptions.active ?? true } },
+    {
+      wrapper,
+      initialProps: { term: initialTerm, active: hookOptions.active ?? true },
+    }
   );
 };
 
@@ -127,7 +130,9 @@ describe('useMedicationCatalogSearch', () => {
   it('returns what the lookup found', async () => {
     const { result } = renderSearch('testosterone');
     await settle();
-    expect(result.current.products.map((p) => p.baseName)).toEqual(['Testosterone']);
+    expect(result.current.products.map((p) => p.baseName)).toEqual([
+      'Testosterone',
+    ]);
   });
 
   it('passes the row cap through to the request', async () => {
@@ -173,7 +178,7 @@ describe('useMedicationCatalogSearch', () => {
 
   it('reports the spellings a corrected search was answered under', async () => {
     searchSpy.mockResolvedValue(
-      correctedAnswer(['merbromin', 'metformin'], 'Merbromin', 'metFORMIN'),
+      correctedAnswer(['merbromin', 'metformin'], 'Merbromin', 'metFORMIN')
     );
     const { result } = renderSearch('metfromin');
     await settle();

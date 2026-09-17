@@ -266,22 +266,26 @@ describe('MedicationFormScreen — optional text fields', () => {
 
 describe('MedicationFormScreen — catalog autofill', () => {
   const createMutate = jest.fn();
-  const mockUseMedications = useMedications as jest.MockedFunction<typeof useMedications>;
+  const mockUseMedications = useMedications as jest.MockedFunction<
+    typeof useMedications
+  >;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseMedications.mockReturnValue(
-      { data: [] } as unknown as ReturnType<typeof useMedications>,
-    );
-    mockUseMedicationDetail.mockReturnValue(
-      { data: undefined } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
-    mockUseCreateMedication.mockReturnValue(
-      { mutate: createMutate, isPending: false } as unknown as ReturnType<typeof useCreateMedication>,
-    );
-    mockUseUpdateMedication.mockReturnValue(
-      { mutate: jest.fn(), isPending: false } as unknown as ReturnType<typeof useUpdateMedication>,
-    );
+    mockUseMedications.mockReturnValue({ data: [] } as unknown as ReturnType<
+      typeof useMedications
+    >);
+    mockUseMedicationDetail.mockReturnValue({
+      data: undefined,
+    } as unknown as ReturnType<typeof useMedicationDetail>);
+    mockUseCreateMedication.mockReturnValue({
+      mutate: createMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreateMedication>);
+    mockUseUpdateMedication.mockReturnValue({
+      mutate: jest.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useUpdateMedication>);
   });
 
   it('attaches the catalog id and route when a known drug is picked', () => {
@@ -301,7 +305,7 @@ describe('MedicationFormScreen — catalog autofill', () => {
         source: 'catalog',
         custom_fields: expect.objectContaining({ catalog_id: 'retatrutide' }),
       }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -333,7 +337,7 @@ describe('MedicationFormScreen — catalog autofill', () => {
         // records the catalog row, and the PK coach is the web's surface.
         custom_fields: expect.objectContaining({ catalog_id: 'wegovy' }),
       }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -342,7 +346,10 @@ describe('MedicationFormScreen — catalog autofill', () => {
 
     fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Reta');
     fireEvent.press(screen.getByTestId('med-suggestion-catalog:retatrutide'));
-    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Grey vial #3');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Ipsumol'),
+      'Grey vial #3'
+    );
 
     pressAction(screen, mockNavigation, 'Save');
 
@@ -351,7 +358,7 @@ describe('MedicationFormScreen — catalog autofill', () => {
         source: 'manual',
         custom_fields: expect.objectContaining({ catalog_id: null }),
       }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -365,7 +372,7 @@ describe('MedicationFormScreen — catalog autofill', () => {
 
     expect(createMutate).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'BPC-157', source: 'manual' }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -410,27 +417,34 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (useMedications as jest.MockedFunction<typeof useMedications>).mockReturnValue(
-      { data: [] } as unknown as ReturnType<typeof useMedications>,
-    );
-    mockUseMedicationDetail.mockReturnValue(
-      { data: vialMed } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
-    mockUseCreateMedication.mockReturnValue(
-      { mutate: createMutate, isPending: false } as unknown as ReturnType<typeof useCreateMedication>,
-    );
-    mockUseUpdateMedication.mockReturnValue(
-      { mutate: updateMutate, isPending: false } as unknown as ReturnType<typeof useUpdateMedication>,
-    );
+    (
+      useMedications as jest.MockedFunction<typeof useMedications>
+    ).mockReturnValue({ data: [] } as unknown as ReturnType<
+      typeof useMedications
+    >);
+    mockUseMedicationDetail.mockReturnValue({
+      data: vialMed,
+    } as unknown as ReturnType<typeof useMedicationDetail>);
+    mockUseCreateMedication.mockReturnValue({
+      mutate: createMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreateMedication>);
+    mockUseUpdateMedication.mockReturnValue({
+      mutate: updateMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof useUpdateMedication>);
   });
 
   it('saves the mix alongside the concentration it produced', () => {
-    mockUseMedicationDetail.mockReturnValue(
-      { data: undefined } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
+    mockUseMedicationDetail.mockReturnValue({
+      data: undefined,
+    } as unknown as ReturnType<typeof useMedicationDetail>);
     const screen = renderScreen();
 
-    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Grey vial #3');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Ipsumol'),
+      'Grey vial #3'
+    );
     fireEvent.press(screen.getByTestId('open-recon-calculator'));
     fireEvent.changeText(screen.getByTestId('recon-vial'), '30');
     fireEvent.changeText(screen.getByTestId('recon-diluent'), '3');
@@ -454,17 +468,20 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
           reconstitution: { ...reconMix, diluent: 'bacteriostatic_water' },
         }),
       }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
   it('records a preservative-free diluent the user picks over the default', () => {
-    mockUseMedicationDetail.mockReturnValue(
-      { data: undefined } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
+    mockUseMedicationDetail.mockReturnValue({
+      data: undefined,
+    } as unknown as ReturnType<typeof useMedicationDetail>);
     const screen = renderScreen();
 
-    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Grey vial #3');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Ipsumol'),
+      'Grey vial #3'
+    );
     fireEvent.press(screen.getByTestId('open-recon-calculator'));
     fireEvent.changeText(screen.getByTestId('recon-vial'), '30');
     fireEvent.changeText(screen.getByTestId('recon-diluent'), '3');
@@ -482,7 +499,7 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
           reconstitution: { ...reconMix, diluent: 'sterile_saline' },
         }),
       }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -502,7 +519,10 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
   it('carries the saved mix through an edit that never opens the calculator', () => {
     const screen = renderScreen('med-vial');
 
-    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Reta vial #2');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Ipsumol'),
+      'Reta vial #2'
+    );
     pressAction(screen, mockNavigation, 'Save');
 
     expect(updateMutate).toHaveBeenCalledWith(
@@ -516,7 +536,7 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
           }),
         }),
       },
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -524,7 +544,7 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
     const screen = renderScreen('med-vial');
 
     expect(screen.getByTestId('med-draw')).toHaveTextContent(
-      'Draw 0.2 mL — 20 units on a U-100 syringe',
+      'Draw 0.2 mL — 20 units on a U-100 syringe'
     );
   });
 
@@ -537,23 +557,21 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
     // 2 mg at 20 mg/mL is half of what it was. A draw derived from the stored 30 mg / 3 mL
     // mix would still read 20 units and send them to twice their dose.
     expect(screen.getByTestId('med-draw')).toHaveTextContent(
-      'Draw 0.1 mL — 10 units on a U-100 syringe',
+      'Draw 0.1 mL — 10 units on a U-100 syringe'
     );
   });
 
   it('reads the saved syringe rather than assuming U-100', () => {
-    mockUseMedicationDetail.mockReturnValue(
-      {
-        data: {
-          ...vialMed,
-          custom_fields: { reconstitution: { ...reconMix, syringe: 'U-40' } },
-        },
-      } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
+    mockUseMedicationDetail.mockReturnValue({
+      data: {
+        ...vialMed,
+        custom_fields: { reconstitution: { ...reconMix, syringe: 'U-40' } },
+      },
+    } as unknown as ReturnType<typeof useMedicationDetail>);
     const screen = renderScreen('med-vial');
 
     expect(screen.getByTestId('med-draw')).toHaveTextContent(
-      'Draw 0.2 mL — 8 units on a U-40 syringe',
+      'Draw 0.2 mL — 8 units on a U-40 syringe'
     );
   });
 
@@ -573,7 +591,7 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
           custom_fields: expect.objectContaining({ reconstitution: null }),
         }),
       },
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -600,9 +618,11 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
         reconstitution: { ...reconMix, vial_amount: 10, diluent_ml: 2 },
       },
     };
-    (useMedications as jest.MockedFunction<typeof useMedications>).mockReturnValue(
-      { data: [otherVial] } as unknown as ReturnType<typeof useMedications>,
-    );
+    (
+      useMedications as jest.MockedFunction<typeof useMedications>
+    ).mockReturnValue({ data: [otherVial] } as unknown as ReturnType<
+      typeof useMedications
+    >);
     const screen = renderScreen('med-vial');
 
     fireEvent.changeText(screen.getByDisplayValue('Retatrutide'), 'Tirz');
@@ -624,14 +644,14 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
           }),
         }),
       },
-      expect.anything(),
+      expect.anything()
     );
   });
 
   it('claims no draw for a strength that is not a concentration', () => {
-    mockUseMedicationDetail.mockReturnValue(
-      { data: baseMed } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
+    mockUseMedicationDetail.mockReturnValue({
+      data: baseMed,
+    } as unknown as ReturnType<typeof useMedicationDetail>);
     const screen = renderScreen('med-1');
 
     // 10 mg of Lisinopril is a tablet, not something with a draw volume.
@@ -647,13 +667,15 @@ describe('MedicationFormScreen — reconstitution round trip', () => {
 describe('MedicationFormScreen — US catalog autofill', () => {
   const createMutate = jest.fn();
   const updateMutate = jest.fn();
-  const mockUseMedications = useMedications as jest.MockedFunction<typeof useMedications>;
+  const mockUseMedications = useMedications as jest.MockedFunction<
+    typeof useMedications
+  >;
 
   const strength = (
     raw: string,
     rxcui: string,
     value: number | null,
-    unit: string | null,
+    unit: string | null
   ): RxTermsProduct['strengths'][number] => ({
     raw,
     rxcui,
@@ -664,7 +686,7 @@ describe('MedicationFormScreen — US catalog autofill', () => {
 
   const product = (
     baseName: string,
-    strengths: RxTermsProduct['strengths'],
+    strengths: RxTermsProduct['strengths']
   ): RxTermsProduct => ({
     displayName: `${baseName} (Injectable)`,
     baseName,
@@ -676,28 +698,34 @@ describe('MedicationFormScreen — US catalog autofill', () => {
     jest.clearAllMocks();
     mockCatalogProducts = [];
     mockCorrectedTerms = [];
-    mockUseMedications.mockReturnValue(
-      { data: [] } as unknown as ReturnType<typeof useMedications>,
-    );
-    mockUseMedicationDetail.mockReturnValue(
-      { data: undefined } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
-    mockUseCreateMedication.mockReturnValue(
-      { mutate: createMutate, isPending: false } as unknown as ReturnType<typeof useCreateMedication>,
-    );
-    mockUseUpdateMedication.mockReturnValue(
-      { mutate: updateMutate, isPending: false } as unknown as ReturnType<typeof useUpdateMedication>,
-    );
+    mockUseMedications.mockReturnValue({ data: [] } as unknown as ReturnType<
+      typeof useMedications
+    >);
+    mockUseMedicationDetail.mockReturnValue({
+      data: undefined,
+    } as unknown as ReturnType<typeof useMedicationDetail>);
+    mockUseCreateMedication.mockReturnValue({
+      mutate: createMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreateMedication>);
+    mockUseUpdateMedication.mockReturnValue({
+      mutate: updateMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof useUpdateMedication>);
   });
 
   it('takes a lone strength and the RXCUI that identifies it', () => {
     mockCatalogProducts = [
-      product('Levothyroxine', [strength('0.025 mg Tab', '892245', 0.025, 'mg')]),
+      product('Levothyroxine', [
+        strength('0.025 mg Tab', '892245', 0.025, 'mg'),
+      ]),
     ];
     const screen = renderScreen();
 
     fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Levo');
-    fireEvent.press(screen.getByTestId('med-suggestion-rxterms:Levothyroxine (Injectable)'));
+    fireEvent.press(
+      screen.getByTestId('med-suggestion-rxterms:Levothyroxine (Injectable)')
+    );
 
     pressAction(screen, mockNavigation, 'Save');
 
@@ -711,7 +739,7 @@ describe('MedicationFormScreen — US catalog autofill', () => {
         strength_unit: 'mg',
         rxnorm_rxcui: '892245',
       }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -725,7 +753,9 @@ describe('MedicationFormScreen — US catalog autofill', () => {
     const screen = renderScreen();
 
     fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Testo');
-    fireEvent.press(screen.getByTestId('med-suggestion-rxterms:Testosterone (Injectable)'));
+    fireEvent.press(
+      screen.getByTestId('med-suggestion-rxterms:Testosterone (Injectable)')
+    );
 
     expect(screen.getByText('Which strength do you have?')).toBeTruthy();
 
@@ -738,7 +768,7 @@ describe('MedicationFormScreen — US catalog autofill', () => {
         strength_value: null,
         rxnorm_rxcui: null,
       }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -752,7 +782,9 @@ describe('MedicationFormScreen — US catalog autofill', () => {
     const screen = renderScreen();
 
     fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Testo');
-    fireEvent.press(screen.getByTestId('med-suggestion-rxterms:Testosterone (Injectable)'));
+    fireEvent.press(
+      screen.getByTestId('med-suggestion-rxterms:Testosterone (Injectable)')
+    );
     fireEvent.press(screen.getByText('opt-200 mg/ml Injection 1 ml'));
 
     pressAction(screen, mockNavigation, 'Save');
@@ -765,44 +797,55 @@ describe('MedicationFormScreen — US catalog autofill', () => {
         strength_unit: 'mg/ml',
         rxnorm_rxcui: '2222',
       }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
   it('drops the RXCUI when the name is typed over', () => {
     mockCatalogProducts = [
-      product('Levothyroxine', [strength('0.025 mg Tab', '892245', 0.025, 'mg')]),
+      product('Levothyroxine', [
+        strength('0.025 mg Tab', '892245', 0.025, 'mg'),
+      ]),
     ];
     const screen = renderScreen();
 
     fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Levo');
-    fireEvent.press(screen.getByTestId('med-suggestion-rxterms:Levothyroxine (Injectable)'));
-    fireEvent.changeText(screen.getByPlaceholderText('Ipsumol'), 'Something else');
+    fireEvent.press(
+      screen.getByTestId('med-suggestion-rxterms:Levothyroxine (Injectable)')
+    );
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Ipsumol'),
+      'Something else'
+    );
 
     pressAction(screen, mockNavigation, 'Save');
 
     // An identifier left on a renamed row is a precise-looking claim about the wrong drug.
     expect(createMutate).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Something else', rxnorm_rxcui: null }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
   it('keeps a saved RXCUI through an edit that never touches the name', () => {
-    mockUseMedicationDetail.mockReturnValue(
-      {
-        data: { ...baseMed, rxnorm_rxcui: '892245' },
-      } as unknown as ReturnType<typeof useMedicationDetail>,
-    );
+    mockUseMedicationDetail.mockReturnValue({
+      data: { ...baseMed, rxnorm_rxcui: '892245' },
+    } as unknown as ReturnType<typeof useMedicationDetail>);
     const screen = renderScreen('med-1');
 
-    fireEvent.changeText(screen.getByPlaceholderText('Blood pressure'), 'Thyroid');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Blood pressure'),
+      'Thyroid'
+    );
 
     pressAction(screen, mockNavigation, 'Save');
 
     expect(updateMutate).toHaveBeenCalledWith(
-      { id: 'med-1', body: expect.objectContaining({ rxnorm_rxcui: '892245' }) },
-      expect.anything(),
+      {
+        id: 'med-1',
+        body: expect.objectContaining({ rxnorm_rxcui: '892245' }),
+      },
+      expect.anything()
     );
   });
 });

@@ -51,6 +51,7 @@ npx expo prebuild --clean
 ```
 
 - `pnpm run validate` runs the generated-locale-resources check, TypeScript typecheck, Expo lint with zero warnings, the blocking i18n audit, Knip (`pnpm run knip` for unused files and exports), the native widget locale check, the Prettier format check, and `muscle-art:check` (re-derives the generated body art and fails if the committed file is not what the illustration produces today).
+- **This package is Prettier-formatted.** Run `pnpm run format` on what you touch; `format:check` is part of `validate` and the root `lint-staged` hook formats staged mobile files. Earlier handoff notes in `docs/handoffs/` say never to run Prettier on mobile files -- that rule is retired, and those documents are historical records rather than live guidance. What must still stay unformatted is listed in `.prettierignore`, each entry with the reason: `App.tsx` and `src/navigation/safeScreens.tsx` because `__tests__/navigation/nativeHeaderContract.test.ts` parses their literal source, and the generated modules (`generatedLocaleResources.ts`, `uniwind-types.d.ts`, `muscleArt.generated.ts`) because their own `--check` scripts byte-compare what the generator emits.
 - Use Watchman-disabled Jest commands in agent/sandbox runs; bare Jest often fails on macOS.
 - `collectCoverage` is enabled in Jest config, so expect coverage output from normal test runs.
 - Run `npx expo prebuild --clean` after native dependency changes, permissions, app group or widget target changes, Expo plugin changes, native config edits, or patching native modules.

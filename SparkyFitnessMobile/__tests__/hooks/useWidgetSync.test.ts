@@ -112,7 +112,13 @@ const makeSummary = (overrides: Partial<DailySummary> = {}): DailySummary => ({
     tdeeProjection: null,
   },
   supplementTotals: EMPTY_SUPPLEMENT_TOTALS,
-  goals: { calories: 2000, protein: 150, carbs: 200, fat: 65, dietary_fiber: 30 },
+  goals: {
+    calories: 2000,
+    protein: 150,
+    carbs: 200,
+    fat: 65,
+    dietary_fiber: 30,
+  },
   customNutrientTotals: {},
   customNutrientGoals: {},
   ...overrides,
@@ -233,7 +239,7 @@ describe('useWidgetSync', () => {
 
     const { rerender } = renderHook(
       ({ summary }: { summary: DailySummary }) => useWidgetSync(summary),
-      { initialProps: { summary: makeSummary() } },
+      { initialProps: { summary: makeSummary() } }
     );
     await flushWidgetPush();
     expect(androidSetMacroSnapshot).toHaveBeenCalledTimes(1);
@@ -259,9 +265,12 @@ describe('useWidgetSync', () => {
       configurable: true,
     });
 
-    const { rerender } = renderHook(({ summary }: { summary: DailySummary }) => useWidgetSync(summary), {
-      initialProps: { summary: makeSummary() },
-    });
+    const { rerender } = renderHook(
+      ({ summary }: { summary: DailySummary }) => useWidgetSync(summary),
+      {
+        initialProps: { summary: makeSummary() },
+      }
+    );
 
     await flushWidgetPush();
 
@@ -286,9 +295,12 @@ describe('useWidgetSync', () => {
       configurable: true,
     });
 
-    const { rerender } = renderHook(({ summary }: { summary: DailySummary }) => useWidgetSync(summary), {
-      initialProps: { summary: makeSummary() },
-    });
+    const { rerender } = renderHook(
+      ({ summary }: { summary: DailySummary }) => useWidgetSync(summary),
+      {
+        initialProps: { summary: makeSummary() },
+      }
+    );
 
     await flushWidgetPush();
 
@@ -334,9 +346,12 @@ describe('useWidgetSync', () => {
       configurable: true,
     });
 
-    const { rerender } = renderHook(({ summary }: { summary: DailySummary }) => useWidgetSync(summary), {
-      initialProps: { summary: makeSummary() },
-    });
+    const { rerender } = renderHook(
+      ({ summary }: { summary: DailySummary }) => useWidgetSync(summary),
+      {
+        initialProps: { summary: makeSummary() },
+      }
+    );
 
     await flushWidgetPush();
 
@@ -412,9 +427,12 @@ describe('useWidgetSync', () => {
     });
     androidSetMacroSnapshot.mockRejectedValueOnce(new Error('macro failed'));
 
-    const { rerender } = renderHook(({ summary }: { summary: DailySummary }) => useWidgetSync(summary), {
-      initialProps: { summary: makeSummary() },
-    });
+    const { rerender } = renderHook(
+      ({ summary }: { summary: DailySummary }) => useWidgetSync(summary),
+      {
+        initialProps: { summary: makeSummary() },
+      }
+    );
 
     await flushWidgetPush();
 

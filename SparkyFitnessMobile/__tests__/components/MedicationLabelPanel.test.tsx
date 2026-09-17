@@ -17,7 +17,7 @@ import { preferencesQueryKey } from '../../src/hooks/queryKeys';
 const MEDICATION_ID = 'med-1';
 
 const response = (
-  over: Partial<OpenFdaLookupResponse> = {},
+  over: Partial<OpenFdaLookupResponse> = {}
 ): OpenFdaLookupResponse => ({
   products: [
     {
@@ -36,7 +36,10 @@ const response = (
 
 let labelSpy: jest.SpyInstance;
 
-const renderPanel = (options?: { rxcui?: string | null; optedIn?: boolean }) => {
+const renderPanel = (options?: {
+  rxcui?: string | null;
+  optedIn?: boolean;
+}) => {
   const { rxcui = '2601723', optedIn = true } = options ?? {};
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -47,7 +50,7 @@ const renderPanel = (options?: { rxcui?: string | null; optedIn?: boolean }) => 
   return render(
     <QueryClientProvider client={queryClient}>
       <MedicationLabelPanel medicationId={MEDICATION_ID} rxcui={rxcui} />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 };
 
@@ -102,7 +105,7 @@ describe('MedicationLabelPanel', () => {
             routes: [],
           },
         ],
-      }),
+      })
     );
 
     const { findByText } = renderPanel();

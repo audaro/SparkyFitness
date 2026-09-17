@@ -35,14 +35,18 @@ const { paths, views, aspect, muscles } = buildBodyArt();
 const body = paths
   .map((path) => {
     const view = `view: '${path.view}'`;
-    if (path.kind !== 'muscle') return `  { kind: '${path.kind}', ${view}, d: '${path.d}' },`;
+    if (path.kind !== 'muscle')
+      return `  { kind: '${path.kind}', ${view}, d: '${path.d}' },`;
     const authored = path.authored ? ', authored: true' : '';
     return `  { kind: 'muscle', muscle: '${path.muscle}', ${view}${authored}, d: '${path.d}' },`;
   })
   .join('\n');
 
 const counts = Object.fromEntries(
-  ['front', 'back'].map((view) => [view, paths.filter((path) => path.view === view).length]),
+  ['front', 'back'].map((view) => [
+    view,
+    paths.filter((path) => path.view === view).length,
+  ])
 );
 
 const out = `/**
@@ -124,14 +128,18 @@ if (process.argv.includes('--check')) {
       `${OUT_PATH} is not what the illustration produces today.\n` +
         'Run `pnpm run muscle-art:generate`, look at the result with ' +
         '`pnpm run muscle-art:render`, and commit both. Never hand-edit the ' +
-        'generated file — the next regeneration would drop the edit.',
+        'generated file — the next regeneration would drop the edit.'
     );
     process.exit(1);
   }
-  console.log(`${OUT_PATH} is up to date (${paths.length} paths, ${muscles.length} muscles).`);
+  console.log(
+    `${OUT_PATH} is up to date (${paths.length} paths, ${muscles.length} muscles).`
+  );
 } else {
   writeFileSync(OUT_PATH, out);
   console.log(`Wrote ${OUT_PATH}`);
-  console.log(`  ${paths.length} paths (${counts.front} front, ${counts.back} back)`);
+  console.log(
+    `  ${paths.length} paths (${counts.front} front, ${counts.back} back)`
+  );
   console.log(`  ${muscles.length} muscles: ${muscles.join(', ')}`);
 }

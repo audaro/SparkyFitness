@@ -822,7 +822,10 @@ describe('ExerciseDetailScreen', () => {
     });
 
     it('renders the looping clip as the hero when the exercise has a video', () => {
-      const screen = renderScreen({ images: ['a.png', 'b.png'], videos: ['clip.mp4'] });
+      const screen = renderScreen({
+        images: ['a.png', 'b.png'],
+        videos: ['clip.mp4'],
+      });
 
       expect(screen.getByTestId('expo-video-view')).toBeTruthy();
       expect(screen.queryByTestId('exercise-image-crossfade')).toBeNull();
@@ -834,7 +837,10 @@ describe('ExerciseDetailScreen', () => {
         .spyOn(reanimated, 'useReducedMotion')
         .mockReturnValue(true);
       try {
-        const screen = renderScreen({ images: ['a.png', 'b.png'], videos: ['clip.mp4'] });
+        const screen = renderScreen({
+          images: ['a.png', 'b.png'],
+          videos: ['clip.mp4'],
+        });
 
         expect(screen.queryByTestId('expo-video-view')).toBeNull();
         expect(screen.getByTestId('pager-view')).toBeTruthy();

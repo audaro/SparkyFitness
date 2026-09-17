@@ -70,10 +70,16 @@ function renderAddSheet(
 }
 
 describe('AddSheet', () => {
-  let requestAnimationFrameSpy: jest.SpyInstance<number, [FrameRequestCallback]>;
+  let requestAnimationFrameSpy: jest.SpyInstance<
+    number,
+    [FrameRequestCallback]
+  >;
   // RN types the handle as nullable, so the spy has to be declared over the
   // same parameter list the global carries.
-  let cancelAnimationFrameSpy: jest.SpyInstance<void, [handle: number | null | undefined]>;
+  let cancelAnimationFrameSpy: jest.SpyInstance<
+    void,
+    [handle: number | null | undefined]
+  >;
 
   beforeEach(() => {
     jest.clearAllMocks();

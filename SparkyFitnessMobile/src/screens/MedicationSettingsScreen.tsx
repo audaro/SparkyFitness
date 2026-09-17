@@ -27,7 +27,9 @@ type MedicationSettingsScreenProps = RootStackScreenProps<'MedicationSettings'>;
  * is worded the same as the web app's row, because a user reading one and toggling the other is
  * setting a single server-side preference.
  */
-const MedicationSettingsScreen: React.FC<MedicationSettingsScreenProps> = () => {
+const MedicationSettingsScreen: React.FC<
+  MedicationSettingsScreenProps
+> = () => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
@@ -45,9 +47,10 @@ const MedicationSettingsScreen: React.FC<MedicationSettingsScreenProps> = () => 
     // record would be the worst kind of wrong here: the user would believe lookups were off.
     onMutate: async (data) => {
       await queryClient.cancelQueries({ queryKey: preferencesQueryKey });
-      const previous = queryClient.getQueryData<UserPreferences>(preferencesQueryKey);
+      const previous =
+        queryClient.getQueryData<UserPreferences>(preferencesQueryKey);
       queryClient.setQueryData<UserPreferences>(preferencesQueryKey, (old) =>
-        old ? { ...old, ...data } : (data as UserPreferences),
+        old ? { ...old, ...data } : (data as UserPreferences)
       );
       return { previous };
     },
@@ -69,12 +72,15 @@ const MedicationSettingsScreen: React.FC<MedicationSettingsScreenProps> = () => 
   });
 
   const handleToggle = useCallback(
-    (value: boolean) => mutation.mutate({ medication_catalog_lookup_enabled: value }),
-    [mutation],
+    (value: boolean) =>
+      mutation.mutate({ medication_catalog_lookup_enabled: value }),
+    [mutation]
   );
 
   const header = useScreenHeader({
-    title: t('medicationSettings.title', { defaultValue: 'Medication Settings' }),
+    title: t('medicationSettings.title', {
+      defaultValue: 'Medication Settings',
+    }),
     left: { kind: 'back' },
   });
 
@@ -90,7 +96,9 @@ const MedicationSettingsScreen: React.FC<MedicationSettingsScreenProps> = () => 
           paddingTop: 16,
           paddingBottom: insets.bottom + 80 + activeWorkoutBarPadding,
         }}
-        contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior={
+          usesNativeHeader ? 'automatic' : 'never'
+        }
       >
         <View className="bg-surface rounded-xl p-3 mb-4 shadow-sm">
           <View className="flex-row justify-between items-center">

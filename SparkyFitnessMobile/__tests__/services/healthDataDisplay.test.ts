@@ -51,11 +51,21 @@ jest.mock('../../src/services/LogService', () => ({
 
 // The aggregated fetchers return AggregatedHealthRecord[]. Only `value` matters
 // to the formatters under test, so the date and type carry fixed placeholders.
-const agg = (value: number) => ({ value, date: '2026-06-01', type: 'aggregated' });
+const agg = (value: number) => ({
+  value,
+  date: '2026-06-01',
+  type: 'aggregated',
+});
 
-const mockReadHealthRecords = readHealthRecords as jest.MockedFunction<typeof readHealthRecords>;
-const mockGetSyncStartDate = getSyncStartDate as jest.MockedFunction<typeof getSyncStartDate>;
-const mockSteps = getAggregatedStepsByDate as jest.MockedFunction<typeof getAggregatedStepsByDate>;
+const mockReadHealthRecords = readHealthRecords as jest.MockedFunction<
+  typeof readHealthRecords
+>;
+const mockGetSyncStartDate = getSyncStartDate as jest.MockedFunction<
+  typeof getSyncStartDate
+>;
+const mockSteps = getAggregatedStepsByDate as jest.MockedFunction<
+  typeof getAggregatedStepsByDate
+>;
 const mockActiveCals = getAggregatedActiveCaloriesByDate as jest.MockedFunction<
   typeof getAggregatedActiveCaloriesByDate
 >;
@@ -122,12 +132,16 @@ describe('fetchHealthDisplayData', () => {
 
     it('formats active calories as a localized total', async () => {
       mockActiveCals.mockResolvedValue([agg(300), agg(200)]);
-      expect(await displayFor('ActiveCaloriesBurned')).toBe(formatLocalizedNumber(500));
+      expect(await displayFor('ActiveCaloriesBurned')).toBe(
+        formatLocalizedNumber(500)
+      );
     });
 
     it('formats total calories as a localized total', async () => {
       mockTotalCals.mockResolvedValue([agg(1500), agg(500)]);
-      expect(await displayFor('TotalCaloriesBurned')).toBe(formatLocalizedNumber(2000));
+      expect(await displayFor('TotalCaloriesBurned')).toBe(
+        formatLocalizedNumber(2000)
+      );
     });
 
     it('converts distance from metres to kilometres', async () => {
@@ -459,7 +473,10 @@ describe('fetchHealthDisplayData', () => {
 
     // Body-fat readings arrive in several shapes across platforms.
     it.each([
-      { label: 'bodyFatPercentage.inPercent', record: { time: 't', bodyFatPercentage: { inPercent: 22 } } },
+      {
+        label: 'bodyFatPercentage.inPercent',
+        record: { time: 't', bodyFatPercentage: { inPercent: 22 } },
+      },
       { label: 'percentage.value', record: { time: 't', percentage: agg(22) } },
       { label: 'numeric percentage', record: { time: 't', percentage: 22 } },
       { label: 'value', record: { time: 't', value: 22 } },

@@ -527,11 +527,13 @@ describe('app language service', () => {
       mockNative.setApplicationLanguage.mockImplementation(async () => {
         order.push('native');
       });
-      const changeLanguage = jest.spyOn(i18n, 'changeLanguage').mockImplementation(async (language) => {
-        order.push(`i18n:${language}`);
-        // changeLanguage resolves with the t function, not the i18n instance.
-        return i18n.t;
-      });
+      const changeLanguage = jest
+        .spyOn(i18n, 'changeLanguage')
+        .mockImplementation(async (language) => {
+          order.push(`i18n:${language}`);
+          // changeLanguage resolves with the t function, not the i18n instance.
+          return i18n.t;
+        });
 
       await setAppLanguagePreference('pl');
 
@@ -642,11 +644,13 @@ describe('app language service', () => {
         order.push('native');
         return 'pl';
       });
-      const changeLanguage = jest.spyOn(i18n, 'changeLanguage').mockImplementation(async (language) => {
-        order.push(`i18n:${language}`);
-        // changeLanguage resolves with the t function, not the i18n instance.
-        return i18n.t;
-      });
+      const changeLanguage = jest
+        .spyOn(i18n, 'changeLanguage')
+        .mockImplementation(async (language) => {
+          order.push(`i18n:${language}`);
+          // changeLanguage resolves with the t function, not the i18n instance.
+          return i18n.t;
+        });
       useAppPreferencesStore.setState({ languagePreference: 'en' });
 
       await syncAppLanguageFromSystem();

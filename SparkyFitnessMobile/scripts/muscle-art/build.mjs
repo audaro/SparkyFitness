@@ -32,9 +32,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 export const SVG_PATH = resolve(
   here,
-  '../../../SparkyFitnessFrontend/public/images/muscle-male.svg',
+  '../../../SparkyFitnessFrontend/public/images/muscle-male.svg'
 );
-const TAXONOMY_PATH = resolve(here, '../../../shared/src/constants/exerciseTaxonomy.ts');
+const TAXONOMY_PATH = resolve(
+  here,
+  '../../../shared/src/constants/exerciseTaxonomy.ts'
+);
 
 /**
  * The illustration's class names against this repo's canonical vocabulary.
@@ -80,12 +83,14 @@ const VIEW_PADDING = 2;
  */
 export function readCanonicalMuscles() {
   const source = readFileSync(TAXONOMY_PATH, 'utf8');
-  const block = source.match(/export const MUSCLES = \[([\s\S]*?)\] as const;/)?.[1];
+  const block = source.match(
+    /export const MUSCLES = \[([\s\S]*?)\] as const;/
+  )?.[1];
   if (!block) {
     throw new Error(
       `Could not find "export const MUSCLES = [...] as const;" in ${TAXONOMY_PATH}. ` +
         'The canonical vocabulary moved — point this at its new home rather than ' +
-        'inlining a copy, or the figure will silently stop covering it.',
+        'inlining a copy, or the figure will silently stop covering it.'
     );
   }
   const muscles = [...block.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
@@ -115,7 +120,9 @@ export function flatten(d, steps = 12) {
   const number = () => {
     const value = Number(tokens[index++]);
     if (!Number.isFinite(value)) {
-      throw new Error(`Malformed path near token ${index} of: ${d.slice(0, 60)}…`);
+      throw new Error(
+        `Malformed path near token ${index} of: ${d.slice(0, 60)}…`
+      );
     }
     return value;
   };
@@ -145,13 +152,23 @@ export function flatten(d, steps = 12) {
         const t = step / steps;
         const u = 1 - t;
         points.push({
-          x: u * u * u * cursor.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
-          y: u * u * u * cursor.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+          x:
+            u * u * u * cursor.x +
+            3 * u * u * t * p1.x +
+            3 * u * t * t * p2.x +
+            t * t * t * p3.x,
+          y:
+            u * u * u * cursor.y +
+            3 * u * u * t * p1.y +
+            3 * u * t * t * p2.y +
+            t * t * t * p3.y,
         });
       }
       cursor = p3;
     } else {
-      throw new Error(`Unsupported path command "${command}" in: ${d.slice(0, 60)}…`);
+      throw new Error(
+        `Unsupported path command "${command}" in: ${d.slice(0, 60)}…`
+      );
     }
   }
 
@@ -198,10 +215,14 @@ export function buildBodyArt() {
 
   const sourceViewBox = svg.match(/<svg[^>]*\bviewBox="([^"]+)"/)?.[1];
   if (!sourceViewBox) {
-    throw new Error(`Could not read the illustration's viewBox from ${SVG_PATH}.`);
+    throw new Error(
+      `Could not read the illustration's viewBox from ${SVG_PATH}.`
+    );
   }
 
-  const relabelled = new Map(RELABELLED_PATHS.map((entry) => [entry.d, entry.muscle]));
+  const relabelled = new Map(
+    RELABELLED_PATHS.map((entry) => [entry.d, entry.muscle])
+  );
   const matched = new Set();
 
   // Document order is render order, and it matters: the pale silhouette is
@@ -229,7 +250,7 @@ export function buildBodyArt() {
         throw new Error(
           `Path classed "${className}" has no entry in SVG_CLASS_TO_MUSCLE. Add ` +
             'it (mapped to a canonical muscle), or that region silently stops ' +
-            'being tappable.',
+            'being tappable.'
         );
       }
       paths.push({ kind: 'muscle', muscle, d, authored: false });
@@ -245,13 +266,15 @@ export function buildBodyArt() {
       throw new Error(
         `Unclassed path with fill "${fill}" is neither the silhouette ` +
           `(${SILHOUETTE_FILL}) nor outline detail (${DETAIL_FILL}). The figure ` +
-          'would render with a piece missing.',
+          'would render with a piece missing.'
       );
     }
   }
 
   if (paths.length === 0) {
-    throw new Error(`No paths found in ${SVG_PATH} — has the illustration changed shape?`);
+    throw new Error(
+      `No paths found in ${SVG_PATH} — has the illustration changed shape?`
+    );
   }
 
   const unmatched = RELABELLED_PATHS.filter((entry) => !matched.has(entry.d));
@@ -261,7 +284,7 @@ export function buildBodyArt() {
         `${unmatched.map((entry) => `${entry.muscle} (${entry.note})`).join('; ')}. ` +
         'Upstream has redrawn the figure. Re-find those regions against a render ' +
         'and update `relabelled-paths.mjs` — do not delete the entry, or the ' +
-        'muscle goes back to being labelled as something it is not.',
+        'muscle goes back to being labelled as something it is not.'
     );
   }
 
@@ -269,7 +292,7 @@ export function buildBodyArt() {
   if (silhouettes.length !== 2) {
     throw new Error(
       `Expected two silhouettes — one figure each — but found ${silhouettes.length}. ` +
-        'The front/back toggle has nothing to split the paths by.',
+        'The front/back toggle has nothing to split the paths by.'
     );
   }
   for (const silhouette of silhouettes) {
@@ -279,14 +302,19 @@ export function buildBodyArt() {
 
   // Which silhouette is the front one is decided by where the chest is drawn,
   // not by document order: the answer stays right if upstream swaps the figures.
-  const chest = paths.find((path) => path.kind === 'muscle' && path.muscle === 'chest');
+  const chest = paths.find(
+    (path) => path.kind === 'muscle' && path.muscle === 'chest'
+  );
   if (!chest) {
-    throw new Error('No chest region found, so the front figure cannot be identified.');
+    throw new Error(
+      'No chest region found, so the front figure cannot be identified.'
+    );
   }
   const chestBox = bounds(chest.d);
   const chestMiddle = (chestBox.minX + chestBox.maxX) / 2;
   const [front, back] =
-    chestMiddle >= silhouettes[0].box.minX && chestMiddle <= silhouettes[0].box.maxX
+    chestMiddle >= silhouettes[0].box.minX &&
+    chestMiddle <= silhouettes[0].box.maxX
       ? silhouettes
       : [silhouettes[1], silhouettes[0]];
   front.view = 'front';
@@ -296,13 +324,13 @@ export function buildBodyArt() {
     const box = bounds(d);
     const middle = (box.minX + box.maxX) / 2;
     const hits = [front, back].filter(
-      (figure) => middle >= figure.box.minX && middle <= figure.box.maxX,
+      (figure) => middle >= figure.box.minX && middle <= figure.box.maxX
     );
     if (hits.length !== 1) {
       throw new Error(
         `A path centred on x=${middle.toFixed(1)} sits on ${hits.length} figures. ` +
           'The two silhouettes overlap or the path is between them, so it cannot ' +
-          `be assigned to a view: ${d.slice(0, 60)}…`,
+          `be assigned to a view: ${d.slice(0, 60)}…`
       );
     }
     return hits[0].view;
@@ -319,27 +347,37 @@ export function buildBodyArt() {
   const authored = AUTHORED_SHAPES.map((shape) => {
     const view = viewOf(shape.d);
     const figure = view === 'front' ? front : back;
-    const escaped = flatten(shape.d).filter((point) => !contains(figure.outline, point));
+    const escaped = flatten(shape.d).filter(
+      (point) => !contains(figure.outline, point)
+    );
     if (escaped.length) {
       const worst = escaped[0];
       throw new Error(
         `The authored ${shape.muscle} region falls outside the ${view} silhouette ` +
           `(${escaped.length} of its points, e.g. ${worst.x.toFixed(1)},${worst.y.toFixed(1)}). ` +
-          `It would draw as a blob floating off the body. ${shape.note}`,
+          `It would draw as a blob floating off the body. ${shape.note}`
       );
     }
-    return { kind: 'muscle', muscle: shape.muscle, d: shape.d, view, authored: true };
+    return {
+      kind: 'muscle',
+      muscle: shape.muscle,
+      d: shape.d,
+      view,
+      authored: true,
+    };
   });
   paths.splice(lastMuscle + 1, 0, ...authored);
 
   const muscles = readCanonicalMuscles();
-  const drawn = new Set(paths.flatMap((path) => (path.kind === 'muscle' ? [path.muscle] : [])));
+  const drawn = new Set(
+    paths.flatMap((path) => (path.kind === 'muscle' ? [path.muscle] : []))
+  );
   const missing = muscles.filter((muscle) => !drawn.has(muscle));
   if (missing.length) {
     throw new Error(
       `No region for: ${missing.join(', ')}. Every canonical muscle has to be ` +
         'tappable — add it to `authored-shapes.mjs`, or a user simply cannot ' +
-        'target it.',
+        'target it.'
     );
   }
   const stray = [...drawn].filter((muscle) => !muscles.includes(muscle));
@@ -350,9 +388,13 @@ export function buildBodyArt() {
   // Both views get the same box size so the figure does not resize when it is
   // flipped; each is centred on its own silhouette.
   const boxes = [front.box, back.box];
-  const width = Math.ceil(Math.max(...boxes.map((box) => box.maxX - box.minX))) + VIEW_PADDING * 2;
-  const minY = Math.floor(Math.min(...boxes.map((box) => box.minY))) - VIEW_PADDING;
-  const height = Math.ceil(Math.max(...boxes.map((box) => box.maxY))) + VIEW_PADDING - minY;
+  const width =
+    Math.ceil(Math.max(...boxes.map((box) => box.maxX - box.minX))) +
+    VIEW_PADDING * 2;
+  const minY =
+    Math.floor(Math.min(...boxes.map((box) => box.minY))) - VIEW_PADDING;
+  const height =
+    Math.ceil(Math.max(...boxes.map((box) => box.maxY))) + VIEW_PADDING - minY;
   const viewBoxFor = (figure) => {
     const middle = (figure.box.minX + figure.box.maxX) / 2;
     return `${round(middle - width / 2)} ${minY} ${width} ${height}`;
@@ -366,7 +408,10 @@ export function buildBodyArt() {
       view,
       authored: isAuthored,
     })),
-    views: { front: { viewBox: viewBoxFor(front) }, back: { viewBox: viewBoxFor(back) } },
+    views: {
+      front: { viewBox: viewBoxFor(front) },
+      back: { viewBox: viewBoxFor(back) },
+    },
     aspect: width / height,
     muscles,
     sourceViewBox,

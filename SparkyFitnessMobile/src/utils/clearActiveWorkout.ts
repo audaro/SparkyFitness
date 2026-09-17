@@ -16,7 +16,10 @@ import { addLog } from '../services/LogService';
  */
 export type ClearActiveWorkoutOutcome = 'abandoned' | 'completed';
 
-const STATUS_FOR_OUTCOME: Record<ClearActiveWorkoutOutcome, WorkoutRecommendationStatus> = {
+const STATUS_FOR_OUTCOME: Record<
+  ClearActiveWorkoutOutcome,
+  WorkoutRecommendationStatus
+> = {
   abandoned: 'active',
   completed: 'completed',
 };
@@ -36,7 +39,7 @@ const STATUS_FOR_OUTCOME: Record<ClearActiveWorkoutOutcome, WorkoutRecommendatio
  */
 export function clearActiveWorkout(
   queryClient: QueryClient,
-  outcome: ClearActiveWorkoutOutcome,
+  outcome: ClearActiveWorkoutOutcome
 ): void {
   const store = useActiveWorkoutStore.getState();
   const recommendationId = store.sourceRecommendationId;
@@ -44,8 +47,13 @@ export function clearActiveWorkout(
   if (recommendationId == null) return;
 
   patchRecommendationStatus(recommendationId, STATUS_FOR_OUTCOME[outcome])
-    .then(() => queryClient.invalidateQueries({ queryKey: workoutRecommendationQueryKey }))
+    .then(() =>
+      queryClient.invalidateQueries({ queryKey: workoutRecommendationQueryKey })
+    )
     .catch((error: unknown) => {
-      addLog(`Failed to mark recommendation ${outcome}: ${String(error)}`, 'WARNING');
+      addLog(
+        `Failed to mark recommendation ${outcome}: ${String(error)}`,
+        'WARNING'
+      );
     });
 }

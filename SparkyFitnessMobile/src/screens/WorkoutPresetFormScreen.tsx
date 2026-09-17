@@ -293,7 +293,11 @@ const CreatePresetMode: React.FC<CreatePresetModeProps> = ({
     }
     if (sourceRecommendation != null) {
       hasPopulatedRef.current = true;
-      populateFromRecommendation(sourceRecommendation, weightUnit, distanceUnit);
+      populateFromRecommendation(
+        sourceRecommendation,
+        weightUnit,
+        distanceUnit
+      );
     }
   }, [
     sourceSession,

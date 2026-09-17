@@ -137,9 +137,10 @@ const mockUseNavigationActionGuard =
 const mockImportExercise = importExercise as jest.MockedFunction<
   typeof importExercise
 >;
-const mockUseExerciseAlternatives = useExerciseAlternatives as jest.MockedFunction<
-  typeof useExerciseAlternatives
->;
+const mockUseExerciseAlternatives =
+  useExerciseAlternatives as jest.MockedFunction<
+    typeof useExerciseAlternatives
+  >;
 const mockFetchExerciseById = fetchExerciseById as jest.MockedFunction<
   typeof fetchExerciseById
 >;
@@ -185,7 +186,9 @@ const nutritionixItem: ExternalExerciseItem = {
 let queryClient: QueryClient;
 
 const renderScreen = (extraParams: Record<string, unknown> = {}) => {
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   const route = {
     key: 'ExerciseSearch-key',
     name: 'ExerciseSearch' as const,
@@ -636,7 +639,9 @@ describe('ExerciseSearchScreen', () => {
 
       // The ranked row carries no category, modality or calorie rate, and the
       // caller snapshots whatever it is handed — so it is fetched, not rebuilt.
-      expect(mockFetchExerciseById).toHaveBeenCalledWith(localAlternative.exercise_id);
+      expect(mockFetchExerciseById).toHaveBeenCalledWith(
+        localAlternative.exercise_id
+      );
       expect(mockNavigation.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           payload: expect.objectContaining({
@@ -647,7 +652,7 @@ describe('ExerciseSearchScreen', () => {
               }),
             }),
           }),
-        }),
+        })
       );
       await waitFor(() => expect(mockNavigation.goBack).toHaveBeenCalled());
     });
@@ -667,7 +672,10 @@ describe('ExerciseSearchScreen', () => {
 
       // The server only ever reaches free-exercise-db for these, so the source
       // is fixed rather than carried on the row.
-      expect(mockImportExercise).toHaveBeenCalledWith('free-exercise-db', 'Chest_Dip');
+      expect(mockImportExercise).toHaveBeenCalledWith(
+        'free-exercise-db',
+        'Chest_Dip'
+      );
       expect(mockFetchExerciseById).not.toHaveBeenCalled();
       await waitFor(() => expect(mockNavigation.goBack).toHaveBeenCalled());
     });

@@ -24,7 +24,9 @@ import { buildBodyArt } from './muscle-art/build.mjs';
 
 const args = process.argv.slice(2);
 const outIndex = args.indexOf('--out');
-const OUT_DIR = resolve(outIndex === -1 ? '.muscle-art-render' : args[outIndex + 1]);
+const OUT_DIR = resolve(
+  outIndex === -1 ? '.muscle-art-render' : args[outIndex + 1]
+);
 
 const { paths, views } = buildBodyArt();
 
@@ -55,16 +57,21 @@ function figure(view, { selected = [], showAuthored = false } = {}) {
       continue;
     }
     if (path.kind === 'detail') {
-      parts.push(`<path d="${path.d}" fill="${COLOURS.detail}" opacity="0.55"/>`);
+      parts.push(
+        `<path d="${path.d}" fill="${COLOURS.detail}" opacity="0.55"/>`
+      );
       continue;
     }
     const isSelected = picked.has(path.muscle);
-    const fill =
-      isSelected ? COLOURS.accent : showAuthored && path.authored ? COLOURS.authored : COLOURS.muscle;
+    const fill = isSelected
+      ? COLOURS.accent
+      : showAuthored && path.authored
+        ? COLOURS.authored
+        : COLOURS.muscle;
     if (isSelected) {
       parts.push(
         `<path d="${path.d}" fill="none" stroke="${COLOURS.accent}" stroke-width="9" ` +
-          'stroke-opacity="0.3" stroke-linejoin="round"/>',
+          'stroke-opacity="0.3" stroke-linejoin="round"/>'
       );
     }
     parts.push(
@@ -72,7 +79,7 @@ function figure(view, { selected = [], showAuthored = false } = {}) {
         (isSelected
           ? ` stroke="${COLOURS.silhouette}" stroke-width="1.6" stroke-linejoin="round"`
           : '') +
-        '/>',
+        '/>'
     );
   }
 
@@ -98,15 +105,25 @@ const renders = [
   ['front-authored', figure('front', { showAuthored: true })],
   ['back-authored', figure('back', { showAuthored: true })],
   // And the selection treatment, which is only judgeable at size.
-  ['front-selected', figure('front', { selected: ['chest', 'quadriceps', 'neck'] })],
-  ['back-selected', figure('back', { selected: ['lats', 'glutes', 'abductors'] })],
+  [
+    'front-selected',
+    figure('front', { selected: ['chest', 'quadriceps', 'neck'] }),
+  ],
+  [
+    'back-selected',
+    figure('back', { selected: ['lats', 'glutes', 'abductors'] }),
+  ],
 ];
 
 for (const [name, svg] of renders) {
   const file = resolve(OUT_DIR, `${name}.svg`);
   writeFileSync(file, svg);
-  execFileSync('qlmanage', ['-t', '-s', '1600', '-o', OUT_DIR, file], { stdio: 'ignore' });
+  execFileSync('qlmanage', ['-t', '-s', '1600', '-o', OUT_DIR, file], {
+    stdio: 'ignore',
+  });
 }
 
 console.log(`Rendered ${renders.length} views to ${OUT_DIR}`);
-console.log(`  hand-authored regions, drawn in orange: ${authoredMuscles.join(', ')}`);
+console.log(
+  `  hand-authored regions, drawn in orange: ${authoredMuscles.join(', ')}`
+);

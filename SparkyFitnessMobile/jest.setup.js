@@ -189,7 +189,8 @@ jest.mock('expo-video', () => {
       loop: false,
       muted: false,
     }),
-    VideoView: (props) => React.createElement(View, { testID: 'expo-video-view', ...props }),
+    VideoView: (props) =>
+      React.createElement(View, { testID: 'expo-video-view', ...props }),
   };
 });
 
@@ -233,7 +234,8 @@ jest.mock('expo-speech-recognition', () => ({
     requestPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
   },
   useSpeechRecognitionEvent: jest.fn((eventName, handler) => {
-    global.__speechRecognitionHandlers = global.__speechRecognitionHandlers || {};
+    global.__speechRecognitionHandlers =
+      global.__speechRecognitionHandlers || {};
     global.__speechRecognitionHandlers[eventName] = handler;
   }),
 }));

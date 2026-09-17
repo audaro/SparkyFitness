@@ -95,7 +95,7 @@ export function useExercisePackImport() {
           const batch = await importExercisePackBatch(
             pack.id,
             offset,
-            BATCH_SIZE,
+            BATCH_SIZE
           );
           imported += batch.imported;
           skipped += batch.skipped;
@@ -123,7 +123,9 @@ export function useExercisePackImport() {
                     defaultValue_other: 'Added {{count}} exercises',
                     count: imported,
                   })
-                : t('exercisePacks.nothingNew', { defaultValue: 'Nothing new to add' }),
+                : t('exercisePacks.nothingNew', {
+                    defaultValue: 'Nothing new to add',
+                  }),
             text2:
               failures.length > 0
                 ? t('exercisePacks.failedToast', {
@@ -142,7 +144,9 @@ export function useExercisePackImport() {
         outcomeUnknown = true;
         Toast.show({
           type: 'error',
-          text1: t('exercisePacks.importStopped', { defaultValue: 'Import stopped' }),
+          text1: t('exercisePacks.importStopped', {
+            defaultValue: 'Import stopped',
+          }),
           text2:
             error instanceof Error
               ? error.message
@@ -169,7 +173,7 @@ export function useExercisePackImport() {
         setIsImporting(false);
       }
     },
-    [t, queryClient],
+    [t, queryClient]
   );
 
   return { progress, isImporting, importPack, cancel };

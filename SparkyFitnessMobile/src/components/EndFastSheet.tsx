@@ -229,25 +229,25 @@ const EndFastSheet = forwardRef<EndFastSheetRef, EndFastSheetProps>(
       </View>
     );
 
-  return (
-    <BottomSheetModal
-      // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
-      // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
-      accessible={false}
-      ref={bottomSheetRef}
-      enableDynamicSizing
-      // On Android the sheet's content pan gesture steals vertical drags from
-      // the time picker's wheels (plain FlatLists), so content panning stays
-      // off there. Must be static: toggling this prop swaps the sheet's
-      // content wrapper component, remounting the content and dismissing the
-      // modal.
-      enableContentPanningGesture={Platform.OS !== 'android'}
-      backdropComponent={renderBackdrop}
-      containerComponent={sheetContainer}
-      backgroundStyle={{ backgroundColor: surfaceBg }}
-      handleIndicatorStyle={{ backgroundColor: textMuted }}
-    >
-      {/* bg-surface is a touch shield, not decoration: with content panning off
+    return (
+      <BottomSheetModal
+        // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
+        // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
+        accessible={false}
+        ref={bottomSheetRef}
+        enableDynamicSizing
+        // On Android the sheet's content pan gesture steals vertical drags from
+        // the time picker's wheels (plain FlatLists), so content panning stays
+        // off there. Must be static: toggling this prop swaps the sheet's
+        // content wrapper component, remounting the content and dismissing the
+        // modal.
+        enableContentPanningGesture={Platform.OS !== 'android'}
+        backdropComponent={renderBackdrop}
+        containerComponent={sheetContainer}
+        backgroundStyle={{ backgroundColor: surfaceBg }}
+        handleIndicatorStyle={{ backgroundColor: textMuted }}
+      >
+        {/* bg-surface is a touch shield, not decoration: with content panning off
           on Android, gesture-handler lets taps on background-less views fall
           through to the backdrop's tap-to-close. A background makes this
           container absorb them. */}

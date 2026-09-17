@@ -16,7 +16,7 @@ interface LocaleValidatorOptions {
 const LocaleValidator: new (
   enPath: string,
   plPath: string | null,
-  options?: LocaleValidatorOptions,
+  options?: LocaleValidatorOptions
 ) => LocaleValidatorInstance = localeMod.LocaleValidator;
 interface PluralGroup {
   base: string;

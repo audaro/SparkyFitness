@@ -1,7 +1,19 @@
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import {
@@ -19,7 +31,10 @@ import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import { useGenerateAndShowWorkout } from '../hooks/useGenerateAndShowWorkout';
-import { useMuscleRecovery, type MuscleRecoveryItem } from '../hooks/useMuscleRecovery';
+import {
+  useMuscleRecovery,
+  type MuscleRecoveryItem,
+} from '../hooks/useMuscleRecovery';
 import { useFreshnessToneColors } from '../hooks/useFreshnessToneColors';
 import {
   MUSCLE_TILES,
@@ -39,7 +54,10 @@ const RECOVERED_KEY = 'recovered';
 
 function viewSegments(t: TFunction): { key: BodyView; label: string }[] {
   return [
-    { key: 'front', label: t('pickMuscles.viewFront', { defaultValue: 'Front' }) },
+    {
+      key: 'front',
+      label: t('pickMuscles.viewFront', { defaultValue: 'Front' }),
+    },
     { key: 'back', label: t('pickMuscles.viewBack', { defaultValue: 'Back' }) },
   ];
 }
@@ -71,7 +89,7 @@ function splitSubtitle(t: TFunction, split: MuscleSplit): string {
  */
 function tileRecovery(
   tile: MuscleTileDefinition,
-  byMuscle: Map<string, MuscleRecoveryItem>,
+  byMuscle: Map<string, MuscleRecoveryItem>
 ): MuscleRecoveryItem | null {
   let lowest: MuscleRecoveryItem | null = null;
   for (const muscle of tile.muscles) {
@@ -97,7 +115,9 @@ function tileRecovery(
  * this screen rather than a route of its own, so Cancel returns to the split
  * list instead of dropping the user out of the picker entirely.
  */
-const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => {
+const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({
+  navigation,
+}) => {
   const { t } = useTranslation();
   const segments = useMemo(() => viewSegments(t), [t]);
   const insets = useSafeAreaInsets();
@@ -117,7 +137,9 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
 
   const { muscles: recovery } = useMuscleRecovery();
 
-  const recoveryByMuscle = new Map(recovery.map((entry) => [entry.muscle, entry]));
+  const recoveryByMuscle = new Map(
+    recovery.map((entry) => [entry.muscle, entry])
+  );
 
   // Set the moment a generate succeeds, so the `beforeRemove` guard below lets
   // the screen go when *we* are the ones leaving.
@@ -126,10 +148,8 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
     leavingRef.current = true;
   }, []);
 
-  const { generateAndShow, pendingKey, isGenerating } = useGenerateAndShowWorkout(
-    navigation,
-    { onBeforeNavigate: markLeaving },
-  );
+  const { generateAndShow, pendingKey, isGenerating } =
+    useGenerateAndShowWorkout(navigation, { onBeforeNavigate: markLeaving });
 
   /**
    * Android's hardware back does not go through the header, so without this it
@@ -158,16 +178,16 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
         targetMuscles && targetMuscles.length > 0
           ? { target_muscles: [...targetMuscles] }
           : {},
-        key,
+        key
       ),
-    [generateAndShow],
+    [generateAndShow]
   );
 
   const toggleTile = useCallback((tileId: string) => {
     setSelectedTileIds((current) =>
       current.includes(tileId)
         ? current.filter((id) => id !== tileId)
-        : [...current, tileId],
+        : [...current, tileId]
     );
   }, []);
 
@@ -185,18 +205,24 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
       const tile = tileForMuscle(muscle);
       if (tile) toggleTile(tile.id);
     },
-    [toggleTile],
+    [toggleTile]
   );
 
   const selectedMuscles = musclesForTiles(selectedTileIds);
   // In tile order rather than tap order, so the readout does not reshuffle
   // itself as picks come and go.
-  const selectedTiles = MUSCLE_TILES.filter((tile) => selectedTileIds.includes(tile.id));
+  const selectedTiles = MUSCLE_TILES.filter((tile) =>
+    selectedTileIds.includes(tile.id)
+  );
 
   const bodyRecovery = new Map(
     recovery.map(
-      (entry) => [entry.muscle as Muscle, { percent: entry.percent, tone: entry.tone }] as const,
-    ),
+      (entry) =>
+        [
+          entry.muscle as Muscle,
+          { percent: entry.percent, tone: entry.tone },
+        ] as const
+    )
   );
 
   const handleSaveGrid = useCallback(() => {
@@ -232,7 +258,9 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
       mode === 'grid'
         ? {
             kind: 'primary',
-            label: t('pickMuscles.buildWorkout', { defaultValue: 'Build workout' }),
+            label: t('pickMuscles.buildWorkout', {
+              defaultValue: 'Build workout',
+            }),
             onPress: handleSaveGrid,
             disabled: selectedTileIds.length === 0,
             busy: pendingKey === 'grid',
@@ -252,7 +280,9 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
           padding: 16,
           paddingBottom: insets.bottom + 80 + activeWorkoutBarPadding,
         }}
-        contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior={
+          usesNativeHeader ? 'automatic' : 'never'
+        }
       >
         {mode === 'splits' ? (
           <View testID="pick-muscles-splits">
@@ -265,7 +295,9 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
 
             <SettingsRowGroup>
               <SettingsRow
-                title={t('pickMuscles.recovered', { defaultValue: 'Recovered muscles' })}
+                title={t('pickMuscles.recovered', {
+                  defaultValue: 'Recovered muscles',
+                })}
                 subtitle={t('pickMuscles.recoveredSubtitle', {
                   defaultValue: 'Let the app pick whatever is freshest today',
                 })}
@@ -273,7 +305,9 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                 onPress={() => void runGenerate(null, RECOVERED_KEY)}
                 disabled={isGenerating}
                 rightAccessory={
-                  pendingKey === RECOVERED_KEY ? <ActivityIndicator size="small" /> : null
+                  pendingKey === RECOVERED_KEY ? (
+                    <ActivityIndicator size="small" />
+                  ) : null
                 }
                 testID="pick-muscles-recovered"
               />
@@ -283,10 +317,14 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                   title={titleCaseCanonical(split)}
                   subtitle={splitSubtitle(t, split)}
                   subtitleNumberOfLines={2}
-                  onPress={() => void runGenerate(MUSCLE_SPLIT_MEMBERS[split], split)}
+                  onPress={() =>
+                    void runGenerate(MUSCLE_SPLIT_MEMBERS[split], split)
+                  }
                   disabled={isGenerating}
                   rightAccessory={
-                    pendingKey === split ? <ActivityIndicator size="small" /> : null
+                    pendingKey === split ? (
+                      <ActivityIndicator size="small" />
+                    ) : null
                   }
                   testID={`pick-muscles-split-${split.replace(/\s+/g, '-')}`}
                 />
@@ -296,9 +334,12 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
             <SettingsRowGroup>
               <SettingsRow
                 icon="exercise-weights"
-                title={t('pickMuscles.chooseMuscles', { defaultValue: 'Choose muscles' })}
+                title={t('pickMuscles.chooseMuscles', {
+                  defaultValue: 'Choose muscles',
+                })}
                 subtitle={t('pickMuscles.chooseMusclesSubtitle', {
-                  defaultValue: 'Pick them one by one, with how recovered each is',
+                  defaultValue:
+                    'Pick them one by one, with how recovered each is',
                 })}
                 subtitleNumberOfLines={2}
                 onPress={() => setMode('grid')}
@@ -321,7 +362,11 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                 reasonable tap target, and too small for the selection to read
                 at all. */}
             <View testID="pick-muscles-view-toggle" className="mb-4">
-              <SegmentedControl segments={segments} activeKey={view} onSelect={setView} />
+              <SegmentedControl
+                segments={segments}
+                activeKey={view}
+                onSelect={setView}
+              />
             </View>
 
             <MuscleBodyMap
@@ -346,13 +391,20 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                 })}
               </Text>
               {selectedTiles.length === 0 ? (
-                <Text className="text-sm mt-3" style={{ color: textMuted }} testID="pick-muscles-none">
+                <Text
+                  className="text-sm mt-3"
+                  style={{ color: textMuted }}
+                  testID="pick-muscles-none"
+                >
                   {t('pickMuscles.selectedEmpty', {
                     defaultValue: 'Tap a muscle to target it.',
                   })}
                 </Text>
               ) : (
-                <View className="mt-3 rounded-xl overflow-hidden" style={{ backgroundColor: surfaceColor }}>
+                <View
+                  className="mt-3 rounded-xl overflow-hidden"
+                  style={{ backgroundColor: surfaceColor }}
+                >
                   {selectedTiles.map((tile) => {
                     const entry = tileRecovery(tile, recoveryByMuscle);
                     return (
@@ -363,7 +415,8 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                         accessibilityLabel={
                           entry
                             ? t('pickMuscles.removeWithRecoveryA11y', {
-                                defaultValue: 'Remove {{label}}, {{percent}}% recovered',
+                                defaultValue:
+                                  'Remove {{label}}, {{percent}}% recovered',
                                 label: tileLabel(t, tile),
                                 percent: entry.percent,
                               })
@@ -391,7 +444,10 @@ const PickMusclesScreen: React.FC<PickMusclesScreenProps> = ({ navigation }) => 
                             </Text>
                           ) : null}
                         </Text>
-                        <Text className="text-xs font-bold ml-3" style={{ color: textMuted }}>
+                        <Text
+                          className="text-xs font-bold ml-3"
+                          style={{ color: textMuted }}
+                        >
                           {t('common.remove', { defaultValue: 'Remove' })}
                         </Text>
                       </Pressable>

@@ -2,14 +2,18 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { MUSCLES, ON_DEMAND_WORKOUTS } from '@workspace/shared';
 
 import OnDemandWorkoutsScreen from '../../src/screens/OnDemandWorkoutsScreen';
-import { createQueryWrapper, createTestQueryClient } from '../hooks/queryTestUtils';
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from '../hooks/queryTestUtils';
 
 const mockGenerateRecommendation = jest.fn();
 const mockFetchRecommendation = jest.fn();
 
 jest.mock('../../src/services/api/workoutRecommendationsApi', () => ({
   fetchRecommendation: (...args: unknown[]) => mockFetchRecommendation(...args),
-  generateRecommendation: (...args: unknown[]) => mockGenerateRecommendation(...args),
+  generateRecommendation: (...args: unknown[]) =>
+    mockGenerateRecommendation(...args),
   fetchAlternatives: jest.fn(),
   replaceRecommendationExercise: jest.fn(),
   patchRecommendationStatus: jest.fn(),
@@ -55,8 +59,11 @@ function renderScreen() {
     params: undefined,
   } as never;
   return render(
-    <OnDemandWorkoutsScreen navigation={mockNavigation as never} route={route} />,
-    { wrapper: createQueryWrapper(createTestQueryClient()) },
+    <OnDemandWorkoutsScreen
+      navigation={mockNavigation as never}
+      route={route}
+    />,
+    { wrapper: createQueryWrapper(createTestQueryClient()) }
   );
 }
 
@@ -120,7 +127,10 @@ describe('OnDemandWorkoutsScreen', () => {
     fireEvent.press(screen.getByTestId(`on-demand-${untargeted!.id}`));
 
     await waitFor(() => expect(mockGenerateRecommendation).toHaveBeenCalled());
-    const body = mockGenerateRecommendation.mock.calls[0][0] as Record<string, unknown>;
+    const body = mockGenerateRecommendation.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
     expect('target_muscles' in body).toBe(false);
     expect(body.duration_minutes).toBe(untargeted!.duration_minutes);
   });
@@ -130,7 +140,9 @@ describe('OnDemandWorkoutsScreen', () => {
 
     fireEvent.press(screen.getByTestId(`on-demand-${targeted!.id}`));
 
-    await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('UpNext'));
+    await waitFor(() =>
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('UpNext')
+    );
   });
 
   it('stays put when generation fails', async () => {
@@ -163,7 +175,7 @@ describe('OnDemandWorkoutsScreen', () => {
     mockGenerateRecommendation.mockReturnValue(
       new Promise((resolve) => {
         settle = resolve;
-      }),
+      })
     );
     const screen = renderScreen();
 

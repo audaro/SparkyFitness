@@ -73,9 +73,9 @@ describe('SettingsScreen family diary entry', () => {
     mockUseServerConfigs.mockReturnValue({ activeConfig: null } as ReturnType<
       typeof useServerConfigs
     >);
-    mockUsePreferences.mockReturnValue({ preferences: null } as unknown as ReturnType<
-      typeof usePreferences
-    >);
+    mockUsePreferences.mockReturnValue({
+      preferences: null,
+    } as unknown as ReturnType<typeof usePreferences>);
   });
 
   test('opens family diaries when connected', () => {

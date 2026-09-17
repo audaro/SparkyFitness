@@ -392,8 +392,12 @@ describe('workoutLiveActivity', () => {
     });
 
     it('holds all operations until hydration, then adopts without a duplicate start', async () => {
-      (useActiveWorkoutStore.persist.hasHydrated as jest.Mock).mockReturnValue(false);
-      let finishHydration: Parameters<typeof useActiveWorkoutStore.persist.onFinishHydration>[0] | undefined;
+      (useActiveWorkoutStore.persist.hasHydrated as jest.Mock).mockReturnValue(
+        false
+      );
+      let finishHydration:
+        | Parameters<typeof useActiveWorkoutStore.persist.onFinishHydration>[0]
+        | undefined;
       jest
         .spyOn(useActiveWorkoutStore.persist, 'onFinishHydration')
         .mockImplementation((cb) => {

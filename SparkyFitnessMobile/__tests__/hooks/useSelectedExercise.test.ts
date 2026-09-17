@@ -77,7 +77,8 @@ describe('useSelectedExercise', () => {
     const exercise = makeExercise();
 
     const { rerender } = renderHook(
-      ({ params, onSelectFn }: SelectedExerciseProps) => useSelectedExercise(params, onSelectFn),
+      ({ params, onSelectFn }: SelectedExerciseProps) =>
+        useSelectedExercise(params, onSelectFn),
       {
         initialProps: {
           params: { selectedExercise: exercise, selectionNonce: 1 },
@@ -103,7 +104,8 @@ describe('useSelectedExercise', () => {
     const exercise2 = makeExercise({ id: 'ex-2', name: 'Squat' });
 
     const { rerender } = renderHook(
-      ({ params, onSelectFn }: SelectedExerciseProps) => useSelectedExercise(params, onSelectFn),
+      ({ params, onSelectFn }: SelectedExerciseProps) =>
+        useSelectedExercise(params, onSelectFn),
       {
         initialProps: {
           params: { selectedExercise: exercise1, selectionNonce: 1 },

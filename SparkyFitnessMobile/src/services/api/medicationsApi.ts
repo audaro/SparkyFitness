@@ -158,7 +158,7 @@ export const deleteEntry = (id: string): Promise<void> =>
  */
 export const searchMedicationCatalog = async (
   q: string,
-  limit?: number,
+  limit?: number
 ): Promise<MedicationCatalogSearchResponse> => {
   const params = new URLSearchParams({ q });
   if (limit != null) params.set('limit', String(limit));
@@ -181,7 +181,9 @@ export const searchMedicationCatalog = async (
  * the session expired. `useMedicationLabel` treats that as "nothing to show" rather than as an
  * error, for the same reason the catalog search does.
  */
-export const getMedicationLabel = (medicationId: string): Promise<OpenFdaLookupResponse> =>
+export const getMedicationLabel = (
+  medicationId: string
+): Promise<OpenFdaLookupResponse> =>
   apiFetch<OpenFdaLookupResponse>({
     endpoint: `/api/v2/medications/${medicationId}/label`,
     serviceName: SERVICE_NAME,

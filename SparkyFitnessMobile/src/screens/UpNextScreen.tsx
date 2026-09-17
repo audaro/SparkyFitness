@@ -1,5 +1,11 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +34,10 @@ import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useSupersetBorders } from '../components/ActiveWorkoutRail';
 import { usePreferences } from '../hooks';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
-import { useGymProfiles, useGymProfileMutations } from '../hooks/useGymProfiles';
+import {
+  useGymProfiles,
+  useGymProfileMutations,
+} from '../hooks/useGymProfiles';
 import { useStartLiveWorkout } from '../hooks/useStartLiveWorkout';
 import {
   useReplaceRecommendationExercise,
@@ -36,7 +45,10 @@ import {
   useWorkoutRecommendation,
 } from '../hooks/useWorkoutRecommendation';
 import { useSelectedExercise } from '../hooks/useSelectedExercise';
-import { useScreenHeader, type HeaderMenuEntry } from '../hooks/useScreenHeader';
+import {
+  useScreenHeader,
+  type HeaderMenuEntry,
+} from '../hooks/useScreenHeader';
 import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import {
   buildRecommendationStartPayload,
@@ -76,10 +88,17 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
 
   const { preferences } = usePreferences();
   const weightUnit = normalizeWeightUnit(preferences?.default_weight_unit);
-  const distanceUnit = (preferences?.default_distance_unit as 'km' | 'miles') ?? 'km';
+  const distanceUnit =
+    (preferences?.default_distance_unit as 'km' | 'miles') ?? 'km';
 
-  const { recommendation, isLoading, isError, refetch, generateAsync, isGenerating } =
-    useWorkoutRecommendation();
+  const {
+    recommendation,
+    isLoading,
+    isError,
+    refetch,
+    generateAsync,
+    isGenerating,
+  } = useWorkoutRecommendation();
   const { profiles } = useGymProfiles();
   const { activateProfileAsync } = useGymProfileMutations();
   const { startLiveWorkout, isStarting } = useStartLiveWorkout(navigation);
@@ -98,7 +117,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
 
   // Distinguishes "Swap is working" from "the duration chip is working" so only
   // the control the user touched shows a spinner.
-  const [pendingAction, setPendingAction] = useState<'swap' | 'settings' | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    'swap' | 'settings' | null
+  >(null);
   const inFlightRef = useRef(false);
 
   // Which row's ⋯ menu is open, and where to hang it.
@@ -111,7 +132,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const replaceTargetIdRef = useRef<string | null>(null);
   // Per-row ⋯ trigger nodes, so the menu can be measured against the one tapped.
   const rowMenuTriggerRefs = useRef(
-    new Map<string, React.ComponentRef<typeof TouchableOpacity> | null>(),
+    new Map<string, React.ComponentRef<typeof TouchableOpacity> | null>()
   );
 
   const payload = recommendation?.payload ?? null;
@@ -123,14 +144,14 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   // applied to the entries that starting the workout creates.
   const basePlan = useMemo<PlannedExercise[]>(
     () => (payload ? orderedRecommendationExercises(payload) : []),
-    [payload],
+    [payload]
   );
   // Identity of the workout the grouping was built against. Any change to which
   // exercises are prescribed drops it rather than trying to re-home groups onto
   // a workout the user has not seen grouped.
   const planKey = useMemo(
     () => basePlan.map((exercise) => exercise.exercise_id).join('|'),
-    [basePlan],
+    [basePlan]
   );
   const [groupedPlan, setGroupedPlan] = useState<{
     key: string;
@@ -142,11 +163,12 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const editPlan = useCallback(
     (next: (exercises: PlannedExercise[]) => PlannedExercise[]) => {
       setGroupedPlan((previous) => {
-        const current = previous?.key === planKey ? previous.exercises : basePlan;
+        const current =
+          previous?.key === planKey ? previous.exercises : basePlan;
         return { key: planKey, exercises: next(current) };
       });
     },
-    [basePlan, planKey],
+    [basePlan, planKey]
   );
 
   const supersetRuns = useMemo(() => getPlannedSupersetRuns(plan), [plan]);
@@ -157,8 +179,8 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           id: exercise.exercise_id,
           superset_group: exercise.superset_group ?? null,
         })),
-      [plan],
-    ),
+      [plan]
+    )
   );
 
   // Every way of getting a different workout hangs off one sheet.
@@ -196,31 +218,32 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   // whatever is freshest, and Refresh's "same targets, different exercises" is
   // only true if the targets are sent at all. So each path below spreads this
   // and overrides the single field it owns.
-  const currentContext = useCallback((): GenerateWorkoutRecommendationRequest => {
-    if (!recommendation || !payload) return {};
-    // `muscle_groups` is free text on the wire — a custom exercise's own muscle
-    // string rides along in it — while `target_muscles` is the pinned enum and
-    // a non-member is a 400. So anything outside the vocabulary is dropped, and
-    // when nothing survives the field is omitted rather than sent empty: it is
-    // `.min(1)`, and omitting it is what asks for freshness anyway.
-    const muscles = [
-      ...new Set(
-        payload.muscle_groups
-          .map(toCanonicalMuscle)
-          .filter((muscle): muscle is Muscle => muscle !== null),
-      ),
-    ];
-    return {
-      ...(muscles.length > 0 ? { target_muscles: muscles } : {}),
-      duration_minutes: recommendation.target_duration_minutes,
-      gym_profile_id: recommendation.gym_profile_id,
-    };
-  }, [recommendation, payload]);
+  const currentContext =
+    useCallback((): GenerateWorkoutRecommendationRequest => {
+      if (!recommendation || !payload) return {};
+      // `muscle_groups` is free text on the wire — a custom exercise's own muscle
+      // string rides along in it — while `target_muscles` is the pinned enum and
+      // a non-member is a 400. So anything outside the vocabulary is dropped, and
+      // when nothing survives the field is omitted rather than sent empty: it is
+      // `.min(1)`, and omitting it is what asks for freshness anyway.
+      const muscles = [
+        ...new Set(
+          payload.muscle_groups
+            .map(toCanonicalMuscle)
+            .filter((muscle): muscle is Muscle => muscle !== null)
+        ),
+      ];
+      return {
+        ...(muscles.length > 0 ? { target_muscles: muscles } : {}),
+        duration_minutes: recommendation.target_duration_minutes,
+        gym_profile_id: recommendation.gym_profile_id,
+      };
+    }, [recommendation, payload]);
 
   const runGenerate = useCallback(
     async (
       body: Parameters<typeof generateAsync>[0],
-      action: 'swap' | 'settings',
+      action: 'swap' | 'settings'
     ) => {
       // The disabled props alone cannot stop a double-tap: they follow the
       // mutation's pending state, which only flips on the next render.
@@ -236,7 +259,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
         setPendingAction(null);
       }
     },
-    [generateAsync],
+    [generateAsync]
   );
 
   // Whole-workout regeneration: same targets, different exercises. This is the
@@ -266,7 +289,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
 
   const groupedExerciseIds = useMemo(
     () => new Set(supersetRuns.flatMap((run) => run.entryIds)),
-    [supersetRuns],
+    [supersetRuns]
   );
   // Only ungrouped exercises can be pulled into a group; an anchor that is
   // already in a run extends it, which is what makes a 3+ circuit reachable.
@@ -275,7 +298,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
       plan
         .filter((exercise) => !groupedExerciseIds.has(exercise.exercise_id))
         .map((exercise) => exercise.exercise_id),
-    [plan, groupedExerciseIds],
+    [plan, groupedExerciseIds]
   );
   const canBuildSuperset = plan.length >= 2 && supersetCandidateIds.length >= 1;
 
@@ -288,13 +311,13 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     (exerciseId: string) => {
       editPlan((exercises) => ungroupPlannedExercise(exercises, exerciseId));
     },
-    [editPlan],
+    [editPlan]
   );
 
   const supersetSheetItems = useMemo<ActionSheetItem[]>(() => {
     const nameOf = (exerciseId: string) =>
-      plan.find((exercise) => exercise.exercise_id === exerciseId)?.exercise_name ??
-      'Exercise';
+      plan.find((exercise) => exercise.exercise_id === exerciseId)
+        ?.exercise_name ?? 'Exercise';
 
     if (supersetAnchorId != null) {
       return supersetCandidateIds
@@ -304,7 +327,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           label: nameOf(exerciseId),
           onPress: () => {
             editPlan((exercises) =>
-              supersetPlannedExercises(exercises, supersetAnchorId, exerciseId),
+              supersetPlannedExercises(exercises, supersetAnchorId, exerciseId)
             );
           },
         }));
@@ -313,7 +336,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     return plan
       .filter((exercise) =>
         // An exercise with no possible partner would open an empty stage two.
-        supersetCandidateIds.some((id) => id !== exercise.exercise_id),
+        supersetCandidateIds.some((id) => id !== exercise.exercise_id)
       )
       .map((exercise) => ({
         key: exercise.exercise_id,
@@ -340,7 +363,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     // one-exercise workout, or one already grouped end to end.
     if (canBuildSuperset) {
       items.push({
-        label: t('upNext.buildSuperset', { defaultValue: 'Build superset/circuit' }),
+        label: t('upNext.buildSuperset', {
+          defaultValue: 'Build superset/circuit',
+        }),
         sfSymbol: 'arrow.trianglehead.2.clockwise',
         icon: 'swap-vertical',
         onPress: handleBuildSuperset,
@@ -353,13 +378,20 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
       onPress: handleRefreshWorkout,
     });
     return items;
-  }, [t, handleSaveWorkout, canBuildSuperset, handleBuildSuperset, handleRefreshWorkout]);
+  }, [
+    t,
+    handleSaveWorkout,
+    canBuildSuperset,
+    handleBuildSuperset,
+    handleRefreshWorkout,
+  ]);
 
   // `renderContent()` only reaches the Swap button once a workout exists; every
   // other branch is a `StatusView`, which takes exactly one action — and it is
   // already spoken for by Generate / Retry. So the sheet moves to the header in
   // exactly those states, and the two entry points are never both on screen.
-  const showsSwapButton = !isLoading && !isError && !!recommendation && !!payload;
+  const showsSwapButton =
+    !isLoading && !isError && !!recommendation && !!payload;
 
   const header = useScreenHeader({
     title: t('upNext.title', { defaultValue: "Today's Workout" }),
@@ -372,7 +404,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
       ? {
           kind: 'menu',
           items: overflowMenuItems,
-          accessibilityLabel: t('upNext.workoutOptions', { defaultValue: 'Workout options' }),
+          accessibilityLabel: t('upNext.workoutOptions', {
+            defaultValue: 'Workout options',
+          }),
           identifier: 'up-next-overflow',
         }
       : {
@@ -395,7 +429,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const handleOpenRowMenu = useCallback((exerciseId: string) => {
     measureAnchoredMenuTrigger(
       rowMenuTriggerRefs.current.get(exerciseId) ?? null,
-      (anchor) => setRowMenu({ exerciseId, anchor }),
+      (anchor) => setRowMenu({ exerciseId, anchor })
     );
   }, []);
 
@@ -407,7 +441,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
         suggestForExerciseId: exerciseId,
       });
     },
-    [navigation, route.key],
+    [navigation, route.key]
   );
 
   // The picked replacement comes back here. The server re-prescribes the
@@ -447,14 +481,23 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
         onPress: handleOnDemand,
       },
     ],
-    [t, handlePickMuscles, handleSavedWorkouts, handleCreateFromScratch, handleOnDemand],
+    [
+      t,
+      handlePickMuscles,
+      handleSavedWorkouts,
+      handleCreateFromScratch,
+      handleOnDemand,
+    ]
   );
 
   const handleSelectDuration = useCallback(
     (minutes: number) => {
-      void runGenerate({ ...currentContext(), duration_minutes: minutes }, 'settings');
+      void runGenerate(
+        { ...currentContext(), duration_minutes: minutes },
+        'settings'
+      );
     },
-    [currentContext, runGenerate],
+    [currentContext, runGenerate]
   );
 
   const handleSelectGym = useCallback(
@@ -476,10 +519,10 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           ...currentContext(),
           gym_profile_id: value === ANY_GYM ? null : value,
         },
-        'settings',
+        'settings'
       );
     },
-    [activateProfileAsync, currentContext, runGenerate],
+    [activateProfileAsync, currentContext, runGenerate]
   );
 
   const handleStart = useCallback(() => {
@@ -505,38 +548,47 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   const handleOpenExercise = useCallback(
     (exercise: RecommendedExercise) => {
       navigation.navigate('ExerciseDetail', {
-        item: makeSparseExercise({
-          id: exercise.exercise_id,
-          name: exercise.exercise_name,
-          modality: exercise.modality,
-          images: exercise.images,
-        }, t),
+        item: makeSparseExercise(
+          {
+            id: exercise.exercise_id,
+            name: exercise.exercise_name,
+            modality: exercise.modality,
+            images: exercise.images,
+          },
+          t
+        ),
         hideWorkoutActions: true,
       });
     },
-    [navigation, t],
+    [navigation, t]
   );
 
   const gymOptions = useMemo(
     () => [
-      ...profiles.map((profile) => ({ label: profile.name, value: profile.id })),
-      { label: t('upNext.anyEquipment', { defaultValue: 'Any equipment' }), value: ANY_GYM },
+      ...profiles.map((profile) => ({
+        label: profile.name,
+        value: profile.id,
+      })),
+      {
+        label: t('upNext.anyEquipment', { defaultValue: 'Any equipment' }),
+        value: ANY_GYM,
+      },
     ],
-    [t, profiles],
+    [t, profiles]
   );
 
   // The chips label what THIS workout was built with, not what is active now —
   // the two differ until the next regenerate.
   const gymValue = recommendation?.gym_profile_id ?? ANY_GYM;
   const gymLabel =
-    profiles.find((profile) => profile.id === recommendation?.gym_profile_id)?.name ??
-    t('upNext.anyEquipment', { defaultValue: 'Any equipment' });
+    profiles.find((profile) => profile.id === recommendation?.gym_profile_id)
+      ?.name ?? t('upNext.anyEquipment', { defaultValue: 'Any equipment' });
 
   const renderChip = (
     label: string,
     icon: 'clock' | 'exercise-weights',
     onPress: () => void,
-    accessibilityLabel: string,
+    accessibilityLabel: string
   ) => (
     <TouchableOpacity
       className="flex-row items-center bg-raised rounded-full px-3 py-2 mr-2"
@@ -548,7 +600,12 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     >
       <Icon name={icon} size={14} color={textSecondary} />
       <Text className="text-text-primary text-sm ml-1.5">{label}</Text>
-      <Icon name="chevron-down" size={14} color={textMuted} style={{ marginLeft: 4 }} />
+      <Icon
+        name="chevron-down"
+        size={14}
+        color={textMuted}
+        style={{ marginLeft: 4 }}
+      />
     </TouchableOpacity>
   );
 
@@ -562,57 +619,64 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
         key={exercise.exercise_id}
         className="flex-row items-center border-b border-border-subtle"
       >
-      {supersetBorder ? (
-        // Same flat 3px rail the live workout draws: interior members run the
-        // full row height so consecutive members read as one line, and the
-        // run's last member stops short of the divider.
-        <View
-          testID={`up-next-superset-rail-${exercise.exercise_id}`}
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: supersetBorder.isLast ? 8 : 0,
-            width: 3,
-            backgroundColor: supersetBorder.color,
-          }}
-        />
-      ) : null}
-      <TouchableOpacity
-        className="flex-1 flex-row items-center pl-4 py-3"
-        activeOpacity={0.7}
-        onPress={() => handleOpenExercise(exercise)}
-        testID="up-next-exercise-row"
-      >
-        <SafeImage
-          source={image ? getImageSource(image) : null}
-          style={{ width: 52, height: 52, borderRadius: 8 }}
-          fallback={
-            <View
-              className="bg-raised items-center justify-center"
-              style={{ width: 52, height: 52, borderRadius: 8 }}
+        {supersetBorder ? (
+          // Same flat 3px rail the live workout draws: interior members run the
+          // full row height so consecutive members read as one line, and the
+          // run's last member stops short of the divider.
+          <View
+            testID={`up-next-superset-rail-${exercise.exercise_id}`}
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: supersetBorder.isLast ? 8 : 0,
+              width: 3,
+              backgroundColor: supersetBorder.color,
+            }}
+          />
+        ) : null}
+        <TouchableOpacity
+          className="flex-1 flex-row items-center pl-4 py-3"
+          activeOpacity={0.7}
+          onPress={() => handleOpenExercise(exercise)}
+          testID="up-next-exercise-row"
+        >
+          <SafeImage
+            source={image ? getImageSource(image) : null}
+            style={{ width: 52, height: 52, borderRadius: 8 }}
+            fallback={
+              <View
+                className="bg-raised items-center justify-center"
+                style={{ width: 52, height: 52, borderRadius: 8 }}
+              >
+                <Icon name="exercise-weights" size={24} color={textMuted} />
+              </View>
+            }
+          />
+          <View className="flex-1 ml-3">
+            <Text
+              className="text-text-primary text-base font-medium"
+              numberOfLines={1}
             >
-              <Icon name="exercise-weights" size={24} color={textMuted} />
-            </View>
-          }
-        />
-        <View className="flex-1 ml-3">
-          <Text className="text-text-primary text-base font-medium" numberOfLines={1}>
-            {exercise.exercise_name}
-          </Text>
-          <Text className="text-sm mt-0.5" style={{ color: textSecondary }}>
-            {formatRecommendedSets(exercise, weightUnit, distanceUnit)}
-          </Text>
-          <Text className="text-xs mt-0.5" style={{ color: textMuted }} numberOfLines={2}>
-            {/* Cardio is one continuous block, so its rest prescription is not
+              {exercise.exercise_name}
+            </Text>
+            <Text className="text-sm mt-0.5" style={{ color: textSecondary }}>
+              {formatRecommendedSets(exercise, weightUnit, distanceUnit)}
+            </Text>
+            <Text
+              className="text-xs mt-0.5"
+              style={{ color: textMuted }}
+              numberOfLines={2}
+            >
+              {/* Cardio is one continuous block, so its rest prescription is not
                 something the row should advertise. */}
-            {isCardioModality(exercise.modality)
-              ? exercise.rationale
-              : `${exercise.rationale} · ${formatRestChip(exercise.rest_seconds)}`}
-          </Text>
-        </View>
-      </TouchableOpacity>
+              {isCardioModality(exercise.modality)
+                ? exercise.rationale
+                : `${exercise.rationale} · ${formatRestChip(exercise.rest_seconds)}`}
+            </Text>
+          </View>
+        </TouchableOpacity>
         <TouchableOpacity
           className="px-4 py-3"
           activeOpacity={0.7}
@@ -647,7 +711,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
       return (
         <StatusView
           icon="alert-circle"
-          title={t('upNext.loadFailed', { defaultValue: 'Failed to load your workout' })}
+          title={t('upNext.loadFailed', {
+            defaultValue: 'Failed to load your workout',
+          })}
           action={{
             label: t('common.retry', { defaultValue: 'Retry' }),
             onPress: () => refetch(),
@@ -667,7 +733,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           action={{
             label: isGenerating
               ? t('upNext.generating', { defaultValue: 'Generating…' })
-              : t('upNext.generateToday', { defaultValue: "Build today's workout" }),
+              : t('upNext.generateToday', {
+                  defaultValue: "Build today's workout",
+                }),
             onPress: () => void runGenerate({}, 'settings'),
             variant: 'primary',
           }}
@@ -684,7 +752,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           className="flex-1"
           contentContainerStyle={{ paddingBottom: 16 }}
           showsVerticalScrollIndicator={false}
-          contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
+          contentInsetAdjustmentBehavior={
+            usesNativeHeader ? 'automatic' : 'never'
+          }
         >
           <View className="px-4 pt-4 pb-3">
             <Text className="text-text-primary text-2xl font-bold">
@@ -719,7 +789,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
                   value: minutes,
                 }))}
                 onSelect={handleSelectDuration}
-                title={t('upNext.workoutLength', { defaultValue: 'Workout length' })}
+                title={t('upNext.workoutLength', {
+                  defaultValue: 'Workout length',
+                })}
                 renderTrigger={({ onPress }) =>
                   renderChip(
                     formatDuration(recommendation.target_duration_minutes),
@@ -727,7 +799,7 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
                     onPress,
                     t('upNext.changeWorkoutLength', {
                       defaultValue: 'Change workout length',
-                    }),
+                    })
                   )
                 }
               />
@@ -735,13 +807,17 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
                 value={gymValue}
                 options={gymOptions}
                 onSelect={(value) => void handleSelectGym(value)}
-                title={t('upNext.gymEquipment', { defaultValue: 'Gym equipment' })}
+                title={t('upNext.gymEquipment', {
+                  defaultValue: 'Gym equipment',
+                })}
                 renderTrigger={({ onPress }) =>
                   renderChip(
                     gymLabel,
                     'exercise-weights',
                     onPress,
-                    t('upNext.changeGymEquipment', { defaultValue: 'Change gym equipment' }),
+                    t('upNext.changeGymEquipment', {
+                      defaultValue: 'Change gym equipment',
+                    })
                   )
                 }
               />
@@ -768,7 +844,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
 
         <View
           className="px-4 pt-3 border-t border-border-subtle bg-background"
-          style={{ paddingBottom: insets.bottom + 12 + activeWorkoutBarPadding }}
+          style={{
+            paddingBottom: insets.bottom + 12 + activeWorkoutBarPadding,
+          }}
         >
           <Button
             variant="primary"
@@ -790,7 +868,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           items={[
             {
               key: 'replace',
-              label: t('upNext.replaceExercise', { defaultValue: 'Replace exercise' }),
+              label: t('upNext.replaceExercise', {
+                defaultValue: 'Replace exercise',
+              }),
               icon: 'swap-vertical',
               onPress: () => {
                 const exerciseId = rowMenu?.exerciseId;
@@ -844,13 +924,17 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
         ref={supersetSheetRef}
         title={
           supersetAnchorId == null
-            ? t('upNext.supersetWhich', { defaultValue: 'Superset which exercise?' })
+            ? t('upNext.supersetWhich', {
+                defaultValue: 'Superset which exercise?',
+              })
             : t('upNext.supersetWith', { defaultValue: 'Superset with…' })
         }
         items={supersetSheetItems}
         // Stage two backs out to the anchor list rather than closing, so a
         // mis-tapped anchor costs one tap instead of reopening the sheet.
-        onBack={supersetAnchorId == null ? undefined : () => setSupersetAnchorId(null)}
+        onBack={
+          supersetAnchorId == null ? undefined : () => setSupersetAnchorId(null)
+        }
         onDismiss={() => setSupersetAnchorId(null)}
       />
     </View>

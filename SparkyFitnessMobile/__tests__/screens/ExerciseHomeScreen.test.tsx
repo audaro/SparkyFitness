@@ -1,4 +1,9 @@
-import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import {
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import ExerciseHomeScreen from '../../src/screens/ExerciseHomeScreen';
@@ -126,9 +131,21 @@ function makeWeek(): WeeklySetTargetsResponse {
       overall_percent: 0.5,
       groups: [
         // Fractional, because a secondary mover counts as half a set.
-        { group: 'push', target: 16, completed: 8.5, remaining: 7.5, percent: 0.53 },
+        {
+          group: 'push',
+          target: 16,
+          completed: 8.5,
+          remaining: 7.5,
+          percent: 0.53,
+        },
         { group: 'pull', target: 18, completed: 9, remaining: 9, percent: 0.5 },
-        { group: 'legs', target: 16, completed: 4, remaining: 12, percent: 0.25 },
+        {
+          group: 'legs',
+          target: 16,
+          completed: 4,
+          remaining: 12,
+          percent: 0.25,
+        },
         { group: 'core', target: 8, completed: 8, remaining: 0, percent: 1 },
       ],
     },
@@ -139,7 +156,7 @@ function makeWeek(): WeeklySetTargetsResponse {
 // The server answers all-null rather than 404 for a user who has never been
 // interviewed, so this is the "no profile yet" case too.
 function makeCoachProfile(
-  level: 'beginner' | 'intermediate' | 'expert' | null,
+  level: 'beginner' | 'intermediate' | 'expert' | null
 ) {
   return {
     goals: null,
@@ -193,8 +210,11 @@ function renderScreen() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ExerciseHomeScreen navigation={navigation as never} route={route as never} />
-    </QueryClientProvider>,
+      <ExerciseHomeScreen
+        navigation={navigation as never}
+        route={route as never}
+      />
+    </QueryClientProvider>
   );
 }
 
@@ -276,12 +296,16 @@ describe('ExerciseHomeScreen', () => {
 
   it('opens a logged activity from the log', () => {
     const session = makeActivity();
-    mockUseDailySummary.mockReturnValue({ summary: { exerciseEntries: [session] } });
+    mockUseDailySummary.mockReturnValue({
+      summary: { exerciseEntries: [session] },
+    });
 
     const { getByText } = renderScreen();
     fireEvent.press(getByText('Bench Press'));
 
-    expect(navigation.navigate).toHaveBeenCalledWith('ActivityDetail', { session });
+    expect(navigation.navigate).toHaveBeenCalledWith('ActivityDetail', {
+      session,
+    });
   });
 
   // The Library tab was the app's only route to either form from scratch;
@@ -381,7 +405,7 @@ describe('ExerciseHomeScreen', () => {
     const { getByTestId } = renderScreen();
 
     await waitFor(() =>
-      expect(getByTestId('exercise-home-training-plan-prompt')).toBeTruthy(),
+      expect(getByTestId('exercise-home-training-plan-prompt')).toBeTruthy()
     );
     fireEvent.press(getByTestId('exercise-home-training-plan-prompt'));
     expect(navigation.navigate).toHaveBeenCalledWith('TrainingPlan');
@@ -396,10 +420,10 @@ describe('ExerciseHomeScreen', () => {
     });
     const answered = renderScreen();
     await waitFor(() =>
-      expect(answered.getByTestId('exercise-home-training-plan')).toBeTruthy(),
+      expect(answered.getByTestId('exercise-home-training-plan')).toBeTruthy()
     );
     expect(
-      answered.queryByTestId('exercise-home-training-plan-prompt'),
+      answered.queryByTestId('exercise-home-training-plan-prompt')
     ).toBeNull();
   });
 
@@ -409,7 +433,7 @@ describe('ExerciseHomeScreen', () => {
     const { getByTestId } = renderScreen();
 
     await waitFor(() =>
-      expect(getByTestId('exercise-home-projection-review')).toBeTruthy(),
+      expect(getByTestId('exercise-home-projection-review')).toBeTruthy()
     );
     fireEvent.press(getByTestId('exercise-home-projection-review'));
     expect(navigation.navigate).toHaveBeenCalledWith('TrainingPlan', {
@@ -438,9 +462,7 @@ describe('ExerciseHomeScreen', () => {
   it('says every exercise is available when no profile is active', async () => {
     const { findByText } = renderScreen();
 
-    expect(
-      await findByText('None — every exercise allowed'),
-    ).toBeTruthy();
+    expect(await findByText('None — every exercise allowed')).toBeTruthy();
   });
 
   it('shows the stated experience level in the setup row', async () => {
@@ -464,7 +486,7 @@ describe('ExerciseHomeScreen', () => {
     await waitFor(() =>
       expect(mockUpdateCoachProfile).toHaveBeenCalledWith({
         experience_level: 'beginner',
-      }),
+      })
     );
   });
 
@@ -482,7 +504,7 @@ describe('ExerciseHomeScreen', () => {
     await waitFor(() =>
       expect(mockUpdateCoachProfile).toHaveBeenCalledWith({
         experience_level: null,
-      }),
+      })
     );
   });
 

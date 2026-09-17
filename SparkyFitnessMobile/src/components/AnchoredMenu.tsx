@@ -122,7 +122,9 @@ const AnchoredMenu: React.FC<Props> = ({
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={onClose}
-          accessibilityLabel={t('common.dismissMenu', { defaultValue: 'Dismiss menu' })}
+          accessibilityLabel={t('common.dismissMenu', {
+            defaultValue: 'Dismiss menu',
+          })}
         />
         {/* Entrance-only animation: dismissal must stay instant (see the
             animationType note above), so only the content animates in. */}

@@ -58,7 +58,7 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
     (pack: ExercisePack) => {
       void importPack(pack);
     },
-    [importPack],
+    [importPack]
   );
 
   const body = () => {
@@ -75,7 +75,9 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
         <StatusView
           icon="alert-circle"
           iconTone="danger"
-          title={t('exercisePacks.loadFailed', { defaultValue: 'Could not load packs' })}
+          title={t('exercisePacks.loadFailed', {
+            defaultValue: 'Could not load packs',
+          })}
           subtitle={t('common.checkConnection', {
             defaultValue: 'Check your connection and try again.',
           })}
@@ -91,7 +93,9 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
         <StatusView
           icon="exercise-weights"
           iconTone="muted"
-          title={t('exercisePacks.empty', { defaultValue: 'No packs available' })}
+          title={t('exercisePacks.empty', {
+            defaultValue: 'No packs available',
+          })}
         />
       );
     }
@@ -128,7 +132,8 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
                   testID={`pack-progress-${pack.id}`}
                 >
                   {t('exercisePacks.progress', {
-                    defaultValue: '{{processed}} of {{total}} · added {{imported}}',
+                    defaultValue:
+                      '{{processed}} of {{total}} · added {{imported}}',
                     processed: progress.processed,
                     total: progress.total,
                     imported: progress.imported,
@@ -181,10 +186,14 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
               testID={`import-pack-${pack.id}`}
             >
               {complete
-                ? t('exercisePacks.alreadyAdded', { defaultValue: 'Already added' })
+                ? t('exercisePacks.alreadyAdded', {
+                    defaultValue: 'Already added',
+                  })
                 : active
                   ? t('exercisePacks.addRest', { defaultValue: 'Add the rest' })
-                  : t('exercisePacks.addAll', { defaultValue: 'Add to my exercises' })}
+                  : t('exercisePacks.addAll', {
+                      defaultValue: 'Add to my exercises',
+                    })}
             </Button>
           )}
         </View>
@@ -203,7 +212,9 @@ const ExercisePacksScreen: React.FC<ExercisePacksScreenProps> = () => {
           padding: 16,
           paddingBottom: insets.bottom + 80 + activeWorkoutBarPadding,
         }}
-        contentInsetAdjustmentBehavior={usesNativeHeader ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior={
+          usesNativeHeader ? 'automatic' : 'never'
+        }
       >
         <Text className="mb-4 text-sm text-text-secondary">
           {t('exercisePacks.intro', {

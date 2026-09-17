@@ -39,7 +39,11 @@ function macroLine(c: FoodCandidate): string {
  * the pick without a fresh lookup. See
  * @workspace/shared/constants/chatFoodConfirm.
  */
-export default function FoodConfirmCards({ part }: { part: ToolCallMessagePart }) {
+export default function FoodConfirmCards({
+  part,
+}: {
+  part: ToolCallMessagePart;
+}) {
   const { t } = useTranslation();
   const aui = useAui();
   const isLast = useAuiState((s) => s.message.isLast);
@@ -48,9 +52,9 @@ export default function FoodConfirmCards({ part }: { part: ToolCallMessagePart }
   const args = part.args as Partial<ConfirmFoodInput> | undefined;
   // The tool input streams in as partial JSON — render nothing until at least
   // one candidate is complete enough to be a card.
-  const candidates = (Array.isArray(args?.candidates) ? args.candidates : []).filter(
-    (c): c is FoodCandidate => !!c?.label && c?.calories !== undefined,
-  );
+  const candidates = (
+    Array.isArray(args?.candidates) ? args.candidates : []
+  ).filter((c): c is FoodCandidate => !!c?.label && c?.calories !== undefined);
   if (candidates.length < MIN_FOOD_CANDIDATES) return null;
 
   // Cards on an older message would confirm a stale question the chat has
@@ -68,7 +72,9 @@ export default function FoodConfirmCards({ part }: { part: ToolCallMessagePart }
           <Pressable
             key={`${candidate.label}-${i}`}
             disabled={disabled}
-            onPress={() => aui.thread().append(confirmFoodPickMessage(i + 1, candidate))}
+            onPress={() =>
+              aui.thread().append(confirmFoodPickMessage(i + 1, candidate))
+            }
             className={`bg-background border border-border-subtle rounded-xl px-3 py-2 gap-0.5 ${disabled ? 'opacity-50' : ''}`}
           >
             <View className="flex-row flex-wrap items-center gap-2">
@@ -76,7 +82,9 @@ export default function FoodConfirmCards({ part }: { part: ToolCallMessagePart }
                 {candidate.label}
               </Text>
               {!!candidate.brand && (
-                <Text className="text-text-muted text-sm shrink">{candidate.brand}</Text>
+                <Text className="text-text-muted text-sm shrink">
+                  {candidate.brand}
+                </Text>
               )}
               <View className="ml-auto border border-border-subtle rounded-full px-2 py-0.5">
                 <Text className="text-text-secondary text-xs">

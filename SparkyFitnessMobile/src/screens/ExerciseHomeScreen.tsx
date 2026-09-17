@@ -1,6 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import type { CompositeScreenProps } from '@react-navigation/native';
@@ -13,7 +19,9 @@ import {
 } from '@workspace/shared';
 
 import BottomSheetPicker from '../components/BottomSheetPicker';
-import CalendarSheet, { type CalendarSheetRef } from '../components/CalendarSheet';
+import CalendarSheet, {
+  type CalendarSheetRef,
+} from '../components/CalendarSheet';
 import CreateTile from '../components/CreateTile';
 import DateNavigator from '../components/DateNavigator';
 import ExerciseSummary from '../components/ExerciseSummary';
@@ -29,7 +37,10 @@ import { addSheetRef } from '../components/AddSheet';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
 import { useServerConnection } from '../hooks';
-import { useCoachProfile, useUpdateCoachProfile } from '../hooks/useCoachProfile';
+import {
+  useCoachProfile,
+  useUpdateCoachProfile,
+} from '../hooks/useCoachProfile';
 import { useDailySummary } from '../hooks/useDailySummary';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
 import { useGymProfiles } from '../hooks/useGymProfiles';
@@ -81,7 +92,9 @@ const SHORT_GROUP_LABELS: Record<MuscleGroup, string> = {
  * back to on the Food tab must not put yesterday's workouts under today's
  * suggestion — the recovery strip included.
  */
-const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) => {
+const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({
+  navigation,
+}) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding();
@@ -121,11 +134,13 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
     navigation.setParams({ selectedDate });
   }, [navigation, selectedDate]);
 
-  const { isNavigationLocked, runNavigationAction } = useNavigationActionGuard(navigation);
+  const { isNavigationLocked, runNavigationAction } =
+    useNavigationActionGuard(navigation);
   const { isConnected } = useServerConnection();
   const { preferences } = usePreferences();
   const weightUnit = (preferences?.default_weight_unit as 'kg' | 'lbs') ?? 'kg';
-  const distanceUnit = (preferences?.default_distance_unit as 'km' | 'miles') ?? 'km';
+  const distanceUnit =
+    (preferences?.default_distance_unit as 'km' | 'miles') ?? 'km';
   const { getImageSource } = useExerciseImageSource();
   // Which gym the user is in constrains every suggestion this tab makes, so
   // the row names it rather than describing what gym profiles are.
@@ -134,7 +149,8 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
   // The stated experience level shapes exercise selection and set counts on
   // the next generate; the chat coach edits the same profile row.
   const { data: coachProfile } = useCoachProfile();
-  const { mutate: saveCoachProfile, isPending: isSavingExperience } = useUpdateCoachProfile();
+  const { mutate: saveCoachProfile, isPending: isSavingExperience } =
+    useUpdateCoachProfile();
 
   const experienceOptions: { value: ExperienceValue; label: string }[] = [
     {
@@ -147,7 +163,9 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
     },
     {
       value: 'intermediate',
-      label: t('exerciseHome.experienceIntermediate', { defaultValue: 'Intermediate' }),
+      label: t('exerciseHome.experienceIntermediate', {
+        defaultValue: 'Intermediate',
+      }),
     },
     {
       value: 'expert',
@@ -165,7 +183,10 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
     saveCoachProfile({ experience_level: next });
   };
 
-  const { summary } = useDailySummary({ date: selectedDate, enabled: isConnected });
+  const { summary } = useDailySummary({
+    date: selectedDate,
+    enabled: isConnected,
+  });
 
   const groupColors = useWeeklySetGroupColors();
   const {
@@ -202,7 +223,10 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
       <ScrollView
         ref={scrollViewRef}
         className="flex-1 bg-background"
-        style={[{ flex: 1 }, usesNativeTabs ? undefined : { paddingTop: insets.top }]}
+        style={[
+          { flex: 1 },
+          usesNativeTabs ? undefined : { paddingTop: insets.top },
+        ]}
         contentContainerStyle={{
           paddingHorizontal: 16,
           ...(!usesNativeTabs ? { paddingTop: 16 } : null),
@@ -235,14 +259,18 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
         <View className="mb-6">
           <Button
             variant="primary"
-            onPress={() => runNavigationAction(() => navigation.navigate('PresetSearch'))}
+            onPress={() =>
+              runNavigationAction(() => navigation.navigate('PresetSearch'))
+            }
             disabled={isNavigationLocked}
             accessibilityLabel={t('exerciseHome.startWorkoutA11y', {
               defaultValue: 'Start a workout',
             })}
             testID="exercise-home-start-workout"
           >
-            {t('exerciseHome.startWorkout', { defaultValue: 'Start a workout' })}
+            {t('exerciseHome.startWorkout', {
+              defaultValue: 'Start a workout',
+            })}
           </Button>
         </View>
 
@@ -251,31 +279,32 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             disappears the moment the plan is answered. `plan_completed_at` is
             deliberately not derived from the other answers: answering one
             question in isolation is not a finished plan. */}
-        {coachProfile !== undefined && coachProfile.plan_completed_at === null && (
-          <Pressable
-            className="bg-surface rounded-xl p-4 mb-4 shadow-sm"
-            onPress={() => navigation.navigate('TrainingPlan')}
-            accessibilityRole="button"
-            testID="exercise-home-training-plan-prompt"
-          >
-            <View className="flex-row items-center">
-              <View className="flex-1">
-                <Text className="text-base font-semibold text-text-primary">
-                  {t('trainingPlan.setUpRow', {
-                    defaultValue: 'Set up your training plan',
-                  })}
-                </Text>
-                <Text className="mt-0.5 text-sm text-text-secondary">
-                  {t('trainingPlan.setUpSubtitle', {
-                    defaultValue:
-                      'Six questions that tailor your weekly targets',
-                  })}
-                </Text>
+        {coachProfile !== undefined &&
+          coachProfile.plan_completed_at === null && (
+            <Pressable
+              className="bg-surface rounded-xl p-4 mb-4 shadow-sm"
+              onPress={() => navigation.navigate('TrainingPlan')}
+              accessibilityRole="button"
+              testID="exercise-home-training-plan-prompt"
+            >
+              <View className="flex-row items-center">
+                <View className="flex-1">
+                  <Text className="text-base font-semibold text-text-primary">
+                    {t('trainingPlan.setUpRow', {
+                      defaultValue: 'Set up your training plan',
+                    })}
+                  </Text>
+                  <Text className="mt-0.5 text-sm text-text-secondary">
+                    {t('trainingPlan.setUpSubtitle', {
+                      defaultValue:
+                        'Six questions that tailor your weekly targets',
+                    })}
+                  </Text>
+                </View>
+                <Icon name="chevron-forward" size={14} color={accentPrimary} />
               </View>
-              <Icon name="chevron-forward" size={14} color={accentPrimary} />
-            </View>
-          </Pressable>
-        )}
+            </Pressable>
+          )}
 
         {/* A failed read is not worth an error block on a tab that has plenty
             else to offer; the section simply stays out of the way, and the ring
@@ -366,10 +395,13 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             itself. It hides when there is no weigh-in to estimate from. */}
         <MuscleGainProjectionCard
           enabled={
-            coachProfile !== undefined && coachProfile.plan_completed_at !== null
+            coachProfile !== undefined &&
+            coachProfile.plan_completed_at !== null
           }
           onPress={() =>
-            navigation.navigate('TrainingPlan', { initialStep: TRAINING_PLAN_REVIEW_STEP })
+            navigation.navigate('TrainingPlan', {
+              initialStep: TRAINING_PLAN_REVIEW_STEP,
+            })
           }
         />
 
@@ -377,7 +409,6 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             "Now"-based like Up Next above it — today's recovery, not the
             selected day's. The strip hides itself when it has nothing to draw. */}
         <MuscleRecoveryStrip />
-
 
         <DateNavigator
           title={t('exerciseHome.logged', { defaultValue: 'Logged' })}
@@ -398,7 +429,9 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             getImageSource={getImageSource}
             weightUnit={weightUnit}
             distanceUnit={distanceUnit}
-            onAddExercise={() => addSheetRef.current?.present({ initialMenu: 'exercise' })}
+            onAddExercise={() =>
+              addSheetRef.current?.present({ initialMenu: 'exercise' })
+            }
             onPressWorkout={openWorkout}
           />
         </View>
@@ -415,14 +448,16 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
         <View className="flex-row justify-between mb-6">
           <CreateTile
             icon="exercise-weights"
-            title={t('exerciseHome.createExercise', { defaultValue: 'Exercise' })}
+            title={t('exerciseHome.createExercise', {
+              defaultValue: 'Exercise',
+            })}
             subtitle={t('exerciseHome.createExerciseSubtitle', {
               defaultValue: 'Manual entry',
             })}
             disabled={isNavigationLocked}
             onPress={() =>
               runNavigationAction(() =>
-                navigation.navigate('ExerciseForm', { mode: 'create-exercise' }),
+                navigation.navigate('ExerciseForm', { mode: 'create-exercise' })
               )
             }
             className="w-[48%]"
@@ -430,14 +465,18 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
           />
           <CreateTile
             icon="bookmark-filled"
-            title={t('exerciseHome.createPreset', { defaultValue: 'Workout preset' })}
+            title={t('exerciseHome.createPreset', {
+              defaultValue: 'Workout preset',
+            })}
             subtitle={t('exerciseHome.createPresetSubtitle', {
               defaultValue: 'A workout you can repeat',
             })}
             disabled={isNavigationLocked}
             onPress={() =>
               runNavigationAction(() =>
-                navigation.navigate('WorkoutPresetForm', { mode: 'create-preset' }),
+                navigation.navigate('WorkoutPresetForm', {
+                  mode: 'create-preset',
+                })
               )
             }
             className="w-[48%]"
@@ -454,7 +493,9 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
         <SettingsRowGroup>
           <SettingsRow
             icon="bookmark-filled"
-            title={t('exerciseHome.workoutPresets', { defaultValue: 'Workout presets' })}
+            title={t('exerciseHome.workoutPresets', {
+              defaultValue: 'Workout presets',
+            })}
             subtitle={t('exerciseHome.workoutPresetsSubtitle', {
               defaultValue: 'Workouts you saved to repeat',
             })}
@@ -463,7 +504,9 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
           />
           <SettingsRow
             icon="exercise-weights"
-            title={t('exerciseHome.exerciseLibrary', { defaultValue: 'Exercise library' })}
+            title={t('exerciseHome.exerciseLibrary', {
+              defaultValue: 'Exercise library',
+            })}
             subtitle={t('exerciseHome.exerciseLibrarySubtitle', {
               defaultValue: 'Every exercise you can log',
             })}
@@ -485,7 +528,9 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
         <SettingsRowGroup>
           <SettingsRow
             icon="workout-settings"
-            title={t('exerciseHome.gymProfiles', { defaultValue: 'Gym profiles' })}
+            title={t('exerciseHome.gymProfiles', {
+              defaultValue: 'Gym profiles',
+            })}
             subtitle={
               activeProfile
                 ? t('exerciseHome.gymProfileActive', {
@@ -523,11 +568,15 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
             value={storedExperience ?? EXPERIENCE_UNSET}
             options={experienceOptions}
             onSelect={handleExperienceSelect}
-            title={t('exerciseHome.experienceLevel', { defaultValue: 'Experience level' })}
+            title={t('exerciseHome.experienceLevel', {
+              defaultValue: 'Experience level',
+            })}
             renderTrigger={({ onPress, selectedOption }) => (
               <SettingsRow
                 icon="trophy-outline"
-                title={t('exerciseHome.experienceLevel', { defaultValue: 'Experience level' })}
+                title={t('exerciseHome.experienceLevel', {
+                  defaultValue: 'Experience level',
+                })}
                 subtitle={
                   selectedOption?.label ??
                   t('exerciseHome.experienceUnset', { defaultValue: 'Not set' })
@@ -539,7 +588,9 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({ navigation }) =
           />
           <SettingsRow
             icon="list"
-            title={t('exerciseHome.exercisePacks', { defaultValue: 'Exercise packs' })}
+            title={t('exerciseHome.exercisePacks', {
+              defaultValue: 'Exercise packs',
+            })}
             subtitle={t('exerciseHome.exercisePacksSubtitle', {
               defaultValue: 'Ready-made exercise lists',
             })}

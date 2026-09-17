@@ -85,29 +85,29 @@ const MealTypeTimePickerSheet = forwardRef<MealTypeTimePickerSheetRef>(
       cb?.(time);
     }, []);
 
-  return (
-    <BottomSheetModal
-      // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
-      // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
-      accessible={false}
-      ref={bottomSheetRef}
-      enableDynamicSizing
-      enableContentPanningGesture={Platform.OS !== 'android'}
-      backdropComponent={renderBackdrop}
-      containerComponent={sheetContainer}
-      backgroundStyle={{ backgroundColor: surfaceBg }}
-      handleIndicatorStyle={{ backgroundColor: textMuted }}
-      onDismiss={() => {
-        // Dismiss without Save/Clear: never invoke the callback, never keep
-        // stale pending state for the next open.
-        onSelectRef.current = null;
-        setPendingValue(null);
-      }}
-    >
-      <BottomSheetView className="px-5 pb-safe-or-8">
-        <Text className="text-text-primary text-lg font-semibold text-center mb-3">
-          {t('mealTypeTime.defaultTitle', { defaultValue: 'Default Time' })}
-        </Text>
+    return (
+      <BottomSheetModal
+        // One accessibility element by default (gorhom's DEFAULT_ACCESSIBLE), which
+        // collapses every row inside into one node for VoiceOver. See ActionSheet.tsx.
+        accessible={false}
+        ref={bottomSheetRef}
+        enableDynamicSizing
+        enableContentPanningGesture={Platform.OS !== 'android'}
+        backdropComponent={renderBackdrop}
+        containerComponent={sheetContainer}
+        backgroundStyle={{ backgroundColor: surfaceBg }}
+        handleIndicatorStyle={{ backgroundColor: textMuted }}
+        onDismiss={() => {
+          // Dismiss without Save/Clear: never invoke the callback, never keep
+          // stale pending state for the next open.
+          onSelectRef.current = null;
+          setPendingValue(null);
+        }}
+      >
+        <BottomSheetView className="px-5 pb-safe-or-8">
+          <Text className="text-text-primary text-lg font-semibold text-center mb-3">
+            {t('mealTypeTime.defaultTitle', { defaultValue: 'Default Time' })}
+          </Text>
 
           {/* Dominant wheel area (shared component, own full-width layout). The
             sheet renders the shared wheel DIRECTLY under BottomSheetView — no

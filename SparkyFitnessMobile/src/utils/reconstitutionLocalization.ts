@@ -18,7 +18,7 @@ import type {
  */
 export function localizeReconstitutionFailure(
   t: TFunction,
-  failure: ReconstitutionFailure,
+  failure: ReconstitutionFailure
 ): string {
   const d = failure.details;
   switch (failure.reason) {
@@ -78,7 +78,7 @@ export function localizeReconstitutionFailure(
 
 export function localizeReconstitutionWarning(
   t: TFunction,
-  warning: ReconstitutionWarning,
+  warning: ReconstitutionWarning
 ): string {
   const d = warning.details;
   switch (warning.code) {

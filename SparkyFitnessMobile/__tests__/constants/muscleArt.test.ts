@@ -8,19 +8,30 @@ import {
   type BodyView,
 } from '../../src/constants/muscleArt.generated';
 import { MUSCLE_TILES, tileForMuscle } from '../../src/constants/muscleTiles';
-import { flattenPath, polygonArea, pointInPolygon } from '../helpers/svgPathGeometry';
+import {
+  flattenPath,
+  polygonArea,
+  pointInPolygon,
+} from '../helpers/svgPathGeometry';
 
 const VIEWS: BodyView[] = ['front', 'back'];
 
 const box = (view: BodyView) => {
-  const [minX, minY, width, height] = BODY_VIEWS[view].viewBox.split(' ').map(Number);
+  const [minX, minY, width, height] = BODY_VIEWS[view].viewBox
+    .split(' ')
+    .map(Number);
   return { minX, minY, width, height };
 };
 
-const pathsOn = (view: BodyView) => BODY_PATHS.filter((path) => path.view === view);
+const pathsOn = (view: BodyView) =>
+  BODY_PATHS.filter((path) => path.view === view);
 
 const musclesOn = (view: BodyView) =>
-  new Set(pathsOn(view).flatMap((path) => (path.kind === 'muscle' ? [path.muscle] : [])));
+  new Set(
+    pathsOn(view).flatMap((path) =>
+      path.kind === 'muscle' ? [path.muscle] : []
+    )
+  );
 
 describe('the figure', () => {
   test('has a silhouette, labelled muscles and outline detail, on both views', () => {
@@ -36,9 +47,15 @@ describe('the figure', () => {
     // body under the muscles, the outline over them. Sorting it or filtering by
     // kind while rendering would put muscles on top of the head and hands.
     const firstMuscle = BODY_PATHS.findIndex((path) => path.kind === 'muscle');
-    const lastMuscle = BODY_PATHS.map((path) => path.kind).lastIndexOf('muscle');
-    const firstSilhouette = BODY_PATHS.findIndex((path) => path.kind === 'silhouette');
-    const lastDetail = BODY_PATHS.map((path) => path.kind).lastIndexOf('detail');
+    const lastMuscle = BODY_PATHS.map((path) => path.kind).lastIndexOf(
+      'muscle'
+    );
+    const firstSilhouette = BODY_PATHS.findIndex(
+      (path) => path.kind === 'silhouette'
+    );
+    const lastDetail = BODY_PATHS.map((path) => path.kind).lastIndexOf(
+      'detail'
+    );
 
     expect(firstSilhouette).toBeLessThan(firstMuscle);
     expect(lastDetail).toBeGreaterThan(lastMuscle);
@@ -60,13 +77,17 @@ describe('the figure', () => {
       for (const path of pathsOn(view)) {
         const points = flattenPath(path.d);
 
-        expect(Math.min(...points.map((point) => point.x))).toBeGreaterThanOrEqual(canvas.minX);
+        expect(
+          Math.min(...points.map((point) => point.x))
+        ).toBeGreaterThanOrEqual(canvas.minX);
         expect(Math.max(...points.map((point) => point.x))).toBeLessThanOrEqual(
-          canvas.minX + canvas.width,
+          canvas.minX + canvas.width
         );
-        expect(Math.min(...points.map((point) => point.y))).toBeGreaterThanOrEqual(canvas.minY);
+        expect(
+          Math.min(...points.map((point) => point.y))
+        ).toBeGreaterThanOrEqual(canvas.minY);
         expect(Math.max(...points.map((point) => point.y))).toBeLessThanOrEqual(
-          canvas.minY + canvas.height,
+          canvas.minY + canvas.height
         );
       }
     }
@@ -86,7 +107,9 @@ describe('coverage', () => {
     // The whole point of the hand-authored shapes: a muscle with no region
     // cannot be targeted at all, and nothing else would notice.
     const drawn = new Set(
-      BODY_PATHS.flatMap((path) => (path.kind === 'muscle' ? [path.muscle] : [])),
+      BODY_PATHS.flatMap((path) =>
+        path.kind === 'muscle' ? [path.muscle] : []
+      )
     );
 
     expect([...drawn].sort()).toEqual([...MUSCLES].sort());
@@ -96,7 +119,9 @@ describe('coverage', () => {
     // The exported list and the paths are generated from one pass, but nothing
     // else would notice them drifting apart.
     const drawn = new Set(
-      BODY_PATHS.flatMap((path) => (path.kind === 'muscle' ? [path.muscle] : [])),
+      BODY_PATHS.flatMap((path) =>
+        path.kind === 'muscle' ? [path.muscle] : []
+      )
     );
 
     expect([...MUSCLES_ON_BODY].sort()).toEqual([...drawn].sort());
@@ -107,7 +132,9 @@ describe('coverage', () => {
     // figure they stop matching, and `pnpm run muscle-art:check` — which
     // `validate` runs — fails rather than the muscle quietly vanishing.
     const count = (muscle: Muscle) =>
-      BODY_PATHS.filter((path) => path.kind === 'muscle' && path.muscle === muscle).length;
+      BODY_PATHS.filter(
+        (path) => path.kind === 'muscle' && path.muscle === muscle
+      ).length;
 
     expect(count('lats')).toBe(2);
     expect(count('middle back')).toBe(2);
@@ -131,7 +158,9 @@ describe('coverage', () => {
 
   test('the hand-authored regions are the three the illustration has no geometry for', () => {
     const authored = new Set(
-      BODY_PATHS.flatMap((path) => (path.kind === 'muscle' && path.authored ? [path.muscle] : [])),
+      BODY_PATHS.flatMap((path) =>
+        path.kind === 'muscle' && path.authored ? [path.muscle] : []
+      )
     );
 
     expect([...authored].sort()).toEqual(['abductors', 'adductors', 'neck']);
@@ -142,13 +171,19 @@ describe('coverage', () => {
     // hand-placed shape that a test can actually judge. The generator refuses
     // to emit one; this checks the committed file, which is what ships.
     for (const view of VIEWS) {
-      const silhouette = pathsOn(view).find((path) => path.kind === 'silhouette');
+      const silhouette = pathsOn(view).find(
+        (path) => path.kind === 'silhouette'
+      );
       const outline = flattenPath(silhouette!.d);
 
       for (const path of pathsOn(view)) {
         if (path.kind !== 'muscle' || !path.authored) continue;
         for (const point of flattenPath(path.d)) {
-          expect({ view, muscle: path.muscle, inside: pointInPolygon(outline, point) }).toEqual({
+          expect({
+            view,
+            muscle: path.muscle,
+            inside: pointInPolygon(outline, point),
+          }).toEqual({
             view,
             muscle: path.muscle,
             inside: true,
@@ -181,15 +216,23 @@ describe('as a set of tap targets', () => {
         ...VIEWS.map((view) =>
           pathsOn(view)
             .filter((path) => path.kind === 'muscle' && path.muscle === muscle)
-            .reduce((total, path) => total + polygonArea(flattenPath(path.d)), 0),
-        ),
+            .reduce(
+              (total, path) => total + polygonArea(flattenPath(path.d)),
+              0
+            )
+        )
       );
 
-      expect({ muscle, area: Math.round(best * PT_PER_UNIT * PT_PER_UNIT) }).toEqual({
+      expect({
+        muscle,
+        area: Math.round(best * PT_PER_UNIT * PT_PER_UNIT),
+      }).toEqual({
         muscle,
         area: expect.any(Number),
       });
-      expect(best * PT_PER_UNIT * PT_PER_UNIT).toBeGreaterThan(MIN_TAP_AREA_PT2);
+      expect(best * PT_PER_UNIT * PT_PER_UNIT).toBeGreaterThan(
+        MIN_TAP_AREA_PT2
+      );
     }
   });
 });
@@ -214,7 +257,10 @@ describe('tiles against the figure', () => {
     for (const tile of MUSCLE_TILES) {
       const on = tile.muscles.filter((muscle) => drawn.has(muscle));
 
-      expect({ tile: tile.id, on: on.length }).toEqual({ tile: tile.id, on: tile.muscles.length });
+      expect({ tile: tile.id, on: on.length }).toEqual({
+        tile: tile.id,
+        on: tile.muscles.length,
+      });
     }
   });
 });

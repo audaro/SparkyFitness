@@ -109,8 +109,12 @@ export function isDatabaseInaccessibleError(error: unknown): boolean {
 // device, it says "not now", not "something broke".
 export function isAuthorizationNotDeterminedError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  return error.message.toLowerCase().includes('authorization status is not determined')
-    || error.message.toLowerCase().includes('authorization not determined');
+  return (
+    error.message
+      .toLowerCase()
+      .includes('authorization status is not determined') ||
+    error.message.toLowerCase().includes('authorization not determined')
+  );
 }
 
 // Classify and log a failed HealthKit read, bumping the locked-device counter when the
@@ -120,7 +124,10 @@ const recordReadError = (error: unknown, label: string): string => {
   const message = error instanceof Error ? error.message : String(error);
   if (isDatabaseInaccessibleError(error)) {
     databaseInaccessibleCount++;
-    addLog(`[HealthKitService] ${label} failed: database inaccessible (device likely locked)`, 'WARNING');
+    addLog(
+      `[HealthKitService] ${label} failed: database inaccessible (device likely locked)`,
+      'WARNING'
+    );
   } else if (isAuthorizationNotDeterminedError(error)) {
     addLog(`[HealthKitService] ${label} failed: not authorized yet`, 'WARNING');
   } else {

@@ -31,7 +31,9 @@ jest.mock('../../src/hooks', () => ({
   useActiveAiServiceSetting: () => ({ data: { id: 'cfg-1' } }),
 }));
 
-const mockPostQuickLog = postQuickLog as jest.MockedFunction<typeof postQuickLog>;
+const mockPostQuickLog = postQuickLog as jest.MockedFunction<
+  typeof postQuickLog
+>;
 
 type SpeechHandlers = Record<string, (event: unknown) => void>;
 const handlers = (): SpeechHandlers =>
@@ -57,19 +59,27 @@ describe('VoicePushToTalk', () => {
   });
 
   it('runs the full listen → send → reply flow', async () => {
-    mockPostQuickLog.mockResolvedValueOnce({ text: '✅ Logged 2 eggs.', actions: [] });
+    mockPostQuickLog.mockResolvedValueOnce({
+      text: '✅ Logged 2 eggs.',
+      actions: [],
+    });
 
     const { getByLabelText, getByText, queryByText } = renderOverlay();
 
     fireEvent.press(getByLabelText('Talk to Sparky'));
     await waitFor(() =>
-      expect(ExpoSpeechRecognitionModule.requestPermissionsAsync).toHaveBeenCalled()
+      expect(
+        ExpoSpeechRecognitionModule.requestPermissionsAsync
+      ).toHaveBeenCalled()
     );
     expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled();
     expect(getByText('Listening… tap the mic when done')).toBeTruthy();
 
     act(() => {
-      handlers().result({ results: [{ transcript: 'log 2 eggs' }], isFinal: true });
+      handlers().result({
+        results: [{ transcript: 'log 2 eggs' }],
+        isFinal: true,
+      });
     });
     expect(getByText('log 2 eggs')).toBeTruthy();
 
@@ -90,14 +100,22 @@ describe('VoicePushToTalk', () => {
 
   it('does not speak when spoken replies are disabled', async () => {
     useAppPreferencesStore.setState({ voiceRepliesEnabled: false });
-    mockPostQuickLog.mockResolvedValueOnce({ text: 'You have 1,450 left.', actions: [] });
+    mockPostQuickLog.mockResolvedValueOnce({
+      text: 'You have 1,450 left.',
+      actions: [],
+    });
 
     const { getByLabelText, getByText } = renderOverlay();
 
     fireEvent.press(getByLabelText('Talk to Sparky'));
-    await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled()
+    );
     act(() => {
-      handlers().result({ results: [{ transcript: 'calories left?' }], isFinal: true });
+      handlers().result({
+        results: [{ transcript: 'calories left?' }],
+        isFinal: true,
+      });
     });
     await act(async () => {
       handlers().end({});
@@ -111,7 +129,9 @@ describe('VoicePushToTalk', () => {
     const { getByLabelText, queryByText } = renderOverlay();
 
     fireEvent.press(getByLabelText('Talk to Sparky'));
-    await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled()
+    );
     await act(async () => {
       handlers().end({});
     });
@@ -126,15 +146,22 @@ describe('VoicePushToTalk', () => {
     const { getByLabelText, getByText } = renderOverlay();
 
     fireEvent.press(getByLabelText('Talk to Sparky'));
-    await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled()
+    );
     act(() => {
-      handlers().result({ results: [{ transcript: 'log lunch' }], isFinal: true });
+      handlers().result({
+        results: [{ transcript: 'log lunch' }],
+        isFinal: true,
+      });
     });
     await act(async () => {
       handlers().end({});
     });
 
-    await waitFor(() => expect(getByText('No active AI provider')).toBeTruthy());
+    await waitFor(() =>
+      expect(getByText('No active AI provider')).toBeTruthy()
+    );
     expect(getByText('Something went wrong')).toBeTruthy();
   });
 
@@ -144,7 +171,9 @@ describe('VoicePushToTalk', () => {
     const { getByLabelText, getByText } = renderOverlay();
 
     fireEvent.press(getByLabelText('Talk to Sparky'));
-    await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled()
+    );
     // Manual mode is continuous recognition: the mic survives a pause.
     expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledWith(
       expect.objectContaining({ continuous: true })
@@ -153,8 +182,14 @@ describe('VoicePushToTalk', () => {
 
     // Continuous results are segments, not a growing whole.
     act(() => {
-      handlers().result({ results: [{ transcript: 'log 2 eggs' }], isFinal: true });
-      handlers().result({ results: [{ transcript: 'and a coffee' }], isFinal: true });
+      handlers().result({
+        results: [{ transcript: 'log 2 eggs' }],
+        isFinal: true,
+      });
+      handlers().result({
+        results: [{ transcript: 'and a coffee' }],
+        isFinal: true,
+      });
     });
     expect(getByText('log 2 eggs and a coffee')).toBeTruthy();
 
@@ -164,7 +199,10 @@ describe('VoicePushToTalk', () => {
     await act(async () => {
       handlers().end({});
     });
-    expect(mockPostQuickLog).toHaveBeenCalledWith('log 2 eggs and a coffee', 'cfg-1');
+    expect(mockPostQuickLog).toHaveBeenCalledWith(
+      'log 2 eggs and a coffee',
+      'cfg-1'
+    );
   });
 
   it('sends the live segment when capture ends before the engine finalizes it', async () => {
@@ -173,9 +211,14 @@ describe('VoicePushToTalk', () => {
     const { getByLabelText } = renderOverlay();
 
     fireEvent.press(getByLabelText('Talk to Sparky'));
-    await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled()
+    );
     act(() => {
-      handlers().result({ results: [{ transcript: 'log a banana' }], isFinal: false });
+      handlers().result({
+        results: [{ transcript: 'log a banana' }],
+        isFinal: false,
+      });
     });
     await act(async () => {
       handlers().end({});
@@ -190,7 +233,9 @@ describe('VoicePushToTalk', () => {
     const { getByLabelText, getByText } = renderOverlay();
 
     fireEvent.press(getByLabelText('Talk to Sparky'));
-    await waitFor(() => expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalled()
+    );
     expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledWith(
       expect.objectContaining({ continuous: false })
     );

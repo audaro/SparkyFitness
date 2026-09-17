@@ -241,11 +241,11 @@ describe('FoodDetailScreen', () => {
       error: null,
       refetch: jest.fn(),
     });
-        mockUseServerConnection.mockReturnValue({
-          isConnected: true,
-        isLoading: false,
-        isError: false,
-        refetch: jest.fn(),
+    mockUseServerConnection.mockReturnValue({
+      isConnected: true,
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
     });
     mockUseFavorites.mockReturnValue({
       favoriteFoods: [],

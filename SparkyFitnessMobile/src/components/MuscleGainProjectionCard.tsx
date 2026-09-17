@@ -54,7 +54,7 @@ const MuscleGainProjectionCard: React.FC<Props> = ({ onPress, enabled }) => {
 
   const { projection, isPlaceholderData, isLoading } = useMuscleGainProjection(
     HORIZON_WEEKS[horizon],
-    enabled,
+    enabled
   );
 
   const [accentPrimary, textMuted] = useCSSVariable([
@@ -155,7 +155,7 @@ const MuscleGainProjectionCard: React.FC<Props> = ({ onPress, enabled }) => {
             defaultValue:
               'At the {{percent}}% of your targets you have been hitting.',
             percent: formatLocalizedNumber(
-              Math.round((projection?.inputs.adherence ?? 0) * 100),
+              Math.round((projection?.inputs.adherence ?? 0) * 100)
             ),
           })}
         </Text>

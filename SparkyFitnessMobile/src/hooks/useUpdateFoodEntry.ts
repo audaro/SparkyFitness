@@ -1,7 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import i18n from '../localization/i18n';
-import { updateFoodEntry, type UpdateFoodEntryPayload } from '../services/api/foodEntriesApi';
+import {
+  updateFoodEntry,
+  type UpdateFoodEntryPayload,
+} from '../services/api/foodEntriesApi';
 import { hasApiStatus } from '../services/api/errors';
 import { normalizeDate } from '../utils/dateUtils';
 import { dailySummaryQueryKey } from './queryKeys';
@@ -29,7 +32,9 @@ export function useUpdateFoodEntry({
     },
     onError: (error) => {
       const message = hasApiStatus(error, 403)
-        ? i18n.t('foodEntryView.errors.permission', { defaultValue: "You don't have permission to edit this entry." })
+        ? i18n.t('foodEntryView.errors.permission', {
+            defaultValue: "You don't have permission to edit this entry.",
+          })
         : i18n.t('common.tryAgain', { defaultValue: 'Please try again.' });
       Toast.show({
         type: 'error',

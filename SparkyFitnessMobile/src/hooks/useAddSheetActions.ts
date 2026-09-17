@@ -149,8 +149,10 @@ export function useAddSheetActions({ syncMutation }: AddSheetActionsArgs) {
     const dateForTab = (tab: 'Exercise' | 'Food') => {
       const tabLocalState = findRouteState(tabState, tab);
       const params =
-        findRouteParams<{ selectedDate?: string }>(tabLocalState, `${tab}Root`) ??
-        findRouteParams<{ selectedDate?: string }>(tabState, tab);
+        findRouteParams<{ selectedDate?: string }>(
+          tabLocalState,
+          `${tab}Root`
+        ) ?? findRouteParams<{ selectedDate?: string }>(tabState, tab);
       return params?.selectedDate;
     };
 

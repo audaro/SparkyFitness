@@ -94,7 +94,7 @@ describe('CustomTabBar', () => {
     const screen = render(
       <SafeAreaProvider initialMetrics={{ insets, frame }}>
         <CustomTabBar {...props} />
-      </SafeAreaProvider>,
+      </SafeAreaProvider>
     );
 
     expect(screen.getByTestId('icon-tab-dashboard')).toBeTruthy();

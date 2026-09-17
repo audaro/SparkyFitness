@@ -41,7 +41,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 const sessionSet = (
   setNumber: number,
-  restTime: number | null,
+  restTime: number | null
 ): ExerciseEntryResponse['sets'][number] => ({
   id: setNumber,
   set_number: setNumber,
@@ -60,7 +60,7 @@ const sessionEntry = (
   id: string,
   supersetGroup: number | null,
   restTime: number | null = 60,
-  setCount = 2,
+  setCount = 2
 ): ExerciseEntryResponse => ({
   id,
   exercise_id: `catalog-${id}`,
@@ -71,7 +71,9 @@ const sessionEntry = (
   distance: null,
   avg_heart_rate: null,
   source: null,
-  sets: Array.from({ length: setCount }, (_, index) => sessionSet(index + 1, restTime)),
+  sets: Array.from({ length: setCount }, (_, index) =>
+    sessionSet(index + 1, restTime)
+  ),
   exercise_snapshot: null,
   activity_details: [],
   superset_group: supersetGroup,
@@ -81,7 +83,7 @@ const draftExercise = (
   clientId: string,
   supersetGroup: number | null,
   restTime: number | null = 60,
-  setCount = 2,
+  setCount = 2
 ): WorkoutDraftExercise => ({
   clientId,
   exerciseId: `catalog-${clientId}`,
@@ -102,7 +104,7 @@ const plannedExercise = (
   exerciseId: string,
   supersetGroup: number | null,
   restSeconds: number | null = 60,
-  setCount = 2,
+  setCount = 2
 ): PlannedExercise => ({
   exercise_id: exerciseId,
   exercise_name: `Exercise ${exerciseId}`,
@@ -130,11 +132,11 @@ const plannedExercise = (
 
 /** Group ids in list order — the compact form most assertions here want. */
 const groupsOf = (
-  exercises: { superset_group?: number | null }[],
-): (number | null)[] => exercises.map(e => e.superset_group ?? null);
+  exercises: { superset_group?: number | null }[]
+): (number | null)[] => exercises.map((e) => e.superset_group ?? null);
 
 const draftGroupsOf = (exercises: WorkoutDraftExercise[]): (number | null)[] =>
-  exercises.map(e => e.supersetGroup ?? null);
+  exercises.map((e) => e.supersetGroup ?? null);
 
 beforeEach(() => {
   __resetAppPreferencesStoreForTests();
@@ -159,7 +161,7 @@ describe('getSupersetRuns', () => {
       getSupersetRuns([
         { id: 'a', superset_group: 1 },
         { id: 'b', superset_group: null },
-      ]),
+      ])
     ).toEqual([]);
   });
 
@@ -172,7 +174,7 @@ describe('getSupersetRuns', () => {
         { id: 'a', superset_group: 7 },
         { id: 'b', superset_group: null },
         { id: 'c', superset_group: 7 },
-      ]),
+      ])
     ).toEqual([]);
   });
 
@@ -182,7 +184,7 @@ describe('getSupersetRuns', () => {
         { id: 'a', superset_group: 2 },
         { id: 'b', superset_group: 2 },
         { id: 'c', superset_group: 2 },
-      ]),
+      ])
     ).toEqual([{ groupId: 2, entryIds: ['a', 'b', 'c'] }]);
   });
 
@@ -193,7 +195,7 @@ describe('getSupersetRuns', () => {
         { id: 'b', superset_group: 1 },
         { id: 'c', superset_group: 2 },
         { id: 'd', superset_group: 2 },
-      ]),
+      ])
     ).toEqual([
       { groupId: 1, entryIds: ['a', 'b'] },
       { groupId: 2, entryIds: ['c', 'd'] },
@@ -213,7 +215,7 @@ describe('run derivation is keyed to each shape’s own id field', () => {
       getDraftSupersetRuns([
         draftExercise('draft-a', 3),
         draftExercise('draft-b', 3),
-      ]),
+      ])
     ).toEqual([{ groupId: 3, entryIds: ['draft-a', 'draft-b'] }]);
   });
 
@@ -222,7 +224,7 @@ describe('run derivation is keyed to each shape’s own id field', () => {
       getPlannedSupersetRuns([
         plannedExercise('planned-a', 4),
         plannedExercise('planned-b', 4),
-      ]),
+      ])
     ).toEqual([{ groupId: 4, entryIds: ['planned-a', 'planned-b'] }]);
   });
 });
@@ -232,12 +234,16 @@ describe('run derivation is keyed to each shape’s own id field', () => {
 describe('grouping two exercises', () => {
   test('the picked exercise moves to sit immediately after the current one', () => {
     const result = supersetSessionExercises(
-      [sessionEntry('a', null), sessionEntry('b', null), sessionEntry('c', null)],
+      [
+        sessionEntry('a', null),
+        sessionEntry('b', null),
+        sessionEntry('c', null),
+      ],
       'a',
-      'c',
+      'c'
     );
 
-    expect(result.map(e => e.id)).toEqual(['a', 'c', 'b']);
+    expect(result.map((e) => e.id)).toEqual(['a', 'c', 'b']);
     expect(groupsOf(result)).toEqual([1, 1, null]);
   });
 
@@ -245,9 +251,13 @@ describe('grouping two exercises', () => {
     // The stale 5 is not a run, but reusing it would silently fuse the new
     // pair into that singleton the moment a reorder made them adjacent.
     const result = supersetSessionExercises(
-      [sessionEntry('stale', 5), sessionEntry('a', null), sessionEntry('b', null)],
+      [
+        sessionEntry('stale', 5),
+        sessionEntry('a', null),
+        sessionEntry('b', null),
+      ],
       'a',
-      'b',
+      'b'
     );
 
     expect(groupsOf(result)).toEqual([5, 6, 6]);
@@ -280,12 +290,12 @@ describe('grouping two exercises', () => {
         sessionEntry('c', null),
       ],
       'a',
-      'c',
+      'c'
     );
 
     // Keeps the existing group id, and lands after the run's LAST member so
     // the block stays adjacent — not after the member whose menu was used.
-    expect(result.map(e => e.id)).toEqual(['a', 'b', 'c', 'spacer']);
+    expect(result.map((e) => e.id)).toEqual(['a', 'b', 'c', 'spacer']);
     expect(groupsOf(result)).toEqual([1, 1, 1, null]);
   });
 });
@@ -295,10 +305,12 @@ describe('grouping harmonizes rest across the whole group', () => {
     const result = supersetSessionExercises(
       [sessionEntry('a', null, 45), sessionEntry('b', null, 180)],
       'a',
-      'b',
+      'b'
     );
 
-    expect(result.flatMap(e => e.sets.map(s => s.rest_time))).toEqual([45, 45, 45, 45]);
+    expect(result.flatMap((e) => e.sets.map((s) => s.rest_time))).toEqual([
+      45, 45, 45, 45,
+    ]);
   });
 
   test('the anchor is the run’s first member when extending, not the menu’s owner', () => {
@@ -313,10 +325,12 @@ describe('grouping harmonizes rest across the whole group', () => {
       ],
       // Grouping was triggered from 'b', but 'a' opens the run.
       'b',
-      'c',
+      'c'
     );
 
-    expect(result.flatMap(e => e.sets.map(s => s.rest_time))).toEqual([30, 30, 30, 30, 30, 30]);
+    expect(result.flatMap((e) => e.sets.map((s) => s.rest_time))).toEqual([
+      30, 30, 30, 30, 30, 30,
+    ]);
   });
 
   test('an anchor with no rest of its own falls back to the user preference', () => {
@@ -325,20 +339,22 @@ describe('grouping harmonizes rest across the whole group', () => {
     const result = supersetSessionExercises(
       [sessionEntry('a', null, null), sessionEntry('b', null, 60)],
       'a',
-      'b',
+      'b'
     );
 
-    expect(result.flatMap(e => e.sets.map(s => s.rest_time))).toEqual([123, 123, 123, 123]);
+    expect(result.flatMap((e) => e.sets.map((s) => s.rest_time))).toEqual([
+      123, 123, 123, 123,
+    ]);
   });
 
   test('the fallback is the shipped default when the user has not set one', () => {
     const result = supersetSessionExercises(
       [sessionEntry('a', null, null, 1), sessionEntry('b', null, 60, 1)],
       'a',
-      'b',
+      'b'
     );
 
-    expect(result.flatMap(e => e.sets.map(s => s.rest_time))).toEqual([
+    expect(result.flatMap((e) => e.sets.map((s) => s.rest_time))).toEqual([
       DEFAULT_REST_SEC,
       DEFAULT_REST_SEC,
     ]);
@@ -351,21 +367,25 @@ describe('grouping harmonizes rest across the whole group', () => {
     const result = supersetPlannedExercises(
       [plannedExercise('a', null, 40), plannedExercise('b', null, 200)],
       'a',
-      'b',
+      'b'
     );
 
-    expect(result.map(e => e.rest_seconds)).toEqual([40, 40]);
-    expect(result.flatMap(e => e.sets.map(s => s.rest_time))).toEqual([40, 40, 40, 40]);
+    expect(result.map((e) => e.rest_seconds)).toEqual([40, 40]);
+    expect(result.flatMap((e) => e.sets.map((s) => s.rest_time))).toEqual([
+      40, 40, 40, 40,
+    ]);
   });
 
   test('drafts harmonize their own restTime field', () => {
     const result = supersetDraftExercises(
       [draftExercise('a', null, 25), draftExercise('b', null, 300)],
       'a',
-      'b',
+      'b'
     );
 
-    expect(result.flatMap(e => e.sets.map(s => s.restTime))).toEqual([25, 25, 25, 25]);
+    expect(result.flatMap((e) => e.sets.map((s) => s.restTime))).toEqual([
+      25, 25, 25, 25,
+    ]);
     expect(draftGroupsOf(result)).toEqual([1, 1]);
   });
 });
@@ -381,21 +401,21 @@ describe('ungrouping one member', () => {
         sessionEntry('c', 1),
         sessionEntry('tail', null),
       ],
-      'b',
+      'b'
     );
 
     // The remaining members must stay adjacent, or they stop being a run.
-    expect(result.map(e => e.id)).toEqual(['a', 'c', 'b', 'tail']);
+    expect(result.map((e) => e.id)).toEqual(['a', 'c', 'b', 'tail']);
     expect(groupsOf(result)).toEqual([1, 1, null, null]);
   });
 
   test('an end member is cleared in place', () => {
     const result = ungroupSessionExercise(
       [sessionEntry('a', 1), sessionEntry('b', 1), sessionEntry('c', 1)],
-      'c',
+      'c'
     );
 
-    expect(result.map(e => e.id)).toEqual(['a', 'b', 'c']);
+    expect(result.map((e) => e.id)).toEqual(['a', 'b', 'c']);
     expect(groupsOf(result)).toEqual([1, 1, null]);
   });
 
@@ -411,7 +431,7 @@ describe('ungrouping one member', () => {
     // would hide which layer actually owns the invariant.
     const result = ungroupSessionExercise(
       [sessionEntry('a', 1), sessionEntry('b', 1)],
-      'b',
+      'b'
     );
 
     expect(groupsOf(result)).toEqual([1, null]);
@@ -420,11 +440,21 @@ describe('ungrouping one member', () => {
   test('the planned and draft wrappers dissolve the remainder inline', () => {
     // Up Next and the form reducers have no shared edit tail to do it.
     expect(
-      groupsOf(ungroupPlannedExercise([plannedExercise('a', 1), plannedExercise('b', 1)], 'b')),
+      groupsOf(
+        ungroupPlannedExercise(
+          [plannedExercise('a', 1), plannedExercise('b', 1)],
+          'b'
+        )
+      )
     ).toEqual([null, null]);
 
     expect(
-      draftGroupsOf(ungroupDraftExercise([draftExercise('a', 1), draftExercise('b', 1)], 'b')),
+      draftGroupsOf(
+        ungroupDraftExercise(
+          [draftExercise('a', 1), draftExercise('b', 1)],
+          'b'
+        )
+      )
     ).toEqual([null, null]);
   });
 
@@ -433,11 +463,13 @@ describe('ungrouping one member', () => {
     const grouped = supersetSessionExercises(
       [sessionEntry('a', null, 45), sessionEntry('b', null, 180)],
       'a',
-      'b',
+      'b'
     );
     const result = ungroupSessionExercise(grouped, 'b');
 
-    expect(result.flatMap(e => e.sets.map(s => s.rest_time))).toEqual([45, 45, 45, 45]);
+    expect(result.flatMap((e) => e.sets.map((s) => s.rest_time))).toEqual([
+      45, 45, 45, 45,
+    ]);
   });
 });
 
@@ -451,13 +483,17 @@ describe('normalizing stale group values', () => {
           sessionEntry('a', 7),
           sessionEntry('b', null),
           sessionEntry('c', 7),
-        ]),
-      ),
+        ])
+      )
     ).toEqual([null, null, null]);
   });
 
   test('real runs are left alone, and the array comes back by identity', () => {
-    const exercises = [sessionEntry('a', 1), sessionEntry('b', 1), sessionEntry('c', null)];
+    const exercises = [
+      sessionEntry('a', 1),
+      sessionEntry('b', 1),
+      sessionEntry('c', null),
+    ];
 
     // Identity matters: this runs on every session edit, and a fresh array
     // every time would defeat the memo checks downstream of it.
@@ -466,11 +502,21 @@ describe('normalizing stale group values', () => {
 
   test('the planned and draft shapes normalize the same way', () => {
     expect(
-      groupsOf(normalizePlannedSupersetGroups([plannedExercise('a', 9), plannedExercise('b', null)])),
+      groupsOf(
+        normalizePlannedSupersetGroups([
+          plannedExercise('a', 9),
+          plannedExercise('b', null),
+        ])
+      )
     ).toEqual([null, null]);
 
     expect(
-      draftGroupsOf(normalizeDraftSupersetGroups([draftExercise('a', 9), draftExercise('b', null)])),
+      draftGroupsOf(
+        normalizeDraftSupersetGroups([
+          draftExercise('a', 9),
+          draftExercise('b', null),
+        ])
+      )
     ).toEqual([null, null]);
   });
 });
@@ -484,7 +530,7 @@ describe('buildExerciseReorderItems', () => {
         { id: 'a', superset_group: null },
         { id: 'b', superset_group: 1 },
         { id: 'c', superset_group: 1 },
-      ]),
+      ])
     ).toEqual([
       { key: 'a', entryIds: ['a'], groupId: null },
       { key: 'b', entryIds: ['b', 'c'], groupId: 1 },
@@ -497,7 +543,7 @@ describe('buildExerciseReorderItems', () => {
         { id: 'a', superset_group: 7 },
         { id: 'b', superset_group: null },
         { id: 'c', superset_group: 7 },
-      ]),
+      ])
     ).toEqual([
       { key: 'a', entryIds: ['a'], groupId: null },
       { key: 'b', entryIds: ['b'], groupId: null },
@@ -508,13 +554,18 @@ describe('buildExerciseReorderItems', () => {
 
 describe('canReorderDraftExercises', () => {
   test('two exercises fused into one superset are not reorderable', () => {
-    expect(canReorderDraftExercises([draftExercise('a', 1), draftExercise('b', 1)])).toBe(false);
+    expect(
+      canReorderDraftExercises([draftExercise('a', 1), draftExercise('b', 1)])
+    ).toBe(false);
   });
 
   test('two independent exercises are', () => {
-    expect(canReorderDraftExercises([draftExercise('a', null), draftExercise('b', null)])).toBe(
-      true,
-    );
+    expect(
+      canReorderDraftExercises([
+        draftExercise('a', null),
+        draftExercise('b', null),
+      ])
+    ).toBe(true);
   });
 
   test('a single exercise is not', () => {
@@ -528,13 +579,18 @@ describe('canReorderDraftExercises', () => {
 describe('moving an exercise item', () => {
   test('indices are ITEM indices, and a run drags as one block', () => {
     const result = moveSessionExerciseItem(
-      [sessionEntry('a', 1), sessionEntry('b', 1), sessionEntry('c', null), sessionEntry('d', null)],
+      [
+        sessionEntry('a', 1),
+        sessionEntry('b', 1),
+        sessionEntry('c', null),
+        sessionEntry('d', null),
+      ],
       // Item 0 is the whole (a, b) run; there are three items, not four.
       0,
-      2,
+      2
     );
 
-    expect(result.map(e => e.id)).toEqual(['c', 'd', 'a', 'b']);
+    expect(result.map((e) => e.id)).toEqual(['c', 'd', 'a', 'b']);
   });
 
   test('a no-op or out-of-range move returns the input by identity', () => {
@@ -550,24 +606,32 @@ describe('moving an exercise item', () => {
     // Without the pre-move clearing pass, the next normalize would read these
     // two 7s as a run the user never built.
     const result = moveSessionExerciseItem(
-      [sessionEntry('a', 7), sessionEntry('spacer', null), sessionEntry('c', 7)],
+      [
+        sessionEntry('a', 7),
+        sessionEntry('spacer', null),
+        sessionEntry('c', 7),
+      ],
       1,
-      2,
+      2
     );
 
-    expect(result.map(e => e.id)).toEqual(['a', 'c', 'spacer']);
+    expect(result.map((e) => e.id)).toEqual(['a', 'c', 'spacer']);
     expect(groupsOf(result)).toEqual([null, null, null]);
     expect(getSupersetRuns(result)).toEqual([]);
   });
 
   test('drafts move by clientId', () => {
     const result = moveDraftExerciseItem(
-      [draftExercise('a', null), draftExercise('b', null), draftExercise('c', null)],
+      [
+        draftExercise('a', null),
+        draftExercise('b', null),
+        draftExercise('c', null),
+      ],
       2,
-      0,
+      0
     );
 
-    expect(result.map(e => e.clientId)).toEqual(['c', 'a', 'b']);
+    expect(result.map((e) => e.clientId)).toEqual(['c', 'a', 'b']);
   });
 });
 
@@ -580,7 +644,7 @@ describe('buildSupersetColorMap', () => {
         { groupId: 41, entryIds: ['a', 'b'] },
         { groupId: 3, entryIds: ['c', 'd'] },
       ],
-      ['red', 'blue'],
+      ['red', 'blue']
     );
 
     // By index, not by hashing the group id — 41 and 3 would be free to
@@ -600,17 +664,21 @@ describe('buildSupersetColorMap', () => {
         { groupId: 2, entryIds: ['b'] },
         { groupId: 3, entryIds: ['c'] },
       ],
-      ['red', 'blue'],
+      ['red', 'blue']
     );
 
     expect(map.get('c')).toBe('red');
   });
 
   test('an empty palette yields no colours rather than dividing by zero', () => {
-    expect(buildSupersetColorMap([{ groupId: 1, entryIds: ['a'] }], []).size).toBe(0);
+    expect(
+      buildSupersetColorMap([{ groupId: 1, entryIds: ['a'] }], []).size
+    ).toBe(0);
   });
 
   test('the shipped palette has no duplicate vars', () => {
-    expect(new Set(SUPERSET_PALETTE_VARS).size).toBe(SUPERSET_PALETTE_VARS.length);
+    expect(new Set(SUPERSET_PALETTE_VARS).size).toBe(
+      SUPERSET_PALETTE_VARS.length
+    );
   });
 });

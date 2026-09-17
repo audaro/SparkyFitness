@@ -43,7 +43,9 @@ export default function AskUserChips({ part }: { part: ToolCallMessagePart }) {
             onPress={() => aui.thread().append(option)}
             className={`bg-background border border-border-subtle rounded-3xl px-3 py-1.5 ${disabled ? 'opacity-50' : ''}`}
           >
-            <Text className="text-text-primary text-sm font-medium">{option}</Text>
+            <Text className="text-text-primary text-sm font-medium">
+              {option}
+            </Text>
           </Pressable>
         ))}
       </View>
