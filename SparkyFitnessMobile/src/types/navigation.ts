@@ -15,6 +15,7 @@ import type { MealTypeKey } from '../utils/mealNutrition';
 import type { AssumedSetValues } from '../utils/workoutSession';
 import type { PhotoType } from './checkInPhotos';
 import type { Exercise } from './exercise';
+import type { PlannedExercise } from '../utils/workoutSupersets';
 import type { FamilyDiaryUser } from './familyDiary';
 import type { FoodEntry } from './foodEntries';
 import type { FoodEntryMeal } from './foodEntryMeals';
@@ -151,10 +152,17 @@ export type RootStackParamList = {
          */
         context: 'up-next';
         item: Exercise;
-        /** The planned exercise's catalog id — its identity within the plan. */
-        exerciseId: string;
+        /**
+         * The planned exercise as Up Next holds it — sets, rest and rationale.
+         * Passed whole rather than looked up: the sheet edits a copy of it and
+         * hands the copy back, and `exercise_id` is its identity in the plan.
+         */
+        planned: PlannedExercise;
         /** Route key of the Up Next screen the edited exercise returns to. */
         returnKey: string;
+        /** The edit round-trip, mirroring `selectedExercise`/`selectionNonce`. */
+        editedExercise?: PlannedExercise;
+        editNonce?: number;
       };
   FoodSearch:
     | {
@@ -280,7 +288,15 @@ export type RootStackParamList = {
   PresetSearch:
     { selectedExercise?: Exercise; selectionNonce?: number } | undefined;
   // Carries a selection back from ExerciseSearch when a row's Replace was used.
-  UpNext: { selectedExercise?: Exercise; selectionNonce?: number } | undefined;
+  UpNext:
+    | {
+        selectedExercise?: Exercise;
+        selectionNonce?: number;
+        /** A plan exercise the sheet edited, handed back for `editPlan`. */
+        editedExercise?: PlannedExercise;
+        editNonce?: number;
+      }
+    | undefined;
   // Split list and muscle grid for the next generated workout. Takes no
   // params: the picked muscles go straight into a generate request, and the
   // response lands in the recommendation cache Up Next already reads.

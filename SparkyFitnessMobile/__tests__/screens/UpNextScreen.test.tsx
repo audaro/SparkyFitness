@@ -451,6 +451,38 @@ describe('UpNextScreen', () => {
     });
   });
 
+  it('opens a row in the exercise sheet, handing it the planned exercise', () => {
+    setRecommendation(makeRecommendation());
+
+    const screen = renderScreen();
+    fireEvent.press(screen.getAllByTestId('up-next-exercise-row')[0]);
+
+    expect(navigation.navigate).toHaveBeenCalledWith('ExerciseSheet', {
+      context: 'up-next',
+      item: expect.objectContaining({ id: EX_A, name: 'Bench Press' }),
+      planned: expect.objectContaining({ exercise_id: EX_A }),
+      returnKey: 'UpNext-key',
+    });
+  });
+
+  it('starts the workout with the sets the sheet edited, not the prescribed ones', () => {
+    const recommendation = makeRecommendation();
+    setRecommendation(recommendation);
+
+    const edited = {
+      ...makeExercise(),
+      sets: [makeSet({ set_number: 1, reps: 12, weight: 60 })],
+    };
+    const screen = renderScreen({ editedExercise: edited, editNonce: 1 });
+    fireEvent.press(screen.getByTestId('up-next-start'));
+
+    expect(startLiveWorkout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exercises: buildRecommendationStartPayload([edited]),
+      })
+    );
+  });
+
   it('opens the swap sheet instead of regenerating when Swap is pressed', () => {
     const screen = renderScreen();
     fireEvent.press(screen.getByTestId('up-next-swap'));
@@ -940,19 +972,6 @@ describe('UpNextScreen', () => {
         )
       ).toEqual([null, null]);
     });
-  });
-
-  it('opens the exercise detail with workout actions suppressed', () => {
-    const screen = renderScreen();
-    fireEvent.press(screen.getByTestId('up-next-exercise-row'));
-
-    expect(navigation.navigate).toHaveBeenCalledWith(
-      'ExerciseDetail',
-      expect.objectContaining({
-        hideWorkoutActions: true,
-        item: expect.objectContaining({ id: EX_A, name: 'Bench Press' }),
-      })
-    );
   });
 
   describe('replace', () => {

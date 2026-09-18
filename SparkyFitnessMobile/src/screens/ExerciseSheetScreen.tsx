@@ -1,14 +1,17 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CommonActions } from '@react-navigation/native';
 import { useCSSVariable } from 'uniwind';
 
 import ActiveWorkoutExerciseCard from '../components/ActiveWorkoutExerciseCard';
 import { type AnchorRect } from '../components/AnchoredMenu';
 import ExerciseHeroMedia from '../components/ExerciseHeroMedia';
 import ExerciseHistoryList from '../components/ExerciseHistoryList';
-import ExerciseSetRestSheet from '../components/ExerciseSetRestSheet';
+import ExerciseSetRestSheet, {
+  type ExerciseSetRestUpdate,
+} from '../components/ExerciseSetRestSheet';
 import Icon, { type IconName } from '../components/Icon';
 import { MetricColumnMenu } from '../components/WorkoutMenus';
 import { usePreferences } from '../hooks';
@@ -24,12 +27,42 @@ import {
   type ActiveSetPatch,
 } from '../stores/activeWorkoutStore';
 import type { RootStackScreenProps } from '../types/navigation';
-import { resolveSnapshotModality } from '../utils/workoutSession';
+import {
+  applyCardSetsToPlannedExercise,
+  plannedExerciseToCardExercise,
+  resolveSnapshotModality,
+  type WorkoutCardSet,
+} from '../utils/workoutSession';
+import type { PlannedExercise } from '../utils/workoutSupersets';
 
 type ExerciseSheetScreenProps = RootStackScreenProps<'ExerciseSheet'>;
 
-/** The card requires a collapse handler; the sheet has nothing to collapse. */
+/** A plan exercise being edited, with the client-side ids of its sets. */
+interface PlanDraft {
+  exercise: PlannedExercise;
+  setIds: readonly string[];
+}
+
+/** The next `set-<n>` suffix no id in `setIds` is already using. */
+function nextPlanSetIdSuffix(setIds: readonly string[]): number {
+  let highest = -1;
+  for (const id of setIds) {
+    const suffix = Number(id.slice('set-'.length));
+    if (id.startsWith('set-') && Number.isInteger(suffix) && suffix > highest) {
+      highest = suffix;
+    }
+  }
+  return highest + 1;
+}
+
+/**
+ * The card requires a collapse handler, and a metric-header one; the sheet has
+ * nothing to collapse, and the plan card's metric column is fixed.
+ */
 function noop(): void {}
+
+/** Stable empty map — a plan has nothing completed, and won't. */
+const EMPTY_COMPLETED_SETS = {};
 
 interface SheetChipProps {
   icon: IconName;
@@ -111,9 +144,17 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
     return [equipment, muscles, level].filter((part) => part.length > 0);
   }, [exercise.equipment, exercise.primary_muscles, exercise.level, t]);
 
-  // Active-workout context only for now: the live session owns the sets. The
-  // up-next context edits a local copy of the generated plan, which lands with
-  // the Up Next repoint.
+  // The two contexts own their sets differently. `active-workout` edits the
+  // live session through the store. `up-next` edits a local copy of the
+  // generated plan and hands each edit straight back to the Up Next screen —
+  // a recommendation has no session entries and nothing to persist to.
+  const isPlan = route.params.context === 'up-next';
+  const planReturnKey =
+    route.params.context === 'up-next' ? route.params.returnKey : null;
+  // Counted, not `Date.now()`: edits fire in a stream as the user types, and
+  // two landing in the same millisecond would share a nonce — Up Next's
+  // handoff would take the first as already-consumed and drop the second.
+  const planEditNonceRef = useRef(0);
   const entryId =
     route.params.context === 'active-workout' ? route.params.entryId : null;
   const entry = useActiveWorkoutStore((s) =>
@@ -136,6 +177,24 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
     (preferences?.default_distance_unit as 'km' | 'miles') ?? 'km';
   const { getImageSource } = useExerciseImageSource();
 
+  // The plan draft, with its set ids. Seeded once from the route: re-seeding on
+  // a param change would throw away edits the moment the sheet writes its own
+  // `editedExercise` back to Up Next.
+  //
+  // The ids are client-side. A RecommendationSet has none — nothing is
+  // persisted yet — so the sheet mints them, and they live in state beside the
+  // exercise because they must stay stable across edits: they are what the
+  // card's rows are keyed and edited by, and an id that moved would land an
+  // edit on the wrong row.
+  const [planDraft, setPlanDraft] = useState<PlanDraft | null>(() =>
+    route.params.context === 'up-next'
+      ? {
+          exercise: route.params.planned,
+          setIds: route.params.planned.sets.map((_, index) => `set-${index}`),
+        }
+      : null
+  );
+
   const [historyOpen, setHistoryOpen] = useState(false);
   const [metricMenu, setMetricMenu] = useState<{
     anchor: AnchorRect;
@@ -154,11 +213,59 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
   const canStartHold =
     holdState === 'idle' && restState === 'ready' && activeSetId != null;
 
-  const handleCommitField = useCallback(
-    (setId: string, patch: ActiveSetPatch) => {
-      useActiveWorkoutStore.getState().updateSetField(setId, patch);
+  const planCard = useMemo(
+    () =>
+      planDraft == null
+        ? null
+        : plannedExerciseToCardExercise(planDraft.exercise, planDraft.setIds),
+    [planDraft]
+  );
+
+  /**
+   * Rewrite the draft from the card sets the mutator produces. The mutator is
+   * handed the sets *and* their ids and returns both, so the two can never
+   * drift: every edit that reorders or removes a set moves its id with it.
+   */
+  const editPlanSets = useCallback(
+    (
+      next: (
+        sets: WorkoutCardSet[],
+        setIds: readonly string[]
+      ) => { sets: WorkoutCardSet[]; setIds: readonly string[] }
+    ) => {
+      setPlanDraft((current) => {
+        if (current == null) return current;
+        const cardSets = plannedExerciseToCardExercise(
+          current.exercise,
+          current.setIds
+        ).sets;
+        const result = next(cardSets, current.setIds);
+        return {
+          exercise: applyCardSetsToPlannedExercise(
+            current.exercise,
+            result.sets
+          ),
+          setIds: result.setIds,
+        };
+      });
     },
     []
+  );
+
+  const handleCommitField = useCallback(
+    (setId: string, patch: ActiveSetPatch) => {
+      if (isPlan) {
+        editPlanSets((sets, setIds) => ({
+          sets: sets.map((set) =>
+            String(set.id) === setId ? { ...set, ...patch } : set
+          ),
+          setIds,
+        }));
+        return;
+      }
+      useActiveWorkoutStore.getState().updateSetField(setId, patch);
+    },
+    [isPlan, editPlanSets]
   );
   const handleCompleteSet = useCallback((setId: string) => {
     useActiveWorkoutStore.getState().completeSet(setId);
@@ -169,12 +276,77 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
   const handleStartHold = useCallback((setId: string) => {
     useActiveWorkoutStore.getState().startHold(setId);
   }, []);
-  const handleDeleteSet = useCallback((setId: string) => {
-    useActiveWorkoutStore.getState().deleteSet(setId);
-  }, []);
-  const handleAddSet = useCallback((id: string) => {
-    useActiveWorkoutStore.getState().addSetToExercise(id);
-  }, []);
+  const handleDeleteSet = useCallback(
+    (setId: string) => {
+      if (isPlan) {
+        editPlanSets((sets, setIds) => {
+          const index = sets.findIndex((set) => String(set.id) === setId);
+          if (index === -1) return { sets, setIds };
+          return {
+            sets: sets.filter((_, i) => i !== index),
+            setIds: setIds.filter((_, i) => i !== index),
+          };
+        });
+        return;
+      }
+      useActiveWorkoutStore.getState().deleteSet(setId);
+    },
+    [isPlan, editPlanSets]
+  );
+  const handleAddSet = useCallback(
+    (id: string) => {
+      if (isPlan) {
+        editPlanSets((sets, setIds) => {
+          // The new set copies the last one, which is what the store's
+          // addSetToExercise does and what a lifter adding a set means.
+          const last = sets[sets.length - 1];
+          // Derived from the ids in hand rather than a counter: the updater
+          // may run more than once for one edit, and a counter bumped inside
+          // it would skip ids and desync them from the sets.
+          const newId = `set-${nextPlanSetIdSuffix(setIds)}`;
+          return {
+            sets: [
+              ...sets,
+              {
+                ...(last ?? {
+                  set_type: 'normal',
+                  weight: null,
+                  reps: null,
+                  duration: null,
+                  distance: null,
+                  rest_time: null,
+                }),
+                id: newId,
+                set_number: sets.length + 1,
+              },
+            ],
+            setIds: [...setIds, newId],
+          };
+        });
+        return;
+      }
+      useActiveWorkoutStore.getState().addSetToExercise(id);
+    },
+    [isPlan, editPlanSets]
+  );
+  const handleApplyRests = useCallback(
+    (updates: ExerciseSetRestUpdate[]) => {
+      if (isPlan) {
+        const bySetId = new Map(updates.map((u) => [u.setId, u.seconds]));
+        editPlanSets((sets, setIds) => ({
+          sets: sets.map((set) =>
+            bySetId.has(String(set.id))
+              ? { ...set, rest_time: bySetId.get(String(set.id)) ?? null }
+              : set
+          ),
+          setIds,
+        }));
+        return;
+      }
+      applySetRests(updates);
+    },
+    [isPlan, editPlanSets, applySetRests]
+  );
   const handlePressMetricHeader = useCallback(
     (anchor: AnchorRect, clampedToRpe: boolean) => {
       setMetricMenu({ anchor, clampedToRpe });
@@ -182,8 +354,24 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
     []
   );
   const handlePressRest = useCallback(() => {
+    if (planDraft != null) {
+      // Presented straight rather than through the hook's `present`, which
+      // reads the live session. Never as a superset member: per-round rest is
+      // shared across members and the sheet holds one exercise, so grouping
+      // stays Up Next's to edit.
+      setRestSheetRef.current?.present(
+        exercise.name,
+        planDraft.exercise.sets.map((set, index) => ({
+          setId: planDraft.setIds[index] ?? `set-${index}`,
+          setNumber: set.set_number,
+          restSec: set.rest_time ?? null,
+        })),
+        false
+      );
+      return;
+    }
     if (entryId != null) presentRestSheet(entryId);
-  }, [entryId, presentRestSheet]);
+  }, [planDraft, exercise.name, setRestSheetRef, entryId, presentRestSheet]);
 
   // Replacing swaps the entry under this screen, so the sheet re-points its own
   // `item` at the incoming exercise rather than leaving the hero and title
@@ -206,6 +394,30 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
       navigation.setParams({ item: incoming });
     }
   );
+
+  /**
+   * Hand every plan edit straight back to Up Next, the way the active-workout
+   * context writes straight to the store: an edit is never held hostage by a
+   * footer button the user can swipe past. Nothing is persisted — a
+   * recommendation has no per-set storage, so the edit lives in Up Next's plan
+   * state until the workout starts, exactly like a superset built there, and
+   * is dropped by the same payload swap.
+   */
+  const planSeedRef = useRef(planDraft?.exercise);
+  useEffect(() => {
+    if (planReturnKey == null || planDraft == null) return;
+    // Opening the sheet is not an edit. Every mutator builds a new exercise
+    // object, so still holding the seeded one means nothing has changed and
+    // there is nothing to hand back.
+    if (planDraft.exercise === planSeedRef.current) return;
+    navigation.dispatch({
+      ...CommonActions.setParams({
+        editedExercise: planDraft.exercise,
+        editNonce: ++planEditNonceRef.current,
+      }),
+      source: planReturnKey,
+    });
+  }, [navigation, planReturnKey, planDraft]);
 
   const handleOpenCatalog = useCallback(() => {
     navigation.navigate('ExerciseDetail', {
@@ -294,12 +506,20 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
             onPress={() => setHistoryOpen((open) => !open)}
             testID="exercise-sheet-history-chip"
           />
-          <SheetChip
-            icon="swap-vertical"
-            label={t('exerciseSheet.replace', { defaultValue: 'Replace' })}
-            onPress={handleReplace}
-            testID="exercise-sheet-replace-chip"
-          />
+          {/*
+            Replace is active-workout only. Swapping a *planned* exercise
+            re-prescribes the whole workout server-side, so it belongs to Up
+            Next's row menu, which owns the payload; a chip here would hand
+            back one exercise the server never agreed to.
+          */}
+          {!isPlan && (
+            <SheetChip
+              icon="swap-vertical"
+              label={t('exerciseSheet.replace', { defaultValue: 'Replace' })}
+              onPress={handleReplace}
+              testID="exercise-sheet-replace-chip"
+            />
+          )}
         </View>
 
         {historyOpen ? (
@@ -308,7 +528,49 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
               exerciseId={exercise.id}
               weightUnit={weightUnit}
               distanceUnit={distanceUnit}
-              modality={resolveSnapshotModality(entry?.exercise_snapshot)}
+              modality={resolveSnapshotModality(
+                planDraft?.exercise ?? entry?.exercise_snapshot
+              )}
+            />
+          </View>
+        ) : null}
+
+        {isPlan &&
+        planDraft != null &&
+        planDraft.exercise.rationale.length > 0 ? (
+          <View
+            className="mt-4 rounded-xl p-3 bg-info"
+            testID="exercise-sheet-rationale"
+          >
+            <Text className="text-sm text-info">
+              {planDraft.exercise.rationale}
+            </Text>
+          </View>
+        ) : null}
+
+        {planCard != null ? (
+          <View className="mt-4" testID="exercise-sheet-sets">
+            <ActiveWorkoutExerciseCard
+              exercise={planCard}
+              mode="plan"
+              headerless
+              expanded
+              // The Rest chip above owns rest in this context too.
+              showRestChip={false}
+              completedSetIds={EMPTY_COMPLETED_SETS}
+              activeSetId={null}
+              // Not the user's column preference: RPE records effort that has
+              // not been made yet, and a RecommendationSet has nowhere to keep
+              // it, so a typed value would be dropped on the way back.
+              metricColumn="volume"
+              weightUnit={weightUnit}
+              distanceUnit={distanceUnit}
+              getImageSource={getImageSource}
+              onToggleExpanded={noop}
+              onPressMetricHeader={noop}
+              onCommitField={handleCommitField}
+              onDeleteSet={handleDeleteSet}
+              onAddSet={handleAddSet}
             />
           </View>
         ) : null}
@@ -344,7 +606,7 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
         ) : null}
       </ScrollView>
 
-      <ExerciseSetRestSheet ref={setRestSheetRef} onApply={applySetRests} />
+      <ExerciseSetRestSheet ref={setRestSheetRef} onApply={handleApplyRests} />
 
       <MetricColumnMenu
         anchor={metricMenu?.anchor ?? null}

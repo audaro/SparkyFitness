@@ -10,6 +10,7 @@ import {
 import { useActiveWorkoutStore } from '../../src/stores/activeWorkoutStore';
 import type { Exercise } from '../../src/types/exercise';
 import type { PresetSessionResponse } from '@workspace/shared';
+import type { PlannedExercise } from '../../src/utils/workoutSupersets';
 
 jest.mock('../../src/hooks', () => ({
   usePreferences: jest.fn(() => ({
@@ -56,6 +57,7 @@ jest.mock('../../src/hooks/useExerciseImageSource', () => ({
 const mockNavigation = {
   navigate: jest.fn(),
   goBack: jest.fn(),
+  dispatch: jest.fn(),
   setOptions: jest.fn(),
   isFocused: jest.fn(() => true),
 } as any;
@@ -179,6 +181,7 @@ describe('ExerciseSheetScreen', () => {
   beforeEach(() => {
     mockNavigation.navigate.mockClear();
     mockNavigation.goBack.mockClear();
+    mockNavigation.dispatch.mockClear();
     mockNavigation.setOptions.mockClear();
   });
 
@@ -279,6 +282,134 @@ describe('ExerciseSheetScreen', () => {
       expect(queryByTestId('exercise-sheet-sets')).toBeNull();
       // The identity half of the sheet still stands on the route params.
       expect(queryByTestId('exercise-sheet-name')).toBeTruthy();
+    });
+  });
+
+  describe('up next context', () => {
+    /** Plank as the generator prescribes it: two 45s sets, 60s rest. */
+    function makePlanned(
+      overrides: Partial<PlannedExercise> = {}
+    ): PlannedExercise {
+      return {
+        exercise_id: 'ex-1',
+        exercise_name: 'Plank',
+        modality: 'duration',
+        primary_muscles: ['abdominals'],
+        secondary_muscles: [],
+        equipment: [],
+        images: [],
+        rationale: 'Trains the brace you lost on last week’s deadlifts.',
+        rest_seconds: 60,
+        sets: [
+          {
+            set_number: 1,
+            set_type: 'Working Set',
+            reps: null,
+            weight: null,
+            duration: 45,
+            distance: null,
+            rest_time: 60,
+          },
+          {
+            set_number: 2,
+            set_type: 'Working Set',
+            reps: null,
+            weight: null,
+            duration: 45,
+            distance: null,
+            rest_time: 60,
+          },
+        ],
+        ...overrides,
+      } as unknown as PlannedExercise;
+    }
+
+    function renderPlanSheet(planned = makePlanned()) {
+      return renderSheet({
+        exercise: { id: 'ex-1', name: 'Plank' },
+        params: {
+          context: 'up-next',
+          planned,
+          returnKey: 'UpNext-1',
+          entryId: undefined,
+        },
+      });
+    }
+
+    /** The exercise the sheet last handed back to Up Next, if any. */
+    function lastWriteBack(): PlannedExercise | null {
+      const calls = mockNavigation.dispatch.mock.calls;
+      const last = calls[calls.length - 1]?.[0];
+      return last?.payload?.params?.editedExercise ?? null;
+    }
+
+    it("renders the plan's sets without needing a live session", () => {
+      const { getByTestId, getAllByText } = renderPlanSheet();
+
+      expect(getByTestId('exercise-sheet-sets')).toBeTruthy();
+      expect(getAllByText('1').length).toBeGreaterThan(0);
+      expect(getAllByText('2').length).toBeGreaterThan(0);
+    });
+
+    it("shows the generator's reason for prescribing the exercise", () => {
+      const { getByTestId } = renderPlanSheet();
+
+      expect(getByTestId('exercise-sheet-rationale')).toBeTruthy();
+    });
+
+    it('omits the rationale block when the generator gave none', () => {
+      const { queryByTestId } = renderPlanSheet(makePlanned({ rationale: '' }));
+
+      expect(queryByTestId('exercise-sheet-rationale')).toBeNull();
+    });
+
+    it('leaves replacing the exercise to Up Next, which owns the payload', () => {
+      const { queryByTestId } = renderPlanSheet();
+
+      expect(queryByTestId('exercise-sheet-replace-chip')).toBeNull();
+    });
+
+    it('hands an added set back to Up Next, copying the last one', () => {
+      const { getByLabelText } = renderPlanSheet();
+
+      fireEvent.press(getByLabelText('Add set to Plank'));
+
+      const edited = lastWriteBack();
+      expect(edited?.sets).toHaveLength(3);
+      expect(edited?.sets[2]).toEqual(
+        expect.objectContaining({ set_number: 3, duration: 45, rest_time: 60 })
+      );
+    });
+
+    it('renumbers the remaining sets when one is deleted', () => {
+      const { getByLabelText } = renderPlanSheet();
+
+      fireEvent.press(getByLabelText('Delete set 1'));
+
+      const edited = lastWriteBack();
+      expect(edited?.sets).toHaveLength(1);
+      expect(edited?.sets[0]?.set_number).toBe(1);
+    });
+
+    it('sends each edit back under a fresh nonce', () => {
+      const { getByLabelText } = renderPlanSheet();
+
+      fireEvent.press(getByLabelText('Add set to Plank'));
+      fireEvent.press(getByLabelText('Add set to Plank'));
+
+      const nonces = mockNavigation.dispatch.mock.calls.map(
+        (call: unknown[]) => (call[0] as any).payload.params.editNonce
+      );
+      expect(nonces.length).toBeGreaterThan(1);
+      // Strictly increasing, so no edit can be mistaken for one Up Next has
+      // already consumed.
+      expect(nonces).toEqual([...nonces].sort((a, b) => a - b));
+      expect(new Set(nonces).size).toBe(nonces.length);
+      expect(
+        mockNavigation.dispatch.mock.calls.every(
+          (call: unknown[]) => (call[0] as any).source === 'UpNext-1'
+        )
+      ).toBe(true);
     });
   });
 

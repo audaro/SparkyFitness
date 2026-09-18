@@ -102,7 +102,14 @@ interface ActiveWorkoutExerciseCardProps {
    * and stats line active; completion state is display-only (completedBadge)
    * so completed sets stay editable.
    */
-  mode?: 'live' | 'view' | 'edit';
+  /**
+   * `live` is the running workout, `view` read-only, `edit` the preset/workout
+   * builder. `plan` is a generated prescription that has not started: editable
+   * like `edit`, but with no progression configuration (there is no preset to
+   * progress) and no prefill from last session (the engine already programmed
+   * the numbers, and overwriting them would be silent).
+   */
+  mode?: 'live' | 'view' | 'edit' | 'plan';
   /**
    * The active/edited/viewed session's preset-entry id, forwarded to the
    * stats query so that session's own sets are excluded from the historical

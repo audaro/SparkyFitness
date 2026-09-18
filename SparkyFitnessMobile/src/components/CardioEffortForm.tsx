@@ -39,7 +39,7 @@ interface CardioEffortFormProps {
    */
   set: WorkoutCardSet | null;
   exerciseName: string;
-  mode: 'live' | 'view' | 'edit';
+  mode: 'live' | 'view' | 'edit' | 'plan';
   distanceUnit: 'km' | 'miles';
   /**
    * Live only: the set's row state, derived by the card exactly like a table

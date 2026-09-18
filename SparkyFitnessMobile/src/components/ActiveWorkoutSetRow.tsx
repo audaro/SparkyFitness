@@ -87,7 +87,12 @@ export function parseRpeInput(text: string): number | null {
   return Math.min(10, Math.max(1, snapped));
 }
 
-export type SetRowMode = 'live' | 'view' | 'edit';
+/**
+ * `plan` is a generated prescription that has not started: editable with the
+ * same blur-commit drafts as `live`, but with no cursor, no completion control
+ * and no assumed-value placeholders, since nothing has been performed yet.
+ */
+export type SetRowMode = 'live' | 'view' | 'edit' | 'plan';
 
 export type { SetRowAccessoryHandle } from './SetRowChrome';
 

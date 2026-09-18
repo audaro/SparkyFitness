@@ -14,7 +14,6 @@ import {
   toCanonicalMuscle,
   type GenerateWorkoutRecommendationRequest,
   type Muscle,
-  type RecommendedExercise,
 } from '@workspace/shared';
 
 import ActionSheet, {
@@ -44,6 +43,7 @@ import {
   useUpdateRecommendationStatus,
   useWorkoutRecommendation,
 } from '../hooks/useWorkoutRecommendation';
+import { useParamHandoff } from '../hooks/useParamHandoff';
 import { useSelectedExercise } from '../hooks/useSelectedExercise';
 import {
   useScreenHeader,
@@ -546,8 +546,9 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
   }, [recommendation, payload, plan, startLiveWorkout, updateStatus, t]);
 
   const handleOpenExercise = useCallback(
-    (exercise: RecommendedExercise) => {
-      navigation.navigate('ExerciseDetail', {
+    (exercise: PlannedExercise) => {
+      navigation.navigate('ExerciseSheet', {
+        context: 'up-next',
         item: makeSparseExercise(
           {
             id: exercise.exercise_id,
@@ -557,10 +558,30 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           },
           t
         ),
-        hideWorkoutActions: true,
+        planned: exercise,
+        returnKey: route.key,
       });
     },
-    [navigation, t]
+    [navigation, route.key, t]
+  );
+
+  // Sets edited in the sheet come back here. They live in the same place a
+  // superset built here lives — the plan state, applied to the entries that
+  // starting the workout creates — and are discarded by the same payload swap.
+  const handleEditedExercise = useCallback(
+    (edited: PlannedExercise) => {
+      editPlan((exercises) =>
+        exercises.map((exercise) =>
+          exercise.exercise_id === edited.exercise_id ? edited : exercise
+        )
+      );
+    },
+    [editPlan]
+  );
+  useParamHandoff(
+    route.params?.editedExercise,
+    route.params?.editNonce,
+    handleEditedExercise
   );
 
   const gymOptions = useMemo(

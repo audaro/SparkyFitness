@@ -633,6 +633,90 @@ export interface WorkoutCardExercise {
  * `buildExercisesPayload` exactly (parseDecimalInput → weightToKg, NaN → null)
  * so what the card displays is what a save would persist.
  */
+/**
+ * Adapt one exercise of a generated "Up Next" workout for the card stack.
+ *
+ * Sibling of {@link draftExerciseToCardExercise}: the recommendation payload is
+ * already metric (kg, whole seconds, km), so nothing is converted here. The one
+ * thing it has to invent is set ids — a `RecommendationSet` has none, because
+ * nothing has been persisted yet — so each set gets a stable client id from its
+ * position. Those ids are the handle the sheet edits against and never leave
+ * the client: `buildRecommendationStartPayload` renumbers from the array order
+ * when the workout actually starts.
+ */
+export function plannedExerciseToCardExercise(
+  planned: PlannedExercise,
+  setIds: readonly string[]
+): WorkoutCardExercise {
+  return {
+    id: planned.exercise_id,
+    exercise_id: planned.exercise_id,
+    superset_group: planned.superset_group ?? null,
+    notes: null,
+    exercise_snapshot: {
+      name: planned.exercise_name,
+      category: null,
+      modality: planned.modality,
+      images: planned.images,
+    },
+    sets: planned.sets.map((set, index) => ({
+      id: setIds[index] ?? `set-${index}`,
+      set_number: set.set_number,
+      set_type: CANONICAL_TO_MOBILE_SET_TYPE[set.set_type] ?? 'normal',
+      weight: set.weight,
+      reps: set.reps,
+      duration: set.duration,
+      distance: set.distance,
+      rest_time: set.rest_time,
+      notes: null,
+      rpe: null,
+    })),
+  };
+}
+
+/**
+ * Fold the card's edited sets back onto the planned exercise, so what the Up
+ * Next list shows -- and what starting the workout writes -- is what the sheet
+ * was showing. `set_number` is renumbered from the array order: the sheet can
+ * add and delete sets, and a gap would survive into the started session.
+ */
+export function applyCardSetsToPlannedExercise(
+  planned: PlannedExercise,
+  sets: readonly WorkoutCardSet[]
+): PlannedExercise {
+  const toCanonical = (mobile: string | null | undefined): string => {
+    const match = Object.entries(CANONICAL_TO_MOBILE_SET_TYPE).find(
+      ([, value]) => value === mobile
+    );
+    return match?.[0] ?? 'Working Set';
+  };
+  // `rest_seconds` is the same number the sets carry -- it is what the Up Next
+  // row's rest chip reads -- so a uniform rest is mirrored onto it. A mixed
+  // one, or one the user cleared, leaves it alone rather than picking a set's
+  // value to stand for all (the field is not nullable).
+  const restValues = sets.map((set) => set.rest_time ?? null);
+  const first = restValues[0];
+  const uniformRest =
+    first != null && restValues.every((rest) => rest === first)
+      ? first
+      : undefined;
+  return {
+    ...planned,
+    ...(uniformRest === undefined ? {} : { rest_seconds: uniformRest }),
+    sets: sets.map((set, index) => ({
+      set_number: index + 1,
+      set_type: toCanonical(
+        set.set_type
+      ) as PlannedExercise['sets'][number]['set_type'],
+      reps: set.reps,
+      weight: set.weight,
+      duration: set.duration ?? null,
+      distance: set.distance ?? null,
+      rest_time: set.rest_time ?? null,
+    })),
+  };
+}
+
 export function draftExerciseToCardExercise(
   exercise: WorkoutDraftExercise,
   weightUnit: 'kg' | 'lbs',
