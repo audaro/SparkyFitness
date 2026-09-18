@@ -6195,6 +6195,7 @@
   },
   "upNext": {
     "cardTitle": "Up Next",
+    "coachLabel": "Coach",
     "durationLabel": "Workout length",
     "durationOption": "{{minutes}} min",
     "generate": "Generate workout",

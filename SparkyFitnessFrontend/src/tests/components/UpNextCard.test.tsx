@@ -320,6 +320,43 @@ describe('UpNextCard', () => {
     expect(mockGenerate).toHaveBeenCalledTimes(1);
   });
 
+  it("explains the session with the engine's own paragraph", () => {
+    mockRecommendation = makeRecommendation({
+      payload: {
+        ...makeRecommendation().payload,
+        rationale: 'Chest and triceps are your freshest pair today.',
+      },
+    });
+
+    render(<UpNextCard />);
+
+    expect(
+      screen.getByText('Chest and triceps are your freshest pair today.')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Coach')).toBeInTheDocument();
+  });
+
+  it('shows no coach note on a workout generated before the engine wrote one', () => {
+    // The field is optional on the payload schema precisely so stored rows
+    // written before it existed still parse; they must render as a workout
+    // without an explanation, not as an empty tinted block.
+    mockRecommendation = makeRecommendation();
+
+    render(<UpNextCard />);
+
+    expect(screen.queryByTestId('up-next-coach-note')).not.toBeInTheDocument();
+  });
+
+  it('treats a blank rationale as no rationale', () => {
+    mockRecommendation = makeRecommendation({
+      payload: { ...makeRecommendation().payload, rationale: '   ' },
+    });
+
+    render(<UpNextCard />);
+
+    expect(screen.queryByTestId('up-next-coach-note')).not.toBeInTheDocument();
+  });
+
   it('summarises working sets only, ignoring the warm-up ramp', () => {
     mockRecommendation = makeRecommendation();
 
