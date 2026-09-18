@@ -349,8 +349,8 @@
     "rest": {
       "addSecondsShort": "+{{seconds}}s",
       "subtractSecondsShort": "−{{seconds}}s",
-      "completeSet": "Complete set",
-      "completeSetTitle": "Complete Set",
+      "completeSet": "Log set",
+      "completeSetTitle": "Log Set",
       "extendBySeconds": "Extend rest by {{seconds}} seconds",
       "shortenBySeconds": "Shorten rest by {{seconds}} seconds",
       "skip": "Skip rest",

@@ -8,8 +8,6 @@ import {
   Pressable,
   Text,
   View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
   type TextInput,
 } from 'react-native';
 import {
@@ -28,12 +26,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import ActiveWorkoutHeader, {
   buildExerciseProgress,
 } from '../components/ActiveWorkoutHeader';
-import ActiveWorkoutRail, {
-  useSupersetBorders,
-} from '../components/ActiveWorkoutRail';
 import ActiveWorkoutExerciseCard from '../components/ActiveWorkoutExerciseCard';
 import type { SetRowAccessoryHandle } from '../components/ActiveWorkoutSetRow';
-import KeyboardCollapsible from '../components/KeyboardCollapsible';
 import {
   SetInputAccessoryBar,
   useDeactivateOnKeyboardDismiss,
@@ -67,6 +61,7 @@ import { useActiveWorkoutRestSheet } from '../hooks/useActiveWorkoutRestSheet';
 import { useRestCountdown } from '../hooks/useRestCountdown';
 import { useHoldCountdown } from '../hooks/useHoldCountdown';
 import { useSelectedExercise } from '../hooks/useSelectedExercise';
+import { useSupersetBorders } from '../hooks/useSupersetBorders';
 import { deleteWorkout } from '../services/api/exerciseApi';
 import { addLog } from '../services/LogService';
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
@@ -355,63 +350,23 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
   const { runs: supersetRuns, borders: supersetBorders } =
     useSupersetBorders(exercisesForBorders);
 
-  // Expanded state: the cursor's exercise auto-expands as the workout
-  // advances, auto-collapsing only the previously auto-expanded card; cards
-  // the user opened by hand stay open.
+  // Expanded state: nothing expands on its own, so the log stays a list of
+  // collapsed rows. The cursor's row already carries its set number, target
+  // and pips, the on-deck bar logs that set in one tap, and a row tap opens
+  // the exercise's own sheet for anything else. The inline table is still
+  // there behind each row's chevron — which is the only thing that ever adds
+  // an id here.
   const [userExpandedIds, setUserExpandedIds] = useState<ReadonlySet<string>>(
     () => new Set<string>()
   );
-  const [autoExpandedId, setAutoExpandedId] = useState<string | null>(
-    activeExerciseId
-  );
-  const [focusedExerciseId, setFocusedExerciseId] = useState<string | null>(
-    activeExerciseId
-  );
-
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const cardOffsetsRef = useRef<Record<string, number>>({});
-  const viewportHeightRef = useRef(0);
-  const programmaticScrollUntilRef = useRef(0);
 
   const scrollToExercise = useCallback((entryId: string) => {
     const y = cardOffsetsRef.current[entryId];
     if (y == null) return;
-    programmaticScrollUntilRef.current = Date.now() + 600;
     scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
   }, []);
-
-  // Follow the cursor: when the active exercise changes, adopt it as the
-  // auto-expanded/focused card. Render-time state adjust (not an effect) so
-  // the expansion lands in the same commit as the cursor move.
-  const [prevActiveExerciseId, setPrevActiveExerciseId] =
-    useState(activeExerciseId);
-  if (activeExerciseId !== prevActiveExerciseId) {
-    // Keep a just-finished exercise expanded instead of auto-collapsing it as
-    // the cursor moves on: promote it into the user-expanded set (still
-    // collapsible by hand). Only when it's fully logged; a jump that leaves
-    // holes shouldn't pin it open.
-    const leaving = prevActiveExerciseId;
-    if (leaving != null) {
-      const leavingExercise = session?.exercises.find((e) => e.id === leaving);
-      const leavingDone =
-        leavingExercise != null &&
-        leavingExercise.sets.length > 0 &&
-        leavingExercise.sets.every((s) => completedSetIds[String(s.id)]);
-      if (leavingDone) {
-        setUserExpandedIds((prev) => {
-          if (prev.has(leaving)) return prev;
-          const next = new Set(prev);
-          next.add(leaving);
-          return next;
-        });
-      }
-    }
-    setPrevActiveExerciseId(activeExerciseId);
-    if (activeExerciseId != null) {
-      setAutoExpandedId(activeExerciseId);
-      setFocusedExerciseId(activeExerciseId);
-    }
-  }
 
   useEffect(() => {
     if (activeExerciseId == null) return;
@@ -425,61 +380,25 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     );
   }, [activeExerciseId, scrollToExercise]);
 
-  const handleToggleExpanded = useCallback(
-    (entryId: string) => {
-      setUserExpandedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(entryId)) {
-          next.delete(entryId);
-        } else if (autoExpandedId === entryId) {
-          // Collapsing the auto-expanded card.
-          setAutoExpandedId(null);
-        } else {
-          next.add(entryId);
-        }
-        return next;
-      });
-    },
-    [autoExpandedId]
-  );
-
-  const handleRailPress = useCallback(
-    (entryId: string) => {
-      setUserExpandedIds((prev) => {
-        if (prev.has(entryId) || autoExpandedId === entryId) return prev;
-        const next = new Set(prev);
+  const handleToggleExpanded = useCallback((entryId: string) => {
+    setUserExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryId)) {
+        next.delete(entryId);
+      } else {
         next.add(entryId);
-        return next;
-      });
-      setFocusedExerciseId(entryId);
-      setTimeout(() => scrollToExercise(entryId), 100);
-    },
-    [autoExpandedId, scrollToExercise]
-  );
-
-  // Tapping the rest bar outside its controls brings the on-deck set back
-  // into view (same expand/focus/scroll as tapping the exercise's rail thumb).
-  const handlePressRestBar = useCallback(() => {
-    if (activeExerciseId != null) handleRailPress(activeExerciseId);
-  }, [activeExerciseId, handleRailPress]);
-
-  const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (Date.now() < programmaticScrollUntilRef.current) return;
-      const offset = event.nativeEvent.contentOffset.y;
-      const probe = offset + viewportHeightRef.current / 3;
-      let candidate: string | null = null;
-      let candidateY = -Infinity;
-      for (const [entryId, y] of Object.entries(cardOffsetsRef.current)) {
-        if (y <= probe && y > candidateY) {
-          candidate = entryId;
-          candidateY = y;
-        }
       }
-      if (candidate != null) setFocusedExerciseId(candidate);
-    },
-    []
-  );
+      return next;
+    });
+  }, []);
+
+  // Tapping the rest bar outside its controls brings the on-deck row back into
+  // view. It scrolls and nothing more: the bar already shows the set and its
+  // target, so opening the row's table under it would answer a question the
+  // tap didn't ask.
+  const handlePressRestBar = useCallback(() => {
+    if (activeExerciseId != null) scrollToExercise(activeExerciseId);
+  }, [activeExerciseId, scrollToExercise]);
 
   // Distinguishes an ExerciseSearch return bound for Replace (an entry id) from
   // one bound for Add (null). Cleared on consume and whenever Add is opened, so
@@ -494,7 +413,6 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     if (replaceTarget != null) {
       replaceTargetEntryIdRef.current = null;
       useActiveWorkoutStore.getState().replaceExercise(replaceTarget, exercise);
-      setFocusedExerciseId(replaceTarget);
       return;
     }
     useActiveWorkoutStore.getState().addExercise(exercise);
@@ -507,7 +425,6 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         next.add(id);
         return next;
       });
-      setFocusedExerciseId(id);
       setTimeout(() => scrollToExercise(id), 350);
     }
   });
@@ -865,8 +782,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     // When that was the last unlogged set, the cursor has nowhere to advance,
     // so the follow-cursor scroll won't fire. Surface the End Workout button
     // instead. Deferred past the keyboard hide and the just-logged card's
-    // layout settle; guarded so handleScroll doesn't re-home the focused
-    // exercise mid-scroll.
+    // layout settle.
     const store = useActiveWorkoutStore.getState();
     const completed = store.completedSetIds;
     const remaining =
@@ -876,7 +792,6 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
       ) ?? 0;
     if (remaining === 0) {
       runAfterKeyboardSettles(() => {
-        programmaticScrollUntilRef.current = Date.now() + 600;
         scrollRef.current?.scrollToEnd({ animated: true });
       }, 350);
     }
@@ -1423,20 +1338,6 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         onClearAllSets={hasAnyCompletedSets ? handleClearAllSets : undefined}
       />
 
-      {/* Collapses while the keyboard is up to hand its ~105px back to the log. */}
-      <KeyboardCollapsible>
-        <ActiveWorkoutRail
-          exercises={session.exercises}
-          completedSetIds={completedSetIds}
-          focusedEntryId={focusedExerciseId}
-          activeEntryId={activeExerciseId}
-          supersetBorders={supersetBorders}
-          getImageSource={getImageSource}
-          onPressExercise={handleRailPress}
-          onPressAdd={handleAddExercise}
-        />
-      </KeyboardCollapsible>
-
       <KeyboardAwareScrollView
         ref={scrollRef}
         className="flex-1"
@@ -1445,11 +1346,6 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
           paddingBottom: bottomSurfaceVisible
             ? bottomSurfacePadding
             : insets.bottom + 16,
-        }}
-        onScroll={handleScroll}
-        scrollEventThrottle={32}
-        onLayout={(e) => {
-          viewportHeightRef.current = e.nativeEvent.layout.height;
         }}
         keyboardShouldPersistTaps="handled"
         // Clearance above the keyboard for the focused input: the sticky
@@ -1461,8 +1357,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         disableScrollOnKeyboardHide
       >
         {session.exercises.map((exercise) => {
-          const isExpanded =
-            userExpandedIds.has(exercise.id) || autoExpandedId === exercise.id;
+          const isExpanded = userExpandedIds.has(exercise.id);
           const supersetBorder = supersetBorders.get(exercise.id) ?? null;
           const card = (
             <ActiveWorkoutExerciseCard

@@ -95,7 +95,7 @@ describe('ActiveWorkoutHoldSheet', () => {
 
   it('offers no footer action, since Stop is the hold-s only early ending', () => {
     const { queryByLabelText } = renderSheet();
-    expect(queryByLabelText('Complete set')).toBeNull();
+    expect(queryByLabelText('Log set')).toBeNull();
   });
 
   it('sets the progress fill width from the progress fraction', () => {

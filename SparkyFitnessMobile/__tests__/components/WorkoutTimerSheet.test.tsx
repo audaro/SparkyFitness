@@ -115,12 +115,12 @@ describe('WorkoutTimerSheet', () => {
     const { getByLabelText, getByText } = renderSheet({
       footer: {
         label: 'Log set 2 now',
-        accessibilityLabel: 'Complete set',
+        accessibilityLabel: 'Log set',
         onPress,
       },
     });
     expect(getByText('Log set 2 now')).toBeTruthy();
-    fireEvent.press(getByLabelText('Complete set'));
+    fireEvent.press(getByLabelText('Log set'));
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 

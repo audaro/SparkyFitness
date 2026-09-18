@@ -59,7 +59,7 @@ interface ActiveWorkoutRestBarProps {
  * on-deck set without waiting the clock out.
  *
  * When no timer is running (ready) it stays the compact on-deck bar — set +
- * target on the left, a Complete Set button on the right — giving a fixed thumb
+ * target on the left, a Log Set button on the right — giving a fixed thumb
  * target between rests without a display-size countdown reading 0:00 above it.
  * The screen hides the bar entirely once no on-deck set remains.
  *
@@ -125,7 +125,7 @@ function ActiveWorkoutRestBar({
                   number: nextSetNumber,
                 }),
                 accessibilityLabel: t('activeWorkout.rest.completeSet', {
-                  defaultValue: 'Complete set',
+                  defaultValue: 'Log set',
                 }),
                 onPress: onCompleteSet,
               }
@@ -169,7 +169,7 @@ function ActiveWorkoutRestBar({
         hitSlop={HIT_SLOP}
         accessibilityRole="button"
         accessibilityLabel={t('activeWorkout.rest.completeSet', {
-          defaultValue: 'Complete set',
+          defaultValue: 'Log set',
         })}
         className="flex-row items-center rounded-full px-4 py-2.5"
         style={{ backgroundColor: accentPrimary, gap: 6 }}
@@ -177,7 +177,7 @@ function ActiveWorkoutRestBar({
         <Icon name="checkmark" size={16} color="#ffffff" weight="bold" />
         <Text className="text-sm font-semibold" style={{ color: '#ffffff' }}>
           {t('activeWorkout.rest.completeSetTitle', {
-            defaultValue: 'Complete Set',
+            defaultValue: 'Log Set',
           })}
         </Text>
       </Pressable>

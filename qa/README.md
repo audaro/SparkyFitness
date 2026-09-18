@@ -591,7 +591,7 @@ its own scenario.
 **Prefer the control that needs no aim.** Logging a set on ActiveWorkout means
 finding one cell among three identical rows, which needs an anchor *and* an
 index and is wrong the moment a card renders a fourth set. The rest bar's
-"Complete Set" button acts on whichever set is active, so it takes no selector
+"Log Set" button acts on whichever set is active, so it takes no selector
 argument at all — and the flow that uses it makes no assumption about layout.
 When two controls do the same thing, take the one whose selector cannot become
 ambiguous.

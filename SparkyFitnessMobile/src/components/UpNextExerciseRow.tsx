@@ -14,7 +14,7 @@ import {
   titleCaseCanonical,
 } from '../utils/workoutSession';
 import type { PlannedExercise } from '../utils/workoutSupersets';
-import type { SupersetBorder } from './ActiveWorkoutRail';
+import type { SupersetBorder } from '../hooks/useSupersetBorders';
 
 /** Thumbnail edge, and the corner badge that overlaps it. */
 const MEDIA_SIZE = 62;

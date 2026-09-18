@@ -247,7 +247,7 @@ appId: ${APP_ID}
 # The rest bar's button is the one that takes no aim: it acts on whichever set
 # is active (set 1, on arrival), so it needs no anchor, no index, and no
 # assumption about which of the three identical rows a selector lands on.
-- tapOn: "Complete Set"
+- tapOn: "Log Set"
 
 - scrollUntilVisible:
     element: "End Workout"

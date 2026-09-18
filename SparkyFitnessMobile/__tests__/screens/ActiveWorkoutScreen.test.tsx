@@ -57,13 +57,6 @@ jest.mock('../../src/hooks/useNavigationActionGuard', () => ({
   })),
 }));
 
-// Keep the real useSupersetBorders (the overflow menu's candidate logic
-// depends on it); only the rail's rendering is stubbed out.
-jest.mock('../../src/components/ActiveWorkoutRail', () => {
-  const actual = jest.requireActual('../../src/components/ActiveWorkoutRail');
-  return { __esModule: true, ...actual, default: () => null };
-});
-
 jest.mock('../../src/components/ActiveWorkoutHeader', () => {
   const { View } = require('react-native');
   const actual = jest.requireActual('../../src/components/ActiveWorkoutHeader');
@@ -96,6 +89,13 @@ jest.mock('../../src/components/ActiveWorkoutExerciseCard', () => {
           testID={`card-${props.exercise.id}-overflow`}
           onPress={() => props.onPressOverflow?.(props.exercise.id)}
         />
+        <Pressable
+          testID={`card-${props.exercise.id}-toggle`}
+          onPress={() => props.onToggleExpanded?.(props.exercise.id)}
+        />
+        {props.expanded ? (
+          <View testID={`card-${props.exercise.id}-expanded`} />
+        ) : null}
         {props.exercise.sets.map((set: any) => {
           const key = String(set.id);
           const registerHandle = () => {
@@ -579,13 +579,13 @@ describe('ActiveWorkoutScreen persistent rest bar', () => {
     // Set 101 is server-completed, so the cursor starts on Bench Press set 2
     // with the rest state 'ready' — the bar must still be there.
     expect(getByText('Bench Press · Set 2')).toBeTruthy();
-    expect(getByLabelText('Complete set')).toBeTruthy();
+    expect(getByLabelText('Log set')).toBeTruthy();
   });
 
   it('completes the cursor set from the bar and starts the next rest', () => {
     const { getByLabelText } = renderScreen();
 
-    fireEvent.press(getByLabelText('Complete set'));
+    fireEvent.press(getByLabelText('Log set'));
 
     const store = useActiveWorkoutStore.getState();
     expect(store.completedSetIds['102']).toBeTruthy();
@@ -605,7 +605,7 @@ describe('ActiveWorkoutScreen persistent rest bar', () => {
 
     const { queryByLabelText } = renderScreen();
 
-    expect(queryByLabelText('Complete set')).toBeNull();
+    expect(queryByLabelText('Log set')).toBeNull();
     expect(queryByLabelText('Skip rest')).toBeNull();
   });
 });
@@ -1119,5 +1119,51 @@ describe('ActiveWorkoutScreen source preset server-config guard', () => {
     expect(getByTestId('card-ex-a').props.accessibilityLabel).toBe(
       'sourcePresetId:undefined'
     );
+  });
+});
+
+describe('ActiveWorkoutScreen expanded state', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    __resetActiveWorkoutStoreForTests();
+    __resetAppPreferencesStoreForTests();
+    useActiveWorkoutStore.getState().startWorkout(makeSession());
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('opens as a list of collapsed rows, the cursor included', () => {
+    // The cursor's row says which set it is on and what the target is; the
+    // canvas's screen is five of those, not one blown open into a table.
+    const { queryByTestId } = renderScreen();
+    expect(queryByTestId('card-ex-a-expanded')).toBeNull();
+    expect(queryByTestId('card-ex-b-expanded')).toBeNull();
+    expect(queryByTestId('card-ex-c-expanded')).toBeNull();
+  });
+
+  it('keeps a hand-opened row open as the cursor moves past it', () => {
+    const { getByTestId, queryByTestId } = renderScreen();
+    fireEvent.press(getByTestId('card-ex-a-toggle'));
+    expect(getByTestId('card-ex-a-expanded')).toBeTruthy();
+
+    act(() => {
+      useActiveWorkoutStore.getState().completeSet('102');
+    });
+
+    // Only the user closes what the user opened, and the cursor's new row
+    // does not open itself on arrival.
+    expect(getByTestId('card-ex-a-expanded')).toBeTruthy();
+    expect(queryByTestId('card-ex-b-expanded')).toBeNull();
+  });
+
+  it('closes a hand-opened row on a second tap', () => {
+    const { getByTestId, queryByTestId } = renderScreen();
+    fireEvent.press(getByTestId('card-ex-a-toggle'));
+    expect(getByTestId('card-ex-a-expanded')).toBeTruthy();
+    fireEvent.press(getByTestId('card-ex-a-toggle'));
+    expect(queryByTestId('card-ex-a-expanded')).toBeNull();
   });
 });

@@ -72,12 +72,6 @@ jest.mock('../../src/hooks/useNavigationActionGuard', () => ({
   })),
 }));
 
-// Keep the real useSupersetBorders; only the rail's rendering is stubbed out.
-jest.mock('../../src/components/ActiveWorkoutRail', () => {
-  const actual = jest.requireActual('../../src/components/ActiveWorkoutRail');
-  return { __esModule: true, ...actual, default: () => null };
-});
-
 jest.mock('../../src/components/ActiveWorkoutHeader', () => {
   const { View } = require('react-native');
   const actual = jest.requireActual('../../src/components/ActiveWorkoutHeader');

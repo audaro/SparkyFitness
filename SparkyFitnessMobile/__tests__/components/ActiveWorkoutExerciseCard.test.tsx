@@ -551,6 +551,38 @@ describe('ActiveWorkoutExerciseCard', () => {
     });
   });
 
+  describe('collapsed row in a live session', () => {
+    it('opens the exercise sheet rather than the inline table', () => {
+      // The log is a list; the sheet is where an exercise's hero, how-to,
+      // history and set list live. Tapping the row goes there.
+      const onPressThumb = jest.fn();
+      const { getByLabelText, callbacks } = renderCard(false, {
+        onPressThumb,
+      });
+      fireEvent.press(getByLabelText('View Bench Press details'));
+      expect(onPressThumb).toHaveBeenCalledWith('ex-uuid-1');
+      expect(callbacks.onToggleExpanded).not.toHaveBeenCalled();
+    });
+
+    it('keeps the inline table one tap away behind its own chevron', () => {
+      const { getByTestId, callbacks } = renderCard(false, {
+        onPressThumb: jest.fn(),
+      });
+      fireEvent.press(getByTestId('expand-ex-uuid-1'));
+      expect(callbacks.onToggleExpanded).toHaveBeenCalledWith('ex-uuid-1');
+    });
+
+    it('keeps tap-to-expand on a surface with no sheet to open', () => {
+      // A preset being edited and a finished workout being read have nowhere
+      // for the row to lead, so the row itself stays the expand target and
+      // grows no second chevron.
+      const { getByLabelText, queryByTestId, callbacks } = renderCard(false);
+      fireEvent.press(getByLabelText('Expand Bench Press'));
+      expect(callbacks.onToggleExpanded).toHaveBeenCalledWith('ex-uuid-1');
+      expect(queryByTestId('expand-ex-uuid-1')).toBeNull();
+    });
+  });
+
   it('extends the collapsed expand target through the row padding on both sides', () => {
     // The trailing ⋯/chevron sits flush against the row's px-2 (8px) right
     // padding; without right slop, taps aimed just inside it land in dead

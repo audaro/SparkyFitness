@@ -30,7 +30,7 @@ import Icon from '../components/Icon';
 import StatusView from '../components/StatusView';
 import UpNextExerciseRow from '../components/UpNextExerciseRow';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
-import { useSupersetBorders } from '../components/ActiveWorkoutRail';
+import { useSupersetBorders } from '../hooks/useSupersetBorders';
 import { usePreferences } from '../hooks';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
 import {

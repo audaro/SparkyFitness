@@ -40,13 +40,13 @@ appId: ${APP_ID}
       id: "header-segment"
     timeout: 60000
 - waitForAnimationToEnd
-- tapOn: "Complete Set"
+- tapOn: "Log Set"
 - waitForAnimationToEnd
 # Completing a set turns the bottom bar into the rest timer; skip it to get
-# the Complete Set button back for the second set.
+# the Log Set button back for the second set.
 - tapOn: "Skip rest"
 - waitForAnimationToEnd
-- tapOn: "Complete Set"
+- tapOn: "Log Set"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots2/40-active-two-sets-done
 - scrollUntilVisible:

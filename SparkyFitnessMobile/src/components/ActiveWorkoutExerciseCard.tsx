@@ -806,6 +806,26 @@ function ActiveWorkoutExerciseCard({
     // The row's ⋯ is the same menu the expanded header carries. Collapsed it
     // used to be long-press only, which nothing on screen advertised.
     const showOverflow = !readOnly && onPressOverflow != null;
+    // In a live session the log is a list and the row is a way into the
+    // exercise's own sheet — where the hero, the how-to, the history and the
+    // set list all are. Tap-to-expand then has nowhere to live on the row, so
+    // it moves to its own chevron. Every other surface (a preset being
+    // edited, a finished workout being read) has no sheet to open and keeps
+    // tap-to-expand on the whole row, which is why this is not a mode flag:
+    // it is exactly "there is somewhere else to go".
+    const rowOpensSheet = isLive && onPressThumb != null;
+    const openRow = rowOpensSheet
+      ? () => onPressThumb(exercise.id)
+      : () => onToggleExpanded(exercise.id);
+    const rowLabel = rowOpensSheet
+      ? t('activeWorkout.exercise.viewDetails', {
+          defaultValue: 'View {{name}} details',
+          name,
+        })
+      : t('activeWorkout.exercise.expand', {
+          defaultValue: 'Expand {{name}}',
+          name,
+        });
 
     return (
       <View
@@ -813,21 +833,18 @@ function ActiveWorkoutExerciseCard({
       >
         <View className="flex-row items-center gap-3 px-2 py-3">
           <Pressable
-            onPress={() => onToggleExpanded(exercise.id)}
+            onPress={openRow}
             onLongPress={longPressMenu}
             accessible={false}
           >
             {renderThumb(COLLAPSED_MEDIA_SIZE)}
           </Pressable>
           <Pressable
-            onPress={() => onToggleExpanded(exercise.id)}
+            onPress={openRow}
             onLongPress={longPressMenu}
             hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}
             accessibilityRole="button"
-            accessibilityLabel={t('activeWorkout.exercise.expand', {
-              defaultValue: 'Expand {{name}}',
-              name,
-            })}
+            accessibilityLabel={rowLabel}
             className="flex-1 self-stretch justify-center"
           >
             <Text
@@ -877,6 +894,21 @@ function ActiveWorkoutExerciseCard({
               </View>
             )}
           </Pressable>
+          {rowOpensSheet && (
+            <Pressable
+              testID={`expand-${exercise.id}`}
+              onPress={() => onToggleExpanded(exercise.id)}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('activeWorkout.exercise.expand', {
+                defaultValue: 'Expand {{name}}',
+                name,
+              })}
+              className="p-1"
+            >
+              <Icon name="chevron-down" size={18} color={textMuted} />
+            </Pressable>
+          )}
           {showOverflow ? (
             <Pressable
               onPress={openOverflowMenu}

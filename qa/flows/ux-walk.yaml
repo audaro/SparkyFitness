@@ -147,7 +147,7 @@ appId: ${APP_ID}
     timeout: 60000
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/30-active-workout
-- tapOn: "Complete Set"
+- tapOn: "Log Set"
 - waitForAnimationToEnd
 - takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/31-active-after-complete-set
 - scrollUntilVisible:

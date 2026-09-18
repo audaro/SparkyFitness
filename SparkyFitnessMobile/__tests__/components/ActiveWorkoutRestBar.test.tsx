@@ -88,13 +88,13 @@ describe('ActiveWorkoutRestBar', () => {
       nextSetNumber: 3,
     });
     expect(getByText('Log set 3 now')).toBeTruthy();
-    fireEvent.press(getByLabelText('Complete set'));
+    fireEvent.press(getByLabelText('Log set'));
     expect(props.onCompleteSet).toHaveBeenCalledTimes(1);
   });
 
   it('drops the footer when there is no set number to log', () => {
     const { queryByLabelText } = renderBar({ nextSetNumber: null });
-    expect(queryByLabelText('Complete set')).toBeNull();
+    expect(queryByLabelText('Log set')).toBeNull();
   });
 
   it('sets the progress fill width from the progress fraction', () => {
@@ -156,7 +156,7 @@ describe('ActiveWorkoutRestBar', () => {
     fireEvent.press(getByLabelText('Skip rest'));
     fireEvent.press(getByLabelText('Pause rest'));
     fireEvent.press(getByLabelText('Extend rest by 15 seconds'));
-    fireEvent.press(getByLabelText('Complete set'));
+    fireEvent.press(getByLabelText('Log set'));
     expect(props.onPressBar).not.toHaveBeenCalled();
   });
 
@@ -166,7 +166,7 @@ describe('ActiveWorkoutRestBar', () => {
     });
     fireEvent.press(getByTestId('rest-bar-body'));
     expect(props.onPressBar).toHaveBeenCalledTimes(1);
-    fireEvent.press(getByLabelText('Complete set'));
+    fireEvent.press(getByLabelText('Log set'));
     expect(props.onPressBar).toHaveBeenCalledTimes(1);
   });
 
@@ -193,7 +193,7 @@ describe('ActiveWorkoutRestBar', () => {
   });
 
   describe('ready state', () => {
-    it('collapses to the on-deck row: label, target, and a Complete Set button', () => {
+    it('collapses to the on-deck row: label, target, and a Log Set button', () => {
       const {
         getByText,
         getByLabelText,
@@ -203,7 +203,7 @@ describe('ActiveWorkoutRestBar', () => {
       } = renderBar({ state: 'ready', nextSetText: '135 lbs × 8' });
       expect(getByText('Incline DB Press · Set 3')).toBeTruthy();
       expect(getByText('Target 135 lbs × 8')).toBeTruthy();
-      expect(getByLabelText('Complete set')).toBeTruthy();
+      expect(getByLabelText('Log set')).toBeTruthy();
       // Sheet chrome is gone: no eyebrow, countdown, track, or rest controls.
       // A display-size 0:00 with nothing counting is what this state avoids.
       expect(queryByText('Rest')).toBeNull();
@@ -214,9 +214,9 @@ describe('ActiveWorkoutRestBar', () => {
       expect(queryByLabelText('Shorten rest by 15 seconds')).toBeNull();
     });
 
-    it('fires onCompleteSet from the Complete Set button', () => {
+    it('fires onCompleteSet from the Log Set button', () => {
       const { getByLabelText, props } = renderBar({ state: 'ready' });
-      fireEvent.press(getByLabelText('Complete set'));
+      fireEvent.press(getByLabelText('Log set'));
       expect(props.onCompleteSet).toHaveBeenCalledTimes(1);
     });
 
@@ -226,7 +226,7 @@ describe('ActiveWorkoutRestBar', () => {
         state: 'ready',
       });
       expect(getByTestId('rest-bar-glass')).toBeTruthy();
-      fireEvent.press(getByLabelText('Complete set'));
+      fireEvent.press(getByLabelText('Log set'));
       expect(props.onCompleteSet).toHaveBeenCalledTimes(1);
     });
   });

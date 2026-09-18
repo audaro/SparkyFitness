@@ -76,7 +76,7 @@ import {
   SAVING_LABEL,
   type HeaderItem,
 } from '../hooks/useScreenHeader';
-import { useSupersetBorders } from '../components/ActiveWorkoutRail';
+import { useSupersetBorders } from '../hooks/useSupersetBorders';
 import type { RootStackScreenProps } from '../types/navigation';
 import type { UpdatePresetSessionRequest } from '@workspace/shared';
 import { canEditGroupedWorkout } from '@workspace/shared';
