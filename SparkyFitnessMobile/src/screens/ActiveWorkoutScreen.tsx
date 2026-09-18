@@ -44,6 +44,7 @@ import { MetricColumnMenu, SetTypeMenu } from '../components/WorkoutMenus';
 import ActiveWorkoutRestBar, {
   REST_BAR_GLASS_CLEARANCE,
 } from '../components/ActiveWorkoutRestBar';
+import ActiveWorkoutHoldSheet from '../components/ActiveWorkoutHoldSheet';
 import ActionSheet, {
   type ActionSheetItem,
   type ActionSheetRef,
@@ -65,6 +66,7 @@ import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
 import { useNavigationActionGuard } from '../hooks/useNavigationActionGuard';
 import { usePreferences } from '../hooks/usePreferences';
 import { useRestCountdown } from '../hooks/useRestCountdown';
+import { useHoldCountdown } from '../hooks/useHoldCountdown';
 import { useSelectedExercise } from '../hooks/useSelectedExercise';
 import { deleteWorkout } from '../services/api/exerciseApi';
 import { addLog } from '../services/LogService';
@@ -203,6 +205,21 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     remainingMs: restRemainingMs,
     progress: restProgress,
   } = useRestCountdown({ selfTick: false });
+  const {
+    state: holdState,
+    setId: holdSetId,
+    remainingMs: holdRemainingMs,
+    progress: holdProgress,
+  } = useHoldCountdown({ selfTick: false });
+  // The rest the held set will roll into, for the sheet's "then 0:30 rest"
+  // hint. A primitive selector, so an unrelated step edit can't re-render the
+  // screen through it. Zero (a superset partner taken back-to-back) reads as
+  // no rest, which is what the hint should then say.
+  const holdNextRestSec = useActiveWorkoutStore((s) =>
+    s.hold.setId == null
+      ? null
+      : (s.steps.find((step) => step.setId === s.hold.setId)?.restSec ?? null)
+  );
   const usesGlassRestBar = useNativeIOSTabsActive();
   const createdByLiveStart = useActiveWorkoutStore((s) => s.createdByLiveStart);
   const queryClient = useQueryClient();
@@ -936,6 +953,15 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
   const handleUncomplete = useCallback((setId: string) => {
     useActiveWorkoutStore.getState().uncompleteSet(setId);
   }, []);
+  // The row flushes its own duration draft before calling this (see
+  // ActiveWorkoutSetRow), so the target the user just typed is what gets held.
+  // The store re-checks every precondition at press time.
+  const handleStartHold = useCallback((setId: string) => {
+    useActiveWorkoutStore.getState().startHold(setId);
+  }, []);
+  const handleStopHold = useCallback(() => {
+    useActiveWorkoutStore.getState().stopHoldAndLog();
+  }, []);
   const handleCommitField = useCallback(
     (setId: string, patch: ActiveSetPatch) => {
       useActiveWorkoutStore.getState().updateSetField(setId, patch);
@@ -1315,7 +1341,16 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
   // The bar stays up through 'ready' (compact on-deck row with a Complete
   // button) as long as a set remains to complete; it only leaves once the
   // workout is done.
-  const restBarVisible = restState !== 'ready' || activeSetId != null;
+  const holdActive = holdState !== 'idle';
+  // Hold and rest are mutually exclusive in the store, and so are their
+  // surfaces: the hold sheet takes the dock while a set is being held, and the
+  // rest bar comes back for the break that follows.
+  const restBarVisible =
+    !holdActive && (restState !== 'ready' || activeSetId != null);
+  // Offered only when the store would accept it — the cursor set, no rest
+  // running, nothing already held — so the control is never shown dead.
+  const canStartHold =
+    !holdActive && restState === 'ready' && activeSetId != null;
   // With Liquid Glass tabs active the rest bar floats over the log instead of
   // docking below it, so the scroll content reserves clearance for the pill.
   const restBarPadding = usesGlassRestBar
@@ -1332,6 +1367,15 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     activeSetDescription == null
       ? null
       : formatSetLoad(activeSetDescription, weightUnit, t);
+
+  // The hold sheet names what is being held, and what happens after it logs.
+  const holdDescription = holdActive
+    ? describeActiveSet(session, holdSetId)
+    : null;
+  const holdLabel =
+    holdDescription == null
+      ? ''
+      : `${holdDescription.exerciseName ?? t('workout.exercise', { defaultValue: 'Exercise' })} · ${t('workout.setNumber', { defaultValue: 'Set {{number}}', number: holdDescription.setNumber })}`;
 
   // Sticky accessory bar (both platforms) for the focused set cell. The
   // focused row registered its handle by render key; its set id — needed for
@@ -1495,6 +1539,8 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
               onPressMetricHeader={handlePressMetricHeader}
               onPressOverflow={handlePressOverflow}
               onComplete={handleCompleteSet}
+              onStartHold={canStartHold ? handleStartHold : undefined}
+              holdingSetId={holdSetId}
               onUncomplete={handleUncomplete}
               onCommitField={handleCommitField}
               onDeleteSet={handleDeleteSet}
@@ -1562,6 +1608,22 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
           {t('workout.endWorkout', { defaultValue: 'End Workout' })}
         </Button>
       </KeyboardAwareScrollView>
+
+      {holdActive && (
+        <ActiveWorkoutHoldSheet
+          remainingMs={holdRemainingMs}
+          progress={holdProgress}
+          paused={holdState === 'paused'}
+          label={holdLabel}
+          nextRestSec={holdNextRestSec}
+          onAdjust={(deltaSec) =>
+            useActiveWorkoutStore.getState().adjustHold(deltaSec)
+          }
+          onPause={() => useActiveWorkoutStore.getState().pauseHold()}
+          onResume={() => useActiveWorkoutStore.getState().resumeHold()}
+          onStop={handleStopHold}
+        />
+      )}
 
       {restBarVisible && (
         <ActiveWorkoutRestBar

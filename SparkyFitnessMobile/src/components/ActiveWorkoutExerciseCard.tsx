@@ -145,6 +145,13 @@ interface ActiveWorkoutExerciseCardProps {
   onPressMetricHeader: (anchor: AnchorRect, clampedToRpe: boolean) => void;
   onPressOverflow?: (entryId: string) => void;
   onComplete?: (setId: string) => void;
+  /**
+   * Live only: start the hold timer for a timed set. Passed down only when the
+   * store would accept it, so the row never offers a dead control.
+   */
+  onStartHold?: (setId: string) => void;
+  /** The set currently being held, if any — marks its row as in progress. */
+  holdingSetId?: string | null;
   onUncomplete?: (setId: string) => void;
   onCommitField?: (setId: string, patch: ActiveSetPatch) => void;
   onDeleteSet?: (setId: string) => void;
@@ -251,6 +258,8 @@ function ActiveWorkoutExerciseCard({
   expanded,
   completedSetIds,
   activeSetId,
+  onStartHold,
+  holdingSetId = null,
   metricColumn,
   weightUnit,
   distanceUnit = 'km',
@@ -1331,6 +1340,8 @@ function ActiveWorkoutExerciseCard({
                   assumed={assumedSetValues?.[index] ?? null}
                   mode={mode}
                   onComplete={onComplete}
+                  onStartHold={isLive ? onStartHold : undefined}
+                  isHolding={holdingSetId === setId}
                   onUncomplete={onUncomplete}
                   onCommitField={onCommitField}
                   onDelete={onDeleteSet}

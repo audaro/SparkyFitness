@@ -11,6 +11,7 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 import { useCSSVariable } from 'uniwind';
 import { measureAnchoredMenuTrigger, type AnchorRect } from './AnchoredMenu';
 import CompletionCheck, { LogCircle } from './CompletionCheck';
+import Icon from './Icon';
 import {
   SetCellInput,
   SetSwipeDeleteAction,
@@ -143,6 +144,15 @@ interface ActiveWorkoutSetRowProps {
   mode?: SetRowMode;
   /** Log a set (live). Receives the set id so any row can complete out of order. */
   onComplete?: (setId: string) => void;
+  /**
+   * Live duration rows only: start the hold timer for this set instead of
+   * logging it outright. Passed only when the store would actually accept the
+   * hold (this set is the cursor, no rest running), so the control is never
+   * offered dead.
+   */
+  onStartHold?: (setId: string) => void;
+  /** True while this row's set is the one being held. */
+  isHolding?: boolean;
   onUncomplete?: (setId: string) => void;
   onCommitField?: (setId: string, patch: ActiveSetPatch) => void;
   onDelete?: (setId: string) => void;
@@ -214,6 +224,8 @@ function ActiveWorkoutSetRow({
   assumed,
   mode = 'live',
   onComplete,
+  onStartHold,
+  isHolding = false,
   onUncomplete,
   onCommitField,
   onDelete,
@@ -555,6 +567,14 @@ function ActiveWorkoutSetRow({
     rpeDraft,
   ]);
 
+  // Start the hold on this row. Flushes the duration draft the way handleLog
+  // does, so a target typed and not yet blurred is the one held — but without
+  // completing the set, which the hold itself does when it reaches 0:00.
+  const handleStartHold = useCallback(() => {
+    commitDuration(durationDraft);
+    onStartHold?.(setId);
+  }, [commitDuration, durationDraft, onStartHold, setId]);
+
   // Register this row's accessory handle for the screen's sticky bar (live
   // and edit — view rows have nothing to dispatch to). The handle is
   // registered once per key with stable closures — `log`/`advance` read the
@@ -700,6 +720,43 @@ function ActiveWorkoutSetRow({
       );
     }
     if (state === 'current') {
+      // A timed set is started, not logged: the hold counts it down and logs
+      // itself at 0:00. Requires a real target — a duration row with nothing
+      // prescribed has nothing to count, and the store would refuse it — and
+      // `onStartHold` is only passed when the store would accept. Otherwise
+      // the row keeps its ordinary Log control rather than a dead button.
+      if (
+        onStartHold != null &&
+        durationLike &&
+        !isHolding &&
+        effectiveDurationSec != null
+      ) {
+        return (
+          <Pressable
+            onPress={handleStartHold}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            // `durationSeedText` rather than `effectiveDurationSec`: the
+            // latter seeds `durationDraft`'s useState, so reading it here
+            // merges this scope with the drafts' and the React Compiler then
+            // infers the state setters as deps of handleFillFromPrevious.
+            // Same value, already stringified.
+            accessibilityLabel={t('activeWorkout.setRow.startHold', {
+              defaultValue: 'Start {{duration}}s hold for set {{setNumber}}',
+              duration: durationSeedText,
+              setNumber: set.set_number,
+            })}
+          >
+            <View
+              testID="start-hold-control"
+              className="h-7 w-7 rounded-full items-center justify-center"
+              style={{ backgroundColor: accentPrimary }}
+            >
+              <Icon name="play" size={14} color="#ffffff" weight="bold" />
+            </View>
+          </Pressable>
+        );
+      }
       return (
         <Pressable
           onPress={handleLog}

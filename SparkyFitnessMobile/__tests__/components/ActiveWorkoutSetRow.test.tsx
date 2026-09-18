@@ -63,6 +63,9 @@ function makeSet(
 interface RenderOverrides {
   set?: Partial<WorkoutCardSet>;
   modality?: ExerciseModality;
+  /** Opt-in: offer the start-hold control (the screen gates this). */
+  enableStartHold?: boolean;
+  isHolding?: boolean;
   state?: SetRowState;
   metricColumn?: ActiveWorkoutMetricColumn;
   weightUnit?: 'kg' | 'lbs';
@@ -98,11 +101,13 @@ function renderRow(overrides?: RenderOverrides) {
     onAddSet: jest.fn(),
     onPressSetType: jest.fn(),
     onRegisterAccessoryHandle: jest.fn(),
+    onStartHold: jest.fn(),
   };
   // onToggleComplete and onPressSetType are opt-in (via enableToggle /
   // enableSetType) so most tests exercise the static-check + onLongPress
   // fallbacks.
-  const { onToggleComplete, onPressSetType, ...spreadCallbacks } = callbacks;
+  const { onToggleComplete, onPressSetType, onStartHold, ...spreadCallbacks } =
+    callbacks;
   const buildElement = (current?: RenderOverrides) => (
     <ActiveWorkoutSetRow
       set={makeSet(current?.set as Partial<ExerciseEntrySetResponse>)}
@@ -124,6 +129,8 @@ function renderRow(overrides?: RenderOverrides) {
       {...spreadCallbacks}
       onToggleComplete={current?.enableToggle ? onToggleComplete : undefined}
       onPressSetType={current?.enableSetType ? onPressSetType : undefined}
+      onStartHold={current?.enableStartHold ? onStartHold : undefined}
+      isHolding={current?.isHolding}
     />
   );
   const utils = render(buildElement(overrides));
@@ -1658,6 +1665,78 @@ describe('ActiveWorkoutSetRow', () => {
       });
       expect(getByLabelText('Weight').props.value).toBe('100');
       expect(getByLabelText('Reps').props.value).toBe('5');
+    });
+  });
+
+  describe('start-hold control', () => {
+    it('replaces the log ring on a timed current row', () => {
+      const { getByLabelText, queryByLabelText } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      expect(getByLabelText('Start 45s hold for set 1')).toBeTruthy();
+      expect(queryByLabelText('Log set 1')).toBeNull();
+    });
+
+    it('starts the hold for its own set', () => {
+      const { getByLabelText, callbacks } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      fireEvent.press(getByLabelText('Start 45s hold for set 1'));
+      expect(callbacks.onStartHold).toHaveBeenCalledWith('101');
+      expect(callbacks.onComplete).not.toHaveBeenCalled();
+    });
+
+    it('commits a typed target before starting, so the hold runs what is on screen', () => {
+      const { getByLabelText, callbacks } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      fireEvent.changeText(getByLabelText('Duration'), '60');
+      fireEvent.press(getByLabelText('Start 45s hold for set 1'));
+      expect(callbacks.onCommitField).toHaveBeenCalledWith('101', {
+        duration: 60,
+      });
+      expect(callbacks.onStartHold).toHaveBeenCalledWith('101');
+    });
+
+    it('keeps the ordinary log ring on a reps row', () => {
+      const { getByLabelText, queryByTestId } = renderRow({
+        state: 'current',
+        modality: 'weight_reps',
+        enableStartHold: true,
+      });
+      expect(getByLabelText('Log set 1')).toBeTruthy();
+      expect(queryByTestId('start-hold-control')).toBeNull();
+    });
+
+    it('keeps the log ring when the screen does not offer a hold', () => {
+      // No onStartHold: a rest is running, or another set is being held.
+      const { getByLabelText, queryByTestId } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      expect(getByLabelText('Log set 1')).toBeTruthy();
+      expect(queryByTestId('start-hold-control')).toBeNull();
+    });
+
+    it('does not offer a second start while this row is already being held', () => {
+      const { queryByTestId } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        isHolding: true,
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      expect(queryByTestId('start-hold-control')).toBeNull();
     });
   });
 });
