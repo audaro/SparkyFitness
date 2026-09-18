@@ -38,6 +38,7 @@ import { useCheckInPhotoSource } from '../hooks/useCheckInPhotoSource';
 import { usePreferences } from '../hooks/usePreferences';
 import { getApiErrorMessage } from '../services/api/errors';
 import { pickImageFromCamera, pickImagesFromLibrary } from '../utils/pickImage';
+import { buildCaptureMeta } from '../utils/captureMeta';
 import { formatDateLabel, getTodayDate } from '../utils/dateUtils';
 import {
   formatWeightDisplay,
@@ -249,7 +250,20 @@ const ProgressPhotosScreen: React.FC<Props> = ({ navigation, route }) => {
         if (!uri) return;
         // The server upserts on (user_id, entry_date, photo_type), so an
         // upload over an existing angle replaces it with no delete first.
-        await uploadAsync({ date: selectedDate, type, uri });
+        //
+        // These two paths record only *how* the photo arrived: the system
+        // camera and the library both hand back an image with no framing,
+        // tilt or reference behind it. That is still worth storing — a
+        // comparison can then tell an unguided shot from one taken before
+        // capture metadata existed at all, which is a different unknown.
+        await uploadAsync({
+          date: selectedDate,
+          type,
+          uri,
+          captureMeta: buildCaptureMeta({
+            mode: source === 'camera' ? 'os_camera' : 'library',
+          }),
+        });
       } catch (err) {
         Toast.show({
           type: 'error',
@@ -293,6 +307,17 @@ const ProgressPhotosScreen: React.FC<Props> = ({ navigation, route }) => {
   const sheetItems = useMemo<ActionSheetItem[]>(() => {
     const items: ActionSheetItem[] = [
       {
+        key: 'guided',
+        label: t('progressPhotos.guidedCapture', {
+          defaultValue: 'Guided Capture',
+        }),
+        onPress: () =>
+          navigation.navigate('ProgressPhotoCapture', {
+            date: selectedDate,
+            angle: sheetAngle,
+          }),
+      },
+      {
         key: 'camera',
         label: t('progressPhotos.takePhoto', { defaultValue: 'Take Photo' }),
         onPress: () => void uploadFrom('camera', sheetAngle),
@@ -314,7 +339,15 @@ const ProgressPhotosScreen: React.FC<Props> = ({ navigation, route }) => {
       });
     }
     return items;
-  }, [t, uploadFrom, removePhoto, sheetAngle, byType]);
+  }, [
+    t,
+    uploadFrom,
+    removePhoto,
+    sheetAngle,
+    byType,
+    navigation,
+    selectedDate,
+  ]);
 
   const formatDelta = (deltaKg: number): string => {
     // Convert the difference itself, not each end, so rounding happens once.

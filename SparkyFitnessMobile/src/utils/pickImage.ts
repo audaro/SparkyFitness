@@ -31,7 +31,15 @@ export type CameraPickResult =
   | { status: 'cancelled' }
   | { status: 'denied' };
 
-async function downscale(asset: {
+/**
+ * Resizes and re-encodes a captured or picked image for upload.
+ *
+ * Exported because the guided progress-photo screen takes its shot through
+ * `expo-camera` rather than the system picker, and a photo that skipped this
+ * step arrives at full camera resolution — often over the server's 10 MB limit,
+ * and in HEIC, which the upload allowlist rejects.
+ */
+export async function downscale(asset: {
   uri: string;
   width?: number;
   height?: number;

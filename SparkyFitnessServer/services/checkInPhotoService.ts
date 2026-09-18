@@ -9,6 +9,7 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import { localDateToDay } from '@workspace/shared';
 import type {
+  CaptureMeta,
   CheckInPhotoResponse,
   CheckInPhotoWithWeight,
   PhotoType,
@@ -34,7 +35,7 @@ export const getPhotosByDate = async (
   try {
     const result = await client.query(
       `SELECT id, user_id, check_in_measurement_id, entry_date, photo_type,
-              file_path, created_at
+              file_path, created_at, capture_meta
        FROM check_in_photos
        WHERE user_id = $1 AND entry_date = $2
        ORDER BY photo_type ASC`,
@@ -143,7 +144,12 @@ export const upsertPhoto = async (
   entryDate: string,
   photoType: PhotoType,
   fileExtension: string,
-  buffer: Buffer
+  buffer: Buffer,
+  // The conditions this shot was taken under, already validated by the route.
+  // Undefined when the client sent none (an older app, or a library import),
+  // and stored as SQL NULL — "unknown", which is what a comparison must see
+  // rather than a fabricated default.
+  captureMeta?: CaptureMeta | null
 ): Promise<CheckInPhotoResponse> => {
   // The extension is derived from the validated image bytes by the route, not
   // from the client-supplied filename, so the stored name matches the content.
@@ -187,16 +193,32 @@ export const upsertPhoto = async (
 
     const result = await client.query(
       `INSERT INTO check_in_photos
-         (user_id, check_in_measurement_id, entry_date, photo_type, file_path)
-       VALUES ($1, $2, $3, $4, $5)
+         (user_id, check_in_measurement_id, entry_date, photo_type, file_path,
+          capture_meta)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (user_id, entry_date, photo_type)
        DO UPDATE SET
          file_path = EXCLUDED.file_path,
          check_in_measurement_id = EXCLUDED.check_in_measurement_id,
+         -- Replacing an angle replaces its capture conditions, including back
+         -- to NULL: the row now describes the new photo, and keeping the old
+         -- shot's tilt and reference would misreport how this one was taken.
+         capture_meta = EXCLUDED.capture_meta,
          updated_at = now()
        RETURNING id, user_id, check_in_measurement_id, entry_date, photo_type,
-                 file_path, created_at`,
-      [userId, measurementId, entryDate, photoType, relativePath]
+                 file_path, created_at, capture_meta`,
+      [
+        userId,
+        measurementId,
+        entryDate,
+        photoType,
+        relativePath,
+        // Serialize explicitly, matching how every other jsonb write here
+        // works, and only when there is something to serialize: an absent
+        // payload must reach the column as SQL NULL, not as the
+        // four-character string "null" that JSON.stringify(null) produces.
+        captureMeta ? JSON.stringify(captureMeta) : null,
+      ]
     );
 
     await client.query('COMMIT');

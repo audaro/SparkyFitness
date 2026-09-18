@@ -59,6 +59,7 @@ import AboutScreen from '../screens/AboutScreen';
 import WhatsNewScreen from '../screens/WhatsNewScreen';
 import MeasurementsAddScreen from '../screens/MeasurementsAddScreen';
 import ProgressPhotosScreen from '../screens/ProgressPhotosScreen';
+import ProgressPhotoCaptureScreen from '../screens/ProgressPhotoCaptureScreen';
 import ProgressPhotoCompareScreen from '../screens/ProgressPhotoCompareScreen';
 import ProgressPhotoTimelapseScreen from '../screens/ProgressPhotoTimelapseScreen';
 import ChatScreen from '../screens/ChatScreen';
@@ -127,6 +128,7 @@ export const SafeSync = withErrorBoundary(SyncScreen, 'Sync', { canGoBack: true 
 export const SafeImportHistory = withErrorBoundary(ImportHistoryScreen, 'ImportHistory', { canGoBack: true });
 export const SafeMeasurementsAdd = withErrorBoundary(MeasurementsAddScreen, 'MeasurementsAdd', { canGoBack: true });
 export const SafeProgressPhotos = withErrorBoundary(ProgressPhotosScreen, 'ProgressPhotos', { canGoBack: true });
+export const SafeProgressPhotoCapture = withErrorBoundary(ProgressPhotoCaptureScreen, 'ProgressPhotoCapture', { canGoBack: true });
 export const SafeProgressPhotoCompare = withErrorBoundary(ProgressPhotoCompareScreen, 'ProgressPhotoCompare', { canGoBack: true });
 export const SafeProgressPhotoTimelapse = withErrorBoundary(ProgressPhotoTimelapseScreen, 'ProgressPhotoTimelapse', { canGoBack: true });
 export const SafeChat = withErrorBoundary(ChatScreen, 'Chat', { canGoBack: true });

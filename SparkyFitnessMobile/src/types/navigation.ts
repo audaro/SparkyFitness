@@ -366,6 +366,12 @@ export type RootStackParamList = {
    * day the screen opens on.
    */
   ProgressPhotos: { date?: string } | undefined;
+  /**
+   * Guided capture for one angle on one day: the previous shoot of that angle
+   * ghosted under the viewfinder. Both params are required — there is no
+   * sensible default for which angle a shot belongs to.
+   */
+  ProgressPhotoCapture: { date: string; angle: PhotoType };
   /** Side-by-side comparison of two days for one angle. */
   ProgressPhotoCompare: { angle?: PhotoType } | undefined;
   /** Cross-fading time-lapse of every photo for one angle, oldest to newest. */

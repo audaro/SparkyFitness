@@ -253,7 +253,10 @@ describe('POST /:date/:type', () => {
       '2026-06-14',
       'front',
       'jpg',
-      expect.any(Buffer)
+      expect.any(Buffer),
+      // No capture_meta field on this request: the conditions are unknown, and
+      // undefined is what the service stores as SQL NULL.
+      undefined
     );
   });
 
@@ -270,7 +273,8 @@ describe('POST /:date/:type', () => {
       '2026-06-14',
       'front',
       'webp',
-      expect.any(Buffer)
+      expect.any(Buffer),
+      undefined
     );
   });
 
@@ -337,5 +341,89 @@ describe('DELETE /photo/:id', () => {
       '/photo/a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     );
     expect(res.status).toBe(500);
+  });
+});
+
+describe('POST /:date/:type capture_meta', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const validMeta = {
+    v: 1,
+    capture_mode: 'guided',
+    device: 'iPhone 16 Pro',
+    facing: 'front',
+    reference_photo_id: 'b2c3d4e5-f6a7-4890-abcd-ef1234567890',
+    reference_opacity: 0.4,
+    timer_seconds: 3,
+    local_time: '2026-06-14T07:12:00-05:00',
+  };
+
+  it('stores the capture conditions alongside the photo', async () => {
+    // @ts-expect-error mock
+    checkInPhotoService.upsertPhoto.mockResolvedValue(MOCK_PHOTO);
+    const res = await request(app)
+      .post('/2026-06-14/front')
+      .send({ capture_meta: JSON.stringify(validMeta) });
+    expect(res.status).toBe(200);
+    expect(checkInPhotoService.upsertPhoto).toHaveBeenCalledWith(
+      'test-user-id',
+      '2026-06-14',
+      'front',
+      'jpg',
+      expect.any(Buffer),
+      validMeta
+    );
+  });
+
+  it('rejects a malformed payload instead of storing the photo without it', async () => {
+    // The whole point of the 400: a silently dropped payload leaves a photo
+    // that looks guided but carries no conditions, and the comparison built on
+    // it would score the pair on framing it never had.
+    const res = await request(app)
+      .post('/2026-06-14/front')
+      .send({ capture_meta: '{not json' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/capture_meta/);
+    expect(checkInPhotoService.upsertPhoto).not.toHaveBeenCalled();
+  });
+
+  it('rejects a payload that parses but does not match the contract', async () => {
+    const res = await request(app)
+      .post('/2026-06-14/front')
+      .send({
+        capture_meta: JSON.stringify({
+          ...validMeta,
+          capture_mode: 'telepathy',
+        }),
+      });
+    expect(res.status).toBe(400);
+    expect(checkInPhotoService.upsertPhoto).not.toHaveBeenCalled();
+  });
+
+  it('rejects a tilt outside the possible range', async () => {
+    const res = await request(app)
+      .post('/2026-06-14/front')
+      .send({ capture_meta: JSON.stringify({ ...validMeta, pitch_deg: 999 }) });
+    expect(res.status).toBe(400);
+    expect(checkInPhotoService.upsertPhoto).not.toHaveBeenCalled();
+  });
+
+  it('treats an empty field as no conditions rather than an error', async () => {
+    // A client that appends the field unconditionally must not fail the upload
+    // just because it had nothing to say.
+    // @ts-expect-error mock
+    checkInPhotoService.upsertPhoto.mockResolvedValue(MOCK_PHOTO);
+    const res = await request(app)
+      .post('/2026-06-14/front')
+      .send({ capture_meta: '' });
+    expect(res.status).toBe(200);
+    expect(checkInPhotoService.upsertPhoto).toHaveBeenCalledWith(
+      'test-user-id',
+      '2026-06-14',
+      'front',
+      'jpg',
+      expect.any(Buffer),
+      undefined
+    );
   });
 });

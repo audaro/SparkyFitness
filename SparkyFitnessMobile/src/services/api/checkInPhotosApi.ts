@@ -6,6 +6,7 @@ import { getAuthHeaders, notifySessionExpired } from './authService';
 import { addLog } from '../LogService';
 import { UPLOAD_TIMEOUT_MS, fetchWithTimeout } from '../../utils/concurrency';
 import type {
+  CaptureMeta,
   CheckInPhoto,
   CheckInPhotoWithWeight,
   PhotoType,
@@ -63,13 +64,20 @@ export const deletePhoto = async (id: string): Promise<void> => {
 /**
  * Uploads one angle for one day, replacing whatever was there before (the
  * server upserts on user + date + type).
+ *
+ * `captureMeta` describes the conditions the shot was taken under and travels
+ * in the same request, so the photo and what is known about it commit together.
+ * The server rejects a malformed payload rather than storing the photo without
+ * it; a later comparison would otherwise score the pair on conditions it never
+ * had.
  */
 export async function uploadPhoto(params: {
   date: string;
   type: PhotoType;
   uri: string;
+  captureMeta?: CaptureMeta;
 }): Promise<CheckInPhoto> {
-  const { date, type, uri } = params;
+  const { date, type, uri, captureMeta } = params;
 
   const config = await getActiveServerConfig();
   if (!config) throw new Error('Server configuration not found.');
@@ -88,6 +96,10 @@ export async function uploadPhoto(params: {
   // implementation". expo-file-system's File implements Blob, which
   // expo/fetch serializes correctly. Same approach as pregnancyPhotosApi.
   form.append('photo', new File(uri));
+  // A text part alongside the binary one; multer surfaces it on req.body.
+  if (captureMeta) {
+    form.append('capture_meta', JSON.stringify(captureMeta));
+  }
 
   const endpoint = `${baseUrl}/api/measurements/check-in-photos/${encodeURIComponent(date)}/${type}`;
 

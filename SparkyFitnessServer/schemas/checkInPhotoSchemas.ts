@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
 import {
+  captureMetaSchema,
   checkInPhotoGalleryResponseSchema,
   checkInPhotoResponseSchema,
   checkInPhotoWithWeightSchema,
@@ -23,6 +24,15 @@ export const CheckInPhotoIdParamSchema = z.object({
   id: z.string().uuid('id must be a valid UUID'),
 });
 
+/**
+ * The capture conditions an upload may carry, as the multipart text field
+ * `capture_meta`. Optional: an older app, or a library import, sends nothing
+ * and the photo is stored with unknown conditions. What it must never do is
+ * arrive malformed and be dropped silently — a comparison would then score the
+ * pair on conditions it never had, so the route rejects a bad payload outright.
+ */
+export const CheckInPhotoCaptureMetaSchema = captureMetaSchema;
+
 export const CheckInPhotoResponseSchema = checkInPhotoResponseSchema;
 
 /**
@@ -39,6 +49,7 @@ export const CheckInPhotoGalleryResponseSchema =
   checkInPhotoGalleryResponseSchema;
 
 export type CheckInPhotoResponse = z.infer<typeof CheckInPhotoResponseSchema>;
+export type CaptureMeta = z.infer<typeof CheckInPhotoCaptureMetaSchema>;
 export type PhotoType = z.infer<typeof PhotoTypeSchema>;
 export type CheckInPhotoWithWeight = z.infer<
   typeof CheckInPhotoWithWeightSchema

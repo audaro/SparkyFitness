@@ -6,6 +6,7 @@ import { useCSSVariable } from 'uniwind';
 import Icon from './Icon';
 import SafeImage from './SafeImage';
 import { useCheckInPhotoSource } from '../hooks/useCheckInPhotoSource';
+import { getPhotoAngleLabel } from '../utils/photoAngleLabel';
 import {
   PHOTO_TYPES,
   type CheckInPhoto,
@@ -46,16 +47,7 @@ const PhotoDaySlots: React.FC<PhotoDaySlotsProps> = ({
     '--color-icon-decorative',
   ]) as [string, string];
 
-  const angleLabel = (type: PhotoType): string => {
-    switch (type) {
-      case 'front':
-        return t('progressPhotos.angle.front', { defaultValue: 'Front' });
-      case 'back':
-        return t('progressPhotos.angle.back', { defaultValue: 'Back' });
-      case 'side':
-        return t('progressPhotos.angle.side', { defaultValue: 'Side' });
-    }
-  };
+  const angleLabel = (type: PhotoType): string => getPhotoAngleLabel(type, t);
 
   return (
     <View className="flex-row gap-2">

@@ -28,6 +28,8 @@ const NATIVE_TABS_ROUTE_EXCLUSIONS = {
   ExerciseForm:
     'Root-stack exercise create/edit modal presented above the tab host.',
   FoodScan: 'Root-stack scanner modal presented from the tab host.',
+  ProgressPhotoCapture:
+    'Root-stack guided-capture camera modal presented above the tab host; the viewfinder owns the full screen and has no header.',
   FoodPhotoIntro: 'Root-stack food-photo modal presented from the tab host.',
   FoodPhotoFlow:
     'Root-stack nested food-photo modal with its own native stack.',

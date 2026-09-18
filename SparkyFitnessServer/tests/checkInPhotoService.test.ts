@@ -10,6 +10,19 @@ vi.mock('../db/poolManager', () => ({
   getClient: vi.fn(),
 }));
 
+// upsertPhoto writes the image before committing; the suite is about what is
+// written to the row, so the filesystem is stubbed out entirely.
+vi.mock('fs', () => ({
+  default: {
+    promises: {
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      rename: vi.fn().mockResolvedValue(undefined),
+      unlink: vi.fn().mockResolvedValue(undefined),
+    },
+  },
+}));
+
 describe('checkInPhotoService.getAllPhotosWithWeight', () => {
   let mockClient: MockDbClient;
 
@@ -158,5 +171,104 @@ describe('checkInPhotoService.getAllPhotosWithWeight', () => {
       checkInPhotoService.getAllPhotosWithWeight('user-1')
     ).rejects.toThrow('connection lost');
     expect(mockClient.release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('checkInPhotoService.upsertPhoto capture conditions', () => {
+  let mockClient: MockDbClient;
+
+  const CAPTURE_META = {
+    v: 1 as const,
+    capture_mode: 'guided' as const,
+    facing: 'front' as const,
+    timer_seconds: 3,
+    local_time: '2026-06-14T07:12:00-05:00',
+  };
+
+  beforeEach(() => {
+    mockClient = createMockDbClient([]);
+    // The INSERT is the only statement whose result is read; every other call
+    // in the transaction is happy with no rows.
+    mockClient.query.mockImplementation((sql: string) => {
+      if (
+        typeof sql === 'string' &&
+        sql.includes('INSERT INTO check_in_photos')
+      ) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: 'photo-1',
+              user_id: 'user-1',
+              check_in_measurement_id: null,
+              entry_date: '2026-06-14',
+              photo_type: 'front',
+              file_path: 'uploads/check-in/user-1/2026-06-14/front.jpg',
+              created_at: '2026-06-14T10:00:00.000Z',
+              capture_meta: CAPTURE_META,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    // @ts-expect-error mock typing
+    getClient.mockResolvedValue(mockClient);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const insertCall = () =>
+    mockClient.query.mock.calls.find(
+      (call) =>
+        typeof call[0] === 'string' &&
+        call[0].includes('INSERT INTO check_in_photos')
+    ) as [string, unknown[]];
+
+  it('serializes the conditions to JSON for the jsonb column', async () => {
+    await checkInPhotoService.upsertPhoto(
+      'user-1',
+      '2026-06-14',
+      'front',
+      'jpg',
+      Buffer.from([0xff, 0xd8, 0xff]),
+      CAPTURE_META
+    );
+
+    expect(insertCall()[1][5]).toBe(JSON.stringify(CAPTURE_META));
+  });
+
+  it('stores SQL NULL, not the string "null", when there are no conditions', async () => {
+    // JSON.stringify(null) is the four-character string "null", which postgres
+    // would happily accept into a jsonb column as a JSON null literal. A later
+    // comparison would then read conditions that exist but say nothing, rather
+    // than a row it can recognise as unknown.
+    await checkInPhotoService.upsertPhoto(
+      'user-1',
+      '2026-06-14',
+      'front',
+      'jpg',
+      Buffer.from([0xff, 0xd8, 0xff])
+    );
+
+    expect(insertCall()[1][5]).toBeNull();
+  });
+
+  it('replaces the conditions when an angle is re-shot', async () => {
+    // ON CONFLICT must take EXCLUDED.capture_meta: the row describes the photo
+    // that is there now, so keeping the previous shot's framing would misreport
+    // how the current one was taken.
+    await checkInPhotoService.upsertPhoto(
+      'user-1',
+      '2026-06-14',
+      'front',
+      'jpg',
+      Buffer.from([0xff, 0xd8, 0xff]),
+      CAPTURE_META
+    );
+
+    const sql = insertCall()[0].replace(/\s+/g, ' ');
+    expect(sql).toContain('capture_meta = EXCLUDED.capture_meta');
   });
 });

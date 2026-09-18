@@ -1,4 +1,6 @@
 import type {
+  CaptureMeta,
+  CaptureMode,
   CheckInPhotoResponse,
   CheckInPhotoWithWeight,
   PhotoType,
@@ -7,7 +9,7 @@ import type {
 // The photo contract is owned by @workspace/shared and shared with the server.
 // Re-exported here so screens and hooks keep importing from one place.
 export { PHOTO_TYPES } from '@workspace/shared';
-export type { CheckInPhotoWithWeight, PhotoType };
+export type { CaptureMeta, CaptureMode, CheckInPhotoWithWeight, PhotoType };
 
 /** A photo row as returned by GET /measurements/check-in-photos/:date. */
 export type CheckInPhoto = CheckInPhotoResponse;
