@@ -332,6 +332,9 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
     (s) => s.previousSessionSets
   );
   const plannedSetValues = useActiveWorkoutStore((s) => s.plannedSetValues);
+  const sourceRecommendationId = useActiveWorkoutStore(
+    (s) => s.sourceRecommendationId
+  );
   const { state: restState, remainingMs, progress } = useRestCountdown();
   const queryClient = useQueryClient();
   const { preferences } = usePreferences();
@@ -473,7 +476,8 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
     activeSession,
     activeSetId,
     previousSessionSets,
-    plannedSetValues
+    plannedSetValues,
+    sourceRecommendationId != null
   );
   const activeSetLabel =
     activeSetDescription == null

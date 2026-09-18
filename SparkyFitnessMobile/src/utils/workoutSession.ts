@@ -983,12 +983,22 @@ type AssumableSet = Pick<
  *   2. The planned value captured at live start (the preset's programmed set).
  *   3. The preceding row's effective value — its entered value, else its
  *      resolved placeholder.
+ *
+ * `plannedOutranksPrevious` swaps the first two, and exists because those two
+ * kinds of plan are not the same kind of claim. A preset's programmed set is a
+ * template that may be months stale, so what the user actually lifted last
+ * time is the better guess. A generated workout's set is today's prescription,
+ * computed *from* that history by the server engine — the row on Up Next says
+ * so in words ("load adjusted to today's rep target") — so letting the same
+ * history overwrite it throws the whole generation away and shows the user
+ * last week's numbers under this week's plan.
  */
 export function resolveAssumedSetValues(
   sets: readonly AssumableSet[],
   previousSets: readonly ExerciseRecentSessionSet[] | undefined,
   plannedBySetId?: Record<string, AssumedSetValues>,
-  suggestedProgressionWeightKg?: number | null
+  suggestedProgressionWeightKg?: number | null,
+  plannedOutranksPrevious = false
 ): AssumedSetValues[] {
   const lastEffective = {
     warmup: {
@@ -1016,22 +1026,35 @@ export function resolveAssumedSetValues(
         ? suggestedProgressionWeightKg
         : previous?.weight;
 
+    // The client-side progression suggestion rides with `previous` rather than
+    // ahead of everything: it is an inference from the same history, so a plan
+    // that outranks the history outranks a number derived from it too.
+    const pick = (
+      plannedValue: number | null | undefined,
+      previousValue: number | null | undefined,
+      carried: number | null
+    ): number | null =>
+      (plannedOutranksPrevious
+        ? (plannedValue ?? previousValue ?? carried)
+        : (previousValue ?? plannedValue ?? carried)) ?? null;
+
     const assumed: AssumedSetValues = {
-      weight:
-        effectivePreviousWeight ??
-        planned?.weight ??
-        lastEffective[tier].weight,
-      reps: previous?.reps ?? planned?.reps ?? lastEffective[tier].reps,
-      duration:
-        previous?.duration ??
-        planned?.duration ??
-        lastEffective[tier].duration ??
-        null,
-      distance:
-        previous?.distance ??
-        planned?.distance ??
-        lastEffective[tier].distance ??
-        null,
+      weight: pick(
+        planned?.weight,
+        effectivePreviousWeight,
+        lastEffective[tier].weight
+      ),
+      reps: pick(planned?.reps, previous?.reps, lastEffective[tier].reps),
+      duration: pick(
+        planned?.duration,
+        previous?.duration,
+        lastEffective[tier].duration ?? null
+      ),
+      distance: pick(
+        planned?.distance,
+        previous?.distance,
+        lastEffective[tier].distance ?? null
+      ),
     };
     lastEffective[tier].weight = set.weight ?? assumed.weight;
     lastEffective[tier].reps = set.reps ?? assumed.reps;
@@ -1050,7 +1073,9 @@ export function describeActiveSetAssumed(
   session: PresetSessionResponse | null,
   setId: string | null,
   previousSetsByExerciseId: Record<string, ExerciseRecentSessionSet[]>,
-  plannedBySetId: Record<string, AssumedSetValues>
+  plannedBySetId: Record<string, AssumedSetValues>,
+  /** See {@link resolveAssumedSetValues}: true for a generated workout. */
+  plannedOutranksPrevious = false
 ): ActiveSetDescription | null {
   const desc = describeActiveSet(session, setId);
   if (desc == null || session == null) return desc;
@@ -1066,7 +1091,9 @@ export function describeActiveSetAssumed(
     const assumed = resolveAssumedSetValues(
       exercise.sets,
       historyForExercise(previousSetsByExerciseId, exercise.exercise_id),
-      plannedBySetId
+      plannedBySetId,
+      null,
+      plannedOutranksPrevious
     )[setIndex];
     if (isDurationModality(modality)) {
       return { ...desc, durationSec: assumed.duration ?? null };

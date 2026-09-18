@@ -490,6 +490,11 @@ function ActiveWorkoutExerciseCard({
   // same sources completion adoption uses in the store, so the gray value a
   // row shows is exactly what logging it would record.
   const plannedSetValues = useActiveWorkoutStore((s) => s.plannedSetValues);
+  // A generated workout's prescription outranks history; a preset's
+  // programmed set does not. See `resolveAssumedSetValues`.
+  const plannedOutranksPrevious = useActiveWorkoutStore(
+    (s) => s.sourceRecommendationId != null
+  );
   const assumedSetValues = useMemo(
     () =>
       isLive
@@ -500,7 +505,8 @@ function ActiveWorkoutExerciseCard({
             progressionResult?.goalAchieved &&
               progressionResult.status === 'PROGRESSION_WEIGHT_INCREASE'
               ? weightToKg(progressionResult.suggestedWeight, weightUnit)
-              : null
+              : null,
+            plannedOutranksPrevious
           )
         : null,
     [
@@ -508,6 +514,7 @@ function ActiveWorkoutExerciseCard({
       exercise.sets,
       previousSessionSets,
       plannedSetValues,
+      plannedOutranksPrevious,
       progressionResult,
       weightUnit,
     ]

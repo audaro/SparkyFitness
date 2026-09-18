@@ -727,7 +727,10 @@ function locateSet(
 function adoptAssumedSetValues(
   state: Pick<
     ActiveWorkoutState,
-    'session' | 'previousSessionSets' | 'plannedSetValues'
+    | 'session'
+    | 'previousSessionSets'
+    | 'plannedSetValues'
+    | 'sourceRecommendationId'
   >,
   setId: string
 ): PresetSessionResponse | null {
@@ -756,7 +759,12 @@ function adoptAssumedSetValues(
   const assumed = resolveAssumedSetValues(
     exercise.sets,
     historyForExercise(state.previousSessionSets, exercise.exercise_id),
-    state.plannedSetValues
+    state.plannedSetValues,
+    null,
+    // What a completed set adopts has to be what the row showed grayed-in, so
+    // this reads the same flag the card does — a session started from a
+    // generated workout logs the prescription, not last week's numbers.
+    state.sourceRecommendationId != null
   )[setIndex];
   const patch: ActiveSetPatch = cardio
     ? {
@@ -1027,13 +1035,14 @@ export function buildRestNotificationContent(
 ): { title: string; body: string } {
   // Assumed-aware so an upcoming set with empty fields still announces its
   // placeholder rep target, matching what the row shows grayed-in.
-  const { previousSessionSets, plannedSetValues } =
+  const { previousSessionSets, plannedSetValues, sourceRecommendationId } =
     useActiveWorkoutStore.getState();
   const desc = describeActiveSetAssumed(
     session,
     setId,
     previousSessionSets,
-    plannedSetValues
+    plannedSetValues,
+    sourceRecommendationId != null
   );
   if (desc != null) {
     const name = desc.exerciseName ?? fallbackExerciseName;

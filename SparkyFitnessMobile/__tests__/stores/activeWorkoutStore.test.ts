@@ -1082,6 +1082,47 @@ describe('activeWorkoutStore', () => {
         expect(useActiveWorkoutStore.getState().hasUnsavedChanges).toBe(true);
       });
 
+      it('adopts the prescription, not history, for a generated workout', () => {
+        // Starting an Up Next workout logs what the engine programmed today.
+        // Adoption and the gray placeholder read the same resolver, so this
+        // also pins what the row shows before the set is ticked.
+        useActiveWorkoutStore.getState().startWorkout(makeEmptySession(), {
+          createdByLiveStart: true,
+          plannedSetValues: [[{ weight: 35, reps: 10 }]],
+          sourceRecommendationId: 'rec-1',
+        });
+        useActiveWorkoutStore
+          .getState()
+          .capturePreviousSessionSets('ex-1', PREVIOUS_EX1);
+
+        useActiveWorkoutStore.getState().completeSet('101');
+
+        const set0 =
+          useActiveWorkoutStore.getState().session!.exercises[0].sets[0];
+        expect(set0.weight).toBe(35);
+        expect(set0.reps).toBe(10);
+      });
+
+      it("adopts history over a preset's programmed set", () => {
+        // The same plan without a recommendation behind it: a preset's numbers
+        // can be months stale, so last session still wins.
+        useActiveWorkoutStore.getState().startWorkout(makeEmptySession(), {
+          createdByLiveStart: true,
+          plannedSetValues: [[{ weight: 35, reps: 10 }]],
+          sourcePresetId: 1,
+        });
+        useActiveWorkoutStore
+          .getState()
+          .capturePreviousSessionSets('ex-1', PREVIOUS_EX1);
+
+        useActiveWorkoutStore.getState().completeSet('101');
+
+        const set0 =
+          useActiveWorkoutStore.getState().session!.exercises[0].sets[0];
+        expect(set0.weight).toBe(100);
+        expect(set0.reps).toBe(8);
+      });
+
       it('adopts per field — a typed value is never overwritten', () => {
         useActiveWorkoutStore.getState().startWorkout(makeEmptySession());
         useActiveWorkoutStore
