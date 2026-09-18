@@ -1,6 +1,6 @@
 # Handoff — hold timer, per-exercise sheet, live-workout restyle, Up Next coach note
 
-*Updated 2026-09-17. Branch `feat/hold-timer`, HEAD `7d70d3196`. **Every phase of the blueprint is
+*Updated 2026-09-17. Branch `feat/hold-timer`, HEAD `581730e6b`. **Every phase of the blueprint is
 implemented and committed. Nothing is pushed.***
 
 ## What this is
@@ -38,6 +38,7 @@ the watch complication was deliberately not built, why the web coach note does n
 | F4 | A cardio entry authorable as timed intervals | `5cad1b693` |
 | F5a | The coach note on the **web** Up Next card | `cb17e6557` |
 | F5b | The hold timer in **web** workout playback | `7d70d3196` |
+| F5b fix | Ticking a held set off logs the time held, not the prescription | `581730e6b` |
 
 ## Gate status
 
@@ -46,7 +47,7 @@ Green at HEAD, run before each commit:
 - **Mobile** — `pnpm run validate` exit 0; `pnpm exec jest --watchman=false --runInBand`:
   465 suites / 7337 tests passing.
 - **Frontend** — `pnpm run validate` exit 0 (knip prints two pre-existing configuration hints, not
-  findings); `pnpm test`: 162 suites / 1568 tests passing.
+  findings); `pnpm test`: 162 suites / 1570 tests passing.
 - **Server** — typecheck and `pnpm test` (6513 passed / 50 skipped) are green. Its `pnpm run validate`
   is **red at baseline, and was before this work**: knip reports three untracked, git-excluded scratch
   scripts (`tmp-fitbod-catalog.script.ts`, `tmp-fitbod.script.ts`, `tmp-gen-check.script.ts`). Nothing
