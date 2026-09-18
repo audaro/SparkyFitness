@@ -42,6 +42,7 @@ import {
   cancelScheduledNotification,
   COMPLETE_SET_ACTION,
   dismissDeliveredNotification,
+  dismissDeliveredRestNotifications,
   fireRestCompleteCue,
   scheduleHoldNotification,
   scheduleRestNotification,
@@ -327,7 +328,7 @@ export interface ActiveWorkoutState {
    * the resting → ready flip is often still pending when a lock-screen press
    * wakes the app. Returns whether a set was completed.
    */
-  completeActiveSetIfReady: () => boolean;
+  completeActiveSetIfReady: (expectedSetId?: string | null) => boolean;
   /**
    * Un-complete a set (undo): drop its completion timestamp and PR stamp. The
    * cursor stays put — every set is independently loggable, so the reopened set
@@ -1112,25 +1113,29 @@ function scheduleGuardedRestNotification(
   exerciseName: string,
   seconds: number,
   token: number,
+  setId: string | null,
   content?: { title?: string; body?: string }
 ): void {
-  void scheduleRestNotification(exerciseName, seconds, content).then(
-    (notifId) => {
-      if (!notifId) return;
-      const current = useActiveWorkoutStore.getState().rest;
-      if (
-        current.instanceToken === token &&
-        current.state === 'resting' &&
-        current.scheduledNotificationId === null
-      ) {
-        useActiveWorkoutStore.setState({
-          rest: { ...current, scheduledNotificationId: notifId },
-        });
-      } else {
-        void cancelScheduledNotification(notifId);
-      }
+  void scheduleRestNotification(
+    exerciseName,
+    seconds,
+    content,
+    setId ?? undefined
+  ).then((notifId) => {
+    if (!notifId) return;
+    const current = useActiveWorkoutStore.getState().rest;
+    if (
+      current.instanceToken === token &&
+      current.state === 'resting' &&
+      current.scheduledNotificationId === null
+    ) {
+      useActiveWorkoutStore.setState({
+        rest: { ...current, scheduledNotificationId: notifId },
+      });
+    } else {
+      void cancelScheduledNotification(notifId);
     }
-  );
+  });
 }
 
 /**
@@ -1166,7 +1171,13 @@ function startRestForStep(
     setId,
     exerciseName
   );
-  scheduleGuardedRestNotification(exerciseName, durationSec, token, content);
+  scheduleGuardedRestNotification(
+    exerciseName,
+    durationSec,
+    token,
+    setId,
+    content
+  );
 
   return rest;
 }
@@ -1420,6 +1431,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
 
         cancelCurrentRestNotification(state.rest);
         cancelCurrentHoldNotification(state.hold);
+        // Cancelling only reaches a ping still pending with the OS. One that
+        // already fired sits in the tray announcing a rest for the set being
+        // left, so sweep it -- every other path here schedules a fresh rest,
+        // which sweeps as a side effect; this one schedules nothing.
+        void dismissDeliveredRestNotifications();
         set({
           activeSetId: setId,
           rest: READY_REST,
@@ -1428,9 +1444,18 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         fireSelectionHaptic();
       },
 
-      completeActiveSetIfReady: () => {
+      completeActiveSetIfReady: (expectedSetId) => {
         const { rest, hold, activeSetId } = get();
         if (activeSetId == null) return false;
+        // A notification names the set its rest counted down to. The tray
+        // outlives the rest -- a delivered ping cannot be recalled, and the
+        // cursor can move without one being scheduled (focusSet, a zero-rest
+        // superset partner, a whole new workout) -- so a press that no longer
+        // matches the cursor logs nothing rather than logging whatever is
+        // current. The Live Activity passes nothing: it redraws on every state
+        // change, so its button always means the set on screen.
+        if (expectedSetId != null && expectedSetId !== activeSetId)
+          return false;
         // Refuse mid-hold. This is reachable from the Live Activity's
         // Complete button and the rest notification's action, and firing it
         // during a plank would log the set from the lock screen while the
@@ -1580,7 +1605,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           activeSetId,
           exerciseName
         );
-        scheduleGuardedRestNotification(exerciseName, seconds, token, content);
+        scheduleGuardedRestNotification(
+          exerciseName,
+          seconds,
+          token,
+          activeSetId,
+          content
+        );
       },
 
       adjustRest: (deltaSec) => {
@@ -1629,6 +1660,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
             exerciseName,
             seconds,
             token,
+            activeSetId,
             content
           );
           return;
@@ -2556,9 +2588,13 @@ export function initWorkoutNotificationActions(): void {
   notificationActionsSubscription = addNotificationResponseListener(
     (response) => {
       if (response.actionIdentifier !== COMPLETE_SET_ACTION) return;
+      // Pings scheduled before this shipped carry no setId; they fall back to
+      // the old unchecked behaviour rather than going dead in the tray.
+      const setId = response.notification.request.content.data?.setId;
+      const expectedSetId = typeof setId === 'string' ? setId : null;
       const completed = useActiveWorkoutStore
         .getState()
-        .completeActiveSetIfReady();
+        .completeActiveSetIfReady(expectedSetId);
       void addLog(
         `[WorkoutNotificationAction] complete-set handled=${completed}`,
         'DEBUG'

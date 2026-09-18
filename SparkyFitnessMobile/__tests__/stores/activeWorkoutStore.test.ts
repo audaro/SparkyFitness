@@ -11,6 +11,7 @@ import {
   dismissDeliveredNotification,
   fireRestCompleteCue,
   scheduleRestNotification,
+  dismissDeliveredRestNotifications,
 } from '../../src/services/notifications';
 import {
   fireSelectionHaptic,
@@ -31,6 +32,7 @@ jest.mock('../../src/services/notifications', () => ({
   COMPLETE_SET_ACTION: 'complete-set',
   addNotificationResponseListener: jest.fn(() => ({ remove: jest.fn() })),
   dismissDeliveredNotification: jest.fn(async () => undefined),
+  dismissDeliveredRestNotifications: jest.fn(async () => undefined),
 }));
 
 jest.mock('../../src/services/LogService', () => ({
@@ -587,13 +589,16 @@ describe('activeWorkoutStore', () => {
 
     function fireResponse(
       actionIdentifier: string,
-      notificationId = 'delivered-1'
+      notificationId = 'delivered-1',
+      data?: Record<string, unknown>
     ): void {
       const listener = mockAddResponseListener.mock.calls.at(-1)?.[0];
       if (!listener) throw new Error('response listener not registered');
       listener({
         actionIdentifier,
-        notification: { request: { identifier: notificationId } },
+        notification: {
+          request: { identifier: notificationId, content: { data } },
+        },
       } as any);
     }
 
@@ -637,6 +642,34 @@ describe('activeWorkoutStore', () => {
       initWorkoutNotificationActions();
       initWorkoutNotificationActions();
       expect(mockAddResponseListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('logs the set a ping names when the cursor is still on it', async () => {
+      fireResponse('complete-set', 'delivered-1', { setId: '101' });
+      expect(useActiveWorkoutStore.getState().completedSetIds['101']).toBe(
+        FIXED_NOW
+      );
+      await flushPromises();
+    });
+
+    it('refuses a stale ping naming a set the cursor has left', async () => {
+      // The tray outlives the rest: the ping counted down to 102, the user
+      // then pointed next-up somewhere else, and the press must not log
+      // whatever happens to be current now.
+      useActiveWorkoutStore.getState().focusSet('102');
+      fireResponse('complete-set', 'delivered-1', { setId: '101' });
+      const state = useActiveWorkoutStore.getState();
+      expect(state.completedSetIds['101']).toBeUndefined();
+      expect(state.completedSetIds['102']).toBeUndefined();
+      await flushPromises();
+    });
+
+    it('falls back to the cursor for a ping scheduled before set ids were carried', async () => {
+      fireResponse('complete-set', 'delivered-1');
+      expect(useActiveWorkoutStore.getState().completedSetIds['101']).toBe(
+        FIXED_NOW
+      );
+      await flushPromises();
     });
   });
 
@@ -900,6 +933,15 @@ describe('activeWorkoutStore', () => {
 
       useActiveWorkoutStore.getState().focusSet('102'); // the cursor
       expect(useActiveWorkoutStore.getState()).toEqual(before);
+    });
+
+    it('sweeps the delivered rest ping belonging to the set it leaves', async () => {
+      // cancelScheduledNotification only reaches a ping still pending with
+      // the OS; one that already fired has to be pulled from the tray.
+      (dismissDeliveredRestNotifications as jest.Mock).mockClear();
+      useActiveWorkoutStore.getState().focusSet('201');
+      expect(dismissDeliveredRestNotifications).toHaveBeenCalled();
+      await flushPromises();
     });
   });
 
@@ -1278,7 +1320,10 @@ describe('activeWorkoutStore', () => {
           60,
           expect.objectContaining({
             body: expect.stringContaining('6 reps target'),
-          })
+          }),
+          // The ping names the set it counts down to, so a press arriving
+          // after the cursor moved can be told apart from a live one.
+          '102'
         );
       });
     });
@@ -1466,7 +1511,8 @@ describe('activeWorkoutStore', () => {
           60,
           expect.objectContaining({
             body: expect.stringContaining('45s target'),
-          })
+          }),
+          '102'
         );
       });
     });
@@ -1721,7 +1767,8 @@ describe('activeWorkoutStore', () => {
       expect(mockSchedule).toHaveBeenLastCalledWith(
         'Bench Press',
         65,
-        expect.anything()
+        expect.anything(),
+        '102'
       );
       await flushPromises();
       expect(
@@ -1840,7 +1887,8 @@ describe('activeWorkoutStore', () => {
       expect(mockSchedule).toHaveBeenLastCalledWith(
         'Bench Press',
         50,
-        expect.anything()
+        expect.anything(),
+        '102'
       );
       await flushPromises();
       expect(
@@ -3385,7 +3433,8 @@ describe('activeWorkoutStore', () => {
           expect.objectContaining({
             title: expect.stringContaining('Rest complete'),
             body: expect.stringContaining('Set'),
-          })
+          }),
+          '102'
         );
       });
     });
