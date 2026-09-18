@@ -10,7 +10,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { useTranslation } from 'react-i18next';
 import {
-  isCardioModality,
   toCanonicalMuscle,
   type GenerateWorkoutRecommendationRequest,
   type Muscle,
@@ -27,8 +26,8 @@ import AnchoredMenu, {
 import BottomSheetPicker from '../components/BottomSheetPicker';
 import Button from '../components/ui/Button';
 import Icon from '../components/Icon';
-import SafeImage from '../components/SafeImage';
 import StatusView from '../components/StatusView';
+import UpNextExerciseRow from '../components/UpNextExerciseRow';
 import { useActiveWorkoutBarPadding } from '../components/ActiveWorkoutBar';
 import { useSupersetBorders } from '../components/ActiveWorkoutRail';
 import { usePreferences } from '../hooks';
@@ -53,8 +52,6 @@ import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import {
   buildRecommendationStartPayload,
   formatDuration,
-  formatRecommendedSets,
-  formatRestChip,
   makeSparseExercise,
   normalizeWeightUnit,
   orderedRecommendationExercises,
@@ -630,99 +627,28 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     </TouchableOpacity>
   );
 
-  // The row body opens the exercise; the trailing ⋯ is a sibling pressable, not
-  // a nested one, so the two cannot mis-fire into each other.
-  const renderExerciseRow = (exercise: PlannedExercise) => {
-    const image = exercise.images[0] ?? null;
-    const supersetBorder = supersetBorders.get(exercise.exercise_id) ?? null;
-    return (
-      <View
-        key={exercise.exercise_id}
-        className="flex-row items-center border-b border-border-subtle"
-      >
-        {supersetBorder ? (
-          // Same flat 3px rail the live workout draws: interior members run the
-          // full row height so consecutive members read as one line, and the
-          // run's last member stops short of the divider.
-          <View
-            testID={`up-next-superset-rail-${exercise.exercise_id}`}
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              bottom: supersetBorder.isLast ? 8 : 0,
-              width: 3,
-              backgroundColor: supersetBorder.color,
-            }}
-          />
-        ) : null}
-        <TouchableOpacity
-          className="flex-1 flex-row items-center pl-4 py-3"
-          activeOpacity={0.7}
-          onPress={() => handleOpenExercise(exercise)}
-          testID="up-next-exercise-row"
-        >
-          <SafeImage
-            source={image ? getImageSource(image) : null}
-            style={{ width: 52, height: 52, borderRadius: 8 }}
-            fallback={
-              <View
-                className="bg-raised items-center justify-center"
-                style={{ width: 52, height: 52, borderRadius: 8 }}
-              >
-                <Icon name="exercise-weights" size={24} color={textMuted} />
-              </View>
-            }
-          />
-          <View className="flex-1 ml-3">
-            <Text
-              className="text-text-primary text-base font-medium"
-              numberOfLines={1}
-            >
-              {exercise.exercise_name}
-            </Text>
-            <Text className="text-sm mt-0.5" style={{ color: textSecondary }}>
-              {formatRecommendedSets(exercise, weightUnit, distanceUnit)}
-            </Text>
-            <Text
-              className="text-xs mt-0.5"
-              style={{ color: textMuted }}
-              numberOfLines={2}
-            >
-              {/* Cardio is one continuous block, so its rest prescription is not
-                something the row should advertise. */}
-              {isCardioModality(exercise.modality)
-                ? exercise.rationale
-                : `${exercise.rationale} · ${formatRestChip(exercise.rest_seconds)}`}
-            </Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          className="px-4 py-3"
-          activeOpacity={0.7}
-          hitSlop={8}
-          disabled={isGenerating || isStarting || isReplacing}
-          accessibilityRole="button"
-          accessibilityLabel={t('upNext.moreOptionsFor', {
-            defaultValue: 'More options for {{name}}',
-            name: exercise.exercise_name,
-          })}
-          testID="up-next-exercise-menu"
-          ref={(node) => {
-            rowMenuTriggerRefs.current.set(exercise.exercise_id, node);
-          }}
-          onPress={() => handleOpenRowMenu(exercise.exercise_id)}
-        >
-          {replacingExerciseId === exercise.exercise_id ? (
-            <ActivityIndicator size="small" color={accentPrimary} />
-          ) : (
-            <Icon name="ellipsis-horizontal" size={20} color={textMuted} />
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const handleMenuTriggerRef = useCallback(
+    (exerciseId: string, node: View | null) => {
+      rowMenuTriggerRefs.current.set(exerciseId, node);
+    },
+    []
+  );
+
+  const renderExerciseRow = (exercise: PlannedExercise) => (
+    <UpNextExerciseRow
+      key={exercise.exercise_id}
+      exercise={exercise}
+      supersetBorder={supersetBorders.get(exercise.exercise_id) ?? null}
+      weightUnit={weightUnit}
+      distanceUnit={distanceUnit}
+      getImageSource={getImageSource}
+      isReplacing={replacingExerciseId === exercise.exercise_id}
+      menuDisabled={isGenerating || isStarting || isReplacing}
+      onPress={handleOpenExercise}
+      onPressMenu={handleOpenRowMenu}
+      menuTriggerRef={handleMenuTriggerRef}
+    />
+  );
 
   const renderContent = () => {
     if (isLoading) {
@@ -778,10 +704,41 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
           }
         >
           <View className="px-4 pt-4 pb-3">
-            <Text className="text-text-primary text-2xl font-bold">
-              {t('upNext.title', { defaultValue: "Today's Workout" })}
-            </Text>
-            <Text className="text-sm mt-1" style={{ color: textSecondary }}>
+            {/* Swap sits beside the title rather than under the chips: it
+                changes the whole workout, which is a different kind of act
+                from the two chips, which adjust the one on screen. */}
+            <View className="flex-row items-start gap-3">
+              <View className="flex-1">
+                <Text className="text-text-primary text-2xl font-bold">
+                  {t('upNext.title', { defaultValue: "Today's Workout" })}
+                </Text>
+              </View>
+              <TouchableOpacity
+                className="flex-row items-center gap-1.5 bg-raised rounded-full px-3"
+                style={{ height: 34 }}
+                activeOpacity={0.7}
+                onPress={handleOpenSwapSheet}
+                disabled={isGenerating || isStarting}
+                accessibilityRole="button"
+                testID="up-next-swap"
+              >
+                {pendingAction === 'swap' && isGenerating ? (
+                  <ActivityIndicator size="small" color={accentPrimary} />
+                ) : (
+                  <Icon name="swap-vertical" size={14} color={textSecondary} />
+                )}
+                <Text className="text-text-primary text-sm font-semibold">
+                  {t('upNext.swap', { defaultValue: 'Swap' })}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text
+              className="text-sm mt-1"
+              style={{
+                color: textSecondary,
+                fontVariant: ['tabular-nums'],
+              }}
+            >
               {t('upNext.exerciseCount', {
                 defaultValue: '{{count}} Exercises',
                 defaultValue_one: '{{count}} Exercise',
@@ -845,18 +802,6 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
               {pendingAction === 'settings' && isGenerating && (
                 <ActivityIndicator size="small" color={accentPrimary} />
               )}
-            </View>
-
-            <View className="mt-3">
-              <Button
-                variant="outline"
-                onPress={handleOpenSwapSheet}
-                disabled={isGenerating || isStarting}
-                loading={pendingAction === 'swap' && isGenerating}
-                testID="up-next-swap"
-              >
-                {t('upNext.swapWorkout', { defaultValue: 'Swap workout' })}
-              </Button>
             </View>
           </View>
 

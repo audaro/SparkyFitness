@@ -451,6 +451,36 @@ describe('UpNextScreen', () => {
     });
   });
 
+  it('places the exercise by muscle and rest, leaving the rationale to the sheet', () => {
+    setRecommendation(makeRecommendation());
+
+    const screen = renderScreen();
+
+    // The rationale used to share this line; it now lives in the exercise
+    // sheet's coach note, which has room for a sentence.
+    expect(screen.getByText('Chest · 2:00 rest')).toBeTruthy();
+    expect(screen.queryByText(/holding last session load/)).toBeNull();
+  });
+
+  it('omits the rest half of that line for cardio, which is one block', () => {
+    setRecommendation(
+      makeRecommendation({
+        payload: makePayload({
+          exercises: [
+            makeExercise({
+              modality: 'duration_distance',
+              primary_muscles: ['quadriceps'],
+            }),
+          ],
+        }),
+      })
+    );
+
+    const screen = renderScreen();
+
+    expect(screen.getByText('Quadriceps')).toBeTruthy();
+  });
+
   it('opens a row in the exercise sheet, handing it the planned exercise', () => {
     setRecommendation(makeRecommendation());
 
