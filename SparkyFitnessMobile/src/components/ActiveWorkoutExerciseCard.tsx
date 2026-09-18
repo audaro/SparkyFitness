@@ -128,6 +128,16 @@ interface ActiveWorkoutExerciseCardProps {
   /** Hide the rest chip entirely (e.g. imported workouts without rest data). */
   showRestChip?: boolean;
   /**
+   * Drop the card's own exercise header — thumbnail, name, subtitle and the ⋯
+   * trigger. `ExerciseSheetScreen` renders the hero, the name and its own chip
+   * row above this card, so the header would be the same information twice.
+   *
+   * Everything below it — progression, notes, rest chip, the cardio form, the
+   * set rows and Add Set — is the same job in both places and stays here, so
+   * the two surfaces cannot drift in how a workout exercise is edited.
+   */
+  headerless?: boolean;
+  /**
    * Edit only: enables the inline calories field in the chip row. The text
    * comes from `exercise.editCaloriesText`; view mode instead shows
    * `calories_burned` read-only when present.
@@ -260,6 +270,7 @@ function ActiveWorkoutExerciseCard({
   activeSetId,
   onStartHold,
   holdingSetId = null,
+  headerless = false,
   metricColumn,
   weightUnit,
   distanceUnit = 'km',
@@ -728,74 +739,76 @@ function ActiveWorkoutExerciseCard({
 
   return (
     <View className="border-b border-border-subtle px-2 pt-3 pb-2">
-      <View className="flex-row items-center gap-3">
-        <Pressable
-          onPress={onPressThumb ? () => onPressThumb(exercise.id) : undefined}
-          accessible={onPressThumb != null}
-          accessibilityRole={onPressThumb != null ? 'button' : undefined}
-          accessibilityLabel={
-            onPressThumb != null
-              ? t('activeWorkout.exercise.viewDetails', {
-                  defaultValue: 'View {{name}} details',
-                  name,
-                })
-              : undefined
-          }
-        >
-          {thumb}
-        </Pressable>
-        <Pressable
-          onPress={() => onToggleExpanded(exercise.id)}
-          onLongPress={longPressMenu}
-          hitSlop={{ top: 10, bottom: 4 }}
-          className="flex-1 self-stretch justify-center"
-          accessibilityRole="button"
-          accessibilityLabel={t('activeWorkout.exercise.collapse', {
-            defaultValue: 'Collapse {{name}}',
-            name,
-          })}
-        >
-          <Text
-            numberOfLines={2}
-            className="text-base font-semibold text-text-primary"
-          >
-            {name}
-          </Text>
-          {exercise.equipment_brand ? (
-            <Text className="text-xs text-text-muted mt-0.5">
-              {exercise.equipment_brand}
-            </Text>
-          ) : null}
-        </Pressable>
-        {!readOnly && (
+      {!headerless && (
+        <View className="flex-row items-center gap-3">
           <Pressable
-            onPress={openOverflowMenu}
-            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+            onPress={onPressThumb ? () => onPressThumb(exercise.id) : undefined}
+            accessible={onPressThumb != null}
+            accessibilityRole={onPressThumb != null ? 'button' : undefined}
+            accessibilityLabel={
+              onPressThumb != null
+                ? t('activeWorkout.exercise.viewDetails', {
+                    defaultValue: 'View {{name}} details',
+                    name,
+                  })
+                : undefined
+            }
+          >
+            {thumb}
+          </Pressable>
+          <Pressable
+            onPress={() => onToggleExpanded(exercise.id)}
+            onLongPress={longPressMenu}
+            hitSlop={{ top: 10, bottom: 4 }}
+            className="flex-1 self-stretch justify-center"
             accessibilityRole="button"
-            accessibilityLabel={t('activeWorkout.exercise.moreOptions', {
-              defaultValue: 'More options for {{name}}',
+            accessibilityLabel={t('activeWorkout.exercise.collapse', {
+              defaultValue: 'Collapse {{name}}',
+              name,
+            })}
+          >
+            <Text
+              numberOfLines={2}
+              className="text-base font-semibold text-text-primary"
+            >
+              {name}
+            </Text>
+            {exercise.equipment_brand ? (
+              <Text className="text-xs text-text-muted mt-0.5">
+                {exercise.equipment_brand}
+              </Text>
+            ) : null}
+          </Pressable>
+          {!readOnly && (
+            <Pressable
+              onPress={openOverflowMenu}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('activeWorkout.exercise.moreOptions', {
+                defaultValue: 'More options for {{name}}',
+                name,
+              })}
+              className="p-1"
+            >
+              <Icon name="ellipsis-horizontal" size={18} color={textMuted} />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => onToggleExpanded(exercise.id)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('activeWorkout.exercise.collapse', {
+              defaultValue: 'Collapse {{name}}',
               name,
             })}
             className="p-1"
           >
-            <Icon name="ellipsis-horizontal" size={18} color={textMuted} />
+            <Animated.View style={chevronStyle}>
+              <Icon name="chevron-down" size={18} color={textMuted} />
+            </Animated.View>
           </Pressable>
-        )}
-        <Pressable
-          onPress={() => onToggleExpanded(exercise.id)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('activeWorkout.exercise.collapse', {
-            defaultValue: 'Collapse {{name}}',
-            name,
-          })}
-          className="p-1"
-        >
-          <Animated.View style={chevronStyle}>
-            <Icon name="chevron-down" size={18} color={textMuted} />
-          </Animated.View>
-        </Pressable>
-      </View>
+        </View>
+      )}
 
       <Animated.View
         entering={hasRenderedCollapsed ? FadeInDown.duration(200) : undefined}

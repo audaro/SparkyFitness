@@ -2947,7 +2947,10 @@
   },
   "exerciseSheet": {
     "moreOptions": "More options",
-    "exerciseDetails": "Exercise details"
+    "exerciseDetails": "Exercise details",
+    "rest": "Rest",
+    "history": "History",
+    "replace": "Replace"
   },
   "exerciseDetail": {
     "sharedPublicly": "Exercise shared publicly",

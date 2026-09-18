@@ -137,6 +137,9 @@ export type RootStackParamList = {
         item: Exercise;
         /** The session exercise entry this sheet edits. */
         entryId: string;
+        /** Replace: the exercise picked in ExerciseSearch comes back here. */
+        selectedExercise?: Exercise;
+        selectionNonce?: number;
       }
     | {
         /**
