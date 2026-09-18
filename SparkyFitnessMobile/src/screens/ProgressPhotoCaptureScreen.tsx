@@ -78,7 +78,7 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
 
-  const { days } = useCheckInPhotoGallery();
+  const { days, isLoading: galleryLoading } = useCheckInPhotoGallery();
   const { getPhotoSource } = useCheckInPhotoSource();
   const { uploadAsync } = useCheckInPhotoMutations();
 
@@ -107,6 +107,34 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
     [reference, getPhotoSource]
   );
 
+  /**
+   * Whether the ghost has painted. The shutter waits on this, and on the
+   * gallery answering at all: both are still resolving for the first frames
+   * after this screen opens, and a shot fired in that window is framed against
+   * an empty overlay while the metadata claims it lined up with a photo. The
+   * whole point of recording the conditions is that they are true.
+   *
+   * A ghost that fails every retry settles too, as 'failed' - otherwise an
+   * unreachable reference photo would disable the shutter for good, which is
+   * worse than shooting without one. That case draws the crosshairs and
+   * records no reference, exactly like a first shot.
+   */
+  const [ghostState, setGhostState] = useState<'pending' | 'shown' | 'failed'>(
+    'pending'
+  );
+  // Reset during render rather than in an effect, so the first frame after the
+  // reference changes already reads as pending instead of inheriting the
+  // previous photo's settled state. Same pattern SafeImage uses internally.
+  const [ghostPhotoId, setGhostPhotoId] = useState(reference?.id ?? null);
+  if ((reference?.id ?? null) !== ghostPhotoId) {
+    setGhostPhotoId(reference?.id ?? null);
+    setGhostState('pending');
+  }
+
+  const ghostShown = reference !== null && ghostState === 'shown';
+  const referenceReady =
+    !galleryLoading && (reference === null || ghostState !== 'pending');
+
   const angleLabel = getPhotoAngleLabel(angle, t);
 
   const capture = useCallback(async () => {
@@ -131,10 +159,11 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
         captureMeta: buildCaptureMeta({
           mode: 'guided',
           facing,
-          referencePhotoId: reference?.id ?? null,
-          // Only meaningful when something was actually ghosted; a stop the
-          // user never saw would misreport how tightly this was framed.
-          ...(reference ? { referenceOpacity: ghostOpacity } : {}),
+          // Both fields describe what was on screen, so they are reported
+          // only when the ghost had actually painted. A reference that was
+          // still loading, or failed to load, framed nothing.
+          referencePhotoId: reference && ghostShown ? reference.id : null,
+          ...(ghostShown ? { referenceOpacity: ghostOpacity } : {}),
           timerSeconds,
         }),
       });
@@ -158,6 +187,7 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
     angle,
     facing,
     reference,
+    ghostShown,
     ghostOpacity,
     timerSeconds,
     navigation,
@@ -179,14 +209,14 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
   }, [countdown, capture]);
 
   const onShutter = useCallback(() => {
-    if (isCapturing || countdown !== null) return;
+    if (isCapturing || countdown !== null || !referenceReady) return;
     void Haptics.selectionAsync();
     if (timerSeconds === 0) {
       void capture();
       return;
     }
     setCountdown(timerSeconds);
-  }, [isCapturing, countdown, timerSeconds, capture]);
+  }, [isCapturing, countdown, referenceReady, timerSeconds, capture]);
 
   if (!permission) {
     return (
@@ -226,11 +256,12 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
         facing={facing}
       />
 
-      {referenceSource ? (
+      {referenceSource && ghostState !== 'failed' ? (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <SafeImage
             source={referenceSource}
             contentFit="contain"
+            onSettled={(visible) => setGhostState(visible ? 'shown' : 'failed')}
             style={[
               StyleSheet.absoluteFill,
               { opacity: ghostOpacity },
@@ -243,8 +274,9 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
           />
         </View>
       ) : (
-        // Nothing to frame against yet, so give this first shot something to be
-        // square with — every later shoot in this angle inherits its framing.
+        // Nothing to frame against - a first shot, or a reference that could
+        // not be loaded - so give it something to be square with instead;
+        // every later shoot in this angle inherits its framing.
         <View
           pointerEvents="none"
           style={StyleSheet.absoluteFill}
@@ -300,15 +332,19 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
         className="absolute bottom-0 left-0 right-0 gap-4 px-6"
       >
         <Text className="text-center text-xs text-white/70">
-          {reference
-            ? t('progressPhotos.capture.ghostHint', {
-                defaultValue: 'Line yourself up with the photo from {{date}}',
-                date: formatShortDate(reference.entry_date, dateLocale),
+          {!referenceReady
+            ? t('progressPhotos.capture.loadingReference', {
+                defaultValue: 'Finding your last shot at this angle…',
               })
-            : t('progressPhotos.capture.firstShotHint', {
-                defaultValue:
-                  'Your first shot at this angle — every later one lines up with it, so stand square and leave room above and below.',
-              })}
+            : reference
+              ? t('progressPhotos.capture.ghostHint', {
+                  defaultValue: 'Line yourself up with the photo from {{date}}',
+                  date: formatShortDate(reference.entry_date, dateLocale),
+                })
+              : t('progressPhotos.capture.firstShotHint', {
+                  defaultValue:
+                    'Your first shot at this angle — every later one lines up with it, so stand square and leave room above and below.',
+                })}
         </Text>
 
         <View className="flex-row items-center justify-between">
@@ -340,13 +376,13 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
           <TouchableOpacity
             className="h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-white/20"
             onPress={onShutter}
-            disabled={isCapturing || countdown !== null}
+            disabled={isCapturing || countdown !== null || !referenceReady}
             accessibilityRole="button"
             accessibilityLabel={t('progressPhotos.capture.shutter', {
               defaultValue: 'Take photo',
             })}
           >
-            {isCapturing ? (
+            {isCapturing || !referenceReady ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <View className="h-16 w-16 rounded-full bg-white" />

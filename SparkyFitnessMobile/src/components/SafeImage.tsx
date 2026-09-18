@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -21,6 +21,15 @@ interface SafeImageProps {
    * detail) opt in.
    */
   autoplay?: boolean;
+  /**
+   * Fires once the image has either painted or given up after its retries,
+   * with whether anything is actually on screen. Exists for callers that must
+   * not act until they know what the user can see - the progress-photo
+   * viewfinder holds its shutter until the ghost overlay has painted, because
+   * a shot taken against a blank overlay would be recorded as framed against
+   * a photo the user never saw. Fires again if the source changes.
+   */
+  onSettled?: (visible: boolean) => void;
 }
 
 function getImageSourceSignature(
@@ -61,6 +70,7 @@ const SafeImage: React.FC<SafeImageProps> = ({
   contentFit,
   fallback = null,
   autoplay = false,
+  onSettled,
 }) => {
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -100,6 +110,20 @@ const SafeImage: React.FC<SafeImageProps> = ({
     return () => clearTimeout(timer);
   }, [loaded, showUnderlay]);
 
+  const failed = error && attempt >= MAX_RETRIES;
+
+  // Held in a ref so an inline arrow from the caller cannot re-fire the
+  // notification on every render of the parent.
+  const onSettledRef = useRef(onSettled);
+  useEffect(() => {
+    onSettledRef.current = onSettled;
+  }, [onSettled]);
+
+  useEffect(() => {
+    if (!loaded && !failed) return;
+    onSettledRef.current?.(loaded);
+  }, [loaded, failed]);
+
   // Keep the underlay through the fade so opaque images cross-fade over it
   // instead of fading in against a blank slot.
   useEffect(() => {
@@ -109,8 +133,6 @@ const SafeImage: React.FC<SafeImageProps> = ({
   }, [loaded, settled]);
 
   if (!source) return fallback;
-
-  const failed = error && attempt >= MAX_RETRIES;
 
   // Terminal failures keep the frame (rather than returning the bare
   // fallback) so the already-visible underlay doesn't remount or shift.

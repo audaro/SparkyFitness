@@ -27,6 +27,32 @@ jest.mock('../../src/utils/pickImage', () => ({
   ),
 }));
 
+// The ghost overlay is a real SafeImage over an authenticated URL, which never
+// paints under jsdom. The screen now waits on that paint before it will fire,
+// so the tests have to say whether it painted: true = shown, false = every
+// retry failed, null = still loading.
+let mockGhostSettles: boolean | null = true;
+jest.mock('../../src/components/SafeImage', () => {
+  const ReactLocal = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: function MockSafeImage({
+      onSettled,
+    }: {
+      onSettled?: (visible: boolean) => void;
+    }) {
+      // Mount-only: the screen passes an inline arrow, so depending on it
+      // would re-run this on every render.
+      ReactLocal.useEffect(() => {
+        if (mockGhostSettles === null) return;
+        onSettled?.(mockGhostSettles);
+      }, []);
+      return ReactLocal.createElement(View, { testID: 'ghost-overlay' });
+    },
+  };
+});
+
 const mockTakePictureAsync = jest.fn();
 jest.mock('expo-camera', () => {
   const ReactLocal = require('react');
@@ -99,6 +125,7 @@ const renderScreen = (
 describe('ProgressPhotoCaptureScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGhostSettles = true;
     // Newest day first, which is the order the gallery hook returns.
     mockUseGallery.mockReturnValue({
       days: [
@@ -218,6 +245,59 @@ describe('ProgressPhotoCaptureScreen', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('holds the shutter until the ghost has painted', async () => {
+    // Between opening the screen and the reference photo arriving there is
+    // nothing on the overlay. A shot fired then is framed against an empty
+    // screen while the metadata would claim it lined up with a photo.
+    mockGhostSettles = null;
+    const { getByLabelText } = renderScreen();
+
+    await act(async () => {
+      fireEvent.press(getByLabelText('Take photo'));
+    });
+
+    expect(mockTakePictureAsync).not.toHaveBeenCalled();
+    expect(uploadAsync).not.toHaveBeenCalled();
+  });
+
+  it('holds the shutter until the gallery has answered', async () => {
+    // Same window, earlier: with no days loaded yet the screen cannot know
+    // whether there is a reference at all, and would claim this is a first
+    // shot.
+    mockUseGallery.mockReturnValue({
+      days: [],
+      isLoading: true,
+      isError: false,
+      error: null,
+      refetch: jest.fn(),
+    } as unknown as ReturnType<typeof useCheckInPhotoGallery>);
+
+    const { getByLabelText } = renderScreen();
+
+    await act(async () => {
+      fireEvent.press(getByLabelText('Take photo'));
+    });
+
+    expect(mockTakePictureAsync).not.toHaveBeenCalled();
+  });
+
+  it('shoots without a reference when the ghost cannot be loaded', async () => {
+    // An unreachable reference photo must not disable the shutter for good -
+    // shooting unguided beats not shooting - but the shot did not line up
+    // with anything, and must not say it did.
+    mockGhostSettles = false;
+    const { getByLabelText } = renderScreen();
+
+    await act(async () => {
+      fireEvent.press(getByLabelText('Take photo'));
+    });
+
+    await waitFor(() => expect(uploadAsync).toHaveBeenCalled());
+    const meta = uploadAsync.mock.calls[0][0].captureMeta;
+    expect(meta.reference_photo_id).toBeUndefined();
+    expect(meta.reference_opacity).toBeUndefined();
   });
 
   it('does not upload when the camera returns nothing', async () => {

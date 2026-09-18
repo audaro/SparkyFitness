@@ -5271,6 +5271,7 @@
       "timerOff": "Off",
       "shutter": "Take photo",
       "ghostHint": "Line yourself up with the photo from {{date}}",
+      "loadingReference": "Finding your last shot at this angle…",
       "firstShotHint": "Your first shot at this angle — every later one lines up with it, so stand square and leave room above and below.",
       "ghostOpacityValue": "{{percent}}%",
       "timerValue": "{{seconds}}s"
