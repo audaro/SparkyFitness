@@ -699,28 +699,38 @@ describe('activeWorkoutStore', () => {
       await flushPromises();
     });
 
-    it('skips already-completed steps when advancing', async () => {
+    it('skips an already-completed set when advancing inside the exercise', async () => {
       // Ahead-hole (as a server resume would leave it): 102 done while the
-      // cursor still sits on 101 before it.
+      // cursor still sits on 101 before it, and a third set behind them both.
+      const session = makeSession();
+      session.exercises[0].sets.push({
+        ...session.exercises[0].sets[1],
+        id: 103,
+        set_number: 3,
+      });
+      useActiveWorkoutStore.getState().startWorkout(session);
       useActiveWorkoutStore.setState({ completedSetIds: { '102': FIXED_NOW } });
       useActiveWorkoutStore.getState().completeActiveSet(); // 101 done → skips 102
       const state = useActiveWorkoutStore.getState();
-      expect(state.activeSetId).toBe('201');
-      // Rest recovers from the set just logged (Bench's 60s), not the step
-      // landed on (Squat's 120s).
+      expect(state.activeSetId).toBe('103');
+      // Rest recovers from the set just logged, not the step landed on.
       expect(state.rest.durationSec).toBe(60);
       await flushPromises();
     });
 
-    it("uses the finished exercise's rest after its final set", async () => {
+    it('stops at the end of an exercise instead of rolling into the next', async () => {
       useActiveWorkoutStore.getState().completeActiveSet(); // 101
       await flushPromises();
-      useActiveWorkoutStore.getState().completeActiveSet(); // 102 → cursor lands on Squat
+      mockSchedule.mockClear();
+      useActiveWorkoutStore.getState().completeActiveSet(); // 102 — Bench's last
       const state = useActiveWorkoutStore.getState();
-      expect(state.activeSetId).toBe('201');
-      expect(state.rest.state).toBe('resting');
-      // Bench's 60s, not Squat's 120s — rest belongs to the work just done.
-      expect(state.rest.durationSec).toBe(60);
+      // Squat's 201 is still unlogged, but the cursor does not walk onto it and
+      // no rest runs: a rest is recovery between sets of the work in hand, and
+      // which exercise to do next is the user's call, made back in the routine.
+      expect(state.activeSetId).toBeNull();
+      expect(state.rest.state).toBe('ready');
+      expect(state.completedSetIds['201']).toBeUndefined();
+      expect(mockSchedule).not.toHaveBeenCalled();
       await flushPromises();
     });
 
@@ -757,21 +767,26 @@ describe('activeWorkoutStore', () => {
       await flushPromises();
     });
 
-    it('advances through every set in order', async () => {
+    it('advances through an exercise in order, then waits to be pointed at the next', async () => {
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
       expect(useActiveWorkoutStore.getState().activeSetId).toBe('102');
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
+      expect(useActiveWorkoutStore.getState().activeSetId).toBeNull();
+      // Moving on is deliberate — opening Squat is what resumes the cursor.
+      useActiveWorkoutStore.getState().focusSet('201');
       expect(useActiveWorkoutStore.getState().activeSetId).toBe('201');
     });
 
     it('completing the last set finishes the workout without starting a rest', async () => {
-      // Advance to the final set.
+      // Advance to the final set, stepping onto Squat by hand the way the user
+      // does once Bench has run out.
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
+      useActiveWorkoutStore.getState().focusSet('201');
       expect(useActiveWorkoutStore.getState().activeSetId).toBe('201');
 
       mockSchedule.mockClear();
@@ -792,18 +807,18 @@ describe('activeWorkoutStore', () => {
       expect(mockSchedule).not.toHaveBeenCalled();
     });
 
-    it('cancels a still-pending rest when completing the last set', async () => {
-      // Complete sets 1 and 2 so the cursor sits on 201 with a running rest.
+    it("cancels a still-pending rest when completing an exercise's last set", async () => {
+      // Log set 1 so a rest is running, then log set 2 — Bench's last, which
+      // starts no rest of its own and so must put the running one away.
       mockSchedule.mockResolvedValueOnce('notif-1');
-      useActiveWorkoutStore.getState().completeActiveSet();
-      await flushPromises();
-      mockSchedule.mockResolvedValueOnce('notif-2');
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
 
       mockCancel.mockClear();
       useActiveWorkoutStore.getState().completeActiveSet();
-      expect(mockCancel).toHaveBeenCalledWith('notif-2');
+      expect(mockCancel).toHaveBeenCalledWith('notif-1');
+      expect(useActiveWorkoutStore.getState().rest.state).toBe('ready');
+      await flushPromises();
     });
 
     it('late-schedule-after-pause cancels the late-arriving ID', async () => {
@@ -861,6 +876,16 @@ describe('activeWorkoutStore', () => {
     });
 
     it('late-schedule-after-new-rest cancels the stale ID without overwriting the new rest', async () => {
+      // Three sets in Bench, so two logs in a row start two rests — the second
+      // set of a two-set exercise would end it and start none.
+      const session = makeSession();
+      session.exercises[0].sets.push({
+        ...session.exercises[0].sets[1],
+        id: 103,
+        set_number: 3,
+      });
+      useActiveWorkoutStore.getState().startWorkout(session);
+
       let resolveA: (id: string) => void = () => {};
       mockSchedule.mockImplementationOnce(
         () =>
@@ -1004,6 +1029,7 @@ describe('activeWorkoutStore', () => {
       await flushPromises();
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
+      useActiveWorkoutStore.getState().focusSet('201');
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
       expect(useActiveWorkoutStore.getState().activeSetId).toBeNull();
@@ -1028,8 +1054,9 @@ describe('activeWorkoutStore', () => {
       const state = useActiveWorkoutStore.getState();
       expect(state.completedSetIds['102']).toBe(FIXED_NOW);
       expect(state.completedSetIds['101']).toBeUndefined(); // left as a hole
-      // Next-up follows the logged set: the step after 102 is Squat's 201.
-      expect(state.activeSetId).toBe('201');
+      // Nothing after 102 in Bench, so next-up circles back to the hole this
+      // exercise still has rather than stepping into Squat.
+      expect(state.activeSetId).toBe('101');
       expect(state.rest.state).toBe('resting');
       expect(state.rest.durationSec).toBe(60); // Bench's rest — the exercise just logged
       await flushPromises();
@@ -1041,13 +1068,15 @@ describe('activeWorkoutStore', () => {
       await flushPromises();
     });
 
-    it('falls back to the earliest hole when the logged set was last', async () => {
+    it('stops rather than reaching back into another exercise for a hole', async () => {
       // Skip straight to the final set, leaving 101 and 102 unchecked.
       useActiveWorkoutStore.getState().completeSet('201');
       const state = useActiveWorkoutStore.getState();
       expect(state.completedSetIds['201']).toBe(FIXED_NOW);
-      // Nothing after 201, so next-up circles back to the earliest hole.
-      expect(state.activeSetId).toBe('101');
+      // Squat's only set is done. Bench's holes belong to another exercise, so
+      // the cursor stops here instead of jumping backwards into it.
+      expect(state.activeSetId).toBeNull();
+      expect(state.rest.state).toBe('ready');
       await flushPromises();
     });
 
@@ -1225,7 +1254,7 @@ describe('activeWorkoutStore', () => {
         expect(set0.reps).toBe(8);
       });
 
-      it('keeps a set with history pinned to its own previous values, whatever was typed above', () => {
+      it('lets an edit above override what a set would have taken from its own history', () => {
         useActiveWorkoutStore.getState().startWorkout(makeEmptySession());
         useActiveWorkoutStore
           .getState()
@@ -1236,10 +1265,13 @@ describe('activeWorkoutStore', () => {
 
         useActiveWorkoutStore.getState().completeSet('102');
 
+        // 102 has history of its own (95 × 6), and before propagation that
+        // placeholder won. An explicit edit above is the more recent statement
+        // of what is being lifted today, so it is carried down instead.
         const set1 =
           useActiveWorkoutStore.getState().session!.exercises[0].sets[1];
-        expect(set1.weight).toBe(95);
-        expect(set1.reps).toBe(6);
+        expect(set1.weight).toBe(105);
+        expect(set1.reps).toBe(5);
       });
 
       it("adopts the row above's entered values for a set with no history of its own", () => {
@@ -1521,6 +1553,13 @@ describe('activeWorkoutStore', () => {
   describe("completeSet rest respects each set's own rest_time", () => {
     it("uses the just-completed set's own rest_time, not the exercise's first set (regression)", async () => {
       const session = makeSession();
+      // A third set behind them, so neither of the two under test is the last
+      // of the exercise (which would start no rest at all).
+      session.exercises[0].sets.push({
+        ...session.exercises[0].sets[1],
+        id: 103,
+        set_number: 3,
+      });
       session.exercises[0].sets[0].rest_time = 45;
       session.exercises[0].sets[1].rest_time = 75;
       useActiveWorkoutStore.getState().startWorkout(session);
@@ -1590,6 +1629,31 @@ describe('activeWorkoutStore', () => {
       await flushPromises();
     });
 
+    it('finishes the whole run before releasing the cursor', async () => {
+      const session = makeSupersetSession(2);
+      session.exercises.push(makeSession().exercises[1]); // Squat, set 201
+      useActiveWorkoutStore.getState().startWorkout(session);
+
+      // Alternating between partners is how a superset is performed, so the
+      // cursor keeps crossing between the two exercises of the run...
+      useActiveWorkoutStore.getState().completeSet('301');
+      expect(useActiveWorkoutStore.getState().activeSetId).toBe('401');
+      useActiveWorkoutStore.getState().completeSet('401');
+      expect(useActiveWorkoutStore.getState().activeSetId).toBe('302');
+      await flushPromises();
+      useActiveWorkoutStore.getState().completeSet('302');
+      expect(useActiveWorkoutStore.getState().activeSetId).toBe('402');
+      await flushPromises();
+
+      // ...and stops once the run is done, rather than walking into Squat.
+      useActiveWorkoutStore.getState().completeSet('402');
+      const state = useActiveWorkoutStore.getState();
+      expect(state.activeSetId).toBeNull();
+      expect(state.rest.state).toBe('ready');
+      expect(state.completedSetIds['201']).toBeUndefined();
+      await flushPromises();
+    });
+
     it('stays back-to-back when the cursor lands on the same-round partner', () => {
       // Logging X of round 1 out of order lands on its own partner (402),
       // which is still a within-round transition → no rest.
@@ -1648,13 +1712,21 @@ describe('activeWorkoutStore', () => {
     });
 
     it('rests normally after the drop set completes', async () => {
-      useActiveWorkoutStore.getState().startWorkout(makeDropSession());
+      // A working set behind the drop, so the drop is not the exercise's last
+      // set — its own rest is what is being asserted here.
+      const session = makeDropSession();
+      session.exercises[0].sets.push({
+        ...session.exercises[0].sets[0],
+        id: 103,
+        set_number: 3,
+      });
+      useActiveWorkoutStore.getState().startWorkout(session);
       useActiveWorkoutStore.getState().completeSet('101');
       useActiveWorkoutStore.getState().completeSet('102');
       const state = useActiveWorkoutStore.getState();
-      expect(state.activeSetId).toBe('201');
+      expect(state.activeSetId).toBe('103');
       expect(state.rest.state).toBe('resting');
-      expect(state.rest.durationSec).toBe(60); // Bench's rest — the exercise just logged
+      expect(state.rest.durationSec).toBe(60); // the drop set's own rest
       await flushPromises();
     });
 
@@ -2193,11 +2265,12 @@ describe('activeWorkoutStore', () => {
     });
 
     it('sets activeSetId to null when every remaining step is already complete', async () => {
-      // Complete all three sets.
+      // Complete all three sets, stepping onto Squat by hand between them.
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
+      useActiveWorkoutStore.getState().focusSet('201');
       useActiveWorkoutStore.getState().completeActiveSet();
       await flushPromises();
       expect(useActiveWorkoutStore.getState().activeSetId).toBeNull();
@@ -2273,6 +2346,94 @@ describe('activeWorkoutStore', () => {
     });
 
     describe('updateSetField', () => {
+      // "If on the second set I change the pounds to forty and the reps to
+      // fifteen, it should do that for the fourth set and the fifth set."
+      // An edit is a statement about how the exercise is going today, so the
+      // value carries down to every set still to come.
+      describe('carries the edit down to the sets below', () => {
+        it('propagates weight and reps to later sets of the same exercise', () => {
+          useActiveWorkoutStore
+            .getState()
+            .updateSetField('101', { weight: 40, reps: 15 });
+          const sets =
+            useActiveWorkoutStore.getState().session!.exercises[0].sets;
+          expect(sets[0].weight).toBe(40);
+          expect(sets[0].reps).toBe(15);
+          expect(sets[1].weight).toBe(40);
+          expect(sets[1].reps).toBe(15);
+        });
+
+        it('propagates duration and distance the same way', () => {
+          useActiveWorkoutStore
+            .getState()
+            .updateSetField('101', { duration: 45, distance: 1.5 });
+          const sets =
+            useActiveWorkoutStore.getState().session!.exercises[0].sets;
+          expect(sets[1].duration).toBe(45);
+          expect(sets[1].distance).toBe(1.5);
+        });
+
+        it('leaves the sets above the edited one alone', () => {
+          useActiveWorkoutStore
+            .getState()
+            .updateSetField('102', { weight: 40 });
+          const sets =
+            useActiveWorkoutStore.getState().session!.exercises[0].sets;
+          expect(sets[0].weight).toBe(60); // set 1 already happened
+          expect(sets[1].weight).toBe(40);
+        });
+
+        it('never rewrites a set that is already logged', () => {
+          // 102 logged out of order, ahead of the cursor. What it recorded is
+          // what was lifted; an edit above must not revise history.
+          useActiveWorkoutStore.setState({
+            completedSetIds: { '102': FIXED_NOW },
+          });
+          useActiveWorkoutStore
+            .getState()
+            .updateSetField('101', { weight: 40 });
+          const sets =
+            useActiveWorkoutStore.getState().session!.exercises[0].sets;
+          expect(sets[1].weight).toBe(70);
+        });
+
+        it('never crosses into the next exercise', () => {
+          useActiveWorkoutStore
+            .getState()
+            .updateSetField('101', { weight: 40 });
+          const state = useActiveWorkoutStore.getState();
+          expect(state.session!.exercises[1].sets[0].weight).toBe(100);
+        });
+
+        it('carries down the load only, not how one set went or how it is built', () => {
+          // rpe and notes describe a set that has been performed; set_type and
+          // rest_time are structure the user laid out on purpose.
+          useActiveWorkoutStore.getState().updateSetField('101', {
+            weight: 40,
+            rpe: 9,
+            notes: 'felt heavy',
+            set_type: 'warmup',
+            rest_time: 30,
+          });
+          const sets =
+            useActiveWorkoutStore.getState().session!.exercises[0].sets;
+          expect(sets[1].weight).toBe(40);
+          expect(sets[1].rpe).toBeNull();
+          expect(sets[1].notes).toBeNull();
+          expect(sets[1].set_type).toBe('working');
+          expect(sets[1].rest_time).toBe(60);
+        });
+
+        it('leaves the later sets alone when nothing carryable changed', () => {
+          useActiveWorkoutStore.getState().updateSetField('101', { rpe: 9 });
+          const sets =
+            useActiveWorkoutStore.getState().session!.exercises[0].sets;
+          expect(sets[0].rpe).toBe(9);
+          expect(sets[1].rpe).toBeNull();
+          expect(sets[1].weight).toBe(70);
+        });
+      });
+
       it('patches the set, bumps sessionRevision, and marks unsaved changes', () => {
         useActiveWorkoutStore
           .getState()
@@ -2373,6 +2534,7 @@ describe('activeWorkoutStore', () => {
         await flushPromises();
         useActiveWorkoutStore.getState().completeActiveSet();
         await flushPromises();
+        useActiveWorkoutStore.getState().focusSet('201');
         useActiveWorkoutStore.getState().completeActiveSet();
         await flushPromises();
         expect(useActiveWorkoutStore.getState().activeSetId).toBeNull();
@@ -2755,6 +2917,7 @@ describe('activeWorkoutStore', () => {
         await flushPromises();
         useActiveWorkoutStore.getState().completeActiveSet(); // 102
         await flushPromises();
+        useActiveWorkoutStore.getState().focusSet('201');
         useActiveWorkoutStore.getState().completeActiveSet(); // 201
         await flushPromises();
         expect(

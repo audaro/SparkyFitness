@@ -856,6 +856,46 @@ function restSecBeforeNextSet(
 }
 
 /**
+ * The entry ids the cursor may advance within after logging a set of
+ * `entryId` -- the exercise itself, plus every other member of its superset
+ * run.
+ *
+ * Finishing an exercise no longer rolls the cursor onto the next one: the
+ * workout is a list the user walks in whatever order they like (see
+ * `focusSet`), and auto-advancing started a rest for an exercise they had not
+ * chosen yet, on a screen still showing the one they had just finished.
+ *
+ * A superset run is the deliberate exception, because alternating between its
+ * members IS how one is performed -- scoping to the bare exercise there would
+ * stop the cursor after every partner rather than after every round.
+ */
+function advanceScopeEntryIds(
+  session: PresetSessionResponse | null,
+  entryId: string
+): Set<string> {
+  if (session == null) return new Set([entryId]);
+  const run = getSupersetRuns(session.exercises).find((r) =>
+    r.entryIds.includes(entryId)
+  );
+  return new Set(run?.entryIds ?? [entryId]);
+}
+
+/**
+ * Whether every set of the workout is logged. This -- not a null cursor -- is
+ * what "the workout is finished" means: since the cursor stops at the end of
+ * each exercise, a null `activeSetId` now only says nothing is on deck right
+ * now, which is also true halfway through a session.
+ */
+export function allStepsComplete(
+  steps: WorkoutStep[],
+  completedSetIds: CompletedSetMap
+): boolean {
+  return (
+    steps.length > 0 && steps.every((s) => completedSetIds[s.setId] != null)
+  );
+}
+
+/**
  * Seed the completion map from server-persisted `completed_at` timestamps so
  * a workout started from a session with prior progress resumes where it left
  * off. Missing or unparseable timestamps count as not completed. Also used by
@@ -1366,19 +1406,31 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           fireSelectionHaptic();
         }
 
-        // Next-up follows the just-logged set: the first uncompleted step after
-        // it (its "next set"), else the earliest uncompleted hole anywhere (so
-        // logging the last set with earlier holes circles back to them), else
-        // null when every set is done.
+        // Next-up follows the just-logged set, but only WITHIN its own exercise
+        // (or superset run -- see `advanceScopeEntryIds`): the first
+        // uncompleted step after it, else the earliest uncompleted hole
+        // earlier in the same exercise (so logging set 3 with set 1 skipped
+        // circles back to set 1), else null.
+        //
+        // Null here no longer means the workout is over -- it means this
+        // exercise is, and the user picks the next one. `allStepsComplete` is
+        // what says the workout is finished.
+        const scope = advanceScopeEntryIds(
+          session,
+          state.steps[targetIndex].exerciseId
+        );
+        const available = (s: WorkoutStep) =>
+          scope.has(s.exerciseId) && completedSetIds[s.setId] == null;
         const nextStep =
-          state.steps
-            .slice(targetIndex + 1)
-            .find((s) => completedSetIds[s.setId] == null) ??
-          state.steps.find((s) => completedSetIds[s.setId] == null) ??
+          state.steps.slice(targetIndex + 1).find(available) ??
+          state.steps.find(available) ??
           null;
 
         if (!nextStep) {
-          // No uncompleted step remains: workout is done. No final rest timer.
+          // This exercise is finished. No rest: the break the user wants now
+          // is the one before whatever they choose next, and they have not
+          // chosen it yet -- a timer counting down to an exercise nobody
+          // picked is what this replaced.
           set({
             session,
             completedSetIds,
@@ -1955,18 +2007,45 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         const session = state.session;
         if (!session) return;
 
+        // What a later set inherits from the one being edited. Typing a
+        // working load into set 2 is a statement about the exercise, not about
+        // that row -- re-typing it into sets 3, 4 and 5 is the busywork this
+        // removes. Only the prescription carries: `rpe` and `notes` describe
+        // how one specific set went, `set_type` and `rest_time` are structure
+        // the user set deliberately per row.
+        const carried: ActiveSetPatch = {};
+        for (const key of ['weight', 'reps', 'duration', 'distance'] as const) {
+          if (key in patch) {
+            (carried as Record<string, unknown>)[key] = patch[key];
+          }
+        }
+        const propagates = Object.keys(carried).length > 0;
+
         let changed = false;
         const next: PresetSessionResponse = {
           ...session,
           exercises: session.exercises.map((exercise) => {
-            if (!exercise.sets.some((s) => String(s.id) === setId))
-              return exercise;
+            const index = exercise.sets.findIndex(
+              (s) => String(s.id) === setId
+            );
+            if (index < 0) return exercise;
             changed = true;
             return {
               ...exercise,
-              sets: exercise.sets.map((s) =>
-                String(s.id) === setId ? { ...s, ...patch } : s
-              ),
+              sets: exercise.sets.map((s, i) => {
+                if (i === index) return { ...s, ...patch };
+                // Later sets of THIS exercise only, and only ones not yet
+                // logged: a completed set records what was actually done and
+                // is never rewritten by a later edit.
+                if (
+                  !propagates ||
+                  i < index ||
+                  state.completedSetIds[String(s.id)] != null
+                ) {
+                  return s;
+                }
+                return { ...s, ...carried };
+              }),
             };
           }),
         };

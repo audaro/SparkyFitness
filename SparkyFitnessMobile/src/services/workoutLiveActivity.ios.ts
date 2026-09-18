@@ -7,6 +7,7 @@ import {
 } from 'expo-widgets';
 import i18n from '../localization/i18n';
 import {
+  allStepsComplete,
   useActiveWorkoutStore,
   type ActiveWorkoutState,
 } from '../stores/activeWorkoutStore';
@@ -191,10 +192,11 @@ export function computeWorkoutLiveActivityProps(
 
   const workoutName = session?.name ?? labels.workout;
 
-  // A null cursor with steps means every set is logged. An empty live-start
-  // workout (no exercises yet) also has a null cursor but is just beginning —
-  // keep its clock running.
-  if (activeSetId == null && steps.length > 0) {
+  // Every set logged. Deliberately NOT a null cursor: since the cursor stops
+  // at the end of each exercise rather than rolling onto the next one, a null
+  // `activeSetId` is also the ordinary state between exercises, and an empty
+  // live-start workout (no exercises yet) has one while it is just beginning.
+  if (allStepsComplete(steps, completedSetIds)) {
     const completedTimes = Object.values(completedSetIds);
     const frozenAt =
       completedTimes.length > 0 ? Math.max(...completedTimes) : startedAt;

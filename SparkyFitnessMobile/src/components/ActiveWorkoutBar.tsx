@@ -23,7 +23,10 @@ import { useCSSVariable } from 'uniwind';
 
 import Icon from './Icon';
 import { TAB_BAR_HEIGHT } from './CustomTabBar';
-import { useActiveWorkoutStore } from '../stores/activeWorkoutStore';
+import {
+  allStepsComplete,
+  useActiveWorkoutStore,
+} from '../stores/activeWorkoutStore';
 import { flushActiveWorkoutBeforeClear } from '../hooks/useActiveWorkoutAutosave';
 import { clearActiveWorkout } from '../utils/clearActiveWorkout';
 import { usePreferences } from '../hooks/usePreferences';
@@ -333,6 +336,8 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
   const sessionId = useActiveWorkoutStore((s) => s.sessionId);
   const activeSession = useActiveWorkoutStore((s) => s.session);
   const activeSetId = useActiveWorkoutStore((s) => s.activeSetId);
+  const steps = useActiveWorkoutStore((s) => s.steps);
+  const completedSetIds = useActiveWorkoutStore((s) => s.completedSetIds);
   const previousSessionSets = useActiveWorkoutStore(
     (s) => s.previousSessionSets
   );
@@ -469,7 +474,10 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
       '--color-progress-track',
     ]) as [string, string, string, string];
 
-  const isWorkoutComplete = sessionId != null && activeSetId == null;
+  // Every set logged -- not merely a null cursor, which since the cursor stops
+  // at the end of each exercise is also the ordinary state between them.
+  const isWorkoutComplete =
+    sessionId != null && allStepsComplete(steps, completedSetIds);
 
   // Active-set details (exercise name, set number, weight × reps) looked up
   // against the session snapshot since `steps` only holds name/restSec.
