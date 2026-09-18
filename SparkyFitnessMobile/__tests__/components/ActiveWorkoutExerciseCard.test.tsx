@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import type { ExerciseEntryResponse } from '@workspace/shared';
 import ActiveWorkoutExerciseCard from '../../src/components/ActiveWorkoutExerciseCard';
@@ -564,12 +565,46 @@ describe('ActiveWorkoutExerciseCard', () => {
       expect(callbacks.onToggleExpanded).not.toHaveBeenCalled();
     });
 
-    it('keeps the inline table one tap away behind its own chevron', () => {
-      const { getByTestId, callbacks } = renderCard(false, {
+    it("ends in the ⋯ menu alone, as Fitbod's rows do", () => {
+      // No chevron: the row's only trailing control is the menu, which is
+      // where the inline table's Edit-sets-here action lives.
+      const { getByLabelText, queryByTestId } = renderCard(false, {
         onPressThumb: jest.fn(),
       });
-      fireEvent.press(getByTestId('expand-ex-uuid-1'));
-      expect(callbacks.onToggleExpanded).toHaveBeenCalledWith('ex-uuid-1');
+      expect(queryByTestId('expand-ex-uuid-1')).toBeNull();
+      expect(getByLabelText('More options for Bench Press')).toBeTruthy();
+    });
+
+    it('strings the rows on a timeline instead of dividing them', () => {
+      const { getByTestId } = renderCard(false, { onPressThumb: jest.fn() });
+      const line = getByTestId('exercise-row-timeline');
+      const style = StyleSheet.flatten(line.props.style);
+      // Centred on the thumb column, so consecutive rows join into one line.
+      expect(style.left).toBeCloseTo(8 + 52 / 2 - 0.75);
+    });
+
+    it("badges the row with the exercise's muscle region", () => {
+      const base = makeExercise();
+      const { getByTestId } = renderCard(false, {
+        onPressThumb: jest.fn(),
+        exercise: {
+          ...base,
+          exercise_snapshot: {
+            ...base.exercise_snapshot!,
+            primary_muscles: ['chest'],
+          },
+        },
+      });
+      expect(getByTestId('exercise-row-muscle-badge')).toBeTruthy();
+    });
+
+    it('draws no badge for an exercise that names no muscle', () => {
+      // A blank tile is worse than none: the badge is a footnote, and an
+      // empty one reads as a region the app could not identify.
+      const { queryByTestId } = renderCard(false, {
+        onPressThumb: jest.fn(),
+      });
+      expect(queryByTestId('exercise-row-muscle-badge')).toBeNull();
     });
 
     it('keeps tap-to-expand on a surface with no sheet to open', () => {

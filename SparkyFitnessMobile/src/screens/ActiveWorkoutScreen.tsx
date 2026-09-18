@@ -665,6 +665,17 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
       label: t('workout.viewExercise', { defaultValue: 'View exercise' }),
       onPress: () => handlePressThumb(entryId),
     });
+    // The row itself ends in this menu and nothing else, so the inline table
+    // needs a door. It is here rather than a chevron on every row because
+    // typing in the log is the exception — the on-deck bar logs the prescribed
+    // set in one tap, and anything else is a trip into the exercise's sheet.
+    items.push({
+      key: 'expand',
+      label: userExpandedIds.has(entryId)
+        ? t('workout.collapseSets', { defaultValue: 'Hide sets here' })
+        : t('workout.expandSets', { defaultValue: 'Edit sets here' }),
+      onPress: () => handleToggleExpanded(entryId),
+    });
     items.push({
       key: 'notes',
       label: t('workout.notes', { defaultValue: 'Notes' }),
@@ -724,6 +735,8 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     supersetRuns,
     completedSetIds,
     handlePressThumb,
+    handleToggleExpanded,
+    userExpandedIds,
     handleToggleExerciseNote,
     handleReplaceExercise,
     handleClearExerciseSets,

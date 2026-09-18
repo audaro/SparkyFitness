@@ -23,6 +23,7 @@ import {
 import Icon from './Icon';
 import SafeImage from './SafeImage';
 import CompletionCheck from './CompletionCheck';
+import MuscleRegionBadge from './MuscleRegionBadge';
 import FormInput from './FormInput';
 import RestPeriodChip from './RestPeriodChip';
 import ActiveWorkoutSetRow, {
@@ -250,6 +251,12 @@ const HEADER_MEDIA_SIZE = 42;
 
 /** Height of a per-set progress pip on the cursor's collapsed row. */
 const SET_PIP_HEIGHT = 4;
+/** Row horizontal padding (px-2), which the timeline is measured from. */
+const ROW_PADDING_X = 8;
+/** Hairline connecting consecutive live rows through the thumb column. */
+const TIMELINE_WIDTH = 1.5;
+/** Muscle-region badge overlapping the collapsed row's thumb. */
+const COLLAPSED_BADGE_SIZE = 26;
 
 /**
  * Widest the pip strip grows to. Pips are `flex-1` inside it, so a long
@@ -384,6 +391,10 @@ function ActiveWorkoutExerciseCard({
       : t('workout.lbs', { defaultValue: 'lbs' });
   // Resolved once per exercise; every row and the column header derive from it.
   const modality = resolveSnapshotModality(exercise.exercise_snapshot);
+  // First primary muscle only: the badge is one region, and an exercise that
+  // names none renders no badge rather than a blank tile.
+  const primaryMuscle =
+    exercise.exercise_snapshot?.primary_muscles?.[0] ?? null;
   const durationLike = isDurationModality(modality);
   const cardioForm =
     cardioFormEnabled &&
@@ -688,8 +699,15 @@ function ActiveWorkoutExerciseCard({
    * row does not also grow the card it opens into. The badge and the corner
    * radius are derived from the size rather than passed, so the two surfaces
    * cannot drift into differently-proportioned tiles.
+   *
+   * `withMuscleBadge` adds the muscle-region tile to the bottom corner, the
+   * same footnote-on-the-picture Up Next's rows carry. It is a parameter and
+   * not a second component because the media, the completion check and the
+   * badge have to stay children of ONE View at ONE depth: the collapsed row
+   * and the expanded header render this tile at different sizes, and a
+   * different tree shape between them remounts the image on every expand.
    */
-  const renderThumb = (size: number) => {
+  const renderThumb = (size: number, withMuscleBadge = false) => {
     const badge = Math.round(size * 0.38);
     const offset = -Math.round(badge * 0.2);
     return (
@@ -706,6 +724,18 @@ function ActiveWorkoutExerciseCard({
             style={{ right: offset, top: offset, padding: 2 }}
           >
             <CompletionCheck size={badge} iconSize={Math.round(badge * 0.6)} />
+          </View>
+        )}
+        {withMuscleBadge && primaryMuscle != null && (
+          <View
+            pointerEvents="none"
+            testID="exercise-row-muscle-badge"
+            style={{ position: 'absolute', right: -5, bottom: -5 }}
+          >
+            <MuscleRegionBadge
+              muscle={primaryMuscle}
+              size={COLLAPSED_BADGE_SIZE}
+            />
           </View>
         )}
       </View>
@@ -829,15 +859,23 @@ function ActiveWorkoutExerciseCard({
 
     return (
       <View
-        className={`border-b border-border-subtle ${isCurrent ? 'bg-surface' : ''}`}
+        className={`${rowOpensSheet ? '' : 'border-b border-border-subtle'} ${
+          isCurrent ? 'bg-surface' : ''
+        }`}
       >
-        <View className="flex-row items-center gap-3 px-2 py-3">
+        {/* zIndex, so the row paints over the timeline drawn after it: the
+            line has to run behind the thumb to be continuous, and a later
+            sibling would otherwise draw across the photo. */}
+        <View
+          className="flex-row items-center gap-3 px-2 py-3"
+          style={{ zIndex: 1 }}
+        >
           <Pressable
             onPress={openRow}
             onLongPress={longPressMenu}
             accessible={false}
           >
-            {renderThumb(COLLAPSED_MEDIA_SIZE)}
+            {renderThumb(COLLAPSED_MEDIA_SIZE, rowOpensSheet)}
           </Pressable>
           <Pressable
             onPress={openRow}
@@ -894,21 +932,6 @@ function ActiveWorkoutExerciseCard({
               </View>
             )}
           </Pressable>
-          {rowOpensSheet && (
-            <Pressable
-              testID={`expand-${exercise.id}`}
-              onPress={() => onToggleExpanded(exercise.id)}
-              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-              accessibilityRole="button"
-              accessibilityLabel={t('activeWorkout.exercise.expand', {
-                defaultValue: 'Expand {{name}}',
-                name,
-              })}
-              className="p-1"
-            >
-              <Icon name="chevron-down" size={18} color={textMuted} />
-            </Pressable>
-          )}
           {showOverflow ? (
             <Pressable
               onPress={openOverflowMenu}
@@ -937,6 +960,23 @@ function ActiveWorkoutExerciseCard({
             testID="current-exercise-rail"
             className="absolute left-0 top-0 bottom-0"
             style={{ width: 3, backgroundColor: accentPrimary }}
+          />
+        )}
+        {/* One hairline per row, full height and centred on the thumb column,
+            so consecutive rows join into a single unbroken line — the order
+            you will work through, rather than a stack of separate cards. The
+            row above paints over it everywhere the photo is opaque. */}
+        {rowOpensSheet && (
+          <View
+            testID="exercise-row-timeline"
+            pointerEvents="none"
+            className="absolute top-0 bottom-0"
+            style={{
+              left:
+                ROW_PADDING_X + COLLAPSED_MEDIA_SIZE / 2 - TIMELINE_WIDTH / 2,
+              width: TIMELINE_WIDTH,
+              backgroundColor: borderColor,
+            }}
           />
         )}
       </View>

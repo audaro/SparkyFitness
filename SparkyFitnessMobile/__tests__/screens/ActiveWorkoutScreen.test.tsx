@@ -347,12 +347,23 @@ describe('ActiveWorkoutScreen overflow menu wiring', () => {
     expect(mockSheet.props?.onBack).toBeUndefined();
     expect(sheetItemKeys()).toEqual([
       'view',
+      'expand',
       'notes',
       'superset-with',
       'replace',
       'clear',
       'remove',
     ]);
+    // The collapsed row ends in this menu alone, so the inline table's only
+    // door is here — and the label says which way it will go.
+    const expand = mockSheet.props?.items.find((i) => i.key === 'expand');
+    expect(expand?.label).toBe('Edit sets here');
+    act(() => expand!.onPress());
+    fireEvent.press(getByTestId('card-ex-a-overflow'));
+    expect(mockSheet.props?.items.find((i) => i.key === 'expand')?.label).toBe(
+      'Hide sets here'
+    );
+
     const remove = mockSheet.props?.items.find((i) => i.key === 'remove');
     expect(remove?.destructive).toBe(true);
     // Menu item must show the full action "Remove exercise", not the short

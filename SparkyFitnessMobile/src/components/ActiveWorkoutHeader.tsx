@@ -5,7 +5,7 @@ import { useCSSVariable } from 'uniwind';
 import type { PresetSessionResponse } from '@workspace/shared';
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
 import type { CompletedSetMap } from '../stores/activeWorkoutStore';
-import { formatElapsed } from '../utils/workoutSession';
+import { formatElapsedClock } from '../utils/workoutSession';
 import Icon, { type IconName } from './Icon';
 import KeyboardCollapsible from './KeyboardCollapsible';
 import LiquidGlassSurface, {
@@ -107,8 +107,15 @@ function HeaderIconButton({
 
 /**
  * Custom chrome for the active-workout screen (the route renders with
- * `headerShown: false`): back, name + elapsed clock, kebab menu, and the
- * one segmented per-exercise progress bar.
+ * `headerShown: false`): two round corner buttons, the display clock, and the
+ * segmented per-exercise progress bar.
+ *
+ * The workout's name is deliberately not on screen. It is on the row menu's
+ * title and nowhere else: a running workout has one name, the user chose it a
+ * screen ago, and the space it was taking is the only place a clock this size
+ * fits. What the header answers is how long you have been training — which is
+ * why the clock is the largest thing on the screen rather than a caption under
+ * a title.
  */
 function ActiveWorkoutHeader({
   name,
@@ -144,10 +151,6 @@ function ActiveWorkoutHeader({
 
   const menuSheetRef = useRef<ActionSheetRef>(null);
   const openMenu = () => menuSheetRef.current?.present();
-
-  const doneCount = progress.filter(
-    (p) => p.totalSets > 0 && p.completedSets >= p.totalSets
-  ).length;
 
   const menuItems: ActionSheetItem[] = [];
   if (onAddExercise) {
@@ -223,35 +226,19 @@ function ActiveWorkoutHeader({
 
   return (
     <View className="px-3 pb-2 border-b border-border-subtle bg-background">
-      <View className="flex-row items-center">
+      <View className="flex-row items-center justify-between">
+        {/* Close, not Back: the workout keeps running when you leave, and a
+            chevron promises a screen to return to rather than one to leave. */}
         <HeaderIconButton
-          icon="chevron-back"
+          icon="close"
           color={textPrimary}
           usesGlass={usesGlass}
           chromeBorder={chromeBorder}
           onPress={onBack}
-          accessibilityLabel={t('activeWorkout.header.back', {
-            defaultValue: 'Back',
+          accessibilityLabel={t('activeWorkout.header.close', {
+            defaultValue: 'Close workout',
           })}
         />
-
-        <View className="flex-1 items-center">
-          <Text
-            numberOfLines={1}
-            className="text-base font-semibold text-text-primary"
-          >
-            {name}
-          </Text>
-          <Text
-            className="text-xs text-text-secondary"
-            style={{ fontVariant: ['tabular-nums'] }}
-          >
-            {t('activeWorkout.header.elapsedTime', {
-              defaultValue: '{{time}} elapsed',
-              time: formatElapsed(startedAt, now),
-            })}
-          </Text>
-        </View>
 
         {/* Glass chrome is monochrome (see resolveHeaderActionColors), so the
             kebab takes the primary tint on that path. */}
@@ -267,10 +254,43 @@ function ActiveWorkoutHeader({
         />
       </View>
 
-      {/* Folds away with the keyboard so the log gets the row's height back;
-          the name + elapsed clock above stay visible. */}
+      {/* Both fold away with the keyboard so the log gets their height back —
+          which is most of the header, since the clock is the tall part. */}
       <KeyboardCollapsible>
-        <View className="flex-row items-center gap-3 px-2 mt-1">
+        <View className="items-center pt-1 pb-3">
+          <View className="flex-row items-center" style={{ gap: 10 }}>
+            {/* Running indicator. It is the only thing on the header that says
+                the clock is live rather than a total from a finished session. */}
+            <View
+              testID="active-workout-running-dot"
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: 5,
+                backgroundColor: accentPrimary,
+              }}
+            />
+            <Text
+              testID="active-workout-elapsed"
+              accessibilityLabel={t('activeWorkout.header.elapsedTime', {
+                defaultValue: '{{time}} elapsed',
+                time: formatElapsedClock(startedAt, now),
+              })}
+              className="text-text-primary"
+              style={{
+                fontSize: 40,
+                lineHeight: 46,
+                fontWeight: '800',
+                letterSpacing: 0.5,
+                fontVariant: ['tabular-nums'],
+              }}
+            >
+              {formatElapsedClock(startedAt, now)}
+            </Text>
+          </View>
+        </View>
+
+        <View className="flex-row items-center px-2">
           <View className="flex-1 flex-row gap-1">
             {progress.map((p) => {
               const isDone = p.totalSets > 0 && p.completedSets >= p.totalSets;
@@ -301,16 +321,6 @@ function ActiveWorkoutHeader({
               );
             })}
           </View>
-          <Text
-            className="text-xs text-text-secondary"
-            style={{ fontVariant: ['tabular-nums'] }}
-          >
-            {t('activeWorkout.header.exerciseProgress', {
-              defaultValue: '{{completed}} / {{count}} exercises',
-              completed: doneCount,
-              count: progress.length,
-            })}
-          </Text>
         </View>
       </KeyboardCollapsible>
 

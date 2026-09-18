@@ -615,6 +615,8 @@ export interface WorkoutCardExercise {
     category?: string | null;
     modality?: string | null;
     images?: string[] | null;
+    /** Region for the collapsed row's muscle badge; only the first is drawn. */
+    primary_muscles?: string[] | null;
   } | null;
   sets: WorkoutCardSet[];
   /** Raw draft string backing the edit-mode calories input (draft mapper only). */
@@ -1128,6 +1130,27 @@ export function formatElapsed(startedAt: number | null, now: number): string {
   return hours > 0
     ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
     : `${pad(minutes)}:${pad(seconds)}`;
+}
+
+/**
+ * Elapsed time as `H:MM:SS`, hours always present and never zero-padded.
+ *
+ * The compact `formatElapsed` drops the hour until there is one, which is
+ * right beside a label in a 12px line. This one is the active workout's
+ * display clock, where the field has to stop moving: a clock that grows a
+ * column an hour in reflows the one thing on that screen the eye returns to.
+ */
+export function formatElapsedClock(
+  startedAt: number | null,
+  now: number
+): string {
+  const totalSeconds =
+    startedAt == null ? 0 : Math.max(0, Math.floor((now - startedAt) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${hours}:${pad(minutes)}:${pad(seconds)}`;
 }
 
 /** Rest countdown as `M:SS`, rounding partial seconds up and clamping at zero. */
