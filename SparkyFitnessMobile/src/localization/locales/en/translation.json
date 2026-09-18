@@ -235,6 +235,9 @@
       "bodySetProgressReps_other": "{{setProgress}} · {{formattedCount}} reps target",
       "bodySetProgressDuration": "{{setProgress}} · {{duration}} target"
     },
+    "hold": {
+      "title": "Hold complete"
+    },
     "fasting": {
       "title": "Fasting goal reached",
       "body": "You've hit your fasting goal. Great work!"

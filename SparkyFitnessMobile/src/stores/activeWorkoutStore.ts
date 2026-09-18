@@ -15,6 +15,7 @@ import type {
 import type { Exercise } from '../types/exercise';
 import {
   describeActiveSetAssumed,
+  effectiveSetDurationSec,
   formatDurationSeconds,
   getDefaultRestSec,
   getSupersetRuns,
@@ -42,6 +43,7 @@ import {
   COMPLETE_SET_ACTION,
   dismissDeliveredNotification,
   fireRestCompleteCue,
+  scheduleHoldNotification,
   scheduleRestNotification,
 } from '../services/notifications';
 import { fireSelectionHaptic, fireSuccessHaptic } from '../services/haptics';
@@ -51,6 +53,9 @@ const STORAGE_KEY = '@SparkyFitness/active-workout';
 
 /** Monotonic counter used to reject stale async schedule resolutions. */
 let restInstanceCounter = 0;
+
+/** The same guard for holds — see `scheduleGuardedHoldNotification`. */
+let holdInstanceCounter = 0;
 
 export interface WorkoutStep {
   exerciseId: string;
@@ -105,6 +110,54 @@ const READY_REST: Rest = {
   instanceToken: 0,
 };
 
+/**
+ * Hold-timer state: the timed work of a set itself (a plank's 45s), as opposed
+ * to `rest`, which is the break *before* a set. A sibling slice rather than a
+ * generalization of `Rest`, which is wired into the Live Activity, the
+ * notification actions, the HUD and the restore path.
+ *
+ * The two are MUTUALLY EXCLUSIVE: a hold may only start from
+ * `rest.state === 'ready'`, and `completeSet` — which starts the next rest —
+ * always clears it. `completeActiveSetIfReady` refuses to fire while one runs,
+ * or the Live Activity's Complete button would log the set mid-plank.
+ *
+ * - `idle`    — no hold running
+ * - `holding` — counting down the set's target duration
+ * - `paused`  — hold paused mid-set
+ *
+ * Every transition REPLACES this object rather than mutating it: the deadline
+ * timer syncs off a `state.hold !== prevState.hold` reference check, so an
+ * in-place edit would update the UI and silently never re-arm the timer.
+ */
+export interface Hold {
+  state: 'idle' | 'holding' | 'paused';
+  /** The set being held. Non-null unless `state === 'idle'`. */
+  setId: string | null;
+  /**
+   * Target seconds for the hold, and the denominator of the progress ring.
+   * `adjustHold` moves this in lockstep with the deadline (as `adjustRest`
+   * does with `durationSec`), so progress cannot exceed 1 and the elapsed
+   * time an early stop logs stays honest.
+   */
+  targetSec: number;
+  /** Absolute deadline (ms since epoch). Non-null only while `state === 'holding'`. */
+  endsAt: number | null;
+  /** Remaining ms captured at pause. Non-null only while `state === 'paused'`. */
+  pausedRemainingMs: number | null;
+  scheduledNotificationId: string | null;
+  instanceToken: number;
+}
+
+const IDLE_HOLD: Hold = {
+  state: 'idle',
+  setId: null,
+  targetSec: 0,
+  endsAt: null,
+  pausedRemainingMs: null,
+  scheduledNotificationId: null,
+  instanceToken: 0,
+};
+
 export interface ActiveWorkoutState {
   sessionId: string | null;
   /**
@@ -125,6 +178,8 @@ export interface ActiveWorkoutState {
    */
   activeSetId: string | null;
   rest: Rest;
+  /** Hold timer for the active set's timed work. See `Hold`. */
+  hold: Hold;
   /**
    * Transient monotonic counter bumped on every local session edit (and on
    * `reconcileWithSession`). The autosave hook captures it at send time and
@@ -283,6 +338,32 @@ export interface ActiveWorkoutState {
   dismissRest: () => void;
   /** Guarded transition fired by the HUD tick when `endsAt` passes. */
   markRestReady: () => void;
+
+  /**
+   * Start the hold timer for `setId`. No-ops unless the set is the kind that
+   * can be held and nothing else is running: it must be the active set, be
+   * uncompleted, be a duration-modality set with a target above zero, and
+   * find `rest` ready and `hold` idle.
+   */
+  startHold: (setId: string) => void;
+  pauseHold: () => void;
+  resumeHold: () => void;
+  /**
+   * Add or remove time mid-hold, in the app's canonical ±15s step. Moves the
+   * deadline and `targetSec` together; the remaining time floors at 1s rather
+   * than completing the set, because shrinking a plank to nothing is a
+   * mis-tap, not a rep. There is deliberately no ceiling.
+   */
+  adjustHold: (deltaSec: number) => void;
+  /**
+   * Finish the hold and log its set with the seconds actually held. Used by
+   * both the early-stop control and the deadline timer, so a full hold and a
+   * stopped one record the same way. Terminates through `completeSet`, which
+   * is what starts the next rest and advances the cursor.
+   */
+  stopHoldAndLog: () => void;
+  /** Abandon the hold without logging anything. The cursor does not move. */
+  dismissHold: () => void;
   reconcileWithSession: (session: PresetSessionResponse) => void;
 
   /** Patch value fields on a set. Weight is in kg — UI converts before calling. */
@@ -401,6 +482,7 @@ const initialData: Pick<
   | 'completedSetIds'
   | 'activeSetId'
   | 'rest'
+  | 'hold'
   | 'sessionRevision'
   | 'hasUnsavedChanges'
   | 'createdByLiveStart'
@@ -420,6 +502,7 @@ const initialData: Pick<
   completedSetIds: {},
   activeSetId: null,
   rest: READY_REST,
+  hold: IDLE_HOLD,
   sessionRevision: 0,
   hasUnsavedChanges: false,
   createdByLiveStart: false,
@@ -796,7 +879,12 @@ function normalizeSupersetGroups(
 function buildSessionEditState(
   state: Pick<
     ActiveWorkoutState,
-    'completedSetIds' | 'prSetIds' | 'activeSetId' | 'rest' | 'sessionRevision'
+    | 'completedSetIds'
+    | 'prSetIds'
+    | 'activeSetId'
+    | 'rest'
+    | 'hold'
+    | 'sessionRevision'
   >,
   editedSession: PresetSessionResponse
 ): Partial<ActiveWorkoutState> {
@@ -838,6 +926,7 @@ function buildSessionEditState(
     prSetIds: nextPr,
     activeSetId: nextActiveSetId,
     rest: nextRest,
+    hold: holdForCursor(state.hold, nextActiveSetId),
     sessionRevision: state.sessionRevision + 1,
     hasUnsavedChanges: true,
   };
@@ -851,6 +940,78 @@ function cancelCurrentRestNotification(rest: Rest): void {
   if (rest.scheduledNotificationId) {
     void cancelScheduledNotification(rest.scheduledNotificationId);
   }
+}
+
+/**
+ * Cancel any pending notification attached to the current hold. Safe to call
+ * from any action that replaces or clears the hold state.
+ */
+function cancelCurrentHoldNotification(hold: Hold): void {
+  if (hold.scheduledNotificationId) {
+    void cancelScheduledNotification(hold.scheduledNotificationId);
+  }
+}
+
+/**
+ * The hold to commit once the cursor has moved to `nextActiveSetId`. A hold
+ * belongs to exactly one set, so any path that can move the cursor out from
+ * under a running one (reconcile, un-complete, a server session landing)
+ * clears it through here rather than remembering to do so itself.
+ */
+function holdForCursor(hold: Hold, nextActiveSetId: string | null): Hold {
+  if (hold.state === 'idle') return hold;
+  if (hold.setId != null && hold.setId === nextActiveSetId) return hold;
+  cancelCurrentHoldNotification(hold);
+  return IDLE_HOLD;
+}
+
+/**
+ * Schedule the hold-complete notification for the hold identified by `token`,
+ * writing the id back into state only if that exact hold is still running when
+ * the async schedule resolves. The rest slice's guard, for the same reason: a
+ * schedule that lands after the user stopped the hold must not attach its id
+ * to a newer one, and the late OS notification is cancelled instead.
+ */
+function scheduleGuardedHoldNotification(
+  exerciseName: string,
+  seconds: number,
+  token: number
+): void {
+  void scheduleHoldNotification(exerciseName, seconds).then((notifId) => {
+    if (!notifId) return;
+    const current = useActiveWorkoutStore.getState().hold;
+    if (
+      current.instanceToken === token &&
+      current.state === 'holding' &&
+      current.scheduledNotificationId === null
+    ) {
+      useActiveWorkoutStore.setState({
+        hold: { ...current, scheduledNotificationId: notifId },
+      });
+    } else {
+      void cancelScheduledNotification(notifId);
+    }
+  });
+}
+
+/**
+ * The target seconds a hold for `setId` would run for, or `null` when the set
+ * is not one that can be held. `effectiveSetDurationSec` is the authority on
+ * where the target lives — legacy isometric sets keep it in `reps`.
+ */
+function holdTargetSecForSet(
+  session: PresetSessionResponse | null,
+  setId: string
+): number | null {
+  if (!session) return null;
+  const located = locateSet(session, setId);
+  if (!located) return null;
+  const { exercise, setIndex } = located;
+  const modality = resolveSnapshotModality(exercise.exercise_snapshot);
+  if (!isDurationModality(modality)) return null;
+  const target = effectiveSetDurationSec(exercise.sets[setIndex], modality);
+  if (target == null || target <= 0) return null;
+  return target;
 }
 
 /**
@@ -992,6 +1153,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
 
       startWorkout: (session, opts) => {
         cancelCurrentRestNotification(get().rest);
+        cancelCurrentHoldNotification(get().hold);
         const steps = buildStepsFromSession(session);
         // Server-persisted completions seed the map, and the cursor lands on
         // the first uncompleted step (null = every step already done). The
@@ -1045,6 +1207,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
 
       startWorkoutAtSet: (session, setId) => {
         cancelCurrentRestNotification(get().rest);
+        cancelCurrentHoldNotification(get().hold);
         const steps = buildStepsFromSession(session);
         const targetIndex = steps.findIndex((s) => s.setId === setId);
         if (targetIndex < 0) return;
@@ -1124,6 +1287,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
 
       clearWorkout: () => {
         cancelCurrentRestNotification(get().rest);
+        cancelCurrentHoldNotification(get().hold);
         set({ ...initialData });
       },
 
@@ -1135,6 +1299,10 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         if (state.completedSetIds[setId] != null) return;
 
         cancelCurrentRestNotification(state.rest);
+        // Any hold ends here, whether this set was the held one (the normal
+        // `stopHoldAndLog` path, which has already cleared it) or a different
+        // row was logged mid-plank and moved the cursor out from under it.
+        cancelCurrentHoldNotification(state.hold);
 
         // Logging a set with empty weight/reps adopts its assumed
         // (placeholder) values — one choke point, so the row's Log control,
@@ -1181,6 +1349,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
             prSetIds,
             activeSetId: null,
             rest: READY_REST,
+            hold: IDLE_HOLD,
             sessionRevision: state.sessionRevision + 1,
             hasUnsavedChanges: true,
           });
@@ -1207,6 +1376,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
             restSec > 0
               ? startRestForStep(state.steps, nextStep.setId, session, restSec)
               : READY_REST,
+          hold: IDLE_HOLD,
           sessionRevision: state.sessionRevision + 1,
           hasUnsavedChanges: true,
         });
@@ -1218,8 +1388,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       },
 
       completeActiveSetIfReady: () => {
-        const { rest, activeSetId } = get();
+        const { rest, hold, activeSetId } = get();
         if (activeSetId == null) return false;
+        // Refuse mid-hold. This is reachable from the Live Activity's
+        // Complete button and the rest notification's action, and firing it
+        // during a plank would log the set from the lock screen while the
+        // user is still holding it. The hold logs itself when it expires.
+        if (hold.state !== 'idle') return false;
         // An expired rest can still read 'resting' here: the ready flip runs
         // on a JS timer, which Android pauses while the app is backgrounded.
         const restExpired =
@@ -1294,6 +1469,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           prSetIds: nextPr,
           activeSetId: nextActiveSetId,
           rest: nextRest,
+          hold: holdForCursor(state.hold, nextActiveSetId),
           sessionRevision: state.sessionRevision + 1,
           hasUnsavedChanges: true,
         });
@@ -1303,12 +1479,14 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         const state = get();
         if (Object.keys(state.completedSetIds).length === 0) return;
         cancelCurrentRestNotification(state.rest);
+        cancelCurrentHoldNotification(state.hold);
         set({
           completedSetIds: {},
           prSetIds: {},
           // Rewind the cursor to the first step and drop any running rest.
           activeSetId: state.steps[0]?.setId ?? null,
           rest: READY_REST,
+          hold: IDLE_HOLD,
           sessionRevision: state.sessionRevision + 1,
           hasUnsavedChanges: true,
         });
@@ -1454,6 +1632,167 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         set({ rest: READY_REST });
       },
 
+      startHold: (setId) => {
+        const state = get();
+        // Mutual exclusion: a hold is the work, a rest is the break before
+        // it. Never both.
+        if (state.hold.state !== 'idle') return;
+        if (state.rest.state !== 'ready') return;
+        if (state.completedSetIds[setId] != null) return;
+        // A hold belongs to the cursor. `holdForCursor` clears any hold whose
+        // set is no longer the active one, so allowing a hold to start off the
+        // cursor would let an unrelated session edit silently kill it.
+        if (state.activeSetId !== setId) return;
+        const step = state.steps.find((s) => s.setId === setId);
+        if (!step) return;
+        const targetSec = holdTargetSecForSet(state.session, setId);
+        if (targetSec == null) return;
+
+        const token = ++holdInstanceCounter;
+        set({
+          hold: {
+            state: 'holding',
+            setId,
+            targetSec,
+            endsAt: Date.now() + targetSec * 1000,
+            pausedRemainingMs: null,
+            scheduledNotificationId: null,
+            instanceToken: token,
+          },
+        });
+        fireSelectionHaptic();
+        scheduleGuardedHoldNotification(step.exerciseName, targetSec, token);
+      },
+
+      pauseHold: () => {
+        const { hold } = get();
+        if (hold.state !== 'holding' || hold.endsAt == null) return;
+        cancelCurrentHoldNotification(hold);
+        set({
+          hold: {
+            ...hold,
+            state: 'paused',
+            endsAt: null,
+            pausedRemainingMs: Math.max(0, hold.endsAt - Date.now()),
+            scheduledNotificationId: null,
+          },
+        });
+      },
+
+      resumeHold: () => {
+        const state = get();
+        const { hold, steps } = state;
+        if (hold.state !== 'paused' || hold.pausedRemainingMs == null) return;
+
+        const remainingMs = hold.pausedRemainingMs;
+        const token = ++holdInstanceCounter;
+        set({
+          hold: {
+            ...hold,
+            state: 'holding',
+            endsAt: Date.now() + remainingMs,
+            pausedRemainingMs: null,
+            scheduledNotificationId: null,
+            instanceToken: token,
+          },
+        });
+
+        const step = steps.find((s) => s.setId === hold.setId);
+        scheduleGuardedHoldNotification(
+          step?.exerciseName ?? 'Hold',
+          Math.max(1, Math.ceil(remainingMs / 1000)),
+          token
+        );
+      },
+
+      adjustHold: (deltaSec) => {
+        const state = get();
+        const { hold, steps } = state;
+        const deltaMs = deltaSec * 1000;
+
+        if (hold.state === 'holding' && hold.endsAt != null) {
+          // Floor at 1s rather than completing: unlike a rest, shrinking a
+          // hold past zero is a mis-tap, and logging the plank on it would be
+          // unrecoverable.
+          const remainingMs = Math.max(0, hold.endsAt - Date.now());
+          const nextRemainingMs = Math.max(1000, remainingMs + deltaMs);
+          const appliedSec = Math.round((nextRemainingMs - remainingMs) / 1000);
+
+          cancelCurrentHoldNotification(hold);
+          const token = ++holdInstanceCounter;
+          set({
+            hold: {
+              ...hold,
+              targetSec: Math.max(1, hold.targetSec + appliedSec),
+              endsAt: Date.now() + nextRemainingMs,
+              scheduledNotificationId: null,
+              instanceToken: token,
+            },
+          });
+
+          const step = steps.find((s) => s.setId === hold.setId);
+          scheduleGuardedHoldNotification(
+            step?.exerciseName ?? 'Hold',
+            Math.max(1, Math.ceil(nextRemainingMs / 1000)),
+            token
+          );
+          return;
+        }
+
+        if (hold.state === 'paused' && hold.pausedRemainingMs != null) {
+          const nextRemainingMs = Math.max(
+            1000,
+            hold.pausedRemainingMs + deltaMs
+          );
+          const appliedSec = Math.round(
+            (nextRemainingMs - hold.pausedRemainingMs) / 1000
+          );
+          set({
+            hold: {
+              ...hold,
+              targetSec: Math.max(1, hold.targetSec + appliedSec),
+              pausedRemainingMs: nextRemainingMs,
+            },
+          });
+        }
+        // 'idle' → no-op.
+      },
+
+      stopHoldAndLog: () => {
+        const state = get();
+        const { hold } = state;
+        if (hold.state === 'idle' || hold.setId == null) return;
+
+        // Log what was actually held, never the prescription: a hold stopped
+        // early records the short time, and one extended with +15s and held
+        // records the long one. A full hold lands on `targetSec` anyway, which
+        // is the value `adoptAssumedSetValues` would have adopted — so the
+        // honest path and the planned path agree where they should.
+        const remainingMs =
+          hold.state === 'holding' && hold.endsAt != null
+            ? Math.max(0, hold.endsAt - Date.now())
+            : (hold.pausedRemainingMs ?? 0);
+        const elapsedSec = Math.max(
+          1,
+          Math.round(hold.targetSec - remainingMs / 1000)
+        );
+
+        const setId = hold.setId;
+        cancelCurrentHoldNotification(hold);
+        set({ hold: IDLE_HOLD });
+        get().updateSetField(setId, { duration: elapsedSec });
+        // completeSet owns the rest of it: assumed values, PR detection,
+        // haptics, the cursor advance and the next rest.
+        get().completeSet(setId);
+      },
+
+      dismissHold: () => {
+        const { hold } = get();
+        if (hold.state === 'idle') return;
+        cancelCurrentHoldNotification(hold);
+        set({ hold: IDLE_HOLD });
+      },
+
       reconcileWithSession: (session) => {
         const state = get();
         if (session.id !== state.sessionId) return;
@@ -1521,6 +1860,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           setRenderKeys: nextRenderKeys,
           activeSetId: nextActiveSetId,
           rest: nextRest,
+          hold: holdForCursor(state.hold, nextActiveSetId),
           // Reconcile is the second session writer (WorkoutDetail edit-save).
           // Bumping the revision forces an in-flight autosave response into
           // applyServerSession's graft branch instead of letting it adopt a
@@ -1991,6 +2331,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           setRenderKeys: nextRenderKeys,
           activeSetId: nextActiveSetId,
           rest: nextRest,
+          hold: holdForCursor(state.hold, nextActiveSetId),
           hasUnsavedChanges: false,
         });
       },
@@ -2007,6 +2348,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         completedSetIds: state.completedSetIds,
         activeSetId: state.activeSetId,
         rest: state.rest,
+        // A hold survives a cold start: its deadline is wall-clock, so the
+        // subscribe below re-arms it on rehydration and an already-expired
+        // one logs its set immediately. No `version` bump is needed — `merge`
+        // spreads `current` first, so a pre-hold payload keeps IDLE_HOLD.
+        hold: state.hold,
         // Persisted so edits made just before a cold exit are flushed on the
         // next launch. sessionRevision is deliberately transient.
         hasUnsavedChanges: state.hasUnsavedChanges,
@@ -2056,6 +2402,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         ) {
           merged.rest = { ...READY_REST };
         }
+        // `hold` deliberately gets NO equivalent snap. Snapping an expired
+        // hold to idle would silently discard a finished plank, and logging
+        // it here is impossible anyway: `merge` runs while the store is still
+        // being constructed, so `completeSet` is not callable yet. The hold is
+        // left exactly as persisted — the subscribe below fires on rehydration
+        // and arms the deadline timer at 0ms, which logs the set through the
+        // normal path.
         return merged;
       },
     }
@@ -2092,17 +2445,50 @@ function syncRestDeadlineTimer(rest: Rest): void {
   );
 }
 
-// Every rest transition replaces the `rest` object, so a reference check is
-// enough to keep the deadline timer in sync (including persist rehydration).
+let holdDeadlineTimerId: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * The hold's counterpart to `syncRestDeadlineTimer`. Where an expired rest
+ * flips to ready, an expired hold LOGS ITS SET: the plank is over, so it goes
+ * into the session and the next rest starts, without the user touching the
+ * phone. Re-arms itself if the timer fires early, same as the rest timer.
+ */
+function syncHoldDeadlineTimer(hold: Hold): void {
+  if (holdDeadlineTimerId != null) {
+    clearTimeout(holdDeadlineTimerId);
+    holdDeadlineTimerId = null;
+  }
+  if (hold.state !== 'holding' || hold.endsAt == null) return;
+  holdDeadlineTimerId = setTimeout(
+    () => {
+      holdDeadlineTimerId = null;
+      const current = useActiveWorkoutStore.getState().hold;
+      if (current.state !== 'holding' || current.endsAt == null) return;
+      if (Date.now() < current.endsAt) {
+        syncHoldDeadlineTimer(current);
+        return;
+      }
+      useActiveWorkoutStore.getState().stopHoldAndLog();
+    },
+    Math.max(0, hold.endsAt - Date.now())
+  );
+}
+
+// Every rest/hold transition replaces its object, so a reference check is
+// enough to keep the deadline timers in sync (including persist rehydration).
 useActiveWorkoutStore.subscribe((state, prevState) => {
   if (state.rest !== prevState.rest) syncRestDeadlineTimer(state.rest);
+  if (state.hold !== prevState.hold) syncHoldDeadlineTimer(state.hold);
 });
 
 // JS timers pause while the app is backgrounded; re-sync on foreground return
-// so an expired rest flips promptly even if the queued timer lags.
+// so an expired rest flips — and an expired hold logs — promptly even if the
+// queued timer lags. A deadline already in the past re-arms at 0ms and fires
+// immediately, which is what settles a plank held across a screen lock.
 AppState.addEventListener('change', (status) => {
   if (status === 'active') {
     syncRestDeadlineTimer(useActiveWorkoutStore.getState().rest);
+    syncHoldDeadlineTimer(useActiveWorkoutStore.getState().hold);
   }
 });
 
@@ -2141,6 +2527,11 @@ export function initWorkoutNotificationActions(): void {
  */
 export function __resetActiveWorkoutStoreForTests(): void {
   restInstanceCounter = 0;
+  holdInstanceCounter = 0;
+  if (holdDeadlineTimerId != null) {
+    clearTimeout(holdDeadlineTimerId);
+    holdDeadlineTimerId = null;
+  }
   notificationActionsSubscription?.remove();
   notificationActionsSubscription = null;
   useActiveWorkoutStore.setState({ ...initialData });

@@ -390,6 +390,53 @@ async function dismissDeliveredRestNotifications(): Promise<void> {
 }
 
 /**
+ * Schedule the hold-complete notification for a timed set (a plank's 45s, an
+ * interval's work phase), so the ping lands even with the phone face-down.
+ *
+ * Deliberately carries no `categoryIdentifier`: the rest ping's "Complete Set"
+ * action would be wrong here, because a hold logs its own set the moment it
+ * expires — by the time this is delivered there is nothing left to complete,
+ * and `completeActiveSetIfReady` refuses mid-hold anyway.
+ *
+ * Rides the same `restTimerNotificationsEnabled` preference as the rest ping:
+ * both are the workout timer telling the user a phase ended, and splitting
+ * them would mean a second toggle for the same expectation.
+ */
+export async function scheduleHoldNotification(
+  exerciseName: string,
+  seconds: number
+): Promise<string | null> {
+  const prefs = useAppPreferencesStore.getState();
+  if (!prefs.notificationsEnabled || !prefs.restTimerNotificationsEnabled)
+    return null;
+
+  const granted = await ensureNotificationPermission();
+  if (!granted) return null;
+
+  try {
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: notificationCopy('notifications.hold.title', 'Hold complete'),
+        body: exerciseName,
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds,
+        channelId: CHANNEL_ID,
+      },
+    });
+    return id;
+  } catch (err) {
+    addLog(
+      `scheduleHoldNotification failed: ${(err as Error).message}`,
+      'ERROR'
+    );
+    return null;
+  }
+}
+
+/**
  * Dismiss one delivered notification. Needed after an Android action press —
  * unlike iOS, Android leaves the notification in the tray.
  */

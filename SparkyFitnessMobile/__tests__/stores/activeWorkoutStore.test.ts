@@ -25,6 +25,7 @@ import type { Exercise } from '../../src/types/exercise';
 
 jest.mock('../../src/services/notifications', () => ({
   scheduleRestNotification: jest.fn(async () => 'notif-abc'),
+  scheduleHoldNotification: jest.fn(async () => 'notif-hold'),
   cancelScheduledNotification: jest.fn(async () => undefined),
   fireRestCompleteCue: jest.fn(),
   COMPLETE_SET_ACTION: 'complete-set',
