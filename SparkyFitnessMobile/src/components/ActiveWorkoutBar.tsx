@@ -167,6 +167,11 @@ const HIDDEN_ROUTES = new Set<string>([
   'MeasurementsAdd',
   'Chat',
   'ActiveWorkout',
+  // The exercise sheet carries its own Log Set footer, for the exercise it is
+  // showing. The HUD announces the workout's cursor, which is often a
+  // different exercise entirely -- two log controls for two different sets,
+  // one stacked on the other, and the one on top disagreeing with the screen.
+  'ExerciseSheet',
 ]);
 
 export function shouldSuppressActiveWorkoutBar(
@@ -332,6 +337,9 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
     (s) => s.previousSessionSets
   );
   const plannedSetValues = useActiveWorkoutStore((s) => s.plannedSetValues);
+  const sourceRecommendationId = useActiveWorkoutStore(
+    (s) => s.sourceRecommendationId
+  );
   const { state: restState, remainingMs, progress } = useRestCountdown();
   const queryClient = useQueryClient();
   const { preferences } = usePreferences();
@@ -473,7 +481,8 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
     activeSession,
     activeSetId,
     previousSessionSets,
-    plannedSetValues
+    plannedSetValues,
+    sourceRecommendationId != null
   );
   const activeSetLabel =
     activeSetDescription == null

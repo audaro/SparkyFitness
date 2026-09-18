@@ -1838,6 +1838,100 @@ export function rationaleFor(
   }
 }
 
+/**
+ * English list: "chest", "chest and triceps", "quadriceps, calves and glutes".
+ */
+function joinList(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+export interface WorkoutRationaleInput {
+  /** The muscles the workout actually trains, after the duration fit. */
+  targetMuscles: readonly string[];
+  /**
+   * Muscles that were planned for and did not survive the fit. The card would
+   * otherwise have no way to say that a requested muscle is missing on purpose.
+   */
+  droppedMuscles: readonly string[];
+  /** Today's freshness vector — the same one the planner ranked from. */
+  muscles: readonly MuscleFreshness[];
+  /**
+   * True when the client named the muscles. The engine then did not choose
+   * them, and claiming they are the freshest would often be false — tapping
+   * Legs on sore legs is a decision the picker already showed the cost of.
+   */
+  clientChoseMuscles: boolean;
+  goal: WorkoutGoal;
+}
+
+/**
+ * The coach card's paragraph: why this workout, in the engine's own words.
+ *
+ * Deliberately narrow. It says only the two things the rest of the screen does
+ * not — which muscles the session was built around and why, and what the sets
+ * are shaped for — and never the exercise count or the duration, which the
+ * header already carries and which a single Replace would make stale, since
+ * Replace rewrites the payload's exercises without regenerating this string.
+ *
+ * Pure, like everything else here: no clock, no random source, no database.
+ * Same inputs, same paragraph, which is what lets "Up Next" be the same
+ * workout across app opens.
+ */
+export function workoutRationale(input: WorkoutRationaleInput): string {
+  const trained = joinList([...input.targetMuscles]);
+  const sentences: string[] = [];
+
+  if (trained.length === 0) {
+    // Unreachable through generation — the payload schema requires an exercise
+    // and every exercise has a target muscle — but a rationale that opens
+    // "Built around  — " is worse than one that opens with the goal alone.
+  } else if (input.clientChoseMuscles) {
+    sentences.push(`Built around the ${trained} you asked for.`);
+  } else {
+    const freshness = new Map(
+      input.muscles.map((entry) => [entry.muscle, entry.freshness]),
+    );
+    const scored = input.targetMuscles
+      .map((muscle) => freshness.get(muscle))
+      .filter((value): value is number => value != null);
+    // Averaged over the muscles that HAVE a freshness reading rather than over
+    // every target: a muscle missing from the vector would otherwise count as
+    // 0% recovered and understate the rest.
+    const average =
+      scored.length > 0
+        ? Math.round(
+            (scored.reduce((sum, value) => sum + value, 0) / scored.length) *
+              100,
+          )
+        : null;
+    sentences.push(
+      average == null
+        ? `Built around ${trained} — the freshest muscles you have today.`
+        : `Built around ${trained} — the freshest muscles you have today, at ${average}% recovered on average.`,
+    );
+  }
+
+  if (input.droppedMuscles.length > 0) {
+    const dropped = joinList([...input.droppedMuscles]);
+    sentences.push(
+      `${dropped.charAt(0).toUpperCase()}${dropped.slice(1)} did not fit the time and ${
+        input.droppedMuscles.length === 1 ? "was" : "were"
+      } left for another session.`,
+    );
+  }
+
+  sentences.push(
+    input.goal === "strength"
+      ? "Sets and reps are shaped for strength."
+      : input.goal === "hypertrophy"
+        ? "Sets and reps are shaped for hypertrophy."
+        : "Sets and reps are shaped for general fitness.",
+  );
+
+  return sentences.join(" ");
+}
+
 // ---------------------------------------------------------------------------
 // Warm-ups
 // ---------------------------------------------------------------------------

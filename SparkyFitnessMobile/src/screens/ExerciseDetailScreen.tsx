@@ -1,17 +1,7 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import {
-  CommonActions,
-  StackActions,
-  useIsFocused,
-} from '@react-navigation/native';
+import { CommonActions, StackActions } from '@react-navigation/native';
 import {
   Directions,
   Gesture,
@@ -19,17 +9,13 @@ import {
 } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import PagerView from 'react-native-pager-view';
-import { VideoView, useVideoPlayer } from 'expo-video';
-import { useReducedMotion } from 'react-native-reanimated';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCSSVariable } from 'uniwind';
 import Button from '../components/ui/Button';
-import ExerciseImageCrossfade, {
-  sourceMayHaveTransparency,
-} from '../components/ExerciseImageCrossfade';
+import ExerciseHeroMedia, {
+  exerciseHasHeroMedia,
+} from '../components/ExerciseHeroMedia';
 import Icon from '../components/Icon';
-import SafeImage from '../components/SafeImage';
 import SegmentedControl, { type Segment } from '../components/SegmentedControl';
 import ExerciseHistoryList from '../components/ExerciseHistoryList';
 import ActionSheet, {
@@ -49,10 +35,6 @@ import {
   suggestedExercisesQueryKey,
 } from '../hooks/queryKeys';
 import {
-  useExerciseImageSource,
-  useImagePairAspectMatch,
-} from '../hooks/useExerciseImageSource';
-import {
   useDeleteExerciseLibrary,
   usePreferences,
   useProfile,
@@ -64,7 +46,6 @@ import { useStartLiveWorkout } from '../hooks/useStartLiveWorkout';
 import { useDiaryDateStore } from '../stores/diaryDateStore';
 import {
   buildSingleExerciseStartPayload,
-  CATEGORY_ICON_MAP,
   formatRecentSessionSet,
   normalizeWeightUnit,
   resolveSnapshotModality,
@@ -82,14 +63,6 @@ type TabKey = 'summary' | 'history' | 'how-to';
 
 const DESCRIPTION_PREVIEW_LINES = 3;
 const DESCRIPTION_PREVIEW_THRESHOLD = 180;
-
-// Matches the dominant exercise image sets (4:3 photos), so cover-filled
-// frames crop little to nothing.
-const IMAGE_ASPECT_RATIO = 4 / 3;
-
-// Demonstration clips are landscape 16:9 (the Fitbod catalog ships 1280x720),
-// so the video hero keeps that frame instead of cropping to the photo ratio.
-const VIDEO_ASPECT_RATIO = 16 / 9;
 
 // Tab-change flings ignore touches starting this close to the left screen
 // edge so the native-stack back swipe keeps the edge to itself.
@@ -146,9 +119,6 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
   const usesNativeHeader = useNativeIOSHeadersActive();
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding('stack');
   const textPrimary = useCSSVariable('--color-text-primary') as string;
-  const textMuted = useCSSVariable('--color-text-muted') as string;
-  const { getImageSource } = useExerciseImageSource();
-  const reducedMotion = useReducedMotion();
   const { profile } = useProfile();
   const { isConnected } = useServerConnection();
 
@@ -284,39 +254,6 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
     });
   };
 
-  const imageSources = useMemo(() => {
-    return (exercise.images ?? [])
-      .map((path) => (path ? getImageSource(path) : null))
-      .filter(
-        (source): source is { uri: string; headers: Record<string, string> } =>
-          source !== null
-      );
-  }, [exercise.images, getImageSource]);
-
-  const pairAspectMatch = useImagePairAspectMatch(imageSources);
-
-  // First clip only: a looping, muted demonstration is a hero, not a gallery.
-  // The hook must run every render, so it takes `null` when there is no clip.
-  const videoSource = useMemo(() => {
-    const path = exercise.videos?.find((candidate) => Boolean(candidate));
-    return path ? getImageSource(path) : null;
-  }, [exercise.videos, getImageSource]);
-  const isFocused = useIsFocused();
-  const videoPlayer = useVideoPlayer(videoSource, (player) => {
-    player.loop = true;
-    player.muted = true;
-  });
-  // Reduced motion shows the still photo instead, and a screen pushed over
-  // this one pauses the loop rather than decoding under the cover.
-  useEffect(() => {
-    if (!videoSource) return;
-    if (isFocused && !reducedMotion) {
-      videoPlayer.play();
-    } else {
-      videoPlayer.pause();
-    }
-  }, [isFocused, reducedMotion, videoPlayer, videoSource]);
-
   const equipmentText = formatList(exercise.equipment ?? []);
   const primaryMusclesText = formatList(exercise.primary_muscles ?? []);
   const secondaryMusclesText = formatList(exercise.secondary_muscles ?? []);
@@ -341,21 +278,18 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
 
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>('summary');
   const scrollRef = useRef<ScrollView>(null);
 
-  // The image carousel renders on both Summary and How to, so it remounts at
-  // page 0 on tab switches; reset the dot index with it.
+  // The hero renders on both Summary and How to, in different slots, so it
+  // remounts on a tab switch and its own dot index resets with it.
   const handleSelectTab = useCallback((key: TabKey) => {
     setActiveTab(key);
-    setActiveImageIndex(0);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, []);
 
   const hasHowToContent =
-    imageSources.length > 0 ||
-    videoSource !== null ||
+    exerciseHasHeroMedia(exercise) ||
     instructionSteps.length > 0 ||
     description.length > 0;
 
@@ -406,113 +340,9 @@ const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
     );
   }, [segments, resolvedTab, handleSelectTab]);
 
-  const handleImagePageSelected = useCallback(
-    (e: { nativeEvent: { position: number } }) => {
-      setActiveImageIndex(e.nativeEvent.position);
-    },
-    []
-  );
-
   const descriptionIsLong = description.length > DESCRIPTION_PREVIEW_THRESHOLD;
 
-  const imageFallback = (
-    <View className="bg-raised items-center justify-center" style={{ flex: 1 }}>
-      <Icon
-        name={
-          (exercise.category && CATEGORY_ICON_MAP[exercise.category]) ||
-          'exercise-weights'
-        }
-        size={48}
-        color={textMuted}
-      />
-    </View>
-  );
-
-  const imageCarousel =
-    videoSource && !reducedMotion ? (
-      <View className="bg-surface rounded-xl overflow-hidden">
-        <VideoView
-          player={videoPlayer}
-          style={{ width: '100%', aspectRatio: VIDEO_ASPECT_RATIO }}
-          contentFit="cover"
-          nativeControls={false}
-          allowsPictureInPicture={false}
-          accessibilityLabel={exercise.name}
-        />
-      </View>
-    ) : imageSources.length === 1 ? (
-      <View
-        className={`${
-          sourceMayHaveTransparency(imageSources[0].uri)
-            ? 'bg-white'
-            : 'bg-surface'
-        } rounded-xl overflow-hidden`}
-      >
-        <SafeImage
-          source={imageSources[0]}
-          style={{ width: '100%', aspectRatio: IMAGE_ASPECT_RATIO }}
-          contentFit={
-            sourceMayHaveTransparency(imageSources[0].uri) ? 'contain' : 'cover'
-          }
-          fallback={imageFallback}
-          autoplay={!reducedMotion}
-        />
-      </View>
-    ) : imageSources.length === 2 &&
-      !reducedMotion &&
-      pairAspectMatch !== false ? (
-      <View
-        className="bg-surface rounded-xl overflow-hidden"
-        style={{ width: '100%', aspectRatio: IMAGE_ASPECT_RATIO }}
-      >
-        <ExerciseImageCrossfade
-          sources={[imageSources[0], imageSources[1]]}
-          fallback={imageFallback}
-        />
-      </View>
-    ) : imageSources.length > 1 ? (
-      <View>
-        <View
-          className="bg-surface rounded-xl overflow-hidden"
-          style={{ width: '100%', aspectRatio: IMAGE_ASPECT_RATIO }}
-        >
-          <PagerView
-            style={{ flex: 1 }}
-            initialPage={0}
-            onPageSelected={handleImagePageSelected}
-          >
-            {imageSources.map((source, index) => (
-              <View
-                key={`${source.uri}-${index}`}
-                className={
-                  sourceMayHaveTransparency(source.uri) ? 'bg-white' : undefined
-                }
-              >
-                <SafeImage
-                  source={source}
-                  style={{ width: '100%', height: '100%' }}
-                  contentFit={
-                    sourceMayHaveTransparency(source.uri) ? 'contain' : 'cover'
-                  }
-                  fallback={imageFallback}
-                  autoplay={!reducedMotion}
-                />
-              </View>
-            ))}
-          </PagerView>
-        </View>
-        <View className="flex-row justify-center items-center mt-2">
-          {imageSources.map((source, index) => (
-            <View
-              key={`dot-${source.uri}-${index}`}
-              className={`w-2 h-2 rounded-full mx-1 ${
-                index === activeImageIndex ? 'bg-accent-primary' : 'bg-border'
-              }`}
-            />
-          ))}
-        </View>
-      </View>
-    ) : null;
+  const imageCarousel = <ExerciseHeroMedia exercise={exercise} />;
 
   const handleLog = () => {
     navigation.navigate('ActivityAdd', {

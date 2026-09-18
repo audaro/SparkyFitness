@@ -6,43 +6,43 @@ appId: ${APP_ID}
 - runFlow: lib/grant-notifications.yaml
 - tapOn: "Exercise"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/01-exercise-first-look
+- takeScreenshot: qa/run/shots/01-exercise-first-look
 
 # === Add sheet → Exercise ===================================================
 - tapOn: "Add"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/03-add-sheet
+- takeScreenshot: qa/run/shots/03-add-sheet
 - tapOn: ".*, Exercise"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/04-add-sheet-exercise
+- takeScreenshot: qa/run/shots/04-add-sheet-exercise
 - tapOn: ".*Start Workout, Track sets as you go"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/05-preset-search-from-add
+- takeScreenshot: qa/run/shots/05-preset-search-from-add
 - tapOn: "Close"
 - tapOn: "Add"
 - tapOn: ".*, Exercise"
 - tapOn: ".*Log Past Workout, Sets you already did"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/06-log-past-workout
+- takeScreenshot: qa/run/shots/06-log-past-workout
 - tapOn: "Close"
 - tapOn: "Add"
 - tapOn: ".*, Exercise"
 - tapOn: ".*Log Activity, Run, walk, ride: time & distance"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/07-activity-add
+- takeScreenshot: qa/run/shots/07-activity-add
 - tapOn: "Close"
 
 # === Exercise tab, empty account ===========================================
 - tapOn: "Exercise"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/10-exercise-home-top
+- takeScreenshot: qa/run/shots/10-exercise-home-top
 - scrollUntilVisible:
     element:
       id: "exercise-home-exercise-packs"
     direction: DOWN
     centerElement: true
     timeout: 20000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/11-exercise-home-bottom
+- takeScreenshot: qa/run/shots/11-exercise-home-bottom
 - scrollUntilVisible:
     element:
       id: "up-next-card"
@@ -54,21 +54,21 @@ appId: ${APP_ID}
 - extendedWaitUntil:
     visible: "New workout options"
     timeout: 30000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/12-upnext-empty
+- takeScreenshot: qa/run/shots/12-upnext-empty
 - tapOn: "New workout options"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/13-upnext-new-sheet
+- takeScreenshot: qa/run/shots/13-upnext-new-sheet
 - tapOn:
     id: "action-sheet-item-on-demand"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/14-on-demand
+- takeScreenshot: qa/run/shots/14-on-demand
 - tapOn: "Back"
 - tapOn: "New workout options"
 - waitForAnimationToEnd
 - tapOn:
     id: "action-sheet-item-create-from-scratch"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/15-preset-form-empty
+- takeScreenshot: qa/run/shots/15-preset-form-empty
 - scrollUntilVisible:
     element: ".*Add Exercise"
     direction: DOWN
@@ -76,7 +76,7 @@ appId: ${APP_ID}
     timeout: 20000
 - tapOn: ".*Add Exercise"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/16-exercise-search
+- takeScreenshot: qa/run/shots/16-exercise-search
 - tapOn: "Close"
 - tapOn: "Close"
 - tapOn: "New workout options"
@@ -87,14 +87,14 @@ appId: ${APP_ID}
     visible:
       id: "pick-muscles-splits"
     timeout: 30000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/17-pick-muscles
+- takeScreenshot: qa/run/shots/17-pick-muscles
 - scrollUntilVisible:
     element:
       id: "pick-muscles-split-push"
     direction: DOWN
     centerElement: true
     timeout: 20000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/18-pick-muscles-scrolled
+- takeScreenshot: qa/run/shots/18-pick-muscles-scrolled
 
 # === generate ===============================================================
 - tapOn:
@@ -104,12 +104,12 @@ appId: ${APP_ID}
       id: "up-next-start"
     timeout: 90000
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/20-upnext-generated
+- takeScreenshot: qa/run/shots/20-upnext-generated
 - tapOn: "Change gym equipment"
 - extendedWaitUntil:
     visible: "Gym equipment"
     timeout: 20000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/21-upnext-gym-sheet
+- takeScreenshot: qa/run/shots/21-upnext-gym-sheet
 - tapOn: "QA Gym"
 - extendedWaitUntil:
     notVisible: "Gym equipment"
@@ -119,15 +119,15 @@ appId: ${APP_ID}
 - extendedWaitUntil:
     visible: "Workout length"
     timeout: 20000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/22-upnext-length-sheet
+- takeScreenshot: qa/run/shots/22-upnext-length-sheet
 - tapOn: "45 min"
 - extendedWaitUntil:
     visible: "5 Exercises.*45 min"
     timeout: 90000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/23-upnext-45min
+- takeScreenshot: qa/run/shots/23-upnext-45min
 - tapOn: "Workout options"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/24-upnext-options-menu
+- takeScreenshot: qa/run/shots/24-upnext-options-menu
 - tapOn: "Refresh"
 - waitForAnimationToEnd
 - scrollUntilVisible:
@@ -136,7 +136,7 @@ appId: ${APP_ID}
     direction: DOWN
     centerElement: true
     timeout: 20000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/25-upnext-bottom
+- takeScreenshot: qa/run/shots/25-upnext-bottom
 
 # === run it =================================================================
 - tapOn:
@@ -146,21 +146,21 @@ appId: ${APP_ID}
       id: "header-segment"
     timeout: 60000
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/30-active-workout
-- tapOn: "Complete Set"
+- takeScreenshot: qa/run/shots/30-active-workout
+- tapOn: "Log Set"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/31-active-after-complete-set
+- takeScreenshot: qa/run/shots/31-active-after-complete-set
 - scrollUntilVisible:
     element: "End Workout"
     direction: DOWN
     centerElement: true
     timeout: 20000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/32-active-bottom
+- takeScreenshot: qa/run/shots/32-active-bottom
 - tapOn: "End Workout"
 - extendedWaitUntil:
     visible: "Keep going"
     timeout: 20000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/33-end-workout-alert
+- takeScreenshot: qa/run/shots/33-end-workout-alert
 - tapOn:
     text: "End Workout"
     rightOf: "Keep going"
@@ -168,4 +168,4 @@ appId: ${APP_ID}
     visible: "Workout Complete"
     timeout: 60000
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots/34-workout-complete
+- takeScreenshot: qa/run/shots/34-workout-complete

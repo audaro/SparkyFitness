@@ -4034,6 +4034,68 @@ describe('workoutSession', () => {
         });
       });
 
+      it('prefers the plan over history for a generated workout', () => {
+        // The engine wrote 35 kg x 10 today *from* the 30 x 15 it can see in
+        // history; showing the 30 x 15 back would be the generation thrown
+        // away, and it is the placeholder a completion adopts, so the wrong
+        // one gets logged as well as shown.
+        const planned = {
+          '1': { weight: 35, reps: 10 },
+          '2': { weight: 35, reps: 10 },
+        };
+        const result = resolveAssumedSetValues(
+          [makeSet(1), makeSet(2)],
+          [prev(30, 15), prev(30, 15)],
+          planned,
+          null,
+          true
+        );
+        expect(result[0]).toEqual({
+          weight: 35,
+          reps: 10,
+          duration: null,
+          distance: null,
+        });
+        expect(result[1]).toEqual({
+          weight: 35,
+          reps: 10,
+          duration: null,
+          distance: null,
+        });
+      });
+
+      it('still falls back to history for a set the plan says nothing about', () => {
+        // An added set, or an exercise swapped in mid-session: outranking is
+        // not the same as suppressing, so a row with no planned value keeps
+        // the previous-session placeholder it would otherwise have had.
+        const result = resolveAssumedSetValues(
+          [makeSet(1), makeSet(2)],
+          [prev(30, 15), prev(30, 15)],
+          { '1': { weight: 35, reps: 10 } },
+          null,
+          true
+        );
+        expect(result[1]).toEqual({
+          weight: 30,
+          reps: 15,
+          duration: null,
+          distance: null,
+        });
+      });
+
+      it('outranks the client progression suggestion too', () => {
+        // The suggestion is an inference from the same history the plan was
+        // computed from, so a plan that beats the history beats it as well.
+        const result = resolveAssumedSetValues(
+          [makeSet(1)],
+          [prev(30, 15)],
+          { '1': { weight: 35, reps: 10 } },
+          32.5,
+          true
+        );
+        expect(result[0].weight).toBe(35);
+      });
+
       it('keeps warmup and working mirrors separate', () => {
         // A typed warmup must not become the assumption for working sets that
         // have nothing of their own.

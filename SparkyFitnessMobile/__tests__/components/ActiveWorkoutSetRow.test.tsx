@@ -63,6 +63,9 @@ function makeSet(
 interface RenderOverrides {
   set?: Partial<WorkoutCardSet>;
   modality?: ExerciseModality;
+  /** Opt-in: offer the start-hold control (the screen gates this). */
+  enableStartHold?: boolean;
+  isHolding?: boolean;
   state?: SetRowState;
   metricColumn?: ActiveWorkoutMetricColumn;
   weightUnit?: 'kg' | 'lbs';
@@ -82,6 +85,7 @@ interface RenderOverrides {
   enableToggle?: boolean;
   /** Wire the set-type handler (makes the set number a menu trigger). */
   enableSetType?: boolean;
+  layout?: 'grid' | 'timeline';
 }
 
 function renderRow(overrides?: RenderOverrides) {
@@ -98,11 +102,13 @@ function renderRow(overrides?: RenderOverrides) {
     onAddSet: jest.fn(),
     onPressSetType: jest.fn(),
     onRegisterAccessoryHandle: jest.fn(),
+    onStartHold: jest.fn(),
   };
   // onToggleComplete and onPressSetType are opt-in (via enableToggle /
   // enableSetType) so most tests exercise the static-check + onLongPress
   // fallbacks.
-  const { onToggleComplete, onPressSetType, ...spreadCallbacks } = callbacks;
+  const { onToggleComplete, onPressSetType, onStartHold, ...spreadCallbacks } =
+    callbacks;
   const buildElement = (current?: RenderOverrides) => (
     <ActiveWorkoutSetRow
       set={makeSet(current?.set as Partial<ExerciseEntrySetResponse>)}
@@ -124,6 +130,9 @@ function renderRow(overrides?: RenderOverrides) {
       {...spreadCallbacks}
       onToggleComplete={current?.enableToggle ? onToggleComplete : undefined}
       onPressSetType={current?.enableSetType ? onPressSetType : undefined}
+      onStartHold={current?.enableStartHold ? onStartHold : undefined}
+      isHolding={current?.isHolding}
+      layout={current?.layout}
     />
   );
   const utils = render(buildElement(overrides));
@@ -222,21 +231,49 @@ describe('ActiveWorkoutSetRow', () => {
       expect(callbacks.onActivateSet).toHaveBeenCalledWith('101', 'reps');
     });
 
-    it('renders cells as plain text until focused — no chip chrome on the resting grid', () => {
+    it('boxes every live cell, focused or not, at the log type size', () => {
+      // Decision 8 of the exercise-sheet redesign, reversing the earlier "every
+      // live cell is flat" rule: mid-set the row is read at arm's length, and a
+      // bare number floating under a column header does not carry. The edit
+      // forms keep the flat treatment (see the edit-mode block below) because a
+      // grid of chips reading as a form is right on a screen that is a form.
       const { getByLabelText } = renderRow({ state: 'current' });
       const input = getByLabelText('Weight');
-      expect(StyleSheet.flatten(input.props.style).backgroundColor).toBe(
-        'transparent'
-      );
-      expect(StyleSheet.flatten(input.props.style).borderColor).toBe(
-        'transparent'
-      );
+      const resting = StyleSheet.flatten(input.props.style);
+      expect(resting.backgroundColor).not.toBe('transparent');
+      expect(resting.borderColor).not.toBe('transparent');
+      expect(resting.borderWidth).toBe(1);
+      expect(resting.fontSize).toBe(17);
+      expect(resting.fontWeight).toBe('600');
 
-      // The chip + ring come back on the focused cell to mark the keyboard target.
+      // Focus only swaps FormInput's border to the accent; the box was already
+      // there, so the cell must not change size under the finger that taps it.
       fireEvent(input, 'focus');
-      expect(StyleSheet.flatten(input.props.style).backgroundColor).not.toBe(
-        'transparent'
-      );
+      const focused = StyleSheet.flatten(input.props.style);
+      expect(focused.backgroundColor).toBe(resting.backgroundColor);
+      expect(focused.fontSize).toBe(17);
+      expect(focused.lineHeight).toBe(resting.lineHeight);
+    });
+
+    it('keeps the bone-stock EditText shape on Android at the boxed size', () => {
+      // Boxing changes when the wrapper View paints, never where the chrome
+      // lives: the Android input itself stays borderless and unpadded with
+      // lineHeight = fontSize + 2, or it clips its digits on first focus (see
+      // the edit-mode sibling of this test).
+      const osSpy = jest.replaceProperty(Platform, 'OS', 'android');
+      try {
+        const { getByLabelText } = renderRow({ state: 'current' });
+        const style = StyleSheet.flatten(getByLabelText('Weight').props.style);
+        expect(style.height).toBe(36);
+        expect(style.paddingTop).toBe(0);
+        expect(style.paddingBottom).toBe(0);
+        expect(style.borderWidth).toBe(0);
+        expect(style.backgroundColor).toBe('transparent');
+        expect(style.fontSize).toBe(17);
+        expect(style.lineHeight).toBe(19);
+      } finally {
+        osSpy.restore();
+      }
     });
 
     it('reports RPE focus when the RPE column input is focused', () => {
@@ -1659,5 +1696,127 @@ describe('ActiveWorkoutSetRow', () => {
       expect(getByLabelText('Weight').props.value).toBe('100');
       expect(getByLabelText('Reps').props.value).toBe('5');
     });
+  });
+
+  describe('start-hold control', () => {
+    it('replaces the log ring on a timed current row', () => {
+      const { getByLabelText, queryByLabelText } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      expect(getByLabelText('Start 45s hold for set 1')).toBeTruthy();
+      expect(queryByLabelText('Log set 1')).toBeNull();
+    });
+
+    it('starts the hold for its own set', () => {
+      const { getByLabelText, callbacks } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      fireEvent.press(getByLabelText('Start 45s hold for set 1'));
+      expect(callbacks.onStartHold).toHaveBeenCalledWith('101');
+      expect(callbacks.onComplete).not.toHaveBeenCalled();
+    });
+
+    it('commits a typed target before starting, so the hold runs what is on screen', () => {
+      const { getByLabelText, callbacks } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      fireEvent.changeText(getByLabelText('Duration'), '60');
+      fireEvent.press(getByLabelText('Start 45s hold for set 1'));
+      expect(callbacks.onCommitField).toHaveBeenCalledWith('101', {
+        duration: 60,
+      });
+      expect(callbacks.onStartHold).toHaveBeenCalledWith('101');
+    });
+
+    it('keeps the ordinary log ring on a reps row', () => {
+      const { getByLabelText, queryByTestId } = renderRow({
+        state: 'current',
+        modality: 'weight_reps',
+        enableStartHold: true,
+      });
+      expect(getByLabelText('Log set 1')).toBeTruthy();
+      expect(queryByTestId('start-hold-control')).toBeNull();
+    });
+
+    it('keeps the log ring when the screen does not offer a hold', () => {
+      // No onStartHold: a rest is running, or another set is being held.
+      const { getByLabelText, queryByTestId } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      expect(getByLabelText('Log set 1')).toBeTruthy();
+      expect(queryByTestId('start-hold-control')).toBeNull();
+    });
+
+    it('does not offer a second start while this row is already being held', () => {
+      const { queryByTestId } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        isHolding: true,
+        set: { id: 101, duration: 45, reps: null, weight: null },
+      });
+      expect(queryByTestId('start-hold-control')).toBeNull();
+    });
+  });
+});
+
+// The exercise sheet's arrangement: the same drafts and commit handlers, laid
+// out as a state badge on a rail with the two value cells alone beside it.
+describe('timeline layout', () => {
+  it('drops PREV and the metric column, keeping just the two value cells', () => {
+    const { getByTestId, queryByTestId, queryByText } = renderRow({
+      layout: 'timeline',
+      previousSet: { reps: 8, weight: 55 } as ExerciseRecentSessionSet,
+    });
+
+    expect(getByTestId('set-timeline-cell-weight')).toBeTruthy();
+    expect(getByTestId('set-timeline-cell-reps')).toBeTruthy();
+    expect(queryByTestId('set-timeline-cell-rpe')).toBeNull();
+    // The PREVIOUS value would have rendered as "55 kg x 8" in the grid.
+    expect(queryByText(/55/)).toBeNull();
+  });
+
+  it('labels the cursor row through floating notches and nothing else', () => {
+    const cursor = renderRow({ layout: 'timeline', state: 'current' });
+    expect(cursor.getAllByText('Reps')).toHaveLength(1);
+    cursor.unmount();
+
+    const upcoming = renderRow({ layout: 'timeline', state: 'upcoming' });
+    expect(upcoming.queryByText('Reps')).toBeNull();
+  });
+
+  it("logs from the badge, which is the row's only control", () => {
+    const { getByTestId, callbacks } = renderRow({
+      layout: 'timeline',
+      state: 'upcoming',
+      displayNumber: 3,
+    });
+
+    expect(getByTestId('set-timeline-badge')).toBeTruthy();
+    fireEvent.press(getByTestId('set-timeline-badge'));
+
+    expect(callbacks.onComplete).toHaveBeenCalledWith('101');
+  });
+
+  it('un-completes a done row from the same badge', () => {
+    const { getByTestId, callbacks } = renderRow({
+      layout: 'timeline',
+      state: 'done',
+    });
+
+    fireEvent.press(getByTestId('set-timeline-badge'));
+
+    expect(callbacks.onUncomplete).toHaveBeenCalledWith('101');
   });
 });

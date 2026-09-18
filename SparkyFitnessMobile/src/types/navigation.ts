@@ -15,6 +15,7 @@ import type { MealTypeKey } from '../utils/mealNutrition';
 import type { AssumedSetValues } from '../utils/workoutSession';
 import type { PhotoType } from './checkInPhotos';
 import type { Exercise } from './exercise';
+import type { PlannedExercise } from '../utils/workoutSupersets';
 import type { FamilyDiaryUser } from './familyDiary';
 import type { FoodEntry } from './foodEntries';
 import type { FoodEntryMeal } from './foodEntryMeals';
@@ -126,6 +127,43 @@ export type RootStackParamList = {
     // form, and pops back past ExerciseSearch.
     selectionReturnKey?: string;
   };
+  ExerciseSheet:
+    | {
+        /**
+         * Opened from the live workout: the sheet edits the session entry in
+         * the store, and the footer starts the entry's active set.
+         */
+        context: 'active-workout';
+        /** Catalog record for the hero, name and taxonomy line. */
+        item: Exercise;
+        /** The session exercise entry this sheet edits. */
+        entryId: string;
+        /** Replace: the exercise picked in ExerciseSearch comes back here. */
+        selectedExercise?: Exercise;
+        selectionNonce?: number;
+      }
+    | {
+        /**
+         * Opened from Up Next, before the workout exists. A generated
+         * recommendation has no session entries and no per-set persistence, so
+         * the sheet edits a copy and hands it back to the Up Next screen, which
+         * holds it in the same local plan the superset builder uses. The footer
+         * starts the workout.
+         */
+        context: 'up-next';
+        item: Exercise;
+        /**
+         * The planned exercise as Up Next holds it — sets, rest and rationale.
+         * Passed whole rather than looked up: the sheet edits a copy of it and
+         * hands the copy back, and `exercise_id` is its identity in the plan.
+         */
+        planned: PlannedExercise;
+        /** Route key of the Up Next screen the edited exercise returns to. */
+        returnKey: string;
+        /** The edit round-trip, mirroring `selectedExercise`/`selectionNonce`. */
+        editedExercise?: PlannedExercise;
+        editNonce?: number;
+      };
   FoodSearch:
     | {
         date?: string;
@@ -250,7 +288,15 @@ export type RootStackParamList = {
   PresetSearch:
     { selectedExercise?: Exercise; selectionNonce?: number } | undefined;
   // Carries a selection back from ExerciseSearch when a row's Replace was used.
-  UpNext: { selectedExercise?: Exercise; selectionNonce?: number } | undefined;
+  UpNext:
+    | {
+        selectedExercise?: Exercise;
+        selectionNonce?: number;
+        /** A plan exercise the sheet edited, handed back for `editPlan`. */
+        editedExercise?: PlannedExercise;
+        editNonce?: number;
+      }
+    | undefined;
   // Split list and muscle grid for the next generated workout. Takes no
   // params: the picked muscles go straight into a generate request, and the
   // response lands in the recommendation cache Up Next already reads.

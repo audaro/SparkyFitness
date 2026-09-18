@@ -11,6 +11,7 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 import { useCSSVariable } from 'uniwind';
 import { measureAnchoredMenuTrigger, type AnchorRect } from './AnchoredMenu';
 import CompletionCheck, { LogCircle } from './CompletionCheck';
+import Icon from './Icon';
 import {
   SetCellInput,
   SetSwipeDeleteAction,
@@ -86,7 +87,27 @@ export function parseRpeInput(text: string): number | null {
   return Math.min(10, Math.max(1, snapped));
 }
 
-export type SetRowMode = 'live' | 'view' | 'edit';
+/**
+ * `plan` is a generated prescription that has not started: editable with the
+ * same blur-commit drafts as `live`, but with no cursor, no completion control
+ * and no assumed-value placeholders, since nothing has been performed yet.
+ */
+export type SetRowMode = 'live' | 'view' | 'edit' | 'plan';
+
+export type SetRowLayout = 'grid' | 'timeline';
+
+/** Timeline metrics. The badge's diameter also fixes the hairline's x. */
+export const TIMELINE_BADGE_SIZE = 28;
+export const TIMELINE_ROW_GAP = 14;
+/**
+ * Distance from a timeline row's top edge to its badge's centre: the row's own
+ * vertical padding plus half the badge. The rail's first and last segments are
+ * trimmed by it so the line begins and ends on a badge.
+ */
+export const TIMELINE_RAIL_INSET =
+  TIMELINE_ROW_GAP / 2 + TIMELINE_BADGE_SIZE / 2;
+const TIMELINE_CELL_HEIGHT = 54;
+const TIMELINE_CELL_GAP = 10;
 
 export type { SetRowAccessoryHandle } from './SetRowChrome';
 
@@ -143,6 +164,15 @@ interface ActiveWorkoutSetRowProps {
   mode?: SetRowMode;
   /** Log a set (live). Receives the set id so any row can complete out of order. */
   onComplete?: (setId: string) => void;
+  /**
+   * Live duration rows only: start the hold timer for this set instead of
+   * logging it outright. Passed only when the store would actually accept the
+   * hold (this set is the cursor, no rest running), so the control is never
+   * offered dead.
+   */
+  onStartHold?: (setId: string) => void;
+  /** True while this row's set is the one being held. */
+  isHolding?: boolean;
   onUncomplete?: (setId: string) => void;
   onCommitField?: (setId: string, patch: ActiveSetPatch) => void;
   onDelete?: (setId: string) => void;
@@ -199,6 +229,31 @@ interface ActiveWorkoutSetRowProps {
     key: string,
     handle: SetRowAccessoryHandle | null
   ) => void;
+  /**
+   * Row shape. `grid` is the five-column table (SET / PREV / value / value /
+   * metric) every list surface renders, where a row has to line up under a
+   * shared header and share its width with four neighbours.
+   *
+   * `timeline` is the exercise sheet's: a state badge strung on a vertical
+   * hairline, then the two value cells alone at display size, the cursor row's
+   * labelled through floating notches. It is the one place a set is the whole
+   * screen rather than a line in a list, so it is the one place that width
+   * exists. It drops PREV and the metric column with it -- history has its own
+   * chip on that screen, and RPE is an after-the-fact note that does not belong
+   * in the target you are reading mid-set.
+   */
+  layout?: SetRowLayout;
+  /**
+   * Timeline only: this is the first row, so its share of the rail starts at
+   * its own badge's centre rather than at the top of the row.
+   *
+   * The rail is drawn per row rather than as one absolute line over the list
+   * because the list is not the card -- progression, notes and the rest chip
+   * sit above it inside the same wrapper, so a line inset from the wrapper's
+   * top would start wherever those happened to end. Abutting per-row segments
+   * need no measurement and cannot drift.
+   */
+  timelineFirst?: boolean;
 }
 
 function ActiveWorkoutSetRow({
@@ -214,6 +269,8 @@ function ActiveWorkoutSetRow({
   assumed,
   mode = 'live',
   onComplete,
+  onStartHold,
+  isHolding = false,
   onUncomplete,
   onCommitField,
   onDelete,
@@ -231,6 +288,8 @@ function ActiveWorkoutSetRow({
   onEditFieldChange,
   onAddSet,
   onRegisterAccessoryHandle,
+  layout = 'grid',
+  timelineFirst = false,
 }: ActiveWorkoutSetRowProps) {
   const { t } = useTranslation();
   const readOnly = mode === 'view';
@@ -251,15 +310,46 @@ function ActiveWorkoutSetRow({
       ? isFocused
       : false;
 
-  const [accentPrimary, textMuted, rpeEasy, rpeModerate, rpeHard, rpeMax] =
-    useCSSVariable([
-      '--color-accent-primary',
-      '--color-text-muted',
-      RPE_TONE_VARS.easy,
-      RPE_TONE_VARS.moderate,
-      RPE_TONE_VARS.hard,
-      RPE_TONE_VARS.max,
-    ]) as [string, string, string, string, string, string];
+  const [
+    accentPrimary,
+    textMuted,
+    rpeEasy,
+    rpeModerate,
+    rpeHard,
+    rpeMax,
+    borderSubtle,
+    surfaceColor,
+    backgroundColor,
+    raisedColor,
+    textLink,
+    textSuccess,
+  ] = useCSSVariable([
+    '--color-accent-primary',
+    '--color-text-muted',
+    RPE_TONE_VARS.easy,
+    RPE_TONE_VARS.moderate,
+    RPE_TONE_VARS.hard,
+    RPE_TONE_VARS.max,
+    '--color-border-subtle',
+    '--color-surface',
+    '--color-background',
+    '--color-raised',
+    '--color-text-link',
+    '--color-text-success',
+  ]) as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
 
   const rpeToneColors: Record<RpeTone, string> = useMemo(
     () => ({
@@ -272,6 +362,7 @@ function ActiveWorkoutSetRow({
   );
 
   const setId = String(set.id);
+  const isTimeline = layout === 'timeline';
   const durationLike = isDurationModality(modality);
   // Legacy-aware display seconds: `duration` modality falls back to
   // reps-as-seconds for pre-modality isometric rows (see
@@ -555,6 +646,14 @@ function ActiveWorkoutSetRow({
     rpeDraft,
   ]);
 
+  // Start the hold on this row. Flushes the duration draft the way handleLog
+  // does, so a target typed and not yet blurred is the one held — but without
+  // completing the set, which the hold itself does when it reaches 0:00.
+  const handleStartHold = useCallback(() => {
+    commitDuration(durationDraft);
+    onStartHold?.(setId);
+  }, [commitDuration, durationDraft, onStartHold, setId]);
+
   // Register this row's accessory handle for the screen's sticky bar (live
   // and edit — view rows have nothing to dispatch to). The handle is
   // registered once per key with stable closures — `log`/`advance` read the
@@ -700,6 +799,43 @@ function ActiveWorkoutSetRow({
       );
     }
     if (state === 'current') {
+      // A timed set is started, not logged: the hold counts it down and logs
+      // itself at 0:00. Requires a real target — a duration row with nothing
+      // prescribed has nothing to count, and the store would refuse it — and
+      // `onStartHold` is only passed when the store would accept. Otherwise
+      // the row keeps its ordinary Log control rather than a dead button.
+      if (
+        onStartHold != null &&
+        durationLike &&
+        !isHolding &&
+        effectiveDurationSec != null
+      ) {
+        return (
+          <Pressable
+            onPress={handleStartHold}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            // `durationSeedText` rather than `effectiveDurationSec`: the
+            // latter seeds `durationDraft`'s useState, so reading it here
+            // merges this scope with the drafts' and the React Compiler then
+            // infers the state setters as deps of handleFillFromPrevious.
+            // Same value, already stringified.
+            accessibilityLabel={t('activeWorkout.setRow.startHold', {
+              defaultValue: 'Start {{duration}}s hold for set {{setNumber}}',
+              duration: durationSeedText,
+              setNumber: set.set_number,
+            })}
+          >
+            <View
+              testID="start-hold-control"
+              className="h-7 w-7 rounded-full items-center justify-center"
+              style={{ backgroundColor: accentPrimary }}
+            >
+              <Icon name="play" size={14} color="#ffffff" weight="bold" />
+            </View>
+          </Pressable>
+        );
+      }
       return (
         <Pressable
           onPress={handleLog}
@@ -858,89 +994,96 @@ function ActiveWorkoutSetRow({
   // values as gray placeholders; edit cells are controlled by the form
   // reducer (weight/reps per keystroke; RPE snapped per keystroke) so a
   // header Save reads the draft synchronously with no flush step.
-  const weightInputCell = (
-    <View className="flex-1 items-center">
-      <SetCellInput
-        inputRef={weightInputRef}
-        value={isEdit ? editWeightText : weightDraft}
-        onChangeText={
-          isEdit
-            ? (text) => onEditFieldChange?.(setId, 'weight', text)
-            : setWeightDraft
-        }
-        onBlur={isEdit ? undefined : () => commitWeight(weightDraft)}
-        onFocus={() => onActivateSet?.(setId, 'weight')}
-        keyboardType="decimal-pad"
-        accessibilityLabel={t('activeWorkout.setRow.weight', {
-          defaultValue: 'Weight',
-        })}
-        className="w-16"
-        placeholder={isEdit ? '–' : (assumedWeightText ?? '–')}
-        flat
-      />
-    </View>
+  const weightInput = (
+    <SetCellInput
+      inputRef={weightInputRef}
+      value={isEdit ? editWeightText : weightDraft}
+      onChangeText={
+        isEdit
+          ? (text) => onEditFieldChange?.(setId, 'weight', text)
+          : setWeightDraft
+      }
+      onBlur={isEdit ? undefined : () => commitWeight(weightDraft)}
+      onFocus={() => onActivateSet?.(setId, 'weight')}
+      keyboardType="decimal-pad"
+      accessibilityLabel={t('activeWorkout.setRow.weight', {
+        defaultValue: 'Weight',
+      })}
+      className="w-16"
+      placeholder={isEdit ? '–' : (assumedWeightText ?? '–')}
+      flat={isEdit}
+      bare={isTimeline}
+    />
   );
-  const repsInputCell = (
-    <View className="flex-1 items-center">
-      <SetCellInput
-        inputRef={repsInputRef}
-        value={isEdit ? editRepsText : repsDraft}
-        onChangeText={
-          isEdit
-            ? (text) => onEditFieldChange?.(setId, 'reps', text)
-            : setRepsDraft
-        }
-        onBlur={isEdit ? undefined : () => commitReps(repsDraft)}
-        onFocus={() => onActivateSet?.(setId, 'reps')}
-        keyboardType="number-pad"
-        accessibilityLabel={t('activeWorkout.setRow.reps', {
-          defaultValue: 'Reps',
-        })}
-        className="w-16"
-        placeholder={
-          isEdit ? '–' : assumed?.reps != null ? String(assumed.reps) : '–'
-        }
-        flat
-      />
-    </View>
+  const repsInput = (
+    <SetCellInput
+      inputRef={repsInputRef}
+      value={isEdit ? editRepsText : repsDraft}
+      onChangeText={
+        isEdit
+          ? (text) => onEditFieldChange?.(setId, 'reps', text)
+          : setRepsDraft
+      }
+      onBlur={isEdit ? undefined : () => commitReps(repsDraft)}
+      onFocus={() => onActivateSet?.(setId, 'reps')}
+      keyboardType="number-pad"
+      accessibilityLabel={t('activeWorkout.setRow.reps', {
+        defaultValue: 'Reps',
+      })}
+      className="w-16"
+      placeholder={
+        isEdit ? '–' : assumed?.reps != null ? String(assumed.reps) : '–'
+      }
+      flat={isEdit}
+      bare={isTimeline}
+    />
   );
   // Duration cell (duration-modality rows): raw integer seconds under the SEC
   // header. Edit mode is reducer-controlled like weight/reps; the legacy
   // reps-as-seconds value surfaces as the placeholder there so the row still
   // reads correctly without silently writing a duration.
+  const durationInput = (
+    <SetCellInput
+      inputRef={durationInputRef}
+      value={
+        isEdit
+          ? set.duration != null
+            ? String(set.duration)
+            : ''
+          : durationDraft
+      }
+      onChangeText={
+        isEdit
+          ? (text) => onEditFieldChange?.(setId, 'duration', text)
+          : setDurationDraft
+      }
+      onBlur={isEdit ? undefined : () => commitDuration(durationDraft)}
+      onFocus={() => onActivateSet?.(setId, 'duration')}
+      keyboardType="number-pad"
+      accessibilityLabel={t('activeWorkout.setRow.duration', {
+        defaultValue: 'Duration',
+      })}
+      className="w-16"
+      placeholder={
+        isEdit
+          ? effectiveDurationSec != null
+            ? String(effectiveDurationSec)
+            : '–'
+          : (assumedDurationText ?? '–')
+      }
+      flat={isEdit}
+      bare={isTimeline}
+    />
+  );
+
+  const weightInputCell = (
+    <View className="flex-1 items-center">{weightInput}</View>
+  );
+  const repsInputCell = (
+    <View className="flex-1 items-center">{repsInput}</View>
+  );
   const durationInputCell = (
-    <View className="flex-1 items-center">
-      <SetCellInput
-        inputRef={durationInputRef}
-        value={
-          isEdit
-            ? set.duration != null
-              ? String(set.duration)
-              : ''
-            : durationDraft
-        }
-        onChangeText={
-          isEdit
-            ? (text) => onEditFieldChange?.(setId, 'duration', text)
-            : setDurationDraft
-        }
-        onBlur={isEdit ? undefined : () => commitDuration(durationDraft)}
-        onFocus={() => onActivateSet?.(setId, 'duration')}
-        keyboardType="number-pad"
-        accessibilityLabel={t('activeWorkout.setRow.duration', {
-          defaultValue: 'Duration',
-        })}
-        className="w-16"
-        placeholder={
-          isEdit
-            ? effectiveDurationSec != null
-              ? String(effectiveDurationSec)
-              : '–'
-            : (assumedDurationText ?? '–')
-        }
-        flat
-      />
-    </View>
+    <View className="flex-1 items-center">{durationInput}</View>
   );
   // RPE stays a mounted input on every row like weight/reps; the committed
   // value's effort tone carries into the input text so the tint survives the
@@ -958,16 +1101,278 @@ function ActiveWorkoutSetRow({
           defaultValue: 'RPE',
         })}
         className="w-11"
-        flat
+        flat={isEdit}
         textColor={metricValue.color}
       />
     </View>
   ) : null;
 
+  const isCursorState = state === 'current';
+
+  // ---------------------------------------------------------------------
+  // Timeline layout (the exercise sheet). Same drafts, same commit handlers,
+  // same completion semantics as the grid -- only the arrangement differs.
+  // ---------------------------------------------------------------------
+
+  /**
+   * The badge. It is both the row's state indicator and its log control, which
+   * is the whole point of the shape: in the grid those are two separate
+   * columns because a table needs its set numbers to line up, and here there is
+   * no table. Done shows the same green check every other surface uses, so the
+   * sheet and the collapsed rows agree; current and upcoming show the set
+   * number, filled accent on the cursor. A long press still opens the set-type
+   * menu, as the grid's number button does.
+   */
+  const timelineBadge = (() => {
+    const size = TIMELINE_BADGE_SIZE;
+    const face =
+      state === 'done' ? (
+        <CompletionCheck size={size} />
+      ) : (
+        <View
+          className="items-center justify-center"
+          style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            backgroundColor: isCursorState ? accentPrimary : raisedColor,
+            borderWidth: isCursorState ? 0 : 1,
+            borderColor: borderSubtle,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: isCursorState ? '700' : '600',
+              color: isCursorState ? '#ffffff' : textMuted,
+              fontVariant: ['tabular-nums'],
+            }}
+          >
+            {displayNumber}
+          </Text>
+        </View>
+      );
+
+    // A timed set is started rather than logged; the hold logs it at 0:00.
+    // Same condition the grid's check control uses.
+    const startsHold =
+      state === 'current' &&
+      onStartHold != null &&
+      durationLike &&
+      !isHolding &&
+      effectiveDurationSec != null;
+
+    if (readOnly) return face;
+
+    return (
+      <Pressable
+        testID="set-timeline-badge"
+        onPress={
+          state === 'done'
+            ? () => onUncomplete?.(setId)
+            : startsHold
+              ? handleStartHold
+              : handleLog
+        }
+        onLongPress={longPress}
+        hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+        accessibilityRole="button"
+        accessibilityLabel={
+          state === 'done'
+            ? t('activeWorkout.setRow.incomplete', {
+                defaultValue: 'Un-complete set {{setNumber}}',
+                setNumber: set.set_number,
+              })
+            : startsHold
+              ? t('activeWorkout.setRow.startHold', {
+                  defaultValue:
+                    'Start {{duration}}s hold for set {{setNumber}}',
+                  duration: durationSeedText,
+                  setNumber: set.set_number,
+                })
+              : t('activeWorkout.setRow.log', {
+                  defaultValue: 'Log set {{setNumber}}',
+                  setNumber: set.set_number,
+                })
+        }
+      >
+        {startsHold ? (
+          <View
+            testID="start-hold-control"
+            className="items-center justify-center"
+            style={{
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              backgroundColor: accentPrimary,
+            }}
+          >
+            <Icon name="play" size={14} color="#ffffff" weight="bold" />
+          </View>
+        ) : (
+          face
+        )}
+      </Pressable>
+    );
+  })();
+
+  /**
+   * One value cell. The box is the chrome -- the input inside it is `bare` --
+   * so the accent border, the recede on a done row and the floating notch all
+   * live in one place. The notch is only drawn on the cursor row: on four
+   * identical rows the labels are noise, and on the one row being entered they
+   * are the only thing saying which box is which.
+   */
+  const renderTimelineCell = (
+    key: string,
+    label: string,
+    content: React.ReactNode
+  ) => (
+    <View
+      key={key}
+      testID={`set-timeline-cell-${key}`}
+      className="flex-1 items-center justify-center"
+      style={{
+        height: TIMELINE_CELL_HEIGHT,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: isCursorState ? accentPrimary : borderSubtle,
+        backgroundColor:
+          state === 'upcoming' && !isCursorState
+            ? backgroundColor
+            : surfaceColor,
+      }}
+    >
+      {isCursorState && (
+        <Text
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: -7,
+            left: 12,
+            paddingHorizontal: 6,
+            backgroundColor,
+            fontSize: 11,
+            lineHeight: 14,
+            color: textLink,
+          }}
+        >
+          {label}
+        </Text>
+      )}
+      {content}
+    </View>
+  );
+
+  const timelineValueText = (value: string) => (
+    <Text
+      style={{
+        fontSize: 21,
+        lineHeight: 25,
+        fontWeight: '600',
+        color: state === 'done' ? textSuccess : textMuted,
+        fontVariant: ['tabular-nums'],
+      }}
+    >
+      {value}
+    </Text>
+  );
+
+  const timelineCells = durationLike
+    ? [
+        renderTimelineCell(
+          'duration',
+          t('workout.sec', { defaultValue: 'Sec' }),
+          readOnly
+            ? timelineValueText(
+                effectiveDurationSec != null
+                  ? String(effectiveDurationSec)
+                  : '–'
+              )
+            : durationInput
+        ),
+        renderTimelineCell(
+          'distance',
+          distanceUnit === 'miles'
+            ? t('workout.mi', { defaultValue: 'mi' })
+            : t('workout.km', { defaultValue: 'km' }),
+          timelineValueText(
+            set.distance != null
+              ? formatLocalizedNumber(
+                  distanceFromKm(set.distance, distanceUnit),
+                  {
+                    maximumFractionDigits: 2,
+                  }
+                )
+              : '–'
+          )
+        ),
+      ].slice(0, modality === 'duration_distance' ? 2 : 1)
+    : [
+        ...(modality === 'reps_only'
+          ? []
+          : [
+              renderTimelineCell(
+                'weight',
+                weightUnit === 'lbs'
+                  ? t('activeWorkout.setRow.weightLb', {
+                      defaultValue: 'Weight (lb)',
+                    })
+                  : t('activeWorkout.setRow.weightKg', {
+                      defaultValue: 'Weight (kg)',
+                    }),
+                readOnly ? timelineValueText(displayWeight) : weightInput
+              ),
+            ]),
+        renderTimelineCell(
+          'reps',
+          t('workout.reps', { defaultValue: 'Reps' }),
+          readOnly ? timelineValueText(displayReps) : repsInput
+        ),
+      ];
+
+  const timelineRow = (
+    <Pressable
+      testID="set-row"
+      onLongPress={longPress}
+      // Same reason as the grid row: a Pressable is one accessibility element,
+      // which would swallow the cells the user has to be able to focus.
+      accessible={false}
+      className="flex-row items-center"
+      style={{ gap: TIMELINE_ROW_GAP, paddingVertical: TIMELINE_ROW_GAP / 2 }}
+    >
+      {/* This row's share of the rail, drawn first so the opaque badge covers
+          the stretch behind itself. */}
+      <View
+        testID="set-timeline-rail"
+        pointerEvents="none"
+        className="absolute"
+        style={{
+          left: TIMELINE_BADGE_SIZE / 2 - 1,
+          top: timelineFirst ? TIMELINE_RAIL_INSET : 0,
+          bottom: 0,
+          width: 2,
+          backgroundColor: borderSubtle,
+        }}
+      />
+      {timelineBadge}
+      <View
+        testID="set-row-content"
+        className="flex-1 flex-row"
+        style={{
+          gap: TIMELINE_CELL_GAP,
+          ...(state === 'done' && !readOnly ? { opacity: 0.62 } : null),
+        }}
+      >
+        {timelineCells}
+      </View>
+    </Pressable>
+  );
+
   // Read-only surfaces don't dim done rows: a finished workout is all done
   // rows, and dimming everything would read as disabled. The cursor row is a
   // rounded accent pill (matching its focused input variant); done rows dim.
-  const isCursor = state === 'current';
+  const isCursor = isCursorState;
   const doneDim = !readOnly && state === 'done';
   const row = (
     <Pressable
@@ -1032,7 +1437,7 @@ function ActiveWorkoutSetRow({
     </Pressable>
   );
 
-  if (readOnly) return row;
+  if (readOnly) return isTimeline ? timelineRow : row;
 
   return (
     <ReanimatedSwipeable
@@ -1048,7 +1453,7 @@ function ActiveWorkoutSetRow({
       overshootRight={false}
       rightThreshold={40}
     >
-      {row}
+      {isTimeline ? timelineRow : row}
     </ReanimatedSwipeable>
   );
 }

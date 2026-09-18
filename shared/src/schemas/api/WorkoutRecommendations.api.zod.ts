@@ -127,6 +127,17 @@ export const workoutRecommendationPayloadSchema = z
     /** The "5 Muscles" header — the muscles this workout was built around. */
     muscle_groups: z.array(z.string()),
     estimated_duration_minutes: z.number().int(),
+    /**
+     * Display only: why this workout, in the engine's own words — which
+     * muscles it was built around and what the sets are shaped for. The
+     * per-exercise `rationale` explains one row; this explains the session.
+     *
+     * OPTIONAL, and it has to stay optional: this schema parses stored rows on
+     * every read, and every row written before it existed has no such key. A
+     * required field here would make those rows unreadable rather than
+     * unexplained.
+     */
+    rationale: z.string().optional(),
     exercises: z.array(recommendedExerciseSchema).min(1),
   })
   .strict();

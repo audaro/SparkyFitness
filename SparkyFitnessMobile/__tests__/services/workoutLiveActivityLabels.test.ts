@@ -14,10 +14,20 @@ const EN_EXPECTED = {
   addFifteenSeconds: 'Add 15 seconds',
   addFifteenSecondsShort: '+15s',
   skipRest: 'Skip rest',
+  hold: 'Hold',
+  stopHold: 'Stop hold',
   workout: 'Workout',
   exercise: 'Exercise',
   set: 'Set',
   setOf: 'of',
+};
+
+// The hold labels are new and only exist in the EN catalog, so PL and ES
+// resolve them through the English fallback until Weblate ships a translation.
+// Replace these two lines with the translated strings when it does.
+const UNTRANSLATED_HOLD_LABELS = {
+  hold: 'Hold',
+  stopHold: 'Stop hold',
 };
 
 const PL_EXPECTED = {
@@ -29,6 +39,7 @@ const PL_EXPECTED = {
   addFifteenSeconds: 'Dodaj 15 sekund',
   addFifteenSecondsShort: '+15 s',
   skipRest: 'Pomiń odpoczynek',
+  ...UNTRANSLATED_HOLD_LABELS,
   workout: 'Trening',
   exercise: 'Ćwiczenie',
   set: 'Seria',
@@ -44,6 +55,7 @@ const ES_EXPECTED = {
   addFifteenSeconds: 'Añadir 15 segundos',
   addFifteenSecondsShort: '+15 s',
   skipRest: 'Saltar descanso',
+  ...UNTRANSLATED_HOLD_LABELS,
   workout: 'Entrenamiento',
   exercise: 'Ejercicio',
   set: 'Serie',

@@ -42,7 +42,7 @@ appId: ${APP_ID}
 - assertVisible: "QA Chest Day"
 - assertVisible: "2 exercises · 5 sets"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots-proposal/01-proposal-card
+- takeScreenshot: qa/run/shots-proposal/01-proposal-card
 
 # === accept =================================================================
 # The card's buttons stay disabled while the reply is still streaming, and a
@@ -78,7 +78,7 @@ appId: ${APP_ID}
 - assertNotVisible:
     id: "workout-proposal-accept"
 - waitForAnimationToEnd
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots-proposal/02-accepted
+- takeScreenshot: qa/run/shots-proposal/02-accepted
 
 # === reload =================================================================
 # Leave and come back: the card must come out of the persisted history too,
@@ -100,5 +100,5 @@ appId: ${APP_ID}
     element: "QA Chest Day"
     direction: UP
     timeout: 20000
-- takeScreenshot: /Users/jordanmm/fitness/SparkyFitness/qa/run/shots-proposal/03-history-reload
+- takeScreenshot: qa/run/shots-proposal/03-history-reload
 - tapOn: "Back"

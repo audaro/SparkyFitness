@@ -352,6 +352,12 @@ const UpNextCard: React.FC = () => {
       );
     }
 
+    // The engine's paragraph for the session as a whole, as opposed to the
+    // per-exercise rationale rendered on each row below. Optional on the
+    // payload (stored rows written before it existed have no such key), and
+    // blank-safe: an empty note renders nothing rather than an empty card.
+    const coachNote = payload.rationale?.trim() ?? '';
+
     return (
       <div className="space-y-4">
         <div>
@@ -381,6 +387,25 @@ const UpNextCard: React.FC = () => {
             )}
           </div>
         </div>
+
+        {coachNote && (
+          /* Not collapsible, unlike its mobile twin: the phone card clamps the
+             paragraph to two lines because it costs a third of the screen
+             there, and here the same two or three sentences are a couple of
+             lines above a list that is already scrolled past. Tinted so it
+             reads as the coach talking rather than as more of the header. */
+          <div
+            data-testid="up-next-coach-note"
+            className="rounded-lg bg-primary/10 px-3 py-2.5"
+          >
+            {/* Server English, rendered verbatim like the per-exercise
+                rationale beside it — generated text, not an app label. */}
+            <p className="text-sm">{coachNote}</p>
+            <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+              {t('upNext.coachLabel', 'Coach')}
+            </p>
+          </div>
+        )}
 
         <ol className="divide-y rounded-lg border">
           {payload.exercises.map((exercise, index) => (

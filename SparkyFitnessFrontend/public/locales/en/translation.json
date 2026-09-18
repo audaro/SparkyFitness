@@ -1333,6 +1333,7 @@
       "customRest": "Custom (seconds)",
       "description": "Track your sets live, follow rest countdowns, and save when you finish.",
       "elapsedTime": "Duration",
+      "holdTimer": "Hold",
       "inProgress": "In Progress",
       "progress": "Sets",
       "restEditorDescription": "Pick a rest duration for this set.",
@@ -5621,6 +5622,9 @@
     "reps": "Reps",
     "restSec": "Rest (s)",
     "rpe": "RPE",
+    "startHoldSet": "Start hold for set {{setNumber}}",
+    "stopHold": "Stop hold",
+    "stopHoldSet": "Stop hold for set {{setNumber}}",
     "type": "Type",
     "weight": "weight"
   },
@@ -6195,6 +6199,7 @@
   },
   "upNext": {
     "cardTitle": "Up Next",
+    "coachLabel": "Coach",
     "durationLabel": "Workout length",
     "durationOption": "{{minutes}} min",
     "generate": "Generate workout",

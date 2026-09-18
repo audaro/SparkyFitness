@@ -23,6 +23,7 @@ import WorkoutPresetsLibraryScreen from '../screens/WorkoutPresetsLibraryScreen'
 import FoodDetailScreen from '../screens/FoodDetailScreen';
 import MealDetailScreen from '../screens/MealDetailScreen';
 import ExerciseDetailScreen from '../screens/ExerciseDetailScreen';
+import ExerciseSheetScreen from '../screens/ExerciseSheetScreen';
 import WorkoutPresetDetailScreen from '../screens/WorkoutPresetDetailScreen';
 import MealAddScreen from '../screens/MealAddScreen';
 import WorkoutAddScreen from '../screens/WorkoutAddScreen';
@@ -94,6 +95,7 @@ export const SafeWorkoutPresetsLibrary = withErrorBoundary(WorkoutPresetsLibrary
 export const SafeFoodDetail = withErrorBoundary(FoodDetailScreen, 'FoodDetail', { canGoBack: true });
 export const SafeMealDetail = withErrorBoundary(MealDetailScreen, 'MealDetail', { canGoBack: true });
 export const SafeExerciseDetail = withErrorBoundary(ExerciseDetailScreen, 'ExerciseDetail', { canGoBack: true });
+export const SafeExerciseSheet = withErrorBoundary(ExerciseSheetScreen, 'ExerciseSheet', { canGoBack: true });
 export const SafeWorkoutPresetDetail = withErrorBoundary(WorkoutPresetDetailScreen, 'WorkoutPresetDetail', { canGoBack: true });
 export const SafeFoodSearch = withErrorBoundary(FoodSearchScreen, 'FoodSearch', { canGoBack: true });
 export const SafeFoodEntryAdd = withErrorBoundary(FoodEntryAddScreen, 'FoodEntryAdd', { canGoBack: true });

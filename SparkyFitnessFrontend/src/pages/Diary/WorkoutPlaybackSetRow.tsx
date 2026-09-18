@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { memo } from 'react';
 import type { WeightUnit } from '@/contexts/PreferencesContext';
-import { MessageSquare, Timer, Trash2 } from 'lucide-react';
+import { MessageSquare, Play, Square, Timer, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -66,6 +66,12 @@ interface WorkoutPlaybackSetRowProps {
   ) => void;
   onOpenRestEditor: (pointer: WorkoutSetPointer) => void;
   onRemoveSet: (pointer: WorkoutSetPointer) => void;
+  onStartHold: (pointer: WorkoutSetPointer) => void;
+  onStopHold: () => void;
+  /** True while this very set is the one being held. */
+  isHolding: boolean;
+  /** False while any countdown is already running — one at a time. */
+  canStartHold: boolean;
   canRemove: boolean;
   weightUnit: WeightUnit;
 }
@@ -92,12 +98,19 @@ const WorkoutPlaybackSetRow = ({
   onSetFieldChange,
   onOpenRestEditor,
   onRemoveSet,
+  onStartHold,
+  onStopHold,
+  isHolding,
+  canStartHold,
   canRemove,
   weightUnit,
 }: WorkoutPlaybackSetRowProps) => {
   const { t } = useTranslation();
   const pointer: WorkoutSetPointer = { exerciseIndex, setIndex };
   const notesKey = `${exerciseKey}-${setIndex}`;
+  // Nothing to count down without a prescribed duration, and a set already
+  // logged has nothing left to hold.
+  const showsHoldButton = isTimedExercise && !completed && (duration ?? 0) > 0;
 
   return (
     <div>
@@ -187,7 +200,11 @@ const WorkoutPlaybackSetRow = ({
                 )
               }
               placeholder={t('workout.durationSec', 'Duration (s)')}
-              className="col-span-2 w-full focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:col-start-3 sm:col-span-2"
+              className={`w-full focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:col-start-3 ${
+                showsHoldButton
+                  ? 'col-span-1 sm:col-span-1'
+                  : 'col-span-2 sm:col-span-2'
+              }`}
             />
           ) : (
             <>
@@ -227,6 +244,49 @@ const WorkoutPlaybackSetRow = ({
                 />
               </div>
             </>
+          )}
+
+          {showsHoldButton && (
+            /* The hold runs the set itself — the plank's 45 seconds — and
+               stops into the same rest a ticked checkbox starts. Start lives
+               on the row, in the column the prescribed duration gives up for
+               it; pause lives on the summary tile with the countdown. */
+            <Button
+              type="button"
+              variant={isHolding ? 'default' : 'outline'}
+              size="icon"
+              className="col-span-1 h-8 w-8 justify-self-center sm:col-start-4 sm:col-span-1"
+              disabled={!isHolding && !canStartHold}
+              aria-label={
+                isHolding
+                  ? t(
+                      'workout.stopHoldSet',
+                      'Stop hold for set {{setNumber}}',
+                      {
+                        setNumber,
+                      }
+                    )
+                  : t(
+                      'workout.startHoldSet',
+                      'Start hold for set {{setNumber}}',
+                      { setNumber }
+                    )
+              }
+              onClick={(event) => {
+                event.stopPropagation();
+                if (isHolding) {
+                  onStopHold();
+                } else {
+                  onStartHold(pointer);
+                }
+              }}
+            >
+              {isHolding ? (
+                <Square className="h-3.5 w-3.5" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
+            </Button>
           )}
 
           <Button

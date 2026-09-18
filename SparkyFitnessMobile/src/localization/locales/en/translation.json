@@ -235,6 +235,9 @@
       "bodySetProgressReps_other": "{{setProgress}} · {{formattedCount}} reps target",
       "bodySetProgressDuration": "{{setProgress}} · {{duration}} target"
     },
+    "hold": {
+      "title": "Hold complete"
+    },
     "fasting": {
       "title": "Fasting goal reached",
       "body": "You've hit your fasting goal. Great work!"
@@ -269,6 +272,8 @@
       "addFifteenSeconds": "Add 15 seconds",
       "addFifteenSecondsShort": "+15s",
       "skipRest": "Skip rest",
+      "hold": "Hold",
+      "stopHold": "Stop hold",
       "workout": "Workout",
       "exercise": "Exercise",
       "set": "Set",
@@ -302,6 +307,7 @@
       "addExercise": "Add exercise",
       "back": "Back",
       "clearAllSets": "Clear all logged sets",
+      "close": "Close workout",
       "discardWorkout": "Discard workout",
       "elapsedTime": "{{time}} elapsed",
       "endWorkout": "End workout",
@@ -344,8 +350,9 @@
     "rest": {
       "addSecondsShort": "+{{seconds}}s",
       "subtractSecondsShort": "−{{seconds}}s",
-      "completeSet": "Complete set",
-      "completeSetTitle": "Complete Set",
+      "completeSet": "Log set",
+      "completeSetTitle": "Log Set",
+      "completeSetNumbered": "Log Set {{number}}",
       "extendBySeconds": "Extend rest by {{seconds}} seconds",
       "shortenBySeconds": "Shorten rest by {{seconds}} seconds",
       "skip": "Skip rest",
@@ -353,7 +360,10 @@
       "resume": "Resume rest",
       "targetValue": "Target {{value}}",
       "shorten": "Shorten rest by 15 seconds",
-      "extend": "Extend rest by 15 seconds"
+      "extend": "Extend rest by 15 seconds",
+      "thenNext": "Then {{label}} · {{target}}",
+      "thenNextNoTarget": "Then {{label}}",
+      "logSetNow": "Log set {{number}} now"
     },
     "setDetail": {
       "addNote": "Add a note for this set…",
@@ -370,7 +380,10 @@
       "incomplete": "Un-complete set {{setNumber}}",
       "weight": "Weight",
       "rpe": "RPE",
-      "fillFromPrevious": "Fill set {{setNumber}} from previous"
+      "fillFromPrevious": "Fill set {{setNumber}} from previous",
+      "startHold": "Start {{duration}}s hold for set {{setNumber}}",
+      "weightLb": "Weight (lb)",
+      "weightKg": "Weight (kg)"
     },
     "columns": {
       "set": "Set",
@@ -390,10 +403,32 @@
       "changeMetric": "Change metric column",
       "notesForSet": "Notes for set {{number}}",
       "addSet": "Add set to {{name}}",
+      "addInterval": "Add interval to {{name}}",
       "caloriesUnit": "kcal",
-      "addSetLabel": "Add set"
+      "addSetLabel": "Add set",
+      "addIntervalLabel": "Add interval",
+      "setProgress": "Set {{index}} of {{total}}",
+      "setsDone": "{{done}} of {{total}} sets"
     },
-    "nextSet": "Next Set"
+    "nextSet": "Next Set",
+    "hold": {
+      "shorten": "Shorten hold by 15 seconds",
+      "extend": "Extend hold by 15 seconds",
+      "pause": "Pause hold",
+      "resume": "Resume hold",
+      "stop": "Stop hold and log the set",
+      "subtractSecondsShort": "−{{seconds}}s",
+      "addSecondsShort": "+{{seconds}}s",
+      "logsThenRest": "Logs at 0:00, then {{rest}} rest",
+      "logsAtZero": "Logs at 0:00",
+      "holdingHint": "{{label}} · {{afterZero}}"
+    },
+    "timer": {
+      "restPhase": "Rest",
+      "holdPhase": "Hold",
+      "skip": "Skip",
+      "stop": "Stop"
+    }
   },
   "addSheet": {
     "food": "Food",
@@ -1455,6 +1490,9 @@
     "replaceExercise": "Replace exercise",
     "supersetWith": "Superset with…",
     "viewExercise": "View exercise",
+    "expandSets": "Edit sets here",
+    "startHere": "Start workout here",
+    "collapseSets": "Hide sets here",
     "deleteSet": "Delete set",
     "removeExerciseTitle": "Remove exercise?",
     "removeExerciseMessage": "{{name}} will be removed from this workout.",
@@ -1608,7 +1646,6 @@
     "details": "Details",
     "name": "Name",
     "saveAsPresetLabel": "Save as preset",
-    "startHere": "Start workout here",
     "workoutNeedsExercise": "Workout needs an exercise",
     "presetsTitle": "Workout presets",
     "noServer": "No server configured",
@@ -2929,6 +2966,12 @@
         "description": "A stage often associated with increased autophagy"
       }
     }
+  },
+  "exerciseSheet": {
+    "howTo": "How-To",
+    "rest": "Rest",
+    "history": "History",
+    "replace": "Replace"
   },
   "exerciseDetail": {
     "sharedPublicly": "Exercise shared publicly",
@@ -5269,7 +5312,7 @@
     "changeWorkoutLength": "Change workout length",
     "gymEquipment": "Gym equipment",
     "changeGymEquipment": "Change gym equipment",
-    "swapWorkout": "Swap workout",
+    "swap": "Swap",
     "startAgain": "Do it again",
     "sessionName": "Today's workout",
     "replaceExercise": "Replace exercise",
@@ -5288,7 +5331,11 @@
     },
     "generateFailed": "Could not build a workout",
     "generateNoMatch": "No exercises matched your gym equipment. Try another gym profile.",
-    "replaceFailed": "Could not replace that exercise"
+    "replaceFailed": "Could not replace that exercise",
+    "coachLabel": "Coach",
+    "coachNote": "Coach note: {{note}}",
+    "coachCollapse": "Collapses the note",
+    "coachExpand": "Shows the whole note"
   },
   "gymProfiles": {
     "duplicateName": "You already have a profile with that name.",

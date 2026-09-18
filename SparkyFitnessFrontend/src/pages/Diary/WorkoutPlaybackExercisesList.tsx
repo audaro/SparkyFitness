@@ -25,6 +25,11 @@ interface WorkoutPlaybackExercisesListProps {
   onOpenRestEditor: (pointer: WorkoutSetPointer) => void;
   onRemoveSet: (pointer: WorkoutSetPointer) => void;
   onAddSet: (exerciseIndex: number) => void;
+  onStartHold: (pointer: WorkoutSetPointer) => void;
+  onStopHold: () => void;
+  /** The set currently being held, or null when nothing is. */
+  holdPointer: WorkoutSetPointer | null;
+  canStartHold: boolean;
   weightUnit: WeightUnit;
 }
 
@@ -39,6 +44,10 @@ const WorkoutPlaybackExercisesList = ({
   onOpenRestEditor,
   onRemoveSet,
   onAddSet,
+  onStartHold,
+  onStopHold,
+  holdPointer,
+  canStartHold,
   weightUnit,
 }: WorkoutPlaybackExercisesListProps) => {
   const { t } = useTranslation();
@@ -181,6 +190,13 @@ const WorkoutPlaybackExercisesList = ({
                         onSetFieldChange={onSetFieldChange}
                         onOpenRestEditor={onOpenRestEditor}
                         onRemoveSet={onRemoveSet}
+                        onStartHold={onStartHold}
+                        onStopHold={onStopHold}
+                        isHolding={
+                          holdPointer?.exerciseIndex === exerciseIndex &&
+                          holdPointer?.setIndex === setIndex
+                        }
+                        canStartHold={canStartHold}
                         canRemove={exercise.sets.length > 1}
                         weightUnit={weightUnit}
                       />

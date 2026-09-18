@@ -325,10 +325,18 @@ export async function maybePromptForExactAlarmPermission(): Promise<void> {
   }
 }
 
+/**
+ * Schedule the rest-complete ping. `setId` is the set the rest counts down
+ * to, carried in the notification's data so the "Complete Set" action can
+ * refuse to fire against a cursor that has moved on -- a delivered ping
+ * survives in the tray with no way to recall it, so the press has to be
+ * checked rather than the notification withdrawn.
+ */
 export async function scheduleRestNotification(
   exerciseName: string,
   seconds: number,
-  content?: { title?: string; body?: string }
+  content?: { title?: string; body?: string },
+  setId?: string
 ): Promise<string | null> {
   const prefs = useAppPreferencesStore.getState();
   if (!prefs.notificationsEnabled || !prefs.restTimerNotificationsEnabled)
@@ -351,6 +359,7 @@ export async function scheduleRestNotification(
         body: content?.body ?? exerciseName,
         sound: true,
         categoryIdentifier: REST_COMPLETE_CATEGORY,
+        data: setId != null ? { setId } : undefined,
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
@@ -369,7 +378,7 @@ export async function scheduleRestNotification(
 }
 
 /** Dismiss every already-delivered rest ping from the tray. */
-async function dismissDeliveredRestNotifications(): Promise<void> {
+export async function dismissDeliveredRestNotifications(): Promise<void> {
   try {
     const presented = await Notifications.getPresentedNotificationsAsync();
     await Promise.all(
@@ -386,6 +395,53 @@ async function dismissDeliveredRestNotifications(): Promise<void> {
       `dismissDeliveredRestNotifications failed: ${(err as Error).message}`,
       'ERROR'
     );
+  }
+}
+
+/**
+ * Schedule the hold-complete notification for a timed set (a plank's 45s, an
+ * interval's work phase), so the ping lands even with the phone face-down.
+ *
+ * Deliberately carries no `categoryIdentifier`: the rest ping's "Complete Set"
+ * action would be wrong here, because a hold logs its own set the moment it
+ * expires — by the time this is delivered there is nothing left to complete,
+ * and `completeActiveSetIfReady` refuses mid-hold anyway.
+ *
+ * Rides the same `restTimerNotificationsEnabled` preference as the rest ping:
+ * both are the workout timer telling the user a phase ended, and splitting
+ * them would mean a second toggle for the same expectation.
+ */
+export async function scheduleHoldNotification(
+  exerciseName: string,
+  seconds: number
+): Promise<string | null> {
+  const prefs = useAppPreferencesStore.getState();
+  if (!prefs.notificationsEnabled || !prefs.restTimerNotificationsEnabled)
+    return null;
+
+  const granted = await ensureNotificationPermission();
+  if (!granted) return null;
+
+  try {
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: notificationCopy('notifications.hold.title', 'Hold complete'),
+        body: exerciseName,
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds,
+        channelId: CHANNEL_ID,
+      },
+    });
+    return id;
+  } catch (err) {
+    addLog(
+      `scheduleHoldNotification failed: ${(err as Error).message}`,
+      'ERROR'
+    );
+    return null;
   }
 }
 

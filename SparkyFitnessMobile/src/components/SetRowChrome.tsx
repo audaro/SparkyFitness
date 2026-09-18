@@ -29,8 +29,8 @@ import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 
 /**
  * Presentation shared by the set surfaces (ActiveWorkoutSetRow, the cardio
- * effort form, and the activity form's EditableSetRow): the flat value-cell
- * input, the keyboard accessory bar (per-input on iOS for EditableSetRow,
+ * effort form, and the activity form's EditableSetRow): the value-cell input,
+ * the keyboard accessory bar (per-input on iOS for EditableSetRow,
  * screen-level for the card surfaces) and the right-swipe Delete action.
  */
 
@@ -63,6 +63,31 @@ export function useAccessoryEpoch(active: boolean): number {
 const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
 
 /**
+ * Value type for a boxed (non-`flat`) cell. A step up from the form
+ * treatment's 14 and from FormInput's 16: the number in a live log is read at
+ * arm's length between sets, not at reading distance like a form field. It
+ * stops here rather than at the canvas's 21 because the live grid also carries
+ * the set number, PREVIOUS and metric columns, and a 5-column row on a 320pt
+ * phone has no width left for a display-size figure.
+ */
+const BOXED_CELL_FONT_SIZE = 17;
+
+/**
+ * Value type for a `bare` cell. This is the canvas's 21, reachable here and not
+ * in the 5-column grid for the reason the note above gives: the timeline row
+ * carries two cells and nothing else, so the width the set number, PREVIOUS and
+ * metric columns were spending is available for a display-size figure.
+ */
+const BARE_CELL_FONT_SIZE = 21;
+
+/**
+ * Android box height. The iOS box takes its height from padding + line box;
+ * Android's EditText has to be given one explicitly (see the comment in
+ * SetCellInput), and it must clear `BOXED_CELL_FONT_SIZE + 2`.
+ */
+const BOXED_CELL_HEIGHT = 36;
+
+/**
  * Plain number cell used for the value inputs on a set surface (both `live`
  * and `edit`). Replaces the `−/number/+` stepper: tap to type, with an accent
  * focus ring. Delegates to {@link FormInput}: on iOS its base styling carries
@@ -83,13 +108,28 @@ export interface SetCellInputProps {
   /** Shown while the cell is empty; the assumed value when one resolves. */
   placeholder?: string;
   /**
-   * Live grid cells: render as plain text (no chip background or border, the
-   * display-cell type size) until focused — every live cell is an input, but
-   * a grid of chips would read as a form, not a log. The chip chrome and
-   * accent ring come back on the focused cell only, marking the keyboard
-   * target.
+   * Form treatment: render as plain text (no box background or border, the
+   * display-cell type size) until focused, with the box chrome and accent
+   * ring coming back on the focused cell only. The edit forms — the workout
+   * preset editor, the activity form — pass it, because a grid of chips
+   * reading as a form is exactly right on a screen that *is* a form.
+   *
+   * The live and plan surfaces deliberately do not (Decision 8 of the
+   * exercise-sheet redesign, which reverses the earlier "every live cell is
+   * flat" rule): a boxed cell, under the column header that names it, is what
+   * makes the target legible at arm's length mid-set, where a bare number
+   * floating in a row is not. Unboxed cells stay the *form* treatment, not the
+   * log's.
    */
   flat?: boolean;
+  /**
+   * Chrome-less treatment: no background, no border, no focus ring, at the
+   * display type size. For the timeline layout, where the *cell around the
+   * input* is the box — it paints the border and turns it accent on the cursor
+   * row, and carries the floating label. Painting chrome here too would draw a
+   * box inside a box. Wins over `flat`, which is the form treatment.
+   */
+  bare?: boolean;
   /** Tint for the input text (e.g. the RPE effort tone). */
   textColor?: string;
 }
@@ -105,6 +145,7 @@ export function SetCellInput({
   className,
   placeholder = '–',
   flat = false,
+  bare = false,
   textColor,
 }: SetCellInputProps) {
   const [focused, setFocused] = useState(false);
@@ -115,13 +156,14 @@ export function SetCellInput({
   ]) as [string, string, string];
 
   // Android's EditText mislays its text on the first focus when it is styled
-  // like a chip — borders, vertical padding, or a forced line box shift the
+  // like a box — borders, vertical padding, or a forced line box shift the
   // digits half out of view, persisting after blur (facebook/react-native
   // #28078 family; the offset direction varies by device font). The only
   // shape proven immune on-device is StepperInput's: a bone-stock EditText
   // (explicit height, zero vertical padding, lineHeight = fontSize + 2, no
-  // background or border) with the chip chrome on a wrapper View. iOS keeps
-  // the chrome on the input itself.
+  // background or border) with the box chrome on a wrapper View. iOS keeps
+  // the chrome on the input itself. Boxing the live cells (Decision 8) only
+  // changes WHEN that wrapper paints, never where the chrome lives.
   const input = (
     <FormInput
       ref={inputRef}
@@ -144,45 +186,79 @@ export function SetCellInput({
         // Tighter than FormInput's default 12 so the cell fits the 5-column row.
         paddingLeft: 4,
         paddingRight: 4,
-        ...(Platform.OS === 'android'
+        ...(bare
           ? {
-              height: 32,
-              paddingTop: 0,
-              paddingBottom: 0,
               backgroundColor: 'transparent',
               borderWidth: 0,
-              ...(flat ? { fontSize: 14, lineHeight: 16 } : { lineHeight: 18 }),
+              paddingTop: 0,
+              paddingBottom: 0,
+              fontSize: BARE_CELL_FONT_SIZE,
+              lineHeight: BARE_CELL_FONT_SIZE + 4,
+              fontWeight: '600' as const,
+              // The cell fixes the height; without this Android's EditText
+              // measures its own and pushes the floating label off the border.
+              height: BARE_CELL_FONT_SIZE + 10,
             }
-          : {
-              paddingTop: 6,
-              paddingBottom: 6,
-              ...(flat ? { fontSize: 14, lineHeight: 18 } : null),
-              // Transparent (not zero-width) border so the cell doesn't shift
-              // when the focus ring appears; FormInput's own focus styling
-              // supplies the raised background + accent border while focused.
-              ...(flat && !focused
-                ? { backgroundColor: 'transparent', borderColor: 'transparent' }
-                : null),
-            }),
+          : Platform.OS === 'android'
+            ? {
+                // lineHeight stays fontSize + 2 in both variants; the boxed cell
+                // needs the taller line box, so its height grows with it.
+                height: flat ? 32 : BOXED_CELL_HEIGHT,
+                paddingTop: 0,
+                paddingBottom: 0,
+                backgroundColor: 'transparent',
+                borderWidth: 0,
+                ...(flat
+                  ? { fontSize: 14, lineHeight: 16 }
+                  : {
+                      fontSize: BOXED_CELL_FONT_SIZE,
+                      lineHeight: BOXED_CELL_FONT_SIZE + 2,
+                      fontWeight: '600' as const,
+                    }),
+              }
+            : {
+                paddingTop: 6,
+                paddingBottom: 6,
+                ...(flat
+                  ? { fontSize: 14, lineHeight: 18 }
+                  : {
+                      fontSize: BOXED_CELL_FONT_SIZE,
+                      lineHeight: BOXED_CELL_FONT_SIZE + 4,
+                      fontWeight: '600' as const,
+                    }),
+                // Flat only: a transparent (not zero-width) border so the cell
+                // doesn't shift when the focus ring appears. A boxed cell keeps
+                // FormInput's own chrome, which already paints the raised
+                // background with a subtle→accent border on focus.
+                ...(flat && !focused
+                  ? {
+                      backgroundColor: 'transparent',
+                      borderColor: 'transparent',
+                    }
+                  : null),
+              }),
         ...(textColor != null ? { color: textColor } : null),
       }}
     />
   );
 
-  if (Platform.OS !== 'android') return input;
+  // A bare cell has no chrome to paint on either platform; the surrounding
+  // timeline cell owns the border, the background and the focus accent.
+  if (bare || Platform.OS !== 'android') return input;
 
-  const chipVisible = focused || !flat;
+  // A boxed cell always paints its chrome; a flat one only while focused.
+  const boxVisible = focused || !flat;
   return (
     <View
       className="rounded-lg"
       style={{
         borderWidth: 1,
-        borderColor: chipVisible
+        borderColor: boxVisible
           ? focused
             ? accentPrimary
             : borderSubtle
           : 'transparent',
-        backgroundColor: chipVisible ? raisedBg : 'transparent',
+        backgroundColor: boxVisible ? raisedBg : 'transparent',
       }}
     >
       {input}

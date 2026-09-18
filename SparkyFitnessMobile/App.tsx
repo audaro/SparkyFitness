@@ -41,6 +41,7 @@ import {
   SafeFoodDetail,
   SafeMealDetail,
   SafeExerciseDetail,
+  SafeExerciseSheet,
   SafeWorkoutPresetDetail,
   SafeFoodSearch,
   SafeFoodEntryAdd,
@@ -475,6 +476,22 @@ function AppContent() {
               // navigating back.
               fullScreenGestureEnabled: false,
             })}
+          />
+          <Stack.Screen
+            name="ExerciseSheet"
+            component={SafeExerciseSheet}
+            options={{
+              // No native header: the demonstration runs full bleed under the
+              // status bar and carries its own dismiss, so a title bar here
+              // would spend the top of the display naming the exercise the
+              // picture already shows.
+              headerShown: false,
+              gestureEnabled: true,
+              // Same reason as ExerciseDetail: iOS 26 defaults the pop gesture
+              // to full-screen swipes, and interior right-swipes here should
+              // switch tabs rather than navigate back.
+              fullScreenGestureEnabled: false,
+            }}
           />
           <Stack.Screen
             name="FoodSearch"

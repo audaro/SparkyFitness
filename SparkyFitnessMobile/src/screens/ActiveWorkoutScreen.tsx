@@ -8,8 +8,6 @@ import {
   Pressable,
   Text,
   View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
   type TextInput,
 } from 'react-native';
 import {
@@ -28,12 +26,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import ActiveWorkoutHeader, {
   buildExerciseProgress,
 } from '../components/ActiveWorkoutHeader';
-import ActiveWorkoutRail, {
-  useSupersetBorders,
-} from '../components/ActiveWorkoutRail';
 import ActiveWorkoutExerciseCard from '../components/ActiveWorkoutExerciseCard';
 import type { SetRowAccessoryHandle } from '../components/ActiveWorkoutSetRow';
-import KeyboardCollapsible from '../components/KeyboardCollapsible';
 import {
   SetInputAccessoryBar,
   useDeactivateOnKeyboardDismiss,
@@ -44,15 +38,14 @@ import { MetricColumnMenu, SetTypeMenu } from '../components/WorkoutMenus';
 import ActiveWorkoutRestBar, {
   REST_BAR_GLASS_CLEARANCE,
 } from '../components/ActiveWorkoutRestBar';
+import ActiveWorkoutHoldSheet from '../components/ActiveWorkoutHoldSheet';
+import { TIMER_SHEET_GLASS_CLEARANCE } from '../components/WorkoutTimerSheet';
 import ActionSheet, {
   type ActionSheetItem,
   type ActionSheetRef,
 } from '../components/ActionSheet';
 import { type AnchorRect } from '../components/AnchoredMenu';
-import ExerciseSetRestSheet, {
-  type ExerciseSetRestSheetRef,
-  type ExerciseSetRestUpdate,
-} from '../components/ExerciseSetRestSheet';
+import ExerciseSetRestSheet from '../components/ExerciseSetRestSheet';
 import WorkoutDurationSheet, {
   type WorkoutDurationSheetRef,
 } from '../components/WorkoutDurationSheet';
@@ -64,8 +57,11 @@ import { invalidateExerciseCache } from '../hooks/invalidateExerciseCache';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
 import { useNavigationActionGuard } from '../hooks/useNavigationActionGuard';
 import { usePreferences } from '../hooks/usePreferences';
+import { useActiveWorkoutRestSheet } from '../hooks/useActiveWorkoutRestSheet';
 import { useRestCountdown } from '../hooks/useRestCountdown';
+import { useHoldCountdown } from '../hooks/useHoldCountdown';
 import { useSelectedExercise } from '../hooks/useSelectedExercise';
+import { useSupersetBorders } from '../hooks/useSupersetBorders';
 import { deleteWorkout } from '../services/api/exerciseApi';
 import { addLog } from '../services/LogService';
 import { useNativeIOSTabsActive } from '../services/nativeTabBarPreference';
@@ -83,7 +79,6 @@ import {
   exerciseFromSnapshot,
   formatDuration,
   formatSetLoad,
-  getSupersetRuns,
   rendersCardioEffortForm,
   summarizeWorkoutSpan,
 } from '../utils/workoutSession';
@@ -203,6 +198,21 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     remainingMs: restRemainingMs,
     progress: restProgress,
   } = useRestCountdown({ selfTick: false });
+  const {
+    state: holdState,
+    setId: holdSetId,
+    remainingMs: holdRemainingMs,
+    progress: holdProgress,
+  } = useHoldCountdown({ selfTick: false });
+  // The rest the held set will roll into, for the sheet's "then 0:30 rest"
+  // hint. A primitive selector, so an unrelated step edit can't re-render the
+  // screen through it. Zero (a superset partner taken back-to-back) reads as
+  // no rest, which is what the hint should then say.
+  const holdNextRestSec = useActiveWorkoutStore((s) =>
+    s.hold.setId == null
+      ? null
+      : (s.steps.find((step) => step.setId === s.hold.setId)?.restSec ?? null)
+  );
   const usesGlassRestBar = useNativeIOSTabsActive();
   const createdByLiveStart = useActiveWorkoutStore((s) => s.createdByLiveStart);
   const queryClient = useQueryClient();
@@ -340,63 +350,23 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
   const { runs: supersetRuns, borders: supersetBorders } =
     useSupersetBorders(exercisesForBorders);
 
-  // Expanded state: the cursor's exercise auto-expands as the workout
-  // advances, auto-collapsing only the previously auto-expanded card; cards
-  // the user opened by hand stay open.
+  // Expanded state: nothing expands on its own, so the log stays a list of
+  // collapsed rows. The cursor's row already carries its set number, target
+  // and pips, the on-deck bar logs that set in one tap, and a row tap opens
+  // the exercise's own sheet for anything else. The inline table is still
+  // there behind each row's chevron — which is the only thing that ever adds
+  // an id here.
   const [userExpandedIds, setUserExpandedIds] = useState<ReadonlySet<string>>(
     () => new Set<string>()
   );
-  const [autoExpandedId, setAutoExpandedId] = useState<string | null>(
-    activeExerciseId
-  );
-  const [focusedExerciseId, setFocusedExerciseId] = useState<string | null>(
-    activeExerciseId
-  );
-
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const cardOffsetsRef = useRef<Record<string, number>>({});
-  const viewportHeightRef = useRef(0);
-  const programmaticScrollUntilRef = useRef(0);
 
   const scrollToExercise = useCallback((entryId: string) => {
     const y = cardOffsetsRef.current[entryId];
     if (y == null) return;
-    programmaticScrollUntilRef.current = Date.now() + 600;
     scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
   }, []);
-
-  // Follow the cursor: when the active exercise changes, adopt it as the
-  // auto-expanded/focused card. Render-time state adjust (not an effect) so
-  // the expansion lands in the same commit as the cursor move.
-  const [prevActiveExerciseId, setPrevActiveExerciseId] =
-    useState(activeExerciseId);
-  if (activeExerciseId !== prevActiveExerciseId) {
-    // Keep a just-finished exercise expanded instead of auto-collapsing it as
-    // the cursor moves on: promote it into the user-expanded set (still
-    // collapsible by hand). Only when it's fully logged; a jump that leaves
-    // holes shouldn't pin it open.
-    const leaving = prevActiveExerciseId;
-    if (leaving != null) {
-      const leavingExercise = session?.exercises.find((e) => e.id === leaving);
-      const leavingDone =
-        leavingExercise != null &&
-        leavingExercise.sets.length > 0 &&
-        leavingExercise.sets.every((s) => completedSetIds[String(s.id)]);
-      if (leavingDone) {
-        setUserExpandedIds((prev) => {
-          if (prev.has(leaving)) return prev;
-          const next = new Set(prev);
-          next.add(leaving);
-          return next;
-        });
-      }
-    }
-    setPrevActiveExerciseId(activeExerciseId);
-    if (activeExerciseId != null) {
-      setAutoExpandedId(activeExerciseId);
-      setFocusedExerciseId(activeExerciseId);
-    }
-  }
 
   useEffect(() => {
     if (activeExerciseId == null) return;
@@ -410,61 +380,25 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     );
   }, [activeExerciseId, scrollToExercise]);
 
-  const handleToggleExpanded = useCallback(
-    (entryId: string) => {
-      setUserExpandedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(entryId)) {
-          next.delete(entryId);
-        } else if (autoExpandedId === entryId) {
-          // Collapsing the auto-expanded card.
-          setAutoExpandedId(null);
-        } else {
-          next.add(entryId);
-        }
-        return next;
-      });
-    },
-    [autoExpandedId]
-  );
-
-  const handleRailPress = useCallback(
-    (entryId: string) => {
-      setUserExpandedIds((prev) => {
-        if (prev.has(entryId) || autoExpandedId === entryId) return prev;
-        const next = new Set(prev);
+  const handleToggleExpanded = useCallback((entryId: string) => {
+    setUserExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryId)) {
+        next.delete(entryId);
+      } else {
         next.add(entryId);
-        return next;
-      });
-      setFocusedExerciseId(entryId);
-      setTimeout(() => scrollToExercise(entryId), 100);
-    },
-    [autoExpandedId, scrollToExercise]
-  );
-
-  // Tapping the rest bar outside its controls brings the on-deck set back
-  // into view (same expand/focus/scroll as tapping the exercise's rail thumb).
-  const handlePressRestBar = useCallback(() => {
-    if (activeExerciseId != null) handleRailPress(activeExerciseId);
-  }, [activeExerciseId, handleRailPress]);
-
-  const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (Date.now() < programmaticScrollUntilRef.current) return;
-      const offset = event.nativeEvent.contentOffset.y;
-      const probe = offset + viewportHeightRef.current / 3;
-      let candidate: string | null = null;
-      let candidateY = -Infinity;
-      for (const [entryId, y] of Object.entries(cardOffsetsRef.current)) {
-        if (y <= probe && y > candidateY) {
-          candidate = entryId;
-          candidateY = y;
-        }
       }
-      if (candidate != null) setFocusedExerciseId(candidate);
-    },
-    []
-  );
+      return next;
+    });
+  }, []);
+
+  // Tapping the rest bar outside its controls brings the on-deck row back into
+  // view. It scrolls and nothing more: the bar already shows the set and its
+  // target, so opening the row's table under it would answer a question the
+  // tap didn't ask.
+  const handlePressRestBar = useCallback(() => {
+    if (activeExerciseId != null) scrollToExercise(activeExerciseId);
+  }, [activeExerciseId, scrollToExercise]);
 
   // Distinguishes an ExerciseSearch return bound for Replace (an entry id) from
   // one bound for Add (null). Cleared on consume and whenever Add is opened, so
@@ -479,7 +413,6 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     if (replaceTarget != null) {
       replaceTargetEntryIdRef.current = null;
       useActiveWorkoutStore.getState().replaceExercise(replaceTarget, exercise);
-      setFocusedExerciseId(replaceTarget);
       return;
     }
     useActiveWorkoutStore.getState().addExercise(exercise);
@@ -492,7 +425,6 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         next.add(id);
         return next;
       });
-      setFocusedExerciseId(id);
       setTimeout(() => scrollToExercise(id), 350);
     }
   });
@@ -595,9 +527,10 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         t
       );
       runNavigationAction(() => {
-        navigation.navigate('ExerciseDetail', {
+        navigation.navigate('ExerciseSheet', {
+          context: 'active-workout',
           item: exercise,
-          hideWorkoutActions: true,
+          entryId,
         });
       });
     },
@@ -605,80 +538,18 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
   );
 
   // Exercise rest drawer (All / per-set rest editing, committed on Done).
-  const setRestSheetRef = useRef<ExerciseSetRestSheetRef>(null);
+  // Shared with ExerciseSheetScreen: the superset-aware apply lives in the
+  // hook so the two surfaces cannot disagree about per-round rest.
+  const {
+    ref: setRestSheetRef,
+    present: presentRestSheet,
+    apply: handleApplySetRests,
+  } = useActiveWorkoutRestSheet();
   const handlePressRestChip = useCallback(
     (entryId: string, _currentSec: number | null) => {
-      const store = useActiveWorkoutStore.getState();
-      const exercise = store.session?.exercises.find((e) => e.id === entryId);
-      if (!exercise || !store.session) return;
-
-      // Check if this exercise is part of a superset
-      const run = getSupersetRuns(store.session.exercises).find((r) =>
-        r.entryIds.includes(entryId)
-      );
-      const isSupersetMember = run != null;
-
-      setRestSheetRef.current?.present(
-        exercise.exercise_snapshot?.name ??
-          t('workout.exercise', { defaultValue: 'Exercise' }),
-        exercise.sets.map((set) => ({
-          setId: String(set.id),
-          setNumber: set.set_number,
-          restSec: set.rest_time,
-        })),
-        isSupersetMember
-      );
+      presentRestSheet(entryId);
     },
-    [t]
-  );
-  const handleApplySetRests = useCallback(
-    (updates: ExerciseSetRestUpdate[]) => {
-      const store = useActiveWorkoutStore.getState();
-      if (!store.session) return;
-
-      // Find which exercise these updates belong to by matching the first set ID
-      const firstUpdate = updates[0];
-      if (!firstUpdate) return;
-      const exercise = store.session.exercises.find((e) =>
-        e.sets.some((s) => String(s.id) === firstUpdate.setId)
-      );
-      if (!exercise) return;
-
-      // Check if this is a superset member
-      const run = getSupersetRuns(store.session.exercises).find((r) =>
-        r.entryIds.includes(exercise.id)
-      );
-
-      if (run) {
-        // Superset rest is per-round and shared across members: applies each
-        // changed round (matched by set_number) to every member's matching
-        // set, so editing one round doesn't overwrite the others.
-        const memberExercises = store.session.exercises.filter((e) =>
-          run.entryIds.includes(e.id)
-        );
-        for (const update of updates) {
-          const changedSet = exercise.sets.find(
-            (s) => String(s.id) === update.setId
-          );
-          if (!changedSet) continue;
-          for (const member of memberExercises) {
-            const roundSet = member.sets.find(
-              (s) => s.set_number === changedSet.set_number
-            );
-            if (roundSet)
-              store.updateSetField(String(roundSet.id), {
-                rest_time: update.seconds,
-              });
-          }
-        }
-      } else {
-        // Solo exercise: update individual sets
-        for (const update of updates) {
-          store.updateSetField(update.setId, { rest_time: update.seconds });
-        }
-      }
-    },
-    []
+    [presentRestSheet]
   );
 
   // Metric column picker.
@@ -794,6 +665,39 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
       label: t('workout.viewExercise', { defaultValue: 'View exercise' }),
       onPress: () => handlePressThumb(entryId),
     });
+    // The row itself ends in this menu and nothing else, so the inline table
+    // needs a door. It is here rather than a chevron on every row because
+    // typing in the log is the exception — the on-deck bar logs the prescribed
+    // set in one tap, and anything else is a trip into the exercise's sheet.
+    items.push({
+      key: 'expand',
+      label: userExpandedIds.has(entryId)
+        ? t('workout.collapseSets', { defaultValue: 'Hide sets here' })
+        : t('workout.expandSets', { defaultValue: 'Edit sets here' }),
+      onPress: () => handleToggleExpanded(entryId),
+    });
+    // "I am doing this one now." Sets have always logged in any order, but the
+    // cursor only ever moved *by* a log, so the on-deck bar, the rest timer and
+    // the Live Activity stayed on the programmed order however far down the
+    // list the user had actually walked. Absent when the cursor is already on
+    // this exercise, and when every set of it is logged -- a done exercise is
+    // reopened from Clear, not by pointing next-up at it.
+    const nextUnloggedSetId = entry?.sets
+      .map((s) => String(s.id))
+      .find((id) => completedSetIds[id] == null);
+    if (nextUnloggedSetId != null && entryId !== activeExerciseId) {
+      items.push({
+        key: 'start-here',
+        // Wording is the catalog's existing `workout.startHere`, already
+        // translated into five locales; it says the same thing.
+        label: t('workout.startHere', { defaultValue: 'Start workout here' }),
+        // No scroll: the menu was opened from this row, so it is already on
+        // screen, and `scrollToExercise` reads a ref this memo must not touch.
+        onPress: () => {
+          useActiveWorkoutStore.getState().focusSet(nextUnloggedSetId);
+        },
+      });
+    }
     items.push({
       key: 'notes',
       label: t('workout.notes', { defaultValue: 'Notes' }),
@@ -853,10 +757,13 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     supersetRuns,
     completedSetIds,
     handlePressThumb,
+    handleToggleExpanded,
+    userExpandedIds,
     handleToggleExerciseNote,
     handleReplaceExercise,
     handleClearExerciseSets,
     handleRemoveExercise,
+    activeExerciseId,
     t,
   ]);
 
@@ -911,8 +818,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     // When that was the last unlogged set, the cursor has nowhere to advance,
     // so the follow-cursor scroll won't fire. Surface the End Workout button
     // instead. Deferred past the keyboard hide and the just-logged card's
-    // layout settle; guarded so handleScroll doesn't re-home the focused
-    // exercise mid-scroll.
+    // layout settle.
     const store = useActiveWorkoutStore.getState();
     const completed = store.completedSetIds;
     const remaining =
@@ -922,7 +828,6 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
       ) ?? 0;
     if (remaining === 0) {
       runAfterKeyboardSettles(() => {
-        programmaticScrollUntilRef.current = Date.now() + 600;
         scrollRef.current?.scrollToEnd({ animated: true });
       }, 350);
     }
@@ -935,6 +840,15 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
   }, [handleCompleteSet]);
   const handleUncomplete = useCallback((setId: string) => {
     useActiveWorkoutStore.getState().uncompleteSet(setId);
+  }, []);
+  // The row flushes its own duration draft before calling this (see
+  // ActiveWorkoutSetRow), so the target the user just typed is what gets held.
+  // The store re-checks every precondition at press time.
+  const handleStartHold = useCallback((setId: string) => {
+    useActiveWorkoutStore.getState().startHold(setId);
+  }, []);
+  const handleStopHold = useCallback(() => {
+    useActiveWorkoutStore.getState().stopHoldAndLog();
   }, []);
   const handleCommitField = useCallback(
     (setId: string, patch: ActiveSetPatch) => {
@@ -1315,12 +1229,29 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
   // The bar stays up through 'ready' (compact on-deck row with a Complete
   // button) as long as a set remains to complete; it only leaves once the
   // workout is done.
-  const restBarVisible = restState !== 'ready' || activeSetId != null;
-  // With Liquid Glass tabs active the rest bar floats over the log instead of
-  // docking below it, so the scroll content reserves clearance for the pill.
-  const restBarPadding = usesGlassRestBar
-    ? REST_BAR_GLASS_CLEARANCE + insets.bottom
-    : 16;
+  const holdActive = holdState !== 'idle';
+  // Hold and rest are mutually exclusive in the store, and so are their
+  // surfaces: the hold sheet takes the dock while a set is being held, and the
+  // rest bar comes back for the break that follows.
+  const restBarVisible =
+    !holdActive && (restState !== 'ready' || activeSetId != null);
+  // Offered only when the store would accept it — the cursor set, no rest
+  // running, nothing already held — so the control is never shown dead.
+  const canStartHold =
+    !holdActive && restState === 'ready' && activeSetId != null;
+  // With Liquid Glass tabs active the bottom surface floats over the log
+  // instead of docking below it, so the scroll content reserves clearance for
+  // it. Which surface is floating decides how much: the running timer is a
+  // full sheet, the on-deck bar is one compact row, and reserving the sheet's
+  // height for the bar would leave a hand's width of dead space under the log
+  // between every set. A hold gets the sheet's clearance too — it takes the
+  // same dock, and before E3 it reserved nothing at all.
+  const bottomSurfaceVisible = holdActive || restBarVisible;
+  const bottomSurfacePadding = !usesGlassRestBar
+    ? 16
+    : (holdActive || restState !== 'ready'
+        ? TIMER_SHEET_GLASS_CLEARANCE
+        : REST_BAR_GLASS_CLEARANCE) + insets.bottom;
   const activeSetDescription = describeActiveSet(session, activeSetId);
   const restLabel =
     activeSetDescription == null
@@ -1332,6 +1263,15 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     activeSetDescription == null
       ? null
       : formatSetLoad(activeSetDescription, weightUnit, t);
+
+  // The hold sheet names what is being held, and what happens after it logs.
+  const holdDescription = holdActive
+    ? describeActiveSet(session, holdSetId)
+    : null;
+  const holdLabel =
+    holdDescription == null
+      ? ''
+      : `${holdDescription.exerciseName ?? t('workout.exercise', { defaultValue: 'Exercise' })} · ${t('workout.setNumber', { defaultValue: 'Set {{number}}', number: holdDescription.setNumber })}`;
 
   // Sticky accessory bar (both platforms) for the focused set cell. The
   // focused row registered its handle by render key; its set id — needed for
@@ -1434,31 +1374,14 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         onClearAllSets={hasAnyCompletedSets ? handleClearAllSets : undefined}
       />
 
-      {/* Collapses while the keyboard is up to hand its ~105px back to the log. */}
-      <KeyboardCollapsible>
-        <ActiveWorkoutRail
-          exercises={session.exercises}
-          completedSetIds={completedSetIds}
-          focusedEntryId={focusedExerciseId}
-          activeEntryId={activeExerciseId}
-          supersetBorders={supersetBorders}
-          getImageSource={getImageSource}
-          onPressExercise={handleRailPress}
-          onPressAdd={handleAddExercise}
-        />
-      </KeyboardCollapsible>
-
       <KeyboardAwareScrollView
         ref={scrollRef}
         className="flex-1"
         contentContainerClassName="px-3 pt-2"
         contentContainerStyle={{
-          paddingBottom: restBarVisible ? restBarPadding : insets.bottom + 16,
-        }}
-        onScroll={handleScroll}
-        scrollEventThrottle={32}
-        onLayout={(e) => {
-          viewportHeightRef.current = e.nativeEvent.layout.height;
+          paddingBottom: bottomSurfaceVisible
+            ? bottomSurfacePadding
+            : insets.bottom + 16,
         }}
         keyboardShouldPersistTaps="handled"
         // Clearance above the keyboard for the focused input: the sticky
@@ -1470,8 +1393,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         disableScrollOnKeyboardHide
       >
         {session.exercises.map((exercise) => {
-          const isExpanded =
-            userExpandedIds.has(exercise.id) || autoExpandedId === exercise.id;
+          const isExpanded = userExpandedIds.has(exercise.id);
           const supersetBorder = supersetBorders.get(exercise.id) ?? null;
           const card = (
             <ActiveWorkoutExerciseCard
@@ -1495,6 +1417,8 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
               onPressMetricHeader={handlePressMetricHeader}
               onPressOverflow={handlePressOverflow}
               onComplete={handleCompleteSet}
+              onStartHold={canStartHold ? handleStartHold : undefined}
+              holdingSetId={holdSetId}
               onUncomplete={handleUncomplete}
               onCommitField={handleCommitField}
               onDeleteSet={handleDeleteSet}
@@ -1563,6 +1487,22 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         </Button>
       </KeyboardAwareScrollView>
 
+      {holdActive && (
+        <ActiveWorkoutHoldSheet
+          remainingMs={holdRemainingMs}
+          progress={holdProgress}
+          paused={holdState === 'paused'}
+          label={holdLabel}
+          nextRestSec={holdNextRestSec}
+          onAdjust={(deltaSec) =>
+            useActiveWorkoutStore.getState().adjustHold(deltaSec)
+          }
+          onPause={() => useActiveWorkoutStore.getState().pauseHold()}
+          onResume={() => useActiveWorkoutStore.getState().resumeHold()}
+          onStop={handleStopHold}
+        />
+      )}
+
       {restBarVisible && (
         <ActiveWorkoutRestBar
           remainingMs={restRemainingMs}
@@ -1570,6 +1510,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
           state={restState}
           label={restLabel}
           nextSetText={restNextSetText}
+          nextSetNumber={activeSetDescription?.setNumber ?? null}
           onAdjust={(deltaSec) =>
             useActiveWorkoutStore.getState().adjustRest(deltaSec)
           }

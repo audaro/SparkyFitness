@@ -45,7 +45,7 @@ import type {
   ActiveSetPatch,
   CompletedSetMap,
 } from '../stores/activeWorkoutStore';
-import { useSupersetBorders } from './ActiveWorkoutRail';
+import { useSupersetBorders } from '../hooks/useSupersetBorders';
 import type {
   WorkoutDraftExercise,
   WorkoutSetMetaPatch,

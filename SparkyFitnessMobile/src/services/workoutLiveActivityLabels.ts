@@ -23,6 +23,10 @@ export type WorkoutLiveActivityLabels = {
   /** Compact "+15s" button label (numeric/unit text shown on the button). */
   addFifteenSecondsShort: string;
   skipRest: string;
+  /** Inline label for the countdown while a timed set is being held. */
+  hold: string;
+  /** Accessibility label for the hold's stop button (it logs the set). */
+  stopHold: string;
   workout: string;
   exercise: string;
   set: string;
@@ -39,6 +43,8 @@ const LABEL_KEYS: readonly (keyof WorkoutLiveActivityLabels)[] = [
   'addFifteenSeconds',
   'addFifteenSecondsShort',
   'skipRest',
+  'hold',
+  'stopHold',
   'workout',
   'exercise',
   'set',
@@ -55,6 +61,8 @@ const EN_FALLBACK: WorkoutLiveActivityLabels = {
   addFifteenSeconds: 'Add 15 seconds',
   addFifteenSecondsShort: '+15s',
   skipRest: 'Skip rest',
+  hold: 'Hold',
+  stopHold: 'Stop hold',
   workout: 'Workout',
   exercise: 'Exercise',
   set: 'Set',

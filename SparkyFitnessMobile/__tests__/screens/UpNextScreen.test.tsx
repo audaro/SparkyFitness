@@ -451,6 +451,68 @@ describe('UpNextScreen', () => {
     });
   });
 
+  it('places the exercise by muscle and rest, leaving the rationale to the sheet', () => {
+    setRecommendation(makeRecommendation());
+
+    const screen = renderScreen();
+
+    // The rationale used to share this line; it now lives in the exercise
+    // sheet's coach note, which has room for a sentence.
+    expect(screen.getByText('Chest · 2:00 rest')).toBeTruthy();
+    expect(screen.queryByText(/holding last session load/)).toBeNull();
+  });
+
+  it('omits the rest half of that line for cardio, which is one block', () => {
+    setRecommendation(
+      makeRecommendation({
+        payload: makePayload({
+          exercises: [
+            makeExercise({
+              modality: 'duration_distance',
+              primary_muscles: ['quadriceps'],
+            }),
+          ],
+        }),
+      })
+    );
+
+    const screen = renderScreen();
+
+    expect(screen.getByText('Quadriceps')).toBeTruthy();
+  });
+
+  it('opens a row in the exercise sheet, handing it the planned exercise', () => {
+    setRecommendation(makeRecommendation());
+
+    const screen = renderScreen();
+    fireEvent.press(screen.getAllByTestId('up-next-exercise-row')[0]);
+
+    expect(navigation.navigate).toHaveBeenCalledWith('ExerciseSheet', {
+      context: 'up-next',
+      item: expect.objectContaining({ id: EX_A, name: 'Bench Press' }),
+      planned: expect.objectContaining({ exercise_id: EX_A }),
+      returnKey: 'UpNext-key',
+    });
+  });
+
+  it('starts the workout with the sets the sheet edited, not the prescribed ones', () => {
+    const recommendation = makeRecommendation();
+    setRecommendation(recommendation);
+
+    const edited = {
+      ...makeExercise(),
+      sets: [makeSet({ set_number: 1, reps: 12, weight: 60 })],
+    };
+    const screen = renderScreen({ editedExercise: edited, editNonce: 1 });
+    fireEvent.press(screen.getByTestId('up-next-start'));
+
+    expect(startLiveWorkout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exercises: buildRecommendationStartPayload([edited]),
+      })
+    );
+  });
+
   it('opens the swap sheet instead of regenerating when Swap is pressed', () => {
     const screen = renderScreen();
     fireEvent.press(screen.getByTestId('up-next-swap'));
@@ -526,6 +588,54 @@ describe('UpNextScreen', () => {
     // Nothing to carry forward: there is no workout on screen, and this is the
     // one generate that legitimately wants every server-side default.
     await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({}));
+  });
+
+  describe('coach card', () => {
+    it('shows the workout-level rationale when the payload carries one', () => {
+      setRecommendation(
+        makeRecommendation({
+          payload: makePayload({
+            rationale: 'Built around chest and triceps. Shaped for strength.',
+          }),
+        })
+      );
+
+      const screen = renderScreen();
+      expect(screen.getByTestId('up-next-coach-card')).toBeTruthy();
+      expect(
+        screen.getByText('Built around chest and triceps. Shaped for strength.')
+      ).toBeTruthy();
+    });
+
+    it('renders no card for a workout generated before the field existed', () => {
+      // `rationale` is optional on the payload schema precisely so those rows
+      // stay readable; an empty card in their place would be worse than none.
+      setRecommendation(makeRecommendation({ payload: makePayload() }));
+
+      const screen = renderScreen();
+      expect(screen.queryByTestId('up-next-coach-card')).toBeNull();
+    });
+
+    it('sits below the chips that change the workout it explains', () => {
+      setRecommendation(
+        makeRecommendation({
+          payload: makePayload({
+            rationale: 'Lower body, since Sunday was chest and triceps.',
+          }),
+        })
+      );
+
+      const screen = renderScreen();
+      // Order, not just presence. The chips regenerate the workout and the
+      // note describes the one that came back, so a note rendered above them
+      // reads as a caption for controls it does not answer to. Nothing else
+      // asserts the header's order, and a moved JSX block is silent.
+      const tree = JSON.stringify(screen.toJSON());
+      const chipAt = tree.indexOf('Change workout length');
+      const noteAt = tree.indexOf('up-next-coach-card');
+      expect(chipAt).toBeGreaterThan(-1);
+      expect(noteAt).toBeGreaterThan(chipAt);
+    });
   });
 
   describe('carrying the current workout forward', () => {
@@ -940,19 +1050,6 @@ describe('UpNextScreen', () => {
         )
       ).toEqual([null, null]);
     });
-  });
-
-  it('opens the exercise detail with workout actions suppressed', () => {
-    const screen = renderScreen();
-    fireEvent.press(screen.getByTestId('up-next-exercise-row'));
-
-    expect(navigation.navigate).toHaveBeenCalledWith(
-      'ExerciseDetail',
-      expect.objectContaining({
-        hideWorkoutActions: true,
-        item: expect.objectContaining({ id: EX_A, name: 'Bench Press' }),
-      })
-    );
   });
 
   describe('replace', () => {

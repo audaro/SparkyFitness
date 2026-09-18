@@ -108,45 +108,49 @@ describe('ActiveWorkoutHeader', () => {
     );
   }
 
-  it('renders the name and elapsed clock', () => {
-    const { getAllByText, getByText } = renderHeaderComponent({});
-    // The name renders twice: the header title and the menu sheet's title
-    // (the gorhom mock always renders sheet children).
-    expect(getAllByText('Push Day').length).toBeGreaterThanOrEqual(1);
-    expect(getByText('01:02 elapsed')).toBeTruthy();
+  it('renders the elapsed clock at display size, hours included', () => {
+    const { getByTestId } = renderHeaderComponent({});
+    const clock = getByTestId('active-workout-elapsed');
+    expect(clock.props.children).toBe('0:01:02');
+    // The hour column is always there so the clock stops reflowing at 1:00:00.
+    expect(clock.props.style.fontSize).toBeGreaterThanOrEqual(32);
   });
 
-  it('shows one segment per exercise and the done count', () => {
+  it('does not put the workout name in the header', () => {
+    // It is on the menu sheet's title and nowhere else — the gorhom mock
+    // always renders sheet children, so one occurrence is the sheet's.
+    const { queryAllByText } = renderHeaderComponent({});
+    expect(queryAllByText('Push Day')).toHaveLength(1);
+  });
+
+  it('shows one segment per exercise', () => {
     // ex-1 fully done (2/2), ex-3 partial (1/2), ex-2 untouched.
-    const { getByText, getAllByTestId, queryAllByTestId } =
-      renderHeaderComponent({
-        '101': COMPLETED_AT,
-        '102': COMPLETED_AT,
-        '301': COMPLETED_AT,
-      });
-    expect(getByText('1 / 3 exercises')).toBeTruthy();
+    const { getAllByTestId, queryAllByTestId } = renderHeaderComponent({
+      '101': COMPLETED_AT,
+      '102': COMPLETED_AT,
+      '301': COMPLETED_AT,
+    });
     expect(getAllByTestId('header-segment-done')).toHaveLength(1);
     expect(queryAllByTestId('header-segment')).toHaveLength(2);
     // Only the partially-complete segment renders an accent fill.
     expect(getAllByTestId('header-segment-fill')).toHaveLength(1);
   });
 
-  it('counts all exercises done', () => {
-    const { getByText, getAllByTestId } = renderHeaderComponent({
+  it('marks every segment done when the whole workout is logged', () => {
+    const { getAllByTestId } = renderHeaderComponent({
       '101': COMPLETED_AT,
       '102': COMPLETED_AT,
       '201': COMPLETED_AT,
       '301': COMPLETED_AT,
       '302': COMPLETED_AT,
     });
-    expect(getByText('3 / 3 exercises')).toBeTruthy();
     expect(getAllByTestId('header-segment-done')).toHaveLength(3);
   });
 
-  it('fires onBack from the back button', () => {
+  it('fires onBack from the close button', () => {
     const onBack = jest.fn();
     const { getByLabelText } = renderHeaderComponent({}, { onBack });
-    fireEvent.press(getByLabelText('Back'));
+    fireEvent.press(getByLabelText('Close workout'));
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 

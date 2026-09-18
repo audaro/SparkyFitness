@@ -615,6 +615,8 @@ export interface WorkoutCardExercise {
     category?: string | null;
     modality?: string | null;
     images?: string[] | null;
+    /** Region for the collapsed row's muscle badge; only the first is drawn. */
+    primary_muscles?: string[] | null;
   } | null;
   sets: WorkoutCardSet[];
   /** Raw draft string backing the edit-mode calories input (draft mapper only). */
@@ -633,6 +635,90 @@ export interface WorkoutCardExercise {
  * `buildExercisesPayload` exactly (parseDecimalInput → weightToKg, NaN → null)
  * so what the card displays is what a save would persist.
  */
+/**
+ * Adapt one exercise of a generated "Up Next" workout for the card stack.
+ *
+ * Sibling of {@link draftExerciseToCardExercise}: the recommendation payload is
+ * already metric (kg, whole seconds, km), so nothing is converted here. The one
+ * thing it has to invent is set ids — a `RecommendationSet` has none, because
+ * nothing has been persisted yet — so each set gets a stable client id from its
+ * position. Those ids are the handle the sheet edits against and never leave
+ * the client: `buildRecommendationStartPayload` renumbers from the array order
+ * when the workout actually starts.
+ */
+export function plannedExerciseToCardExercise(
+  planned: PlannedExercise,
+  setIds: readonly string[]
+): WorkoutCardExercise {
+  return {
+    id: planned.exercise_id,
+    exercise_id: planned.exercise_id,
+    superset_group: planned.superset_group ?? null,
+    notes: null,
+    exercise_snapshot: {
+      name: planned.exercise_name,
+      category: null,
+      modality: planned.modality,
+      images: planned.images,
+    },
+    sets: planned.sets.map((set, index) => ({
+      id: setIds[index] ?? `set-${index}`,
+      set_number: set.set_number,
+      set_type: CANONICAL_TO_MOBILE_SET_TYPE[set.set_type] ?? 'normal',
+      weight: set.weight,
+      reps: set.reps,
+      duration: set.duration,
+      distance: set.distance,
+      rest_time: set.rest_time,
+      notes: null,
+      rpe: null,
+    })),
+  };
+}
+
+/**
+ * Fold the card's edited sets back onto the planned exercise, so what the Up
+ * Next list shows -- and what starting the workout writes -- is what the sheet
+ * was showing. `set_number` is renumbered from the array order: the sheet can
+ * add and delete sets, and a gap would survive into the started session.
+ */
+export function applyCardSetsToPlannedExercise(
+  planned: PlannedExercise,
+  sets: readonly WorkoutCardSet[]
+): PlannedExercise {
+  const toCanonical = (mobile: string | null | undefined): string => {
+    const match = Object.entries(CANONICAL_TO_MOBILE_SET_TYPE).find(
+      ([, value]) => value === mobile
+    );
+    return match?.[0] ?? 'Working Set';
+  };
+  // `rest_seconds` is the same number the sets carry -- it is what the Up Next
+  // row's rest chip reads -- so a uniform rest is mirrored onto it. A mixed
+  // one, or one the user cleared, leaves it alone rather than picking a set's
+  // value to stand for all (the field is not nullable).
+  const restValues = sets.map((set) => set.rest_time ?? null);
+  const first = restValues[0];
+  const uniformRest =
+    first != null && restValues.every((rest) => rest === first)
+      ? first
+      : undefined;
+  return {
+    ...planned,
+    ...(uniformRest === undefined ? {} : { rest_seconds: uniformRest }),
+    sets: sets.map((set, index) => ({
+      set_number: index + 1,
+      set_type: toCanonical(
+        set.set_type
+      ) as PlannedExercise['sets'][number]['set_type'],
+      reps: set.reps,
+      weight: set.weight,
+      duration: set.duration ?? null,
+      distance: set.distance ?? null,
+      rest_time: set.rest_time ?? null,
+    })),
+  };
+}
+
 export function draftExerciseToCardExercise(
   exercise: WorkoutDraftExercise,
   weightUnit: 'kg' | 'lbs',
@@ -899,12 +985,22 @@ type AssumableSet = Pick<
  *   2. The planned value captured at live start (the preset's programmed set).
  *   3. The preceding row's effective value — its entered value, else its
  *      resolved placeholder.
+ *
+ * `plannedOutranksPrevious` swaps the first two, and exists because those two
+ * kinds of plan are not the same kind of claim. A preset's programmed set is a
+ * template that may be months stale, so what the user actually lifted last
+ * time is the better guess. A generated workout's set is today's prescription,
+ * computed *from* that history by the server engine — the row on Up Next says
+ * so in words ("load adjusted to today's rep target") — so letting the same
+ * history overwrite it throws the whole generation away and shows the user
+ * last week's numbers under this week's plan.
  */
 export function resolveAssumedSetValues(
   sets: readonly AssumableSet[],
   previousSets: readonly ExerciseRecentSessionSet[] | undefined,
   plannedBySetId?: Record<string, AssumedSetValues>,
-  suggestedProgressionWeightKg?: number | null
+  suggestedProgressionWeightKg?: number | null,
+  plannedOutranksPrevious = false
 ): AssumedSetValues[] {
   const lastEffective = {
     warmup: {
@@ -932,22 +1028,35 @@ export function resolveAssumedSetValues(
         ? suggestedProgressionWeightKg
         : previous?.weight;
 
+    // The client-side progression suggestion rides with `previous` rather than
+    // ahead of everything: it is an inference from the same history, so a plan
+    // that outranks the history outranks a number derived from it too.
+    const pick = (
+      plannedValue: number | null | undefined,
+      previousValue: number | null | undefined,
+      carried: number | null
+    ): number | null =>
+      (plannedOutranksPrevious
+        ? (plannedValue ?? previousValue ?? carried)
+        : (previousValue ?? plannedValue ?? carried)) ?? null;
+
     const assumed: AssumedSetValues = {
-      weight:
-        effectivePreviousWeight ??
-        planned?.weight ??
-        lastEffective[tier].weight,
-      reps: previous?.reps ?? planned?.reps ?? lastEffective[tier].reps,
-      duration:
-        previous?.duration ??
-        planned?.duration ??
-        lastEffective[tier].duration ??
-        null,
-      distance:
-        previous?.distance ??
-        planned?.distance ??
-        lastEffective[tier].distance ??
-        null,
+      weight: pick(
+        planned?.weight,
+        effectivePreviousWeight,
+        lastEffective[tier].weight
+      ),
+      reps: pick(planned?.reps, previous?.reps, lastEffective[tier].reps),
+      duration: pick(
+        planned?.duration,
+        previous?.duration,
+        lastEffective[tier].duration ?? null
+      ),
+      distance: pick(
+        planned?.distance,
+        previous?.distance,
+        lastEffective[tier].distance ?? null
+      ),
     };
     lastEffective[tier].weight = set.weight ?? assumed.weight;
     lastEffective[tier].reps = set.reps ?? assumed.reps;
@@ -966,7 +1075,9 @@ export function describeActiveSetAssumed(
   session: PresetSessionResponse | null,
   setId: string | null,
   previousSetsByExerciseId: Record<string, ExerciseRecentSessionSet[]>,
-  plannedBySetId: Record<string, AssumedSetValues>
+  plannedBySetId: Record<string, AssumedSetValues>,
+  /** See {@link resolveAssumedSetValues}: true for a generated workout. */
+  plannedOutranksPrevious = false
 ): ActiveSetDescription | null {
   const desc = describeActiveSet(session, setId);
   if (desc == null || session == null) return desc;
@@ -982,7 +1093,9 @@ export function describeActiveSetAssumed(
     const assumed = resolveAssumedSetValues(
       exercise.sets,
       historyForExercise(previousSetsByExerciseId, exercise.exercise_id),
-      plannedBySetId
+      plannedBySetId,
+      null,
+      plannedOutranksPrevious
     )[setIndex];
     if (isDurationModality(modality)) {
       return { ...desc, durationSec: assumed.duration ?? null };
@@ -1017,6 +1130,27 @@ export function formatElapsed(startedAt: number | null, now: number): string {
   return hours > 0
     ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
     : `${pad(minutes)}:${pad(seconds)}`;
+}
+
+/**
+ * Elapsed time as `H:MM:SS`, hours always present and never zero-padded.
+ *
+ * The compact `formatElapsed` drops the hour until there is one, which is
+ * right beside a label in a 12px line. This one is the active workout's
+ * display clock, where the field has to stop moving: a clock that grows a
+ * column an hour in reflows the one thing on that screen the eye returns to.
+ */
+export function formatElapsedClock(
+  startedAt: number | null,
+  now: number
+): string {
+  const totalSeconds =
+    startedAt == null ? 0 : Math.max(0, Math.floor((now - startedAt) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${hours}:${pad(minutes)}:${pad(seconds)}`;
 }
 
 /** Rest countdown as `M:SS`, rounding partial seconds up and clamping at zero. */

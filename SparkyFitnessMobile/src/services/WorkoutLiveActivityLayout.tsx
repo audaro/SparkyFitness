@@ -53,12 +53,24 @@ export type WorkoutLiveActivityProps = {
   labels: WorkoutLiveActivityLabels;
   /** Epoch ms when the workout started — drives the system count-up timer. */
   startedAt: number;
-  phase: 'active' | 'resting' | 'paused' | 'complete';
-  /** Epoch ms when the current rest began (endsAt − duration); the countdown interval's lower bound. */
-  restStartedAt: number | null;
-  /** Epoch ms when the current rest ends. Non-null only while resting. */
-  restEndsAt: number | null;
-  /** Remaining rest as "M:SS", precomputed at pause time (no live tick while paused). */
+  /**
+   * Which of the workout's phases is on screen. Rest and hold are the two
+   * countdown phases and are mutually exclusive in the store — a rest is the
+   * break *before* a set, a hold is the timed work of the set itself — so one
+   * pair of countdown timestamps serves both, discriminated by this field.
+   */
+  phase:
+    | 'active'
+    | 'resting'
+    | 'rest-paused'
+    | 'holding'
+    | 'hold-paused'
+    | 'complete';
+  /** Epoch ms when the running countdown began (endsAt − duration); its lower bound. */
+  countdownStartedAt: number | null;
+  /** Epoch ms when the running countdown ends. Non-null only while resting or holding. */
+  countdownEndsAt: number | null;
+  /** Remaining countdown as "M:SS", precomputed at pause time (no live tick while paused). */
   pausedRemainingLabel: string | null;
   /** Upcoming set, localized by the main app, e.g. "Bench Press · Set 2 of 4". */
   setLine: string | null;
@@ -80,13 +92,13 @@ const WorkoutLiveActivity = (props: WorkoutLiveActivityProps) => {
   const secondaryText = () =>
     foregroundStyle({ type: 'hierarchical', style: 'secondary' });
 
-  const restInterval =
-    props.phase === 'resting' &&
-    props.restStartedAt != null &&
-    props.restEndsAt != null
+  const countdownInterval =
+    (props.phase === 'resting' || props.phase === 'holding') &&
+    props.countdownStartedAt != null &&
+    props.countdownEndsAt != null
       ? {
-          lower: new Date(props.restStartedAt),
-          upper: new Date(props.restEndsAt),
+          lower: new Date(props.countdownStartedAt),
+          upper: new Date(props.countdownEndsAt),
         }
       : null;
 
@@ -112,10 +124,10 @@ const WorkoutLiveActivity = (props: WorkoutLiveActivityProps) => {
       />
     );
 
-  const restCountdown = (maxWidth?: number) =>
-    restInterval ? (
+  const countdownClock = (maxWidth?: number) =>
+    countdownInterval ? (
       <Text
-        timerInterval={restInterval}
+        timerInterval={countdownInterval}
         countsDown
         modifiers={timerModifiers(maxWidth)}
       />
@@ -138,43 +150,48 @@ const WorkoutLiveActivity = (props: WorkoutLiveActivityProps) => {
       monospacedDigit(),
     ];
     const labelStyle = [secondaryText(), font({ size: 16 })];
-    if (restInterval) {
-      // Cap sized from the rest length at push time: the countdown only
+    if (countdownInterval) {
+      // Cap sized from the phase's length at push time: the countdown only
       // shrinks between repaints, so the format can't outgrow it. The scale
       // factor is a parachute for font-metric drift — slightly smaller digits
       // beat a truncated "…".
-      const restCap =
-        (props.restEndsAt ?? 0) - (props.restStartedAt ?? 0) >= 600_000
+      const countdownCap =
+        (props.countdownEndsAt ?? 0) - (props.countdownStartedAt ?? 0) >=
+        600_000
           ? 50
           : 40;
       return (
         <HStack spacing={5} modifiers={[layoutPriority(1)]}>
-          <Text modifiers={labelStyle}>{props.labels.rest}</Text>
+          <Text modifiers={labelStyle}>
+            {props.phase === 'holding' ? props.labels.hold : props.labels.rest}
+          </Text>
           <Text
-            timerInterval={restInterval}
+            timerInterval={countdownInterval}
             countsDown
             modifiers={[
               ...valueFont,
               multilineTextAlignment('trailing'),
               minimumScaleFactor(0.9),
-              frame({ maxWidth: restCap, alignment: 'trailing' }),
+              frame({ maxWidth: countdownCap, alignment: 'trailing' }),
             ]}
           />
         </HStack>
       );
     }
-    if (props.phase === 'paused' || props.phase === 'complete') {
+    // Both paused phases take the paused label rather than their own phase
+    // label: with the bar gone and the digits frozen, what the slot has to say
+    // is that nothing is running. Which phase it is still shows in the set
+    // line beside it.
+    const paused =
+      props.phase === 'rest-paused' || props.phase === 'hold-paused';
+    if (paused || props.phase === 'complete') {
       return (
         <HStack spacing={5} modifiers={[layoutPriority(1)]}>
           <Text modifiers={labelStyle}>
-            {props.phase === 'paused'
-              ? props.labels.paused
-              : props.labels.elapsed}
+            {paused ? props.labels.paused : props.labels.elapsed}
           </Text>
           <Text modifiers={valueFont}>
-            {(props.phase === 'paused'
-              ? props.pausedRemainingLabel
-              : props.elapsedLabel) ?? ''}
+            {(paused ? props.pausedRemainingLabel : props.elapsedLabel) ?? ''}
           </Text>
         </HStack>
       );
@@ -202,16 +219,16 @@ const WorkoutLiveActivity = (props: WorkoutLiveActivityProps) => {
     );
   };
 
-  // OS-ticked depleting bar over the rest interval — like the timer Texts, the
-  // system animates it from the absolute dates with no updates from the app.
-  // @expo/ui exposes no way to suppress the bar's built-in remaining-time
-  // label (SwiftUI needs an explicit empty currentValueLabel), and it would
-  // duplicate the rest countdown above — pin the frame to the bar's own
-  // height and clip the label away.
-  const restProgress = () =>
-    restInterval ? (
+  // OS-ticked depleting bar over the countdown interval — like the timer
+  // Texts, the system animates it from the absolute dates with no updates from
+  // the app. @expo/ui exposes no way to suppress the bar's built-in
+  // remaining-time label (SwiftUI needs an explicit empty currentValueLabel),
+  // and it would duplicate the countdown above — pin the frame to the bar's
+  // own height and clip the label away.
+  const countdownProgress = () =>
+    countdownInterval ? (
       <ProgressView
-        timerInterval={restInterval}
+        timerInterval={countdownInterval}
         modifiers={[frame({ height: 6, alignment: 'top' }), clipped()]}
       />
     ) : null;
@@ -257,14 +274,15 @@ const WorkoutLiveActivity = (props: WorkoutLiveActivityProps) => {
       minimumScaleFactor(0.75),
       frame({ maxWidth }),
     ];
-    if (restInterval) {
+    if (countdownInterval) {
       const cap =
-        (props.restEndsAt ?? 0) - (props.restStartedAt ?? 0) >= 600_000
+        (props.countdownEndsAt ?? 0) - (props.countdownStartedAt ?? 0) >=
+        600_000
           ? 48
           : 38;
       return (
         <Text
-          timerInterval={restInterval}
+          timerInterval={countdownInterval}
           countsDown
           modifiers={tickingModifiers(cap)}
         />
@@ -290,33 +308,63 @@ const WorkoutLiveActivity = (props: WorkoutLiveActivityProps) => {
   // process; workoutLiveActivity.ios.ts matches on these target strings and
   // pushes the repaint, so the targets must stay in sync with that file.
   //
-  // Bare tinted buttons — no background wash. The add-rest label is text
+  // Bare tinted buttons — no background wash. The add-time label is text
   // ("+15s", matching the in-app rest bar) because SF Symbols' goforward.15
   // family means media seek, which reads as skipping rest, not extending it.
-  const restButtonModifiers = (label: string) => [
+  const timerButtonModifiers = (label: string) => [
     buttonStyle('borderless'),
     controlSize('large'),
     accessibilityLabel(label),
   ];
   // Both labels share one font so the SF Symbol scales to match the text.
-  const restButtonFont = font({ weight: 'semibold', size: 17 });
+  const timerButtonFont = font({ weight: 'semibold', size: 17 });
+  // The two countdown phases each get a pair: extend, and end this phase. The
+  // targets are written out per phase rather than picked by a ternary so both
+  // this file and the service can be grepped for the literal string that has
+  // to match on the other side.
   const actionButtons = () => {
-    if (restInterval) {
+    if (props.phase === 'holding') {
+      return (
+        <HStack spacing={8}>
+          <Button
+            target="hold-add-15"
+            modifiers={timerButtonModifiers(props.labels.addFifteenSeconds)}
+          >
+            <Text modifiers={[timerButtonFont, monospacedDigit()]}>
+              {props.labels.addFifteenSecondsShort}
+            </Text>
+          </Button>
+          {/* Stop logs the set with the time actually held, so it ends the
+              phase the way Skip ends a rest — the destructive-looking symbol
+              is the in-app sheet's own wording ("Stop"), not a discard. */}
+          <Button
+            target="hold-stop"
+            modifiers={timerButtonModifiers(props.labels.stopHold)}
+          >
+            <Image systemName="stop.fill" modifiers={[timerButtonFont]} />
+          </Button>
+        </HStack>
+      );
+    }
+    if (props.phase === 'resting') {
       return (
         <HStack spacing={8}>
           <Button
             target="rest-add-15"
-            modifiers={restButtonModifiers(props.labels.addFifteenSeconds)}
+            modifiers={timerButtonModifiers(props.labels.addFifteenSeconds)}
           >
-            <Text modifiers={[restButtonFont, monospacedDigit()]}>
+            <Text modifiers={[timerButtonFont, monospacedDigit()]}>
               {props.labels.addFifteenSecondsShort}
             </Text>
           </Button>
           <Button
             target="rest-skip"
-            modifiers={restButtonModifiers(props.labels.skipRest)}
+            modifiers={timerButtonModifiers(props.labels.skipRest)}
           >
-            <Image systemName="forward.end.fill" modifiers={[restButtonFont]} />
+            <Image
+              systemName="forward.end.fill"
+              modifiers={[timerButtonFont]}
+            />
           </Button>
         </HStack>
       );
@@ -357,7 +405,7 @@ const WorkoutLiveActivity = (props: WorkoutLiveActivityProps) => {
           <Spacer />
           {actionButtons()}
         </HStack>
-        {restProgress()}
+        {countdownProgress()}
       </VStack>
     ),
     // Watch Smart Stack (watchOS 11+) and CarPlay. No buttons: the layout can
@@ -369,10 +417,10 @@ const WorkoutLiveActivity = (props: WorkoutLiveActivityProps) => {
             {props.workoutName}
           </Text>
           <Spacer />
-          {restInterval ? restCountdown(48) : elapsedClock(64)}
+          {countdownInterval ? countdownClock(48) : elapsedClock(64)}
         </HStack>
         {statusLine()}
-        {restProgress()}
+        {countdownProgress()}
       </VStack>
     ),
     compactLeading: appIcon(24),
@@ -394,7 +442,7 @@ const WorkoutLiveActivity = (props: WorkoutLiveActivityProps) => {
           <Spacer />
           {actionButtons()}
         </HStack>
-        {restProgress()}
+        {countdownProgress()}
       </VStack>
     ),
   };

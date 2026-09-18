@@ -23,10 +23,15 @@ import {
 import Icon from './Icon';
 import SafeImage from './SafeImage';
 import CompletionCheck from './CompletionCheck';
+import MuscleRegionBadge from './MuscleRegionBadge';
 import FormInput from './FormInput';
 import RestPeriodChip from './RestPeriodChip';
 import ActiveWorkoutSetRow, {
+  TIMELINE_BADGE_SIZE,
+  TIMELINE_RAIL_INSET,
+  TIMELINE_ROW_GAP,
   type SetRowAccessoryHandle,
+  type SetRowLayout,
   type SetRowState,
 } from './ActiveWorkoutSetRow';
 import type { SetInputField } from './SetRowChrome';
@@ -47,6 +52,7 @@ import {
   compareSetRecords,
   effectiveSetDurationSec,
   formatDurationSeconds,
+  formatSetLoad,
   formatVolume,
   getExerciseVolumeKg,
   isWarmupSetType,
@@ -102,7 +108,14 @@ interface ActiveWorkoutExerciseCardProps {
    * and stats line active; completion state is display-only (completedBadge)
    * so completed sets stay editable.
    */
-  mode?: 'live' | 'view' | 'edit';
+  /**
+   * `live` is the running workout, `view` read-only, `edit` the preset/workout
+   * builder. `plan` is a generated prescription that has not started: editable
+   * like `edit`, but with no progression configuration (there is no preset to
+   * progress) and no prefill from last session (the engine already programmed
+   * the numbers, and overwriting them would be silent).
+   */
+  mode?: 'live' | 'view' | 'edit' | 'plan';
   /**
    * The active/edited/viewed session's preset-entry id, forwarded to the
    * stats query so that session's own sets are excluded from the historical
@@ -128,6 +141,23 @@ interface ActiveWorkoutExerciseCardProps {
   /** Hide the rest chip entirely (e.g. imported workouts without rest data). */
   showRestChip?: boolean;
   /**
+   * Drop the card's own exercise header — thumbnail, name, subtitle and the ⋯
+   * trigger. `ExerciseSheetScreen` renders the hero, the name and its own chip
+   * row above this card, so the header would be the same information twice.
+   *
+   * Everything below it — progression, notes, rest chip, the cardio form, the
+   * set rows and Add Set — is the same job in both places and stays here, so
+   * the two surfaces cannot drift in how a workout exercise is edited.
+   */
+  headerless?: boolean;
+  /**
+   * Set-list shape, forwarded to every row. `timeline` is the exercise sheet's
+   * badge-and-two-cells arrangement; it also drops the column header (the
+   * cells label themselves) and restyles Add Set as the last stop on the
+   * hairline. See {@link ActiveWorkoutSetRow}'s `layout`.
+   */
+  setLayout?: SetRowLayout;
+  /**
    * Edit only: enables the inline calories field in the chip row. The text
    * comes from `exercise.editCaloriesText`; view mode instead shows
    * `calories_burned` read-only when present.
@@ -145,6 +175,13 @@ interface ActiveWorkoutExerciseCardProps {
   onPressMetricHeader: (anchor: AnchorRect, clampedToRpe: boolean) => void;
   onPressOverflow?: (entryId: string) => void;
   onComplete?: (setId: string) => void;
+  /**
+   * Live only: start the hold timer for a timed set. Passed down only when the
+   * store would accept it, so the row never offers a dead control.
+   */
+  onStartHold?: (setId: string) => void;
+  /** The set currently being held, if any — marks its row as in progress. */
+  holdingSetId?: string | null;
   onUncomplete?: (setId: string) => void;
   onCommitField?: (setId: string, patch: ActiveSetPatch) => void;
   onDeleteSet?: (setId: string) => void;
@@ -211,6 +248,35 @@ interface ActiveWorkoutExerciseCardProps {
 }
 
 /**
+ * Media tile on a collapsed exercise row. Big enough that the photo reads as
+ * the exercise at a glance while scanning the log, which is the row's whole
+ * job once the card is shut.
+ */
+const COLLAPSED_MEDIA_SIZE = 52;
+
+/**
+ * Media tile in the expanded card's own header, where the set table below is
+ * what the eye is on and the tile is only an anchor for the name.
+ */
+const HEADER_MEDIA_SIZE = 42;
+
+/** Height of a per-set progress pip on the cursor's collapsed row. */
+const SET_PIP_HEIGHT = 4;
+/** Row horizontal padding (px-2), which the timeline is measured from. */
+const ROW_PADDING_X = 8;
+/** Hairline connecting consecutive live rows through the thumb column. */
+const TIMELINE_WIDTH = 1.5;
+/** Muscle-region badge overlapping the collapsed row's thumb. */
+const COLLAPSED_BADGE_SIZE = 26;
+
+/**
+ * Widest the pip strip grows to. Pips are `flex-1` inside it, so a long
+ * exercise divides the same strip into thinner marks instead of running the
+ * row's width.
+ */
+const SET_PIP_STRIP_MAX_WIDTH = 160;
+
+/**
  * Exercise image with a category-icon fallback. Exported so the reorder list
  * can reuse the exact thumbnail treatment.
  */
@@ -218,10 +284,13 @@ export function ExerciseThumb({
   exercise,
   getImageSource,
   size,
+  radius = 8,
 }: {
   exercise: WorkoutCardExercise;
   getImageSource: GetImageSource;
   size: number;
+  /** Corner radius of the tile; scales with `size` at the larger sizes. */
+  radius?: number;
 }) {
   const textMuted = String(useCSSVariable('--color-text-muted'));
   const snapshot = exercise.exercise_snapshot;
@@ -233,11 +302,11 @@ export function ExerciseThumb({
   return (
     <SafeImage
       source={image ? getImageSource(image) : null}
-      style={{ width: size, height: size, borderRadius: 8 }}
+      style={{ width: size, height: size, borderRadius: radius }}
       fallback={
         <View
           className="bg-raised items-center justify-center"
-          style={{ width: size, height: size, borderRadius: 8 }}
+          style={{ width: size, height: size, borderRadius: radius }}
         >
           <Icon name={fallbackIcon} size={size * 0.55} color={textMuted} />
         </View>
@@ -251,6 +320,10 @@ function ActiveWorkoutExerciseCard({
   expanded,
   completedSetIds,
   activeSetId,
+  onStartHold,
+  holdingSetId = null,
+  headerless = false,
+  setLayout = 'grid',
   metricColumn,
   weightUnit,
   distanceUnit = 'km',
@@ -293,12 +366,25 @@ function ActiveWorkoutExerciseCard({
   const readOnly = mode === 'view';
   const isEdit = mode === 'edit';
   const isLive = mode === 'live';
-  const [textMuted, accentPrimary, textSecondary, prColor] = useCSSVariable([
+  const [
+    textMuted,
+    accentPrimary,
+    textSecondary,
+    prColor,
+    successColor,
+    borderColor,
+    borderSubtle,
+  ] = useCSSVariable([
     '--color-text-muted',
     '--color-accent-primary',
     '--color-text-secondary',
     '--color-pr',
-  ]) as [string, string, string, string];
+    '--color-icon-success',
+    '--color-border',
+    '--color-border-subtle',
+  ]) as [string, string, string, string, string, string, string];
+
+  const isTimeline = setLayout === 'timeline';
 
   const name =
     exercise.exercise_snapshot?.name ??
@@ -321,6 +407,10 @@ function ActiveWorkoutExerciseCard({
       : t('workout.lbs', { defaultValue: 'lbs' });
   // Resolved once per exercise; every row and the column header derive from it.
   const modality = resolveSnapshotModality(exercise.exercise_snapshot);
+  // First primary muscle only: the badge is one region, and an exercise that
+  // names none renders no badge rather than a blank tile.
+  const primaryMuscle =
+    exercise.exercise_snapshot?.primary_muscles?.[0] ?? null;
   const durationLike = isDurationModality(modality);
   const cardioForm =
     cardioFormEnabled &&
@@ -427,6 +517,11 @@ function ActiveWorkoutExerciseCard({
   // same sources completion adoption uses in the store, so the gray value a
   // row shows is exactly what logging it would record.
   const plannedSetValues = useActiveWorkoutStore((s) => s.plannedSetValues);
+  // A generated workout's prescription outranks history; a preset's
+  // programmed set does not. See `resolveAssumedSetValues`.
+  const plannedOutranksPrevious = useActiveWorkoutStore(
+    (s) => s.sourceRecommendationId != null
+  );
   const assumedSetValues = useMemo(
     () =>
       isLive
@@ -437,7 +532,8 @@ function ActiveWorkoutExerciseCard({
             progressionResult?.goalAchieved &&
               progressionResult.status === 'PROGRESSION_WEIGHT_INCREASE'
               ? weightToKg(progressionResult.suggestedWeight, weightUnit)
-              : null
+              : null,
+            plannedOutranksPrevious
           )
         : null,
     [
@@ -445,6 +541,7 @@ function ActiveWorkoutExerciseCard({
       exercise.sets,
       previousSessionSets,
       plannedSetValues,
+      plannedOutranksPrevious,
       progressionResult,
       weightUnit,
     ]
@@ -611,20 +708,56 @@ function ActiveWorkoutExerciseCard({
     [onLongPressSet, translateSetKey]
   );
 
-  const thumb = (
-    <View>
-      <ExerciseThumb
-        exercise={exercise}
-        getImageSource={getImageSource}
-        size={42}
-      />
-      {isDone && !isEdit && (
-        <View className="absolute" style={{ right: -3, top: -3 }}>
-          <CompletionCheck size={15} iconSize={9} />
-        </View>
-      )}
-    </View>
-  );
+  /**
+   * The media tile and its completion badge at a caller-chosen size. The
+   * collapsed row runs at {@link COLLAPSED_MEDIA_SIZE} and the expanded card's
+   * own header stays at the tighter {@link HEADER_MEDIA_SIZE}, so growing the
+   * row does not also grow the card it opens into. The badge and the corner
+   * radius are derived from the size rather than passed, so the two surfaces
+   * cannot drift into differently-proportioned tiles.
+   *
+   * `withMuscleBadge` adds the muscle-region tile to the bottom corner, the
+   * same footnote-on-the-picture Up Next's rows carry. It is a parameter and
+   * not a second component because the media, the completion check and the
+   * badge have to stay children of ONE View at ONE depth: the collapsed row
+   * and the expanded header render this tile at different sizes, and a
+   * different tree shape between them remounts the image on every expand.
+   */
+  const renderThumb = (size: number, withMuscleBadge = false) => {
+    const badge = Math.round(size * 0.38);
+    const offset = -Math.round(badge * 0.2);
+    return (
+      <View>
+        <ExerciseThumb
+          exercise={exercise}
+          getImageSource={getImageSource}
+          size={size}
+          radius={Math.round(size * 0.21)}
+        />
+        {isDone && !isEdit && (
+          <View
+            className="absolute rounded-full bg-background"
+            style={{ right: offset, top: offset, padding: 2 }}
+          >
+            <CompletionCheck size={badge} iconSize={Math.round(badge * 0.6)} />
+          </View>
+        )}
+        {withMuscleBadge && primaryMuscle != null && (
+          <View
+            pointerEvents="none"
+            testID="exercise-row-muscle-badge"
+            style={{ position: 'absolute', right: -5, bottom: -5 }}
+          >
+            <MuscleRegionBadge
+              muscle={primaryMuscle}
+              size={COLLAPSED_BADGE_SIZE}
+            />
+          </View>
+        )}
+      </View>
+    );
+  };
+  const thumb = renderThumb(HEADER_MEDIA_SIZE);
 
   if (!expanded) {
     const volumeKg = getExerciseVolumeKg(exercise);
@@ -662,55 +795,206 @@ function ActiveWorkoutExerciseCard({
       : volumeKg > 0
         ? ` · ${formatVolume(volumeKg, weightUnit)}`
         : '';
-    const subtitle = cardioForm
-      ? cardioParts.join(' · ')
-      : readOnly || isEdit || anyComplete
-        ? `${exercise.sets.length} sets${detail}`
-        : `${exercise.sets.length} sets`;
+    const doneCount = exercise.sets.filter(
+      (s) => completedSetIds[String(s.id)]
+    ).length;
+    // The cursor lives on exactly one set across the whole workout, so the
+    // exercise holding it is the one the row treatment marks as current.
+    const activeIndex = isLive
+      ? exercise.sets.findIndex((s) => String(s.id) === activeSetId)
+      : -1;
+    const isCurrent = activeIndex >= 0;
+    const activeSet = isCurrent ? exercise.sets[activeIndex] : undefined;
+    // Built with the same formatter the rest bar uses, so the on-deck target
+    // reads identically whether you see it on the row or under the countdown.
+    const activeLoad =
+      activeSet == null
+        ? null
+        : formatSetLoad(
+            {
+              weightKg: activeSet.weight,
+              reps: activeSet.reps,
+              durationSec: durationLike
+                ? effectiveSetDurationSec(
+                    {
+                      duration: activeSet.duration ?? null,
+                      reps: activeSet.reps,
+                    },
+                    modality
+                  )
+                : null,
+            },
+            weightUnit,
+            t
+          );
+    const setsLine = isCurrent
+      ? `${t('activeWorkout.exercise.setProgress', {
+          defaultValue: 'Set {{index}} of {{total}}',
+          index: activeIndex + 1,
+          total: exercise.sets.length,
+        })}${activeLoad != null ? ` · ${activeLoad}` : ''}`
+      : isLive && doneCount > 0
+        ? `${t('activeWorkout.exercise.setsDone', {
+            defaultValue: '{{done}} of {{total}} sets',
+            done: doneCount,
+            total: exercise.sets.length,
+          })}${detail}`
+        : readOnly || isEdit || anyComplete
+          ? `${exercise.sets.length} sets${detail}`
+          : `${exercise.sets.length} sets`;
+    const subtitle = cardioForm ? cardioParts.join(' · ') : setsLine;
+    // The brand names the machine this was logged on — useful at the rack, but
+    // secondary to where the workout is up to, so it trails the progress.
+    const subtitleLine =
+      exercise.equipment_brand && subtitle
+        ? `${subtitle} · ${exercise.equipment_brand}`
+        : subtitle || (exercise.equipment_brand ?? '');
+    // The row's ⋯ is the same menu the expanded header carries. Collapsed it
+    // used to be long-press only, which nothing on screen advertised.
+    const showOverflow = !readOnly && onPressOverflow != null;
+    // In a live session the log is a list and the row is a way into the
+    // exercise's own sheet — where the hero, the how-to, the history and the
+    // set list all are. Tap-to-expand then has nowhere to live on the row, so
+    // it moves to its own chevron. Every other surface (a preset being
+    // edited, a finished workout being read) has no sheet to open and keeps
+    // tap-to-expand on the whole row, which is why this is not a mode flag:
+    // it is exactly "there is somewhere else to go".
+    const rowOpensSheet = isLive && onPressThumb != null;
+    const openRow = rowOpensSheet
+      ? () => onPressThumb(exercise.id)
+      : () => onToggleExpanded(exercise.id);
+    const rowLabel = rowOpensSheet
+      ? t('activeWorkout.exercise.viewDetails', {
+          defaultValue: 'View {{name}} details',
+          name,
+        })
+      : t('activeWorkout.exercise.expand', {
+          defaultValue: 'Expand {{name}}',
+          name,
+        });
 
     return (
-      <View className="border-b border-border-subtle">
-        <View className="flex-row items-center gap-3 px-2 py-3">
+      <View
+        className={`${rowOpensSheet ? '' : 'border-b border-border-subtle'} ${
+          isCurrent ? 'bg-surface' : ''
+        }`}
+      >
+        {/* zIndex, so the row paints over the timeline drawn after it: the
+            line has to run behind the thumb to be continuous, and a later
+            sibling would otherwise draw across the photo. */}
+        <View
+          className="flex-row items-center gap-3 px-2 py-3"
+          style={{ zIndex: 1 }}
+        >
           <Pressable
-            onPress={() => onToggleExpanded(exercise.id)}
+            onPress={openRow}
             onLongPress={longPressMenu}
             accessible={false}
           >
-            {thumb}
+            {renderThumb(COLLAPSED_MEDIA_SIZE, rowOpensSheet)}
           </Pressable>
           <Pressable
-            onPress={() => onToggleExpanded(exercise.id)}
+            onPress={openRow}
             onLongPress={longPressMenu}
             hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}
             accessibilityRole="button"
-            accessibilityLabel={t('activeWorkout.exercise.expand', {
-              defaultValue: 'Expand {{name}}',
-              name,
-            })}
-            className="flex-1 self-stretch flex-row items-center gap-3"
+            accessibilityLabel={rowLabel}
+            className="flex-1 self-stretch justify-center"
           >
-            <View className="flex-1">
-              <Text
-                numberOfLines={2}
-                className={`text-base ${isDone ? 'text-text-secondary' : 'text-text-primary'}`}
-              >
-                {name}
-              </Text>
-              {exercise.equipment_brand ? (
-                <Text className="text-xs text-text-muted mt-0.5">
-                  {exercise.equipment_brand}
-                </Text>
-              ) : null}
-            </View>
             <Text
-              className="text-sm text-text-muted"
-              style={{ fontVariant: ['tabular-nums'] }}
+              numberOfLines={2}
+              className={`text-base font-semibold ${isDone ? 'text-text-secondary' : 'text-text-primary'}`}
             >
-              {subtitle}
+              {name}
             </Text>
-            <Icon name="chevron-forward" size={16} color={textMuted} />
+            {subtitleLine ? (
+              <Text
+                numberOfLines={1}
+                className="text-text-muted mt-0.5"
+                style={{
+                  fontSize: 13,
+                  lineHeight: 18,
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
+                {subtitleLine}
+              </Text>
+            ) : null}
+            {isCurrent && (
+              <View
+                testID="exercise-set-pips"
+                className="flex-row mt-2"
+                style={{ gap: 4, maxWidth: SET_PIP_STRIP_MAX_WIDTH }}
+              >
+                {exercise.sets.map((s) => {
+                  const setId = String(s.id);
+                  return (
+                    <View
+                      key={setId}
+                      testID={`exercise-set-pip-${setId}`}
+                      style={{
+                        flex: 1,
+                        height: SET_PIP_HEIGHT,
+                        borderRadius: SET_PIP_HEIGHT / 2,
+                        backgroundColor: completedSetIds[setId]
+                          ? successColor
+                          : setId === activeSetId
+                            ? accentPrimary
+                            : borderColor,
+                      }}
+                    />
+                  );
+                })}
+              </View>
+            )}
           </Pressable>
+          {showOverflow ? (
+            <Pressable
+              onPress={openOverflowMenu}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('activeWorkout.exercise.moreOptions', {
+                defaultValue: 'More options for {{name}}',
+                name,
+              })}
+              className="p-1"
+            >
+              <Icon name="ellipsis-horizontal" size={18} color={textMuted} />
+            </Pressable>
+          ) : (
+            <Icon name="chevron-forward" size={16} color={textMuted} />
+          )}
         </View>
+        {/*
+          Drawn after the row rather than before it: the collapsed row and the
+          expanded card's header have to stay the same child index of this
+          View, or React remounts the thumbnail on every expand/collapse and
+          the image reloads with a visible flash.
+        */}
+        {isCurrent && (
+          <View
+            testID="current-exercise-rail"
+            className="absolute left-0 top-0 bottom-0"
+            style={{ width: 3, backgroundColor: accentPrimary }}
+          />
+        )}
+        {/* One hairline per row, full height and centred on the thumb column,
+            so consecutive rows join into a single unbroken line — the order
+            you will work through, rather than a stack of separate cards. The
+            row above paints over it everywhere the photo is opaque. */}
+        {rowOpensSheet && (
+          <View
+            testID="exercise-row-timeline"
+            pointerEvents="none"
+            className="absolute top-0 bottom-0"
+            style={{
+              left:
+                ROW_PADDING_X + COLLAPSED_MEDIA_SIZE / 2 - TIMELINE_WIDTH / 2,
+              width: TIMELINE_WIDTH,
+              backgroundColor: borderColor,
+            }}
+          />
+        )}
       </View>
     );
   }
@@ -719,74 +1003,76 @@ function ActiveWorkoutExerciseCard({
 
   return (
     <View className="border-b border-border-subtle px-2 pt-3 pb-2">
-      <View className="flex-row items-center gap-3">
-        <Pressable
-          onPress={onPressThumb ? () => onPressThumb(exercise.id) : undefined}
-          accessible={onPressThumb != null}
-          accessibilityRole={onPressThumb != null ? 'button' : undefined}
-          accessibilityLabel={
-            onPressThumb != null
-              ? t('activeWorkout.exercise.viewDetails', {
-                  defaultValue: 'View {{name}} details',
-                  name,
-                })
-              : undefined
-          }
-        >
-          {thumb}
-        </Pressable>
-        <Pressable
-          onPress={() => onToggleExpanded(exercise.id)}
-          onLongPress={longPressMenu}
-          hitSlop={{ top: 10, bottom: 4 }}
-          className="flex-1 self-stretch justify-center"
-          accessibilityRole="button"
-          accessibilityLabel={t('activeWorkout.exercise.collapse', {
-            defaultValue: 'Collapse {{name}}',
-            name,
-          })}
-        >
-          <Text
-            numberOfLines={2}
-            className="text-base font-semibold text-text-primary"
-          >
-            {name}
-          </Text>
-          {exercise.equipment_brand ? (
-            <Text className="text-xs text-text-muted mt-0.5">
-              {exercise.equipment_brand}
-            </Text>
-          ) : null}
-        </Pressable>
-        {!readOnly && (
+      {!headerless && (
+        <View className="flex-row items-center gap-3">
           <Pressable
-            onPress={openOverflowMenu}
-            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+            onPress={onPressThumb ? () => onPressThumb(exercise.id) : undefined}
+            accessible={onPressThumb != null}
+            accessibilityRole={onPressThumb != null ? 'button' : undefined}
+            accessibilityLabel={
+              onPressThumb != null
+                ? t('activeWorkout.exercise.viewDetails', {
+                    defaultValue: 'View {{name}} details',
+                    name,
+                  })
+                : undefined
+            }
+          >
+            {thumb}
+          </Pressable>
+          <Pressable
+            onPress={() => onToggleExpanded(exercise.id)}
+            onLongPress={longPressMenu}
+            hitSlop={{ top: 10, bottom: 4 }}
+            className="flex-1 self-stretch justify-center"
             accessibilityRole="button"
-            accessibilityLabel={t('activeWorkout.exercise.moreOptions', {
-              defaultValue: 'More options for {{name}}',
+            accessibilityLabel={t('activeWorkout.exercise.collapse', {
+              defaultValue: 'Collapse {{name}}',
+              name,
+            })}
+          >
+            <Text
+              numberOfLines={2}
+              className="text-base font-semibold text-text-primary"
+            >
+              {name}
+            </Text>
+            {exercise.equipment_brand ? (
+              <Text className="text-xs text-text-muted mt-0.5">
+                {exercise.equipment_brand}
+              </Text>
+            ) : null}
+          </Pressable>
+          {!readOnly && (
+            <Pressable
+              onPress={openOverflowMenu}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('activeWorkout.exercise.moreOptions', {
+                defaultValue: 'More options for {{name}}',
+                name,
+              })}
+              className="p-1"
+            >
+              <Icon name="ellipsis-horizontal" size={18} color={textMuted} />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => onToggleExpanded(exercise.id)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('activeWorkout.exercise.collapse', {
+              defaultValue: 'Collapse {{name}}',
               name,
             })}
             className="p-1"
           >
-            <Icon name="ellipsis-horizontal" size={18} color={textMuted} />
+            <Animated.View style={chevronStyle}>
+              <Icon name="chevron-down" size={18} color={textMuted} />
+            </Animated.View>
           </Pressable>
-        )}
-        <Pressable
-          onPress={() => onToggleExpanded(exercise.id)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('activeWorkout.exercise.collapse', {
-            defaultValue: 'Collapse {{name}}',
-            name,
-          })}
-          className="p-1"
-        >
-          <Animated.View style={chevronStyle}>
-            <Icon name="chevron-down" size={18} color={textMuted} />
-          </Animated.View>
-        </Pressable>
-      </View>
+        </View>
+      )}
 
       <Animated.View
         entering={hasRenderedCollapsed ? FadeInDown.duration(200) : undefined}
@@ -1228,7 +1514,10 @@ function ActiveWorkoutExerciseCard({
           />
         )}
 
-        {!cardioForm && exercise.sets.length > 0 && (
+        {/* The timeline's cells label themselves through their floating
+            notches, and it carries neither PREV nor the metric column, so the
+            header row has nothing left to name. */}
+        {!cardioForm && !isTimeline && exercise.sets.length > 0 && (
           <View className="flex-row items-center px-1 py-1.5">
             <Text
               className={`${durationLike ? 'flex-1' : 'w-9'} text-center text-xs font-semibold uppercase text-text-muted`}
@@ -1331,6 +1620,8 @@ function ActiveWorkoutExerciseCard({
                   assumed={assumedSetValues?.[index] ?? null}
                   mode={mode}
                   onComplete={onComplete}
+                  onStartHold={isLive ? onStartHold : undefined}
+                  isHolding={holdingSetId === setId}
                   onUncomplete={onUncomplete}
                   onCommitField={onCommitField}
                   onDelete={onDeleteSet}
@@ -1348,6 +1639,8 @@ function ActiveWorkoutExerciseCard({
                   onEditFieldChange={onEditFieldChange}
                   onAddSet={onAddSet}
                   onRegisterAccessoryHandle={onRegisterAccessoryHandle}
+                  layout={setLayout}
+                  timelineFirst={index === 0}
                 />
                 {!readOnly &&
                   expandedSetKey === renderKey &&
@@ -1377,24 +1670,93 @@ function ActiveWorkoutExerciseCard({
             );
           })}
 
-        {!readOnly && !cardioForm && (
+        {/* The cardio effort form has no set table to add a row to, so it
+            normally has no add control either. In the forms it gets one
+            anyway, labelled for what it does: a second set takes the entry
+            past `rendersCardioEffortForm`'s one-set limit, so the block
+            becomes a table of timed intervals — which is the only way to
+            prescribe "6 x 30s" without starting a workout, and the only way
+            those rounds can be held by the hold timer. A distance already
+            entered on the first set is kept and still shows on the logged
+            workout; the interval table just does not edit it. Live is
+            deliberately excluded: mid-run is not when the shape of the entry
+            should change. */}
+        {(!cardioForm || isEdit) && !readOnly && (
           <Pressable
             onPress={() => onAddSet?.(exercise.id)}
             accessibilityRole="button"
-            accessibilityLabel={t('activeWorkout.exercise.addSet', {
-              defaultValue: 'Add set to {{name}}',
-              name,
-            })}
-            className="flex-row items-center justify-center gap-1.5 py-2.5 mt-1"
+            accessibilityLabel={
+              cardioForm
+                ? t('activeWorkout.exercise.addInterval', {
+                    defaultValue: 'Add interval to {{name}}',
+                    name,
+                  })
+                : t('activeWorkout.exercise.addSet', {
+                    defaultValue: 'Add set to {{name}}',
+                    name,
+                  })
+            }
+            className={
+              isTimeline
+                ? 'flex-row items-center'
+                : 'flex-row items-center justify-center gap-1.5 py-2.5 mt-1'
+            }
+            style={
+              isTimeline
+                ? {
+                    gap: TIMELINE_ROW_GAP,
+                    paddingVertical: TIMELINE_ROW_GAP / 2,
+                  }
+                : undefined
+            }
           >
-            <Icon name="add" size={15} color={accentPrimary} />
+            {/* On the timeline, Add Set is the last stop on the rail rather
+                than a centred link under the table: a dashed badge where the
+                next set's number would be. */}
+            {isTimeline && exercise.sets.length > 0 && (
+              // The rail's last segment, ending on the dashed badge.
+              <View
+                pointerEvents="none"
+                className="absolute"
+                style={{
+                  left: TIMELINE_BADGE_SIZE / 2 - 1,
+                  top: 0,
+                  bottom: TIMELINE_RAIL_INSET,
+                  width: 2,
+                  backgroundColor: borderSubtle,
+                }}
+              />
+            )}
+            {isTimeline ? (
+              <View
+                className="items-center justify-center"
+                style={{
+                  width: TIMELINE_BADGE_SIZE,
+                  height: TIMELINE_BADGE_SIZE,
+                  borderRadius: TIMELINE_BADGE_SIZE / 2,
+                  borderWidth: 1,
+                  borderStyle: 'dashed',
+                  borderColor: accentPrimary,
+                }}
+              >
+                <Icon name="add" size={14} color={accentPrimary} />
+              </View>
+            ) : (
+              <Icon name="add" size={15} color={accentPrimary} />
+            )}
             <Text
-              className="text-sm font-medium"
+              className={
+                isTimeline ? 'text-base font-semibold' : 'text-sm font-medium'
+              }
               style={{ color: accentPrimary }}
             >
-              {t('activeWorkout.exercise.addSetLabel', {
-                defaultValue: 'Add set',
-              })}
+              {cardioForm
+                ? t('activeWorkout.exercise.addIntervalLabel', {
+                    defaultValue: 'Add interval',
+                  })
+                : t('activeWorkout.exercise.addSetLabel', {
+                    defaultValue: 'Add set',
+                  })}
             </Text>
           </Pressable>
         )}

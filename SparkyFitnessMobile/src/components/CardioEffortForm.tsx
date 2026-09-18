@@ -39,7 +39,7 @@ interface CardioEffortFormProps {
    */
   set: WorkoutCardSet | null;
   exerciseName: string;
-  mode: 'live' | 'view' | 'edit';
+  mode: 'live' | 'view' | 'edit' | 'plan';
   distanceUnit: 'km' | 'miles';
   /**
    * Live only: the set's row state, derived by the card exactly like a table
@@ -318,7 +318,7 @@ export default function CardioEffortForm({
           })}
           className="w-16"
           placeholder={assumedMinutesText ?? '–'}
-          flat
+          flat={mode === 'edit'}
         />
       </View>
       <View className="flex-1 items-center">
@@ -349,7 +349,7 @@ export default function CardioEffortForm({
           })}
           className="w-16"
           placeholder={assumedDistanceText ?? '–'}
-          flat
+          flat={mode === 'edit'}
         />
       </View>
       {mode === 'live' && onComplete != null && (

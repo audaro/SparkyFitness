@@ -5,6 +5,7 @@ import {
   Pause,
   Play,
   SkipForward,
+  Square,
   X,
   AlertTriangle,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { instantHourMinute, userHourMinute } from '@workspace/shared';
 import type {
   WorkoutPlaybackDraft,
+  WorkoutPlaybackHoldTimer,
   WorkoutPlaybackStats,
 } from '@/utils/workoutPlayback';
 import { formatSecondsClock } from '@/utils/timeFormatters';
@@ -39,6 +41,8 @@ interface WorkoutPlaybackSummaryProps {
   stats: WorkoutPlaybackStats | null;
   restRemaining: string;
   isRestActive: boolean;
+  holdTimer: WorkoutPlaybackHoldTimer;
+  holdRemaining: string;
   saveError: string | null;
   isSaving: boolean;
   timezone: string;
@@ -47,6 +51,8 @@ interface WorkoutPlaybackSummaryProps {
   onFinishWorkout: () => void;
   onPauseResumeRest: () => void;
   onSkipRest: () => void;
+  onPauseResumeHold: () => void;
+  onStopHold: () => void;
   onSessionNotesChange: (value: string) => void;
   onStartTimeChange: (value: string) => void;
 }
@@ -58,6 +64,8 @@ const WorkoutPlaybackSummary = ({
   stats,
   restRemaining,
   isRestActive,
+  holdTimer,
+  holdRemaining,
   saveError,
   isSaving,
   timezone,
@@ -66,6 +74,8 @@ const WorkoutPlaybackSummary = ({
   onFinishWorkout,
   onPauseResumeRest,
   onSkipRest,
+  onPauseResumeHold,
+  onStopHold,
   onSessionNotesChange,
   onStartTimeChange,
 }: WorkoutPlaybackSummaryProps) => {
@@ -146,16 +156,55 @@ const WorkoutPlaybackSummary = ({
                 {stats?.completedSets ?? 0}/{stats?.totalSets ?? 0}
               </span>
             </div>
+            {/* One tile for both countdowns, because only one of them can be
+                running: a hold is the timed work of a set and a rest is the
+                break before the next one. The label says which is on. */}
             <div className="flex min-w-0 flex-col items-center justify-center bg-background px-1 py-2">
               <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                {t('exercise.workoutPlaybackPage.restTimer', 'Rest')}
+                {holdTimer.state === 'idle'
+                  ? t('exercise.workoutPlaybackPage.restTimer', 'Rest')
+                  : t('exercise.workoutPlaybackPage.holdTimer', 'Hold')}
               </span>
               <span className="mt-0.5 text-sm font-medium tabular-nums text-foreground">
-                {draft.rest_timer.state === 'idle'
-                  ? DEFAULT_REST_DISPLAY
-                  : restRemaining}
+                {holdTimer.state !== 'idle'
+                  ? holdRemaining
+                  : draft.rest_timer.state === 'idle'
+                    ? DEFAULT_REST_DISPLAY
+                    : restRemaining}
               </span>
-              {isRestActive && (
+              {holdTimer.state !== 'idle' && (
+                <div className="mt-1 flex items-center gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    aria-label={
+                      holdTimer.state === 'running'
+                        ? t('common.pause', 'Pause')
+                        : t('common.resume', 'Resume')
+                    }
+                    onClick={onPauseResumeHold}
+                  >
+                    {holdTimer.state === 'running' ? (
+                      <Pause className="h-3 w-3" />
+                    ) : (
+                      <Play className="h-3 w-3" />
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    aria-label={t('workout.stopHold', 'Stop hold')}
+                    onClick={onStopHold}
+                  >
+                    <Square className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+              {holdTimer.state === 'idle' && isRestActive && (
                 <div className="mt-1 flex items-center gap-0.5">
                   <Button
                     type="button"

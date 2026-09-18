@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import type { ExerciseEntryResponse } from '@workspace/shared';
 import ActiveWorkoutExerciseCard from '../../src/components/ActiveWorkoutExerciseCard';
@@ -256,6 +257,30 @@ describe('ActiveWorkoutExerciseCard', () => {
       expect(utils.getByText('Duration (min)')).toBeTruthy();
       expect(utils.getByText('Distance (km)')).toBeTruthy();
       expect(utils.queryByLabelText('Add set to Bench Press')).toBeNull();
+      // Live: the shape of the entry is not up for renegotiation mid-run.
+      expect(utils.queryByLabelText('Add interval to Bench Press')).toBeNull();
+    });
+
+    it('offers the cardio form an Add interval control in the forms', () => {
+      // The only way to prescribe "6 x 30s" without starting a workout: a
+      // second set takes the entry past the one-set limit, so the block
+      // becomes a table of timed intervals the hold timer can run.
+      const utils = renderCard(true, {
+        mode: 'edit',
+        exercise: withModality('duration_distance'),
+      });
+      expect(utils.queryByLabelText('Add set to Bench Press')).toBeNull();
+      fireEvent.press(utils.getByLabelText('Add interval to Bench Press'));
+      expect(utils.callbacks.onAddSet).toHaveBeenCalledWith('ex-uuid-1');
+    });
+
+    it('keeps the Add set wording for a set table in the forms', () => {
+      const utils = renderCard(true, {
+        mode: 'edit',
+        exercise: withModality('duration'),
+      });
+      expect(utils.getByLabelText('Add set to Bench Press')).toBeTruthy();
+      expect(utils.queryByLabelText('Add interval to Bench Press')).toBeNull();
     });
 
     it('labels the distance input in miles when that is the display unit', () => {
@@ -427,15 +452,177 @@ describe('ActiveWorkoutExerciseCard', () => {
     expect(callbacks.onPressOverflow).toHaveBeenCalledWith('ex-uuid-1');
   });
 
-  it('offers no overflow trigger while collapsed (expand first)', () => {
-    const { queryByLabelText } = renderCard(false);
-    expect(queryByLabelText('More options for Bench Press')).toBeNull();
+  it('carries the overflow trigger on the collapsed row too', () => {
+    // The menu used to be long-press-only while collapsed, which nothing on
+    // screen advertised; the row now ends in the same ⋯ the header carries.
+    const { getByLabelText, callbacks } = renderCard(false);
+
+    fireEvent.press(getByLabelText('More options for Bench Press'));
+
+    expect(callbacks.onPressOverflow).toHaveBeenCalledWith('ex-uuid-1');
+  });
+
+  describe('collapsed row', () => {
+    /** `completedSetIds` stores a completion timestamp, not a flag. */
+    const DONE_AT = Date.parse('2026-07-06T10:00:00.000Z');
+
+    /** Three working sets, so "of 3" and the pip strip have something to say. */
+    const threeSets = () =>
+      makeExercise({
+        sets: [
+          {
+            id: 101,
+            set_number: 1,
+            set_type: 'normal',
+            reps: 10,
+            weight: 60,
+            duration: null,
+            rest_time: 90,
+            notes: null,
+            rpe: null,
+            completed_at: null,
+            is_pr: false,
+          },
+          {
+            id: 102,
+            set_number: 2,
+            set_type: 'normal',
+            reps: 8,
+            weight: 65,
+            duration: null,
+            rest_time: 90,
+            notes: null,
+            rpe: null,
+            completed_at: null,
+            is_pr: false,
+          },
+          {
+            id: 103,
+            set_number: 3,
+            set_type: 'normal',
+            reps: 6,
+            weight: 70,
+            duration: null,
+            rest_time: 90,
+            notes: null,
+            rpe: null,
+            completed_at: null,
+            is_pr: false,
+          },
+        ],
+      });
+
+    it('names the set the cursor is on and what it is programmed for', () => {
+      const { getByText } = renderCard(false, {
+        exercise: threeSets(),
+        activeSetId: '102',
+        completedSetIds: { '101': DONE_AT },
+      });
+      expect(getByText('Set 2 of 3 · 65 kg × 8')).toBeTruthy();
+    });
+
+    it('marks the cursor exercise with an accent rail and one pip per set', () => {
+      const { getByTestId, getAllByTestId } = renderCard(false, {
+        exercise: threeSets(),
+        activeSetId: '102',
+        completedSetIds: { '101': DONE_AT },
+      });
+      expect(getByTestId('current-exercise-rail')).toBeTruthy();
+      expect(getByTestId('exercise-set-pips')).toBeTruthy();
+      expect(getAllByTestId(/^exercise-set-pip-/)).toHaveLength(3);
+    });
+
+    it('leaves the rail and pips off an exercise the cursor is not on', () => {
+      const { queryByTestId } = renderCard(false, {
+        exercise: threeSets(),
+        activeSetId: '999',
+        completedSetIds: { '101': DONE_AT },
+      });
+      expect(queryByTestId('current-exercise-rail')).toBeNull();
+      expect(queryByTestId('exercise-set-pips')).toBeNull();
+    });
+
+    it('counts the sets already logged on an exercise the cursor has left', () => {
+      const { getByText } = renderCard(false, {
+        exercise: threeSets(),
+        activeSetId: '999',
+        completedSetIds: { '101': DONE_AT, '102': DONE_AT },
+      });
+      expect(getByText(/^2 of 3 sets/)).toBeTruthy();
+    });
+  });
+
+  describe('collapsed row in a live session', () => {
+    it('opens the exercise sheet rather than the inline table', () => {
+      // The log is a list; the sheet is where an exercise's hero, how-to,
+      // history and set list live. Tapping the row goes there.
+      const onPressThumb = jest.fn();
+      const { getByLabelText, callbacks } = renderCard(false, {
+        onPressThumb,
+      });
+      fireEvent.press(getByLabelText('View Bench Press details'));
+      expect(onPressThumb).toHaveBeenCalledWith('ex-uuid-1');
+      expect(callbacks.onToggleExpanded).not.toHaveBeenCalled();
+    });
+
+    it("ends in the ⋯ menu alone, as Fitbod's rows do", () => {
+      // No chevron: the row's only trailing control is the menu, which is
+      // where the inline table's Edit-sets-here action lives.
+      const { getByLabelText, queryByTestId } = renderCard(false, {
+        onPressThumb: jest.fn(),
+      });
+      expect(queryByTestId('expand-ex-uuid-1')).toBeNull();
+      expect(getByLabelText('More options for Bench Press')).toBeTruthy();
+    });
+
+    it('strings the rows on a timeline instead of dividing them', () => {
+      const { getByTestId } = renderCard(false, { onPressThumb: jest.fn() });
+      const line = getByTestId('exercise-row-timeline');
+      const style = StyleSheet.flatten(line.props.style);
+      // Centred on the thumb column, so consecutive rows join into one line.
+      expect(style.left).toBeCloseTo(8 + 52 / 2 - 0.75);
+    });
+
+    it("badges the row with the exercise's muscle region", () => {
+      const base = makeExercise();
+      const { getByTestId } = renderCard(false, {
+        onPressThumb: jest.fn(),
+        exercise: {
+          ...base,
+          exercise_snapshot: {
+            ...base.exercise_snapshot!,
+            primary_muscles: ['chest'],
+          },
+        },
+      });
+      expect(getByTestId('exercise-row-muscle-badge')).toBeTruthy();
+    });
+
+    it('draws no badge for an exercise that names no muscle', () => {
+      // A blank tile is worse than none: the badge is a footnote, and an
+      // empty one reads as a region the app could not identify.
+      const { queryByTestId } = renderCard(false, {
+        onPressThumb: jest.fn(),
+      });
+      expect(queryByTestId('exercise-row-muscle-badge')).toBeNull();
+    });
+
+    it('keeps tap-to-expand on a surface with no sheet to open', () => {
+      // A preset being edited and a finished workout being read have nowhere
+      // for the row to lead, so the row itself stays the expand target and
+      // grows no second chevron.
+      const { getByLabelText, queryByTestId, callbacks } = renderCard(false);
+      fireEvent.press(getByLabelText('Expand Bench Press'));
+      expect(callbacks.onToggleExpanded).toHaveBeenCalledWith('ex-uuid-1');
+      expect(queryByTestId('expand-ex-uuid-1')).toBeNull();
+    });
   });
 
   it('extends the collapsed expand target through the row padding on both sides', () => {
-    // The 16px chevron sits flush against the row's px-2 (8px) right padding;
-    // without right slop, taps aimed at the icon land in dead margin and the
-    // row never expands. Left slop covers the gap-3 strip next to the thumb.
+    // The trailing ⋯/chevron sits flush against the row's px-2 (8px) right
+    // padding; without right slop, taps aimed just inside it land in dead
+    // margin and the row never expands. Left slop covers the gap-3 strip
+    // next to the thumb.
     const { getByLabelText } = renderCard(false);
     const { hitSlop } = getByLabelText('Expand Bench Press').props;
     expect(hitSlop.right).toBeGreaterThanOrEqual(8);

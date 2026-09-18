@@ -29,7 +29,7 @@ import {
   makeSparseExercise,
   presetExerciseToCardExercise,
 } from '../utils/workoutSession';
-import { useSupersetBorders } from '../components/ActiveWorkoutRail';
+import { useSupersetBorders } from '../hooks/useSupersetBorders';
 import type { RootStackScreenProps } from '../types/navigation';
 
 type WorkoutPresetDetailScreenProps =
