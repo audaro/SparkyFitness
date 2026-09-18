@@ -615,6 +615,27 @@ describe('UpNextScreen', () => {
       const screen = renderScreen();
       expect(screen.queryByTestId('up-next-coach-card')).toBeNull();
     });
+
+    it('sits below the chips that change the workout it explains', () => {
+      setRecommendation(
+        makeRecommendation({
+          payload: makePayload({
+            rationale: 'Lower body, since Sunday was chest and triceps.',
+          }),
+        })
+      );
+
+      const screen = renderScreen();
+      // Order, not just presence. The chips regenerate the workout and the
+      // note describes the one that came back, so a note rendered above them
+      // reads as a caption for controls it does not answer to. Nothing else
+      // asserts the header's order, and a moved JSX block is silent.
+      const tree = JSON.stringify(screen.toJSON());
+      const chipAt = tree.indexOf('Change workout length');
+      const noteAt = tree.indexOf('up-next-coach-card');
+      expect(chipAt).toBeGreaterThan(-1);
+      expect(noteAt).toBeGreaterThan(chipAt);
+    });
   });
 
   describe('carrying the current workout forward', () => {

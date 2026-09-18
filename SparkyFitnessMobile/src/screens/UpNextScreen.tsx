@@ -760,13 +760,6 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
               {payload.muscle_groups.map(titleCaseCanonical).join(', ')}
             </Text>
 
-            {/* Absent on every workout generated before the payload carried
-                one, which is why the card renders nothing rather than an
-                empty shell. */}
-            {payload.rationale != null && (
-              <UpNextCoachCard rationale={payload.rationale} />
-            )}
-
             <View className="flex-row items-center mt-3">
               <BottomSheetPicker<number>
                 value={recommendation.target_duration_minutes}
@@ -811,6 +804,16 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
                 <ActivityIndicator size="small" color={accentPrimary} />
               )}
             </View>
+
+            {/* Under the chips, not above them: the chips adjust the workout
+                on screen and the note explains the one that came back, so the
+                note has to sit downstream of the controls that change it.
+                Absent on every workout generated before the payload carried a
+                rationale, which is why the card renders nothing rather than an
+                empty shell. */}
+            {payload.rationale != null && (
+              <UpNextCoachCard rationale={payload.rationale} />
+            )}
           </View>
 
           {plan.map(renderExerciseRow)}
