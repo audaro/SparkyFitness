@@ -24,7 +24,7 @@ import AnchoredMenu, {
   type AnchorRect,
 } from '../components/AnchoredMenu';
 import BottomSheetPicker from '../components/BottomSheetPicker';
-import UpNextCoachCard from '../components/UpNextCoachCard';
+import CoachNoteCard from '../components/CoachNoteCard';
 import Button from '../components/ui/Button';
 import Icon from '../components/Icon';
 import StatusView from '../components/StatusView';
@@ -812,7 +812,10 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
                 rationale, which is why the card renders nothing rather than an
                 empty shell. */}
             {payload.rationale != null && (
-              <UpNextCoachCard rationale={payload.rationale} />
+              <CoachNoteCard
+                rationale={payload.rationale}
+                testID="up-next-coach-card"
+              />
             )}
           </View>
 

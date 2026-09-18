@@ -6,6 +6,7 @@ import { CommonActions } from '@react-navigation/native';
 import { useCSSVariable } from 'uniwind';
 
 import ActiveWorkoutExerciseCard from '../components/ActiveWorkoutExerciseCard';
+import CoachNoteCard from '../components/CoachNoteCard';
 import { type AnchorRect } from '../components/AnchoredMenu';
 import ExerciseHeroMedia from '../components/ExerciseHeroMedia';
 import ExerciseHistoryList from '../components/ExerciseHistoryList';
@@ -551,17 +552,18 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
             </View>
           ) : null}
 
+          {/* Why the engine picked this exercise. Same card Up Next carries for
+              the workout as a whole, so the coach reads as one voice rather
+              than as an info banner here and a tinted note there. Live entries
+              have no rationale to show: the session carries the exercises, not
+              the prescription that produced them. */}
           {isPlan &&
           planDraft != null &&
           planDraft.exercise.rationale.length > 0 ? (
-            <View
-              className="mt-4 rounded-xl p-3 bg-info"
+            <CoachNoteCard
+              rationale={planDraft.exercise.rationale}
               testID="exercise-sheet-rationale"
-            >
-              <Text className="text-sm text-info">
-                {planDraft.exercise.rationale}
-              </Text>
-            </View>
+            />
           ) : null}
 
           {planCard != null ? (

@@ -16,17 +16,22 @@ const COLLAPSED_LINES = 2;
 /** Tint strength for the card's fill; the same one the set cursor pill uses. */
 const CARD_TINT_ALPHA = 0.12;
 
-interface UpNextCoachCardProps {
+interface CoachNoteCardProps {
   /**
    * The engine's paragraph, served on the recommendation payload. Server
    * English, rendered verbatim like the per-exercise rationale beside it — it
    * is generated text, not an application label, so it is not translated.
    */
   rationale: string;
+  /**
+   * Both surfaces that render a coach note had a testID before they shared a
+   * component, and QA flows anchor on them, so the caller keeps naming it.
+   */
+  testID?: string;
 }
 
 /**
- * Why this workout, above the exercises that answer it.
+ * The engine talking, in its own accent-tinted card.
  *
  * The engine already explains every row ("fresh quads · +2.5% from last
  * session"); what it could not say until now is why the session as a whole
@@ -40,7 +45,10 @@ interface UpNextCoachCardProps {
  * with every regenerate, so a collapse remembered from a different workout
  * would be answering a question the user never asked about this one.
  */
-function UpNextCoachCard({ rationale }: UpNextCoachCardProps) {
+function CoachNoteCard({
+  rationale,
+  testID = 'coach-note-card',
+}: CoachNoteCardProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
   const [accentPrimary, accentMuted] = useCSSVariable([
@@ -52,7 +60,7 @@ function UpNextCoachCard({ rationale }: UpNextCoachCardProps) {
 
   return (
     <Pressable
-      testID="up-next-coach-card"
+      testID={testID}
       onPress={() => setExpanded((value) => !value)}
       accessibilityRole="button"
       accessibilityState={{ expanded }}
@@ -104,4 +112,4 @@ function UpNextCoachCard({ rationale }: UpNextCoachCardProps) {
   );
 }
 
-export default React.memo(UpNextCoachCard);
+export default React.memo(CoachNoteCard);
