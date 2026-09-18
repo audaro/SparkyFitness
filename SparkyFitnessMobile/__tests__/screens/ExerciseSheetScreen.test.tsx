@@ -3,10 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import ExerciseSheetScreen from '../../src/screens/ExerciseSheetScreen';
-import {
-  findHeaderMenuAction,
-  pressHeaderMenuAction,
-} from './helpers/nativeHeaderTestUtils';
 import { useActiveWorkoutStore } from '../../src/stores/activeWorkoutStore';
 import type { Exercise } from '../../src/types/exercise';
 import type { PresetSessionResponse } from '@workspace/shared';
@@ -413,15 +409,27 @@ describe('ExerciseSheetScreen', () => {
     });
   });
 
-  it('keeps a route to the catalog page in the overflow menu', () => {
-    const { navigation } = renderSheet();
+  // The written instructions are a pill on the title row rather than a menu
+  // item: it is the one thing on this screen nobody can guess from the picture,
+  // so it should not be hidden behind an overflow.
+  it('keeps a route to the catalog page on the How-To pill', () => {
+    const { navigation, getByTestId } = renderSheet();
 
-    expect(findHeaderMenuAction(navigation, 'Exercise details')).toBeTruthy();
-    pressHeaderMenuAction(navigation, 'Exercise details');
+    fireEvent.press(getByTestId('exercise-sheet-how-to'));
 
     expect(navigation.navigate).toHaveBeenCalledWith('ExerciseDetail', {
       item: expect.objectContaining({ id: 'ex-1' }),
       hideWorkoutActions: true,
     });
+  });
+
+  // The hero runs to the edges under the status bar, so the only chrome over it
+  // is the dismiss -- there is no title bar left to carry a back button.
+  it('closes from the button floating over the hero, not a header', () => {
+    const { navigation, getByTestId } = renderSheet();
+
+    fireEvent.press(getByTestId('exercise-sheet-close'));
+
+    expect(navigation.goBack).toHaveBeenCalled();
   });
 });

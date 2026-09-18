@@ -2965,8 +2965,7 @@
     }
   },
   "exerciseSheet": {
-    "moreOptions": "More options",
-    "exerciseDetails": "Exercise details",
+    "howTo": "How-To",
     "rest": "Rest",
     "history": "History",
     "replace": "Replace"

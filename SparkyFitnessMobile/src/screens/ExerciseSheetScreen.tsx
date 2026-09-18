@@ -17,10 +17,8 @@ import { MetricColumnMenu } from '../components/WorkoutMenus';
 import { usePreferences } from '../hooks';
 import { useActiveWorkoutRestSheet } from '../hooks/useActiveWorkoutRestSheet';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
-import { useScreenHeader, type HeaderItem } from '../hooks/useScreenHeader';
 import { useSelectedExercise } from '../hooks/useSelectedExercise';
 import { localizeExerciseTaxonomyValue } from '../localization/exerciseTaxonomy';
-import { useNativeIOSHeadersActive } from '../services/nativeTabBarPreference';
 import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 import {
   useActiveWorkoutStore,
@@ -29,6 +27,7 @@ import {
 import type { RootStackScreenProps } from '../types/navigation';
 import {
   applyCardSetsToPlannedExercise,
+  formatRestChip,
   plannedExerciseToCardExercise,
   resolveSnapshotModality,
   type WorkoutCardSet,
@@ -125,7 +124,12 @@ function capitalize(value: string): string {
 function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const usesNativeHeader = useNativeIOSHeadersActive();
+  const [textSecondaryColor] = useCSSVariable(['--color-text-secondary']) as [
+    string,
+  ];
+  // The close button sits on photographic media in every theme, so its backdrop is
+  // a fixed scrim rather than a theme token -- there is no light hero to invert for.
+  const scrimColor = 'rgba(0,0,0,0.45)';
   const exercise = route.params.item;
 
   // Equipment · primary muscles · level, skipping whatever this exercise has
@@ -426,185 +430,208 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
     });
   }, [navigation, exercise]);
 
-  const rightItems = useMemo<HeaderItem[]>(
-    () => [
-      {
-        kind: 'menu',
-        accessibilityLabel: t('exerciseSheet.moreOptions', {
-          defaultValue: 'More options',
-        }),
-        items: [
-          {
-            label: t('exerciseSheet.exerciseDetails', {
-              defaultValue: 'Exercise details',
-            }),
-            sfSymbol: 'info.circle',
-            icon: 'info-circle',
-            onPress: handleOpenCatalog,
-          },
-        ],
-      },
-    ],
-    [t, handleOpenCatalog]
-  );
-
-  const header = useScreenHeader({
-    title: exercise.name,
-    nativeTitle: exercise.name,
-    borderless: true,
-    left: { kind: 'back' },
-    right: rightItems,
-  });
+  /**
+   * Rest as it is actually set, not the word "Rest". The chip is the only
+   * place this number is visible without opening the drawer, and the drawer
+   * is where it is changed — so a chip that named the control rather than its
+   * value made the user open it to find out.
+   */
+  const restChipLabel = useMemo(() => {
+    const sets = planDraft?.exercise.sets ?? entry?.sets;
+    const restSec = sets?.[0]?.rest_time;
+    return restSec == null || restSec <= 0
+      ? t('exerciseSheet.rest', { defaultValue: 'Rest' })
+      : formatRestChip(restSec);
+  }, [planDraft, entry, t]);
 
   return (
-    <View
-      className="flex-1 bg-background"
-      style={usesNativeHeader ? undefined : { paddingTop: insets.top }}
-    >
-      {header}
-
+    <View className="flex-1 bg-background">
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: 16,
-          paddingBottom: 16,
-        }}
+        contentContainerStyle={{ paddingBottom: 16 }}
       >
-        <ExerciseHeroMedia exercise={exercise} />
+        {/* Full bleed, under the status bar: the demonstration is what the
+            screen is for, and a title bar over it would spend the top of the
+            display naming the exercise the picture already shows. */}
+        <ExerciseHeroMedia exercise={exercise} fullBleed />
 
-        <View className="mt-4">
-          <Text
-            className="text-text-primary font-bold"
-            style={{ fontSize: 24 }}
-            testID="exercise-sheet-name"
-          >
-            {exercise.name}
-          </Text>
-          {taxonomyLine.length > 0 ? (
-            <Text
-              className="text-text-secondary mt-1"
-              style={{ fontSize: 13 }}
-              testID="exercise-sheet-taxonomy"
+        <View className="px-4">
+          <View className="mt-4 flex-row items-start">
+            <View className="flex-1 pr-3">
+              <Text
+                className="text-text-primary font-bold"
+                style={{ fontSize: 24 }}
+                testID="exercise-sheet-name"
+              >
+                {exercise.name}
+              </Text>
+              {taxonomyLine.length > 0 ? (
+                <Text
+                  className="text-text-secondary mt-1"
+                  style={{ fontSize: 13 }}
+                  testID="exercise-sheet-taxonomy"
+                >
+                  {taxonomyLine.join(' · ')}
+                </Text>
+              ) : null}
+            </View>
+            {/* The written instructions, which live on the catalog page. It
+                sits on the title rather than in a menu because it is the one
+                thing on this screen nobody can guess from the picture. */}
+            <Pressable
+              onPress={handleOpenCatalog}
+              accessibilityRole="button"
+              accessibilityLabel={t('exerciseSheet.howTo', {
+                defaultValue: 'How-To',
+              })}
+              testID="exercise-sheet-how-to"
+              className="flex-row items-center gap-1.5 rounded-full bg-raised px-3 py-2"
             >
-              {taxonomyLine.join(' · ')}
-            </Text>
-          ) : null}
-        </View>
+              <Icon name="play" size={13} color={textSecondaryColor} />
+              <Text className="text-text-secondary text-sm font-semibold">
+                {t('exerciseSheet.howTo', { defaultValue: 'How-To' })}
+              </Text>
+            </Pressable>
+          </View>
 
-        <View className="flex-row flex-wrap gap-2 mt-4">
-          <SheetChip
-            icon="timer"
-            label={t('exerciseSheet.rest', { defaultValue: 'Rest' })}
-            onPress={handlePressRest}
-            testID="exercise-sheet-rest-chip"
-          />
-          <SheetChip
-            icon="arrow-undo"
-            label={t('exerciseSheet.history', { defaultValue: 'History' })}
-            active={historyOpen}
-            onPress={() => setHistoryOpen((open) => !open)}
-            testID="exercise-sheet-history-chip"
-          />
-          {/*
+          <View className="flex-row flex-wrap gap-2 mt-4">
+            <SheetChip
+              icon="timer"
+              label={restChipLabel}
+              onPress={handlePressRest}
+              testID="exercise-sheet-rest-chip"
+            />
+            <SheetChip
+              icon="arrow-undo"
+              label={t('exerciseSheet.history', { defaultValue: 'History' })}
+              active={historyOpen}
+              onPress={() => setHistoryOpen((open) => !open)}
+              testID="exercise-sheet-history-chip"
+            />
+            {/*
             Replace is active-workout only. Swapping a *planned* exercise
             re-prescribes the whole workout server-side, so it belongs to Up
             Next's row menu, which owns the payload; a chip here would hand
             back one exercise the server never agreed to.
           */}
-          {!isPlan && (
-            <SheetChip
-              icon="swap-vertical"
-              label={t('exerciseSheet.replace', { defaultValue: 'Replace' })}
-              onPress={handleReplace}
-              testID="exercise-sheet-replace-chip"
-            />
-          )}
+            {!isPlan && (
+              <SheetChip
+                icon="swap-vertical"
+                label={t('exerciseSheet.replace', { defaultValue: 'Replace' })}
+                onPress={handleReplace}
+                testID="exercise-sheet-replace-chip"
+              />
+            )}
+          </View>
+
+          {historyOpen ? (
+            <View className="mt-4" testID="exercise-sheet-history">
+              <ExerciseHistoryList
+                exerciseId={exercise.id}
+                weightUnit={weightUnit}
+                distanceUnit={distanceUnit}
+                modality={resolveSnapshotModality(
+                  planDraft?.exercise ?? entry?.exercise_snapshot
+                )}
+              />
+            </View>
+          ) : null}
+
+          {isPlan &&
+          planDraft != null &&
+          planDraft.exercise.rationale.length > 0 ? (
+            <View
+              className="mt-4 rounded-xl p-3 bg-info"
+              testID="exercise-sheet-rationale"
+            >
+              <Text className="text-sm text-info">
+                {planDraft.exercise.rationale}
+              </Text>
+            </View>
+          ) : null}
+
+          {planCard != null ? (
+            <View className="mt-4" testID="exercise-sheet-sets">
+              <ActiveWorkoutExerciseCard
+                exercise={planCard}
+                mode="plan"
+                headerless
+                expanded
+                // The Rest chip above owns rest in this context too.
+                showRestChip={false}
+                completedSetIds={EMPTY_COMPLETED_SETS}
+                activeSetId={null}
+                // Not the user's column preference: RPE records effort that has
+                // not been made yet, and a RecommendationSet has nowhere to keep
+                // it, so a typed value would be dropped on the way back.
+                metricColumn="volume"
+                weightUnit={weightUnit}
+                distanceUnit={distanceUnit}
+                getImageSource={getImageSource}
+                onToggleExpanded={noop}
+                onPressMetricHeader={noop}
+                onCommitField={handleCommitField}
+                onDeleteSet={handleDeleteSet}
+                onAddSet={handleAddSet}
+              />
+            </View>
+          ) : null}
+
+          {entry != null ? (
+            <View className="mt-4" testID="exercise-sheet-sets">
+              <ActiveWorkoutExerciseCard
+                exercise={entry}
+                // The sheet is this one exercise, so there is nothing to collapse
+                // into and no header to collapse from.
+                headerless
+                expanded
+                // The Rest chip above owns rest here; leaving the card's chip in
+                // would put the same control on screen twice.
+                showRestChip={false}
+                completedSetIds={completedSetIds}
+                activeSetId={activeSetId}
+                metricColumn={metricColumn}
+                weightUnit={weightUnit}
+                distanceUnit={distanceUnit}
+                getImageSource={getImageSource}
+                onToggleExpanded={noop}
+                onPressMetricHeader={handlePressMetricHeader}
+                onComplete={handleCompleteSet}
+                onStartHold={canStartHold ? handleStartHold : undefined}
+                holdingSetId={holdSetId}
+                onUncomplete={handleUncomplete}
+                onCommitField={handleCommitField}
+                onDeleteSet={handleDeleteSet}
+                onAddSet={handleAddSet}
+              />
+            </View>
+          ) : null}
         </View>
-
-        {historyOpen ? (
-          <View className="mt-4" testID="exercise-sheet-history">
-            <ExerciseHistoryList
-              exerciseId={exercise.id}
-              weightUnit={weightUnit}
-              distanceUnit={distanceUnit}
-              modality={resolveSnapshotModality(
-                planDraft?.exercise ?? entry?.exercise_snapshot
-              )}
-            />
-          </View>
-        ) : null}
-
-        {isPlan &&
-        planDraft != null &&
-        planDraft.exercise.rationale.length > 0 ? (
-          <View
-            className="mt-4 rounded-xl p-3 bg-info"
-            testID="exercise-sheet-rationale"
-          >
-            <Text className="text-sm text-info">
-              {planDraft.exercise.rationale}
-            </Text>
-          </View>
-        ) : null}
-
-        {planCard != null ? (
-          <View className="mt-4" testID="exercise-sheet-sets">
-            <ActiveWorkoutExerciseCard
-              exercise={planCard}
-              mode="plan"
-              headerless
-              expanded
-              // The Rest chip above owns rest in this context too.
-              showRestChip={false}
-              completedSetIds={EMPTY_COMPLETED_SETS}
-              activeSetId={null}
-              // Not the user's column preference: RPE records effort that has
-              // not been made yet, and a RecommendationSet has nowhere to keep
-              // it, so a typed value would be dropped on the way back.
-              metricColumn="volume"
-              weightUnit={weightUnit}
-              distanceUnit={distanceUnit}
-              getImageSource={getImageSource}
-              onToggleExpanded={noop}
-              onPressMetricHeader={noop}
-              onCommitField={handleCommitField}
-              onDeleteSet={handleDeleteSet}
-              onAddSet={handleAddSet}
-            />
-          </View>
-        ) : null}
-
-        {entry != null ? (
-          <View className="mt-4" testID="exercise-sheet-sets">
-            <ActiveWorkoutExerciseCard
-              exercise={entry}
-              // The sheet is this one exercise, so there is nothing to collapse
-              // into and no header to collapse from.
-              headerless
-              expanded
-              // The Rest chip above owns rest here; leaving the card's chip in
-              // would put the same control on screen twice.
-              showRestChip={false}
-              completedSetIds={completedSetIds}
-              activeSetId={activeSetId}
-              metricColumn={metricColumn}
-              weightUnit={weightUnit}
-              distanceUnit={distanceUnit}
-              getImageSource={getImageSource}
-              onToggleExpanded={noop}
-              onPressMetricHeader={handlePressMetricHeader}
-              onComplete={handleCompleteSet}
-              onStartHold={canStartHold ? handleStartHold : undefined}
-              holdingSetId={holdSetId}
-              onUncomplete={handleUncomplete}
-              onCommitField={handleCommitField}
-              onDeleteSet={handleDeleteSet}
-              onAddSet={handleAddSet}
-            />
-          </View>
-        ) : null}
       </ScrollView>
+
+      {/* Over the hero, not in a bar above it. Absolute so the media keeps the
+          full width, and inset by the safe area because there is no header
+          left to hold it clear of the status bar. */}
+      <Pressable
+        onPress={() => navigation.goBack()}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+        testID="exercise-sheet-close"
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={{
+          position: 'absolute',
+          top: insets.top + 8,
+          right: 16,
+          width: 34,
+          height: 34,
+          borderRadius: 17,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: scrimColor,
+        }}
+      >
+        <Icon name="close" size={19} color="#ffffff" />
+      </Pressable>
 
       <ExerciseSetRestSheet ref={setRestSheetRef} onApply={handleApplyRests} />
 

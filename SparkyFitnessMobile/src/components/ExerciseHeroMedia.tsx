@@ -40,6 +40,12 @@ export function exerciseHasHeroMedia(exercise: Exercise): boolean {
 
 interface ExerciseHeroMediaProps {
   exercise: Exercise;
+  /**
+   * Drops the corner radius. The detail screen insets the hero as a card, so
+   * it rounds; the exercise sheet runs it to the screen edges under the status
+   * bar, where a radius would cut a notch out of the display's own corner.
+   */
+  fullBleed?: boolean;
 }
 
 /**
@@ -56,7 +62,11 @@ interface ExerciseHeroMediaProps {
  * Page state lives here, so remounting the hero (a tab switch that renders it
  * in a different slot) resets the dots without the caller arranging it.
  */
-function ExerciseHeroMedia({ exercise }: ExerciseHeroMediaProps) {
+function ExerciseHeroMedia({
+  exercise,
+  fullBleed = false,
+}: ExerciseHeroMediaProps) {
+  const radiusClass = fullBleed ? '' : 'rounded-xl';
   const { getImageSource } = useExerciseImageSource();
   const reducedMotion = useReducedMotion();
   const isFocused = useIsFocused();
@@ -116,7 +126,7 @@ function ExerciseHeroMedia({ exercise }: ExerciseHeroMediaProps) {
 
   if (videoSource && !reducedMotion) {
     return (
-      <View className="bg-surface rounded-xl overflow-hidden">
+      <View className={`bg-surface ${radiusClass} overflow-hidden`}>
         <VideoView
           player={videoPlayer}
           style={{ width: '100%', aspectRatio: VIDEO_ASPECT_RATIO }}
@@ -133,7 +143,7 @@ function ExerciseHeroMedia({ exercise }: ExerciseHeroMediaProps) {
     const transparent = sourceMayHaveTransparency(imageSources[0].uri);
     return (
       <View
-        className={`${transparent ? 'bg-white' : 'bg-surface'} rounded-xl overflow-hidden`}
+        className={`${transparent ? 'bg-white' : 'bg-surface'} ${radiusClass} overflow-hidden`}
       >
         <SafeImage
           source={imageSources[0]}
@@ -153,7 +163,7 @@ function ExerciseHeroMedia({ exercise }: ExerciseHeroMediaProps) {
   ) {
     return (
       <View
-        className="bg-surface rounded-xl overflow-hidden"
+        className={`bg-surface ${radiusClass} overflow-hidden`}
         style={{ width: '100%', aspectRatio: IMAGE_ASPECT_RATIO }}
       >
         <ExerciseImageCrossfade
@@ -168,7 +178,7 @@ function ExerciseHeroMedia({ exercise }: ExerciseHeroMediaProps) {
     return (
       <View>
         <View
-          className="bg-surface rounded-xl overflow-hidden"
+          className={`bg-surface ${radiusClass} overflow-hidden`}
           style={{ width: '100%', aspectRatio: IMAGE_ASPECT_RATIO }}
         >
           <PagerView
