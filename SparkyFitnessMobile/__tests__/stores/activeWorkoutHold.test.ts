@@ -6,6 +6,7 @@ import {
 } from '../../src/stores/activeWorkoutStore';
 import {
   cancelScheduledNotification,
+  fireRestCompleteCue,
   scheduleHoldNotification,
 } from '../../src/services/notifications';
 import {
@@ -43,6 +44,9 @@ const mockSelectionHaptic = fireSelectionHaptic as jest.MockedFunction<
 >;
 const mockSuccessHaptic = fireSuccessHaptic as jest.MockedFunction<
   typeof fireSuccessHaptic
+>;
+const mockCompleteCue = fireRestCompleteCue as jest.MockedFunction<
+  typeof fireRestCompleteCue
 >;
 
 const FIXED_NOW = 1_700_000_000_000;
@@ -172,6 +176,7 @@ describe('activeWorkoutStore — hold timer', () => {
     mockCancel.mockClear();
     mockSelectionHaptic.mockClear();
     mockSuccessHaptic.mockClear();
+    mockCompleteCue.mockClear();
     mockScheduleHold.mockImplementation(async () => 'notif-hold');
     jest.useFakeTimers();
     jest.setSystemTime(new Date(FIXED_NOW));
@@ -270,6 +275,31 @@ describe('activeWorkoutStore — hold timer', () => {
       expect(state.activeSetId).toBe('102');
       expect(state.rest.state).toBe('resting');
       expect(state.rest.durationSec).toBe(30);
+    });
+
+    it('cues the end of a hold that ran out, the way a finished rest does', () => {
+      useActiveWorkoutStore.getState().startWorkout(makeSession());
+      useActiveWorkoutStore.getState().startHold('101');
+
+      jest.advanceTimersByTime(45_000);
+
+      // The plank ends with the phone out of sight, so the haptic and chime
+      // are the whole notice — the scheduled ping only covers the background.
+      expect(mockCompleteCue).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not cue a hold the user stopped early', () => {
+      useActiveWorkoutStore.getState().startWorkout(makeSession());
+      useActiveWorkoutStore.getState().startHold('101');
+
+      jest.advanceTimersByTime(30_000);
+      useActiveWorkoutStore.getState().stopHoldAndLog();
+
+      // They are looking at the button they just pressed; completeSet's own
+      // haptic is the acknowledgement, and a second cue would read as an event
+      // rather than a confirmation.
+      expect(mockCompleteCue).not.toHaveBeenCalled();
+      expect(mockSelectionHaptic).toHaveBeenCalled();
     });
 
     it('stopping early logs the seconds actually held', () => {

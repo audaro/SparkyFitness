@@ -1780,6 +1780,14 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         const setId = hold.setId;
         cancelCurrentHoldNotification(hold);
         set({ hold: IDLE_HOLD });
+        // A hold that ran out ends with the user's eyes off the phone — a
+        // plank ends face-down — which is the same "a timer finished" moment
+        // the rest cue exists for, so it gets the same haptic and chime on the
+        // same preference (`scheduleHoldNotification` already rides the rest
+        // timer's notification toggle for the same reason). An early stop does
+        // not: the user is holding the phone they just pressed, and
+        // `completeSet` acknowledges that press with its own haptic below.
+        if (remainingMs <= 0) fireRestCompleteCue();
         get().updateSetField(setId, { duration: elapsedSec });
         // completeSet owns the rest of it: assumed values, PR detection,
         // haptics, the cursor advance and the next rest.
