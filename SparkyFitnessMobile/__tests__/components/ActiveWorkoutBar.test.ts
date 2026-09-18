@@ -8,6 +8,14 @@ describe('shouldSuppressActiveWorkoutBar', () => {
     expect(shouldSuppressActiveWorkoutBar('MealPlans')).toBe(true);
     expect(shouldSuppressActiveWorkoutBar('MealPlanForm')).toBe(true);
   });
+
+  // The sheet logs the exercise it is showing; the HUD logs the workout's
+  // cursor, which is often a different one. Stacked, they offered two Log
+  // controls for two different sets and the one on top disagreed with the
+  // screen under it.
+  it('keeps the HUD off the exercise sheet, which logs for itself', () => {
+    expect(shouldSuppressActiveWorkoutBar('ExerciseSheet')).toBe(true);
+  });
 });
 
 // Root stack [Tabs, ActiveWorkout]: the top route is suppressed and sits

@@ -858,6 +858,51 @@ describe('activeWorkoutStore', () => {
     });
   });
 
+  // "I am doing this one now." Logging was already order-free, but the cursor
+  // only ever moved by a log, so the docked bar and the rest timer stayed on
+  // the programmed order however far down the list the user had walked.
+  describe('focusSet', () => {
+    beforeEach(async () => {
+      useActiveWorkoutStore.getState().startWorkout(makeSession());
+      useActiveWorkoutStore.getState().completeActiveSet();
+      await flushPromises();
+    });
+
+    it('moves next-up onto another exercise without logging anything', () => {
+      expect(useActiveWorkoutStore.getState().activeSetId).toBe('102');
+
+      useActiveWorkoutStore.getState().focusSet('201');
+
+      const state = useActiveWorkoutStore.getState();
+      expect(state.activeSetId).toBe('201');
+      expect(state.completedSetIds['102']).toBeUndefined();
+      expect(state.completedSetIds['201']).toBeUndefined();
+    });
+
+    // The rest belonged to the set being left; counting it down against a
+    // different exercise would time a break the user is no longer taking.
+    it('ends the rest that belonged to the set it left', () => {
+      expect(useActiveWorkoutStore.getState().rest.state).toBe('resting');
+
+      useActiveWorkoutStore.getState().focusSet('201');
+
+      expect(useActiveWorkoutStore.getState().rest.state).toBe('ready');
+    });
+
+    it('refuses a completed set, an unknown one, and the cursor itself', () => {
+      const before = useActiveWorkoutStore.getState();
+
+      useActiveWorkoutStore.getState().focusSet('101'); // already logged
+      expect(useActiveWorkoutStore.getState()).toEqual(before);
+
+      useActiveWorkoutStore.getState().focusSet('nope');
+      expect(useActiveWorkoutStore.getState()).toEqual(before);
+
+      useActiveWorkoutStore.getState().focusSet('102'); // the cursor
+      expect(useActiveWorkoutStore.getState()).toEqual(before);
+    });
+  });
+
   describe('uncompleteSet', () => {
     beforeEach(async () => {
       useActiveWorkoutStore.getState().startWorkout(makeSession());

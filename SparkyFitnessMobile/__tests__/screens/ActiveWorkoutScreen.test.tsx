@@ -415,6 +415,33 @@ describe('ActiveWorkoutScreen overflow menu wiring', () => {
     expect(sheetItemKeys()).not.toContain('clear');
   });
 
+  // Logging has always been order-free; the cursor only moved by a log, so the
+  // on-deck bar stayed on the programmed order however far down the user had
+  // walked. This is how they say "I am doing this one now".
+  it('offers Start workout here on an exercise the cursor is not on', () => {
+    const { getByTestId } = renderScreen();
+    const cursorBefore = useActiveWorkoutStore.getState().activeSetId;
+
+    fireEvent.press(getByTestId('card-ex-b-overflow'));
+    expect(sheetItemKeys()).toContain('start-here');
+    pressSheetItem('start-here');
+
+    const after = useActiveWorkoutStore.getState().activeSetId;
+    expect(after).not.toBe(cursorBefore);
+    // Nothing was logged on the way.
+    expect(
+      useActiveWorkoutStore.getState().completedSetIds[after!]
+    ).toBeUndefined();
+  });
+
+  it('withholds Start workout here on the exercise already up next', () => {
+    const { getByTestId } = renderScreen();
+
+    fireEvent.press(getByTestId('card-ex-a-overflow'));
+
+    expect(sheetItemKeys()).not.toContain('start-here');
+  });
+
   it('omits Clear logged sets for a completed cardio effort form', () => {
     __resetActiveWorkoutStoreForTests();
     const session = makeSession();

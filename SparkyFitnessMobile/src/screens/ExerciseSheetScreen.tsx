@@ -439,15 +439,35 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
    * is where it is changed — so a chip that named the control rather than its
    * value made the user open it to find out.
    */
-  // The store's cursor is the workout's, not this exercise's: opening a sheet
-  // does not move it, so a sheet for any other exercise must not offer to log
-  // a set that is not on it.
-  const sheetActiveSetId = useMemo(() => {
-    if (entry == null || activeSetId == null) return null;
-    return entry.sets.some((set) => String(set.id) === activeSetId)
-      ? activeSetId
-      : null;
-  }, [entry, activeSetId]);
+  /**
+   * The set this sheet's footer logs.
+   *
+   * Not the workout's cursor. Sets have always logged in any order, but the
+   * only control that said so was the small badge on each row, so opening the
+   * third exercise while the cursor sat on the first left the screen with no
+   * visible way to log anything -- it read as "do them in the programmed
+   * order". This is the cursor when the cursor is on this exercise, and
+   * otherwise this exercise's own first un-logged set, so the sheet always
+   * offers to log the exercise it is showing.
+   *
+   * Logging it moves the cursor here by itself: `completeSet` lands next-up on
+   * the first un-logged step after the one logged, which is this exercise's
+   * next set.
+   */
+  const sheetLogSetId = useMemo(() => {
+    if (entry == null) return null;
+    const ids = entry.sets.map((set) => String(set.id));
+    if (activeSetId != null && ids.includes(activeSetId)) return activeSetId;
+    return ids.find((id) => completedSetIds[id] == null) ?? null;
+  }, [entry, activeSetId, completedSetIds]);
+
+  const logSetNumber = useMemo(() => {
+    if (entry == null || sheetLogSetId == null) return null;
+    const index = entry.sets.findIndex(
+      (set) => String(set.id) === sheetLogSetId
+    );
+    return index < 0 ? null : (entry.sets[index].set_number ?? index + 1);
+  }, [entry, sheetLogSetId]);
 
   const restChipLabel = useMemo(() => {
     const sets = planDraft?.exercise.sets ?? entry?.sets;
@@ -462,7 +482,7 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
-          paddingBottom: sheetActiveSetId != null ? 12 : 16,
+          paddingBottom: sheetLogSetId != null ? 12 : 16,
         }}
       >
         {/* Full bleed, under the status bar: the demonstration is what the
@@ -628,28 +648,44 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
       </ScrollView>
 
       {/*
-        The live sheet logs. It is the whole screen for this exercise while it
-        is open, and it covers the active workout's own docked bar, so without
-        one the only way to log the set you came here to log would be the small
+        The live sheet logs, and it logs THIS exercise -- see `sheetLogSetId`.
+        It covers the active workout's own docked bar while it is open, so
+        without a footer the only control saying a set could be logged was the
         badge on its row. The plan sheet deliberately has none: Up Next owns
         starting the workout, and a second Start pill here would be a second
         way to begin the same session.
       */}
-      {sheetActiveSetId != null && (
+      {sheetLogSetId != null && (
         <FooterActionBar>
           <Button
             variant="primary"
-            onPress={() => handleCompleteSet(sheetActiveSetId)}
+            onPress={() => handleCompleteSet(sheetLogSetId)}
             testID="exercise-sheet-log-set"
-            accessibilityLabel={t('activeWorkout.rest.completeSet', {
-              defaultValue: 'Log set',
-            })}
+            accessibilityLabel={
+              logSetNumber != null
+                ? t('activeWorkout.setRow.log', {
+                    defaultValue: 'Log set {{setNumber}}',
+                    setNumber: logSetNumber,
+                  })
+                : t('activeWorkout.rest.completeSet', {
+                    defaultValue: 'Log set',
+                  })
+            }
             className="h-[50px] items-center justify-center rounded-2xl"
             textClassName="text-base"
           >
-            {t('activeWorkout.rest.completeSetTitle', {
-              defaultValue: 'Log Set',
-            })}
+            {/* Numbered only when the sheet's target is not the workout's
+                cursor: nothing on screen is accented in that case, so the
+                button has to say which set it means. On the cursor it stays
+                the docked bar's wording. */}
+            {sheetLogSetId === activeSetId || logSetNumber == null
+              ? t('activeWorkout.rest.completeSetTitle', {
+                  defaultValue: 'Log Set',
+                })
+              : t('activeWorkout.rest.completeSetNumbered', {
+                  defaultValue: 'Log Set {{number}}',
+                  number: logSetNumber,
+                })}
           </Button>
         </FooterActionBar>
       )}

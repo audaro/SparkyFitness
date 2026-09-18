@@ -253,14 +253,42 @@ describe('ExerciseSheetScreen', () => {
       ).toBeTruthy();
     });
 
-    // The cursor is the workout's, not this exercise's: a sheet opened on some
-    // other exercise must not offer to log a set that is not on it.
-    it('withholds the footer when the cursor is on another exercise', () => {
+    // Opening the third exercise while the cursor sits on the first used to
+    // leave the sheet with no visible way to log anything, which read as "do
+    // them in the programmed order". The footer logs the exercise on screen.
+    it("falls back to this exercise's first un-logged set", () => {
       useActiveWorkoutStore.setState({ activeSetId: '999' });
 
-      const { queryByTestId } = renderSheet();
+      const { getByTestId, getByText } = renderSheet();
 
-      expect(queryByTestId('exercise-sheet-log-set')).toBeNull();
+      // Numbered, because nothing on screen is accented when the workout's
+      // cursor is elsewhere.
+      expect(getByText('Log Set 1')).toBeTruthy();
+      fireEvent.press(getByTestId('exercise-sheet-log-set'));
+
+      expect(
+        useActiveWorkoutStore.getState().completedSetIds['101']
+      ).toBeTruthy();
+    });
+
+    it('skips a set this exercise has already logged', () => {
+      useActiveWorkoutStore.getState().completeSet('101');
+      useActiveWorkoutStore.setState({ activeSetId: '999' });
+
+      const { getByText } = renderSheet();
+
+      expect(getByText('Log Set 2')).toBeTruthy();
+    });
+
+    // Logging out of order moves next-up onto this exercise by itself, so the
+    // docked bar and the rest timer follow the user rather than the program.
+    it('leaves the cursor on this exercise after logging from it', () => {
+      useActiveWorkoutStore.setState({ activeSetId: '999' });
+
+      const { getByTestId } = renderSheet();
+      fireEvent.press(getByTestId('exercise-sheet-log-set'));
+
+      expect(useActiveWorkoutStore.getState().activeSetId).toBe('102');
     });
 
     it('offers the hold control on the cursor set, since the store would take it', () => {

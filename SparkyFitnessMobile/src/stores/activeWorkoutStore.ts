@@ -303,6 +303,22 @@ export interface ActiveWorkoutState {
   /** Complete the current cursor set. Thin wrapper over {@link completeSet}. */
   completeActiveSet: () => void;
   /**
+   * Move the next-up cursor onto an un-logged set without logging anything.
+   *
+   * Logging is already order-free -- every row's control completes its own set
+   * -- but the cursor was only ever moved *by* a log, so the docked bar, the
+   * rest timer and the Live Activity stayed on the programmed order no matter
+   * which exercise the user had actually walked over to. This is how a user
+   * says "I am doing this one now": the sheet's footer and the list's row menu
+   * both call it. A no-op for an unknown or already-completed set -- a done set
+   * is re-opened from its own control, not by pointing the cursor at it.
+   *
+   * Any running rest or hold ends here. The rest belonged to the set being
+   * left, and counting it down against a different exercise would be a timer
+   * for a break the user is no longer taking.
+   */
+  focusSet: (setId: string) => void;
+  /**
    * Guarded {@link completeActiveSet} for lock-screen surfaces (the Live
    * Activity button and the rest-notification action): a no-op while a rest
    * is genuinely running or paused, so a press that races — or arrives stale
@@ -1394,6 +1410,22 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       completeActiveSet: () => {
         const { activeSetId } = get();
         if (activeSetId != null) get().completeSet(activeSetId);
+      },
+
+      focusSet: (setId) => {
+        const state = get();
+        if (state.activeSetId === setId) return;
+        if (!state.steps.some((step) => step.setId === setId)) return;
+        if (state.completedSetIds[setId] != null) return;
+
+        cancelCurrentRestNotification(state.rest);
+        cancelCurrentHoldNotification(state.hold);
+        set({
+          activeSetId: setId,
+          rest: READY_REST,
+          hold: IDLE_HOLD,
+        });
+        fireSelectionHaptic();
       },
 
       completeActiveSetIfReady: () => {

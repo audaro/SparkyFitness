@@ -676,6 +676,28 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         : t('workout.expandSets', { defaultValue: 'Edit sets here' }),
       onPress: () => handleToggleExpanded(entryId),
     });
+    // "I am doing this one now." Sets have always logged in any order, but the
+    // cursor only ever moved *by* a log, so the on-deck bar, the rest timer and
+    // the Live Activity stayed on the programmed order however far down the
+    // list the user had actually walked. Absent when the cursor is already on
+    // this exercise, and when every set of it is logged -- a done exercise is
+    // reopened from Clear, not by pointing next-up at it.
+    const nextUnloggedSetId = entry?.sets
+      .map((s) => String(s.id))
+      .find((id) => completedSetIds[id] == null);
+    if (nextUnloggedSetId != null && entryId !== activeExerciseId) {
+      items.push({
+        key: 'start-here',
+        // Wording is the catalog's existing `workout.startHere`, already
+        // translated into five locales; it says the same thing.
+        label: t('workout.startHere', { defaultValue: 'Start workout here' }),
+        // No scroll: the menu was opened from this row, so it is already on
+        // screen, and `scrollToExercise` reads a ref this memo must not touch.
+        onPress: () => {
+          useActiveWorkoutStore.getState().focusSet(nextUnloggedSetId);
+        },
+      });
+    }
     items.push({
       key: 'notes',
       label: t('workout.notes', { defaultValue: 'Notes' }),
@@ -741,6 +763,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     handleReplaceExercise,
     handleClearExerciseSets,
     handleRemoveExercise,
+    activeExerciseId,
     t,
   ]);
 
