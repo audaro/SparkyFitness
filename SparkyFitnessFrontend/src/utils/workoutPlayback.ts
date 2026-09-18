@@ -15,7 +15,17 @@ export const WORKOUT_PLAYBACK_SET_GRID_CLASSES =
 
 export type WorkoutPlaybackRestState = 'idle' | 'running' | 'paused';
 
-export interface WorkoutPlaybackRestTimer {
+/**
+ * One countdown attached to a set. The draft carries two of them — the rest
+ * *before* a set and the hold that is the timed work *of* a set — and they are
+ * MUTUALLY EXCLUSIVE: a hold may only start while rest is idle, and completing
+ * a set clears any hold before starting the next rest.
+ *
+ * `remaining_seconds` is only authoritative while the countdown is idle or
+ * paused. While it runs, the truth is `target_end_timestamp_ms`: a wall-clock
+ * deadline survives a backgrounded tab, where a per-second counter does not.
+ */
+export interface WorkoutPlaybackCountdown {
   state: WorkoutPlaybackRestState;
   duration_seconds: number;
   remaining_seconds: number;
@@ -23,6 +33,16 @@ export interface WorkoutPlaybackRestTimer {
   target_exercise_index?: number;
   target_set_index?: number;
 }
+
+export type WorkoutPlaybackRestTimer = WorkoutPlaybackCountdown;
+
+/**
+ * The hold: a plank's 45 seconds, counting down while the set is being held.
+ * Its `duration_seconds` is the set's prescribed duration and the denominator
+ * of what gets logged — stopping early records the time actually held, not the
+ * prescription.
+ */
+export type WorkoutPlaybackHoldTimer = WorkoutPlaybackCountdown;
 export interface WorkoutPlaybackExerciseDraft {
   exercise_id: string;
   exercise_name: string;
@@ -70,6 +90,14 @@ export interface WorkoutPlaybackDraft {
   active_exercise_index: number;
   active_set_index: number;
   rest_timer: WorkoutPlaybackRestTimer;
+  /**
+   * OPTIONAL, and it has to stay optional: drafts are restored from
+   * localStorage, and every draft written before the hold timer existed has no
+   * such key. Read it through {@link getWorkoutPlaybackHoldTimer} rather than
+   * off the draft, so an older draft resumes as "not holding" instead of
+   * throwing on a missing `state`.
+   */
+  hold_timer?: WorkoutPlaybackHoldTimer;
   exercises: WorkoutPlaybackExerciseDraft[];
   started_at: string;
   updated_at: string;
@@ -545,22 +573,55 @@ export function createRecommendationPlaybackRouteState(
   };
 }
 
-export function getWorkoutPlaybackRestRemainingSeconds(
-  restTimer: WorkoutPlaybackRestTimer,
+export function getWorkoutPlaybackCountdownRemainingSeconds(
+  countdown: WorkoutPlaybackCountdown,
   nowMs: number = Date.now()
 ): number {
-  if (restTimer.state !== 'running') {
-    return Math.max(0, restTimer.remaining_seconds);
+  if (countdown.state !== 'running') {
+    return Math.max(0, countdown.remaining_seconds);
   }
 
-  if (typeof restTimer.target_end_timestamp_ms !== 'number') {
-    return Math.max(0, restTimer.remaining_seconds);
+  if (typeof countdown.target_end_timestamp_ms !== 'number') {
+    return Math.max(0, countdown.remaining_seconds);
   }
 
   return Math.max(
     0,
-    Math.ceil((restTimer.target_end_timestamp_ms - nowMs) / 1000)
+    Math.ceil((countdown.target_end_timestamp_ms - nowMs) / 1000)
   );
+}
+
+/** The idle hold. Also what a draft written before holds existed reads as. */
+export const IDLE_HOLD_TIMER: WorkoutPlaybackHoldTimer = {
+  state: 'idle',
+  duration_seconds: 0,
+  remaining_seconds: 0,
+  target_end_timestamp_ms: null,
+};
+
+export function getWorkoutPlaybackHoldTimer(
+  draft: WorkoutPlaybackDraft
+): WorkoutPlaybackHoldTimer {
+  return draft.hold_timer ?? IDLE_HOLD_TIMER;
+}
+
+/**
+ * How long the hold was actually held, which is what gets logged — never the
+ * prescription. A hold stopped early records the short time; a hold that runs
+ * out records its full target, which is the prescribed value anyway, so the
+ * honest path and the planned path agree where they should. Floored at one
+ * second: a set logged as zero seconds reads as a set that never happened.
+ */
+export function getWorkoutPlaybackHeldSeconds(
+  holdTimer: WorkoutPlaybackHoldTimer,
+  nowMs: number = Date.now()
+): number {
+  const remaining = getWorkoutPlaybackCountdownRemainingSeconds(
+    holdTimer,
+    nowMs
+  );
+
+  return Math.max(1, Math.round(holdTimer.duration_seconds - remaining));
 }
 
 export function setWorkoutPlaybackPointer(
@@ -688,6 +749,40 @@ export function addWorkoutSetToExercise(
   return touchDraft(nextDraft);
 }
 
+/**
+ * Keeps a countdown pointed at the right set after one is removed: the
+ * countdown for the removed set itself is cancelled, and one aimed further
+ * down the same exercise shifts up with the rows. Both countdowns need this,
+ * which is why it is a function rather than two copies.
+ */
+function reindexCountdownForRemovedSet(
+  countdown: WorkoutPlaybackCountdown,
+  pointer: WorkoutSetPointer
+): WorkoutPlaybackCountdown {
+  if (countdown.target_exercise_index !== pointer.exerciseIndex) {
+    return countdown;
+  }
+
+  const targetSetIndex = countdown.target_set_index;
+
+  if (targetSetIndex === pointer.setIndex) {
+    return {
+      ...countdown,
+      state: 'idle',
+      remaining_seconds: countdown.duration_seconds,
+      target_end_timestamp_ms: null,
+      target_exercise_index: undefined,
+      target_set_index: undefined,
+    };
+  }
+
+  if (typeof targetSetIndex === 'number' && targetSetIndex > pointer.setIndex) {
+    return { ...countdown, target_set_index: targetSetIndex - 1 };
+  }
+
+  return countdown;
+}
+
 export function removeWorkoutSetFromExercise(
   draft: WorkoutPlaybackDraft,
   pointer: WorkoutSetPointer
@@ -736,28 +831,14 @@ export function removeWorkoutSetFromExercise(
   nextDraft.active_exercise_index = nextPointer.exerciseIndex;
   nextDraft.active_set_index = nextPointer.setIndex;
 
-  if (nextDraft.rest_timer.target_exercise_index === pointer.exerciseIndex) {
-    const targetSetIndex = nextDraft.rest_timer.target_set_index;
-
-    if (targetSetIndex === pointer.setIndex) {
-      nextDraft.rest_timer = {
-        ...nextDraft.rest_timer,
-        state: 'idle',
-        remaining_seconds: nextDraft.rest_timer.duration_seconds,
-        target_end_timestamp_ms: null,
-        target_exercise_index: undefined,
-        target_set_index: undefined,
-      };
-    } else if (
-      typeof targetSetIndex === 'number' &&
-      targetSetIndex > pointer.setIndex
-    ) {
-      nextDraft.rest_timer = {
-        ...nextDraft.rest_timer,
-        target_set_index: targetSetIndex - 1,
-      };
-    }
-  }
+  nextDraft.rest_timer = reindexCountdownForRemovedSet(
+    nextDraft.rest_timer,
+    pointer
+  );
+  nextDraft.hold_timer = reindexCountdownForRemovedSet(
+    getWorkoutPlaybackHoldTimer(nextDraft),
+    pointer
+  );
 
   return syncActiveExerciseTiming(
     nextDraft,
@@ -822,6 +903,13 @@ export function setWorkoutPlaybackRestTimer(
   restTimer: WorkoutPlaybackRestTimer
 ): WorkoutPlaybackDraft {
   return touchDraft({ ...draft, rest_timer: restTimer });
+}
+
+export function setWorkoutPlaybackHoldTimer(
+  draft: WorkoutPlaybackDraft,
+  holdTimer: WorkoutPlaybackHoldTimer
+): WorkoutPlaybackDraft {
+  return touchDraft({ ...draft, hold_timer: holdTimer });
 }
 
 function toNullableNumber(value: number | null | undefined): number | null {

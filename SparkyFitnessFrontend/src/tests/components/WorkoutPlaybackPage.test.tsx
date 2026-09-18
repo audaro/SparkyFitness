@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import WorkoutPlaybackPage from '@/pages/Diary/WorkoutPlaybackPage';
 import type { WorkoutPreset } from '@/types/workout';
@@ -346,6 +352,134 @@ describe('WorkoutPlaybackPage', () => {
 
     fireEvent.click(screen.getAllByLabelText('Edit rest for set 1')[0]!);
     expect(screen.getByLabelText('Custom (seconds)')).toHaveValue(120);
+  });
+
+  describe('hold timer', () => {
+    // A plank: a timed set whose prescription is the thing being counted down.
+    const plankPreset = {
+      ...presetFixture,
+      name: 'Core',
+      exercises: [
+        {
+          exercise_id: 'exercise-plank',
+          exercise_name: 'Plank',
+          category: 'strength',
+          modality: 'duration',
+          sets: [
+            {
+              set_number: 1,
+              set_type: 'Working Set',
+              duration: 45,
+              reps: null,
+              weight: null,
+              rest_time: 60,
+            },
+            {
+              set_number: 2,
+              set_type: 'Working Set',
+              duration: 45,
+              reps: null,
+              weight: null,
+              rest_time: 60,
+            },
+          ],
+        },
+      ],
+    } as unknown as WorkoutPreset;
+
+    const renderPlank = () => {
+      const draft = createWorkoutPlaybackDraftFromPreset(
+        plankPreset,
+        '2026-04-27'
+      );
+      mockLocationState = { returnTo: '/?date=2026-04-27', draft };
+      render(<WorkoutPlaybackPage />);
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-04-27T10:00:00.000Z'));
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('counts down the prescribed duration of the set being held', () => {
+      renderPlank();
+
+      fireEvent.click(screen.getByLabelText('Start hold for set 1'));
+
+      expect(screen.getByText('Hold')).toBeInTheDocument();
+      expect(screen.getByText('0:45')).toBeInTheDocument();
+      // The row's own button becomes the way out of the hold.
+      expect(screen.getByLabelText('Stop hold for set 1')).toBeInTheDocument();
+    });
+
+    it('logs the time actually held when the hold is stopped early', () => {
+      renderPlank();
+
+      fireEvent.click(screen.getByLabelText('Start hold for set 1'));
+
+      act(() => {
+        jest.advanceTimersByTime(20_000);
+      });
+
+      fireEvent.click(screen.getByLabelText('Stop hold for set 1'));
+
+      // Twenty seconds held, not the forty-five prescribed.
+      expect(
+        (screen.getByLabelText('Duration set 1') as HTMLInputElement).value
+      ).toBe('20');
+      expect(screen.getAllByRole('checkbox')[0]).toBeChecked();
+      // And it lands in the rest before the next set, exactly as ticking the
+      // box does. (The tile is back to Rest; "Rest" also names a column, so
+      // the countdown is identified by its controls.)
+      expect(screen.queryByText('Hold')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Pause')).toBeInTheDocument();
+    });
+
+    it('logs the full target and starts the rest when the hold runs out', () => {
+      renderPlank();
+
+      fireEvent.click(screen.getByLabelText('Start hold for set 1'));
+
+      act(() => {
+        jest.advanceTimersByTime(46_000);
+      });
+
+      expect(
+        (screen.getByLabelText('Duration set 1') as HTMLInputElement).value
+      ).toBe('45');
+      expect(screen.getAllByRole('checkbox')[0]).toBeChecked();
+      expect(screen.queryByText('Hold')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Pause')).toBeInTheDocument();
+    });
+
+    it('refuses to start a hold while a rest is running', () => {
+      renderPlank();
+
+      fireEvent.click(screen.getAllByLabelText('Complete set 1')[0]!);
+      expect(screen.getByLabelText('Pause')).toBeInTheDocument();
+
+      // Mutual exclusion: the break before a set and the work of one are never
+      // both counting down.
+      expect(screen.getByLabelText('Start hold for set 2')).toBeDisabled();
+    });
+
+    it('offers no hold on a set with no prescribed duration', () => {
+      const draft = createWorkoutPlaybackDraftFromPreset(
+        presetFixture,
+        '2026-04-27'
+      );
+      mockLocationState = { returnTo: '/?date=2026-04-27', draft };
+
+      render(<WorkoutPlaybackPage />);
+
+      expect(
+        screen.queryByLabelText('Start hold for set 1')
+      ).not.toBeInTheDocument();
+    });
   });
 
   it('keeps rest indicator anchored to next set even when selecting others', () => {

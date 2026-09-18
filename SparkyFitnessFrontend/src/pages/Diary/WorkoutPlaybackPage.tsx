@@ -18,13 +18,17 @@ import {
   buildPresetSessionCreateRequestFromDraft,
   completeCurrentWorkoutSet,
   getCurrentWorkoutSetPointer,
-  getWorkoutPlaybackRestRemainingSeconds,
+  getWorkoutPlaybackCountdownRemainingSeconds,
+  getWorkoutPlaybackHeldSeconds,
+  getWorkoutPlaybackHoldTimer,
   getWorkoutPlaybackStats,
+  IDLE_HOLD_TIMER,
   isWorkoutPlaybackComplete,
   loadWorkoutPlaybackDraftFromStorage,
   removeWorkoutSetFromExercise,
   saveWorkoutPlaybackDraftToStorage,
   setWorkoutPlaybackPointer,
+  setWorkoutPlaybackHoldTimer,
   setWorkoutPlaybackRestTimer,
   toggleWorkoutSetCompletion,
   type WorkoutPlaybackRouteState,
@@ -128,6 +132,71 @@ function startRestTimer(
     target_exercise_index: targetPointer?.exerciseIndex,
     target_set_index: targetPointer?.setIndex,
   });
+}
+
+/**
+ * Completes the set at `pointer` and starts its rest — the body shared by the
+ * checkbox and by a hold that has just been resolved, since a finished hold is
+ * a finished set and must land exactly where a ticked box does.
+ *
+ * Any running hold is cleared first: a hold is the work of a set, so a set
+ * that is now complete cannot still be being held.
+ */
+function completeSetInDraft(
+  draft: WorkoutPlaybackDraft,
+  pointer: WorkoutSetPointer
+): WorkoutPlaybackDraft {
+  const set = draft.exercises[pointer.exerciseIndex]?.sets[pointer.setIndex];
+  if (!set || set.completed) {
+    return draft;
+  }
+
+  let nextDraft = setWorkoutPlaybackHoldTimer(draft, IDLE_HOLD_TIMER);
+  nextDraft = setWorkoutPlaybackPointer(nextDraft, pointer);
+  nextDraft = completeCurrentWorkoutSet(nextDraft);
+
+  if (!isWorkoutPlaybackComplete(nextDraft)) {
+    const restSeconds = set.rest_time ?? DEFAULT_REST_SECONDS;
+    const targetPointer = getCurrentWorkoutSetPointer(nextDraft);
+    nextDraft = startRestTimer(nextDraft, restSeconds, targetPointer);
+  }
+
+  return nextDraft;
+}
+
+/**
+ * Ends a running hold: logs the time actually held onto the set's duration,
+ * then completes it. Serves both the Stop button and the countdown running
+ * out, so neither can log the set differently from the other.
+ */
+function resolveHoldInDraft(draft: WorkoutPlaybackDraft): WorkoutPlaybackDraft {
+  const holdTimer = getWorkoutPlaybackHoldTimer(draft);
+  if (
+    holdTimer.state === 'idle' ||
+    typeof holdTimer.target_exercise_index !== 'number' ||
+    typeof holdTimer.target_set_index !== 'number'
+  ) {
+    return draft;
+  }
+
+  const pointer: WorkoutSetPointer = {
+    exerciseIndex: holdTimer.target_exercise_index,
+    setIndex: holdTimer.target_set_index,
+  };
+  const heldSeconds = getWorkoutPlaybackHeldSeconds(holdTimer);
+  const set = draft.exercises[pointer.exerciseIndex]?.sets[pointer.setIndex];
+
+  // The set it was holding is gone or already logged: drop the hold rather
+  // than writing a duration onto whatever now sits at that index.
+  if (!set || set.completed) {
+    return setWorkoutPlaybackHoldTimer(draft, IDLE_HOLD_TIMER);
+  }
+
+  const withDuration = updateWorkoutSetAtPointer(draft, pointer, {
+    duration: heldSeconds,
+  });
+
+  return completeSetInDraft(withDuration, pointer);
 }
 
 const WorkoutPlaybackPage = () => {
@@ -374,7 +443,7 @@ const WorkoutPlaybackPage = () => {
           return currentDraft;
         }
 
-        const nextRemaining = getWorkoutPlaybackRestRemainingSeconds(
+        const nextRemaining = getWorkoutPlaybackCountdownRemainingSeconds(
           currentDraft.rest_timer
         );
 
@@ -390,6 +459,25 @@ const WorkoutPlaybackPage = () => {
 
         // Don't update draft; remaining time is derived from target_end_timestamp_ms in render
         return currentDraft;
+      });
+
+      setDraft((currentDraft) => {
+        if (!currentDraft) {
+          return currentDraft;
+        }
+
+        const holdTimer = getWorkoutPlaybackHoldTimer(currentDraft);
+        if (holdTimer.state !== 'running') {
+          return currentDraft;
+        }
+
+        // A hold that runs out logs its set and starts the rest, exactly as
+        // pressing Stop on the last second would — the set is done either way.
+        if (getWorkoutPlaybackCountdownRemainingSeconds(holdTimer) > 0) {
+          return currentDraft;
+        }
+
+        return resolveHoldInDraft(currentDraft);
       });
     }, 1000);
 
@@ -443,24 +531,7 @@ const WorkoutPlaybackPage = () => {
 
   const handleCompleteSet = useCallback(
     (pointer: WorkoutSetPointer) => {
-      updateDraft((currentDraft) => {
-        const set =
-          currentDraft.exercises[pointer.exerciseIndex]?.sets[pointer.setIndex];
-        if (!set || set.completed) {
-          return currentDraft;
-        }
-
-        let nextDraft = setWorkoutPlaybackPointer(currentDraft, pointer);
-        nextDraft = completeCurrentWorkoutSet(nextDraft);
-
-        if (!isWorkoutPlaybackComplete(nextDraft)) {
-          const restSeconds = set.rest_time ?? DEFAULT_REST_SECONDS;
-          const targetPointer = getCurrentWorkoutSetPointer(nextDraft);
-          nextDraft = startRestTimer(nextDraft, restSeconds, targetPointer);
-        }
-
-        return nextDraft;
-      });
+      updateDraft((currentDraft) => completeSetInDraft(currentDraft, pointer));
     },
     [updateDraft]
   );
@@ -568,7 +639,7 @@ const WorkoutPlaybackPage = () => {
   const handlePauseResumeRest = useCallback(() => {
     updateDraft((currentDraft) => {
       if (currentDraft.rest_timer.state === 'running') {
-        const remainingSeconds = getWorkoutPlaybackRestRemainingSeconds(
+        const remainingSeconds = getWorkoutPlaybackCountdownRemainingSeconds(
           currentDraft.rest_timer
         );
         return setWorkoutPlaybackRestTimer(currentDraft, {
@@ -603,6 +674,79 @@ const WorkoutPlaybackPage = () => {
         target_set_index: undefined,
       })
     );
+  }, [updateDraft]);
+
+  const handleStartHold = useCallback(
+    (pointer: WorkoutSetPointer) => {
+      updateDraft((currentDraft) => {
+        // Mutual exclusion, the same invariant the mobile store holds: a hold
+        // is the work and a rest is the break before it, never both. Skip the
+        // rest first if you want to start the next set early.
+        if (getWorkoutPlaybackHoldTimer(currentDraft).state !== 'idle') {
+          return currentDraft;
+        }
+        if (currentDraft.rest_timer.state !== 'idle') {
+          return currentDraft;
+        }
+
+        const set =
+          currentDraft.exercises[pointer.exerciseIndex]?.sets[pointer.setIndex];
+        if (!set || set.completed) {
+          return currentDraft;
+        }
+
+        // The prescription is the target. Nothing to count down without one,
+        // which is why the button is hidden on a set with no duration.
+        const targetSeconds = Math.floor(set.duration ?? 0);
+        if (targetSeconds <= 0) {
+          return currentDraft;
+        }
+
+        return setWorkoutPlaybackHoldTimer(
+          setWorkoutPlaybackPointer(currentDraft, pointer),
+          {
+            state: 'running',
+            duration_seconds: targetSeconds,
+            remaining_seconds: targetSeconds,
+            target_end_timestamp_ms: Date.now() + targetSeconds * 1000,
+            target_exercise_index: pointer.exerciseIndex,
+            target_set_index: pointer.setIndex,
+          }
+        );
+      });
+    },
+    [updateDraft]
+  );
+
+  const handlePauseResumeHold = useCallback(() => {
+    updateDraft((currentDraft) => {
+      const holdTimer = getWorkoutPlaybackHoldTimer(currentDraft);
+
+      if (holdTimer.state === 'running') {
+        return setWorkoutPlaybackHoldTimer(currentDraft, {
+          ...holdTimer,
+          state: 'paused',
+          remaining_seconds:
+            getWorkoutPlaybackCountdownRemainingSeconds(holdTimer),
+          target_end_timestamp_ms: null,
+        });
+      }
+
+      if (holdTimer.state === 'paused') {
+        return setWorkoutPlaybackHoldTimer(currentDraft, {
+          ...holdTimer,
+          state: 'running',
+          target_end_timestamp_ms:
+            Date.now() + holdTimer.remaining_seconds * 1000,
+        });
+      }
+
+      return currentDraft;
+    });
+  }, [updateDraft]);
+
+  const handleStopHold = useCallback(() => {
+    updateDraft((currentDraft) => resolveHoldInDraft(currentDraft));
   }, [updateDraft]);
 
   const handleOpenRestEditor = useCallback((pointer: WorkoutSetPointer) => {
@@ -731,8 +875,29 @@ const WorkoutPlaybackPage = () => {
 
   const isRestActive = draft && draft.rest_timer.state !== 'idle';
   const restRemaining = formatSecondsClock(
-    draft ? getWorkoutPlaybackRestRemainingSeconds(draft.rest_timer) : 0
+    draft ? getWorkoutPlaybackCountdownRemainingSeconds(draft.rest_timer) : 0
   );
+
+  const holdTimer = draft
+    ? getWorkoutPlaybackHoldTimer(draft)
+    : IDLE_HOLD_TIMER;
+  const isHoldActive = holdTimer.state !== 'idle';
+  const holdRemaining = formatSecondsClock(
+    getWorkoutPlaybackCountdownRemainingSeconds(holdTimer)
+  );
+  // Only one countdown runs at a time, so a hold cannot be started over a rest
+  // or over another hold. The button says so by being disabled rather than by
+  // silently doing nothing.
+  const canStartHold = !isHoldActive && !isRestActive;
+  const holdPointer: WorkoutSetPointer | null =
+    isHoldActive &&
+    typeof holdTimer.target_exercise_index === 'number' &&
+    typeof holdTimer.target_set_index === 'number'
+      ? {
+          exerciseIndex: holdTimer.target_exercise_index,
+          setIndex: holdTimer.target_set_index,
+        }
+      : null;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4">
@@ -743,6 +908,8 @@ const WorkoutPlaybackPage = () => {
         stats={stats}
         restRemaining={restRemaining}
         isRestActive={!!isRestActive}
+        holdTimer={holdTimer}
+        holdRemaining={holdRemaining}
         saveError={saveError}
         isSaving={isSaving}
         timezone={timezone}
@@ -751,6 +918,8 @@ const WorkoutPlaybackPage = () => {
         onFinishWorkout={handleFinishWorkout}
         onPauseResumeRest={handlePauseResumeRest}
         onSkipRest={handleSkipRest}
+        onPauseResumeHold={handlePauseResumeHold}
+        onStopHold={handleStopHold}
         onSessionNotesChange={handleSessionNotesChange}
         onStartTimeChange={handleStartTimeChange}
       />
@@ -766,6 +935,10 @@ const WorkoutPlaybackPage = () => {
         onOpenRestEditor={handleOpenRestEditor}
         onRemoveSet={handleRemoveSet}
         onAddSet={handleAddSet}
+        holdPointer={holdPointer}
+        canStartHold={canStartHold}
+        onStartHold={handleStartHold}
+        onStopHold={handleStopHold}
         weightUnit={weightUnit}
       />
 

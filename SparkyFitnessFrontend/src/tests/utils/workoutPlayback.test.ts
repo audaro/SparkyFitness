@@ -14,11 +14,14 @@ import {
   createWorkoutPlaybackRouteState,
   getCurrentWorkoutSetPointer,
   getWorkoutPlaybackStats,
-  getWorkoutPlaybackRestRemainingSeconds,
+  getWorkoutPlaybackCountdownRemainingSeconds,
   getWorkoutPlaybackDraftStorageKey,
+  getWorkoutPlaybackHeldSeconds,
+  getWorkoutPlaybackHoldTimer,
   loadWorkoutPlaybackDraftFromStorage,
   removeWorkoutSetFromExercise,
   saveWorkoutPlaybackDraftToStorage,
+  setWorkoutPlaybackHoldTimer,
   setWorkoutPlaybackPointer,
   toggleWorkoutSetCompletion,
   updateWorkoutSetAtPointer,
@@ -328,7 +331,7 @@ describe('workoutPlayback utils', () => {
 
   it('derives rest remaining from the target end timestamp', () => {
     expect(
-      getWorkoutPlaybackRestRemainingSeconds(
+      getWorkoutPlaybackCountdownRemainingSeconds(
         {
           state: 'running',
           duration_seconds: 90,
@@ -602,5 +605,79 @@ describe('workoutPlayback utils', () => {
       setIndex: 2,
     });
     expect(nextDraft.exercises[0]?.sets).toHaveLength(2);
+  });
+  it('reads a draft written before holds existed as not holding', () => {
+    const draft = createWorkoutPlaybackDraftFromPreset(
+      createPresetFixture(),
+      '2026-04-27'
+    );
+    delete (draft as { hold_timer?: unknown }).hold_timer;
+
+    expect(getWorkoutPlaybackHoldTimer(draft).state).toBe('idle');
+  });
+
+  it('logs the seconds actually held, never the prescription', () => {
+    // 45 prescribed, stopped with 25 left on the clock.
+    expect(
+      getWorkoutPlaybackHeldSeconds(
+        {
+          state: 'running',
+          duration_seconds: 45,
+          remaining_seconds: 45,
+          target_end_timestamp_ms: 1_025_000,
+        },
+        1_000_000
+      )
+    ).toBe(20);
+
+    // Stopped the instant it started: a set logged as zero seconds reads as a
+    // set that never happened, so it floors at one.
+    expect(
+      getWorkoutPlaybackHeldSeconds(
+        {
+          state: 'running',
+          duration_seconds: 45,
+          remaining_seconds: 45,
+          target_end_timestamp_ms: 1_045_000,
+        },
+        1_000_000
+      )
+    ).toBe(1);
+  });
+
+  it('cancels a hold whose set is removed and shifts one below it', () => {
+    const draft = createWorkoutPlaybackDraftFromPreset(
+      createPresetFixture(),
+      '2026-04-27'
+    );
+
+    const holding = setWorkoutPlaybackHoldTimer(draft, {
+      state: 'running',
+      duration_seconds: 45,
+      remaining_seconds: 45,
+      target_end_timestamp_ms: 1_045_000,
+      target_exercise_index: 0,
+      target_set_index: 1,
+    });
+
+    // Removing the set below the held one leaves the hold alone but moves it
+    // up with the rows.
+    const afterEarlier = removeWorkoutSetFromExercise(holding, {
+      exerciseIndex: 0,
+      setIndex: 0,
+    });
+    expect(getWorkoutPlaybackHoldTimer(afterEarlier).state).toBe('running');
+    expect(getWorkoutPlaybackHoldTimer(afterEarlier).target_set_index).toBe(0);
+
+    // Removing the held set itself cancels it rather than leaving a countdown
+    // pointed at whatever now sits at that index.
+    const afterHeld = removeWorkoutSetFromExercise(holding, {
+      exerciseIndex: 0,
+      setIndex: 1,
+    });
+    expect(getWorkoutPlaybackHoldTimer(afterHeld).state).toBe('idle');
+    expect(
+      getWorkoutPlaybackHoldTimer(afterHeld).target_set_index
+    ).toBeUndefined();
   });
 });
