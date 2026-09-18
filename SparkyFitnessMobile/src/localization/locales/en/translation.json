@@ -380,7 +380,9 @@
       "weight": "Weight",
       "rpe": "RPE",
       "fillFromPrevious": "Fill set {{setNumber}} from previous",
-      "startHold": "Start {{duration}}s hold for set {{setNumber}}"
+      "startHold": "Start {{duration}}s hold for set {{setNumber}}",
+      "weightLb": "Weight (lb)",
+      "weightKg": "Weight (kg)"
     },
     "columns": {
       "set": "Set",

@@ -9,11 +9,13 @@ import ActiveWorkoutExerciseCard from '../components/ActiveWorkoutExerciseCard';
 import { type AnchorRect } from '../components/AnchoredMenu';
 import ExerciseHeroMedia from '../components/ExerciseHeroMedia';
 import ExerciseHistoryList from '../components/ExerciseHistoryList';
+import FooterActionBar from '../components/FooterActionBar';
 import ExerciseSetRestSheet, {
   type ExerciseSetRestUpdate,
 } from '../components/ExerciseSetRestSheet';
 import Icon, { type IconName } from '../components/Icon';
 import { MetricColumnMenu } from '../components/WorkoutMenus';
+import Button from '../components/ui/Button';
 import { usePreferences } from '../hooks';
 import { useActiveWorkoutRestSheet } from '../hooks/useActiveWorkoutRestSheet';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
@@ -436,6 +438,16 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
    * is where it is changed — so a chip that named the control rather than its
    * value made the user open it to find out.
    */
+  // The store's cursor is the workout's, not this exercise's: opening a sheet
+  // does not move it, so a sheet for any other exercise must not offer to log
+  // a set that is not on it.
+  const sheetActiveSetId = useMemo(() => {
+    if (entry == null || activeSetId == null) return null;
+    return entry.sets.some((set) => String(set.id) === activeSetId)
+      ? activeSetId
+      : null;
+  }, [entry, activeSetId]);
+
   const restChipLabel = useMemo(() => {
     const sets = planDraft?.exercise.sets ?? entry?.sets;
     const restSec = sets?.[0]?.rest_time;
@@ -448,7 +460,9 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
     <View className="flex-1 bg-background">
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 16 }}
+        contentContainerStyle={{
+          paddingBottom: sheetActiveSetId != null ? 12 : 16,
+        }}
       >
         {/* Full bleed, under the status bar: the demonstration is what the
             screen is for, and a title bar over it would spend the top of the
@@ -557,6 +571,7 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
                 mode="plan"
                 headerless
                 expanded
+                setLayout="timeline"
                 // The Rest chip above owns rest in this context too.
                 showRestChip={false}
                 completedSetIds={EMPTY_COMPLETED_SETS}
@@ -585,6 +600,7 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
                 // into and no header to collapse from.
                 headerless
                 expanded
+                setLayout="timeline"
                 // The Rest chip above owns rest here; leaving the card's chip in
                 // would put the same control on screen twice.
                 showRestChip={false}
@@ -608,6 +624,33 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
           ) : null}
         </View>
       </ScrollView>
+
+      {/*
+        The live sheet logs. It is the whole screen for this exercise while it
+        is open, and it covers the active workout's own docked bar, so without
+        one the only way to log the set you came here to log would be the small
+        badge on its row. The plan sheet deliberately has none: Up Next owns
+        starting the workout, and a second Start pill here would be a second
+        way to begin the same session.
+      */}
+      {sheetActiveSetId != null && (
+        <FooterActionBar>
+          <Button
+            variant="primary"
+            onPress={() => handleCompleteSet(sheetActiveSetId)}
+            testID="exercise-sheet-log-set"
+            accessibilityLabel={t('activeWorkout.rest.completeSet', {
+              defaultValue: 'Log set',
+            })}
+            className="h-[50px] items-center justify-center rounded-2xl"
+            textClassName="text-base"
+          >
+            {t('activeWorkout.rest.completeSetTitle', {
+              defaultValue: 'Log Set',
+            })}
+          </Button>
+        </FooterActionBar>
+      )}
 
       {/* Over the hero, not in a bar above it. Absolute so the media keeps the
           full width, and inset by the safe area because there is no header

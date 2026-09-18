@@ -73,6 +73,14 @@ const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
 const BOXED_CELL_FONT_SIZE = 17;
 
 /**
+ * Value type for a `bare` cell. This is the canvas's 21, reachable here and not
+ * in the 5-column grid for the reason the note above gives: the timeline row
+ * carries two cells and nothing else, so the width the set number, PREVIOUS and
+ * metric columns were spending is available for a display-size figure.
+ */
+const BARE_CELL_FONT_SIZE = 21;
+
+/**
  * Android box height. The iOS box takes its height from padding + line box;
  * Android's EditText has to be given one explicitly (see the comment in
  * SetCellInput), and it must clear `BOXED_CELL_FONT_SIZE + 2`.
@@ -114,6 +122,14 @@ export interface SetCellInputProps {
    * log's.
    */
   flat?: boolean;
+  /**
+   * Chrome-less treatment: no background, no border, no focus ring, at the
+   * display type size. For the timeline layout, where the *cell around the
+   * input* is the box — it paints the border and turns it accent on the cursor
+   * row, and carries the floating label. Painting chrome here too would draw a
+   * box inside a box. Wins over `flat`, which is the form treatment.
+   */
+  bare?: boolean;
   /** Tint for the input text (e.g. the RPE effort tone). */
   textColor?: string;
 }
@@ -129,6 +145,7 @@ export function SetCellInput({
   className,
   placeholder = '–',
   flat = false,
+  bare = false,
   textColor,
 }: SetCellInputProps) {
   const [focused, setFocused] = useState(false);
@@ -169,47 +186,65 @@ export function SetCellInput({
         // Tighter than FormInput's default 12 so the cell fits the 5-column row.
         paddingLeft: 4,
         paddingRight: 4,
-        ...(Platform.OS === 'android'
+        ...(bare
           ? {
-              // lineHeight stays fontSize + 2 in both variants; the boxed cell
-              // needs the taller line box, so its height grows with it.
-              height: flat ? 32 : BOXED_CELL_HEIGHT,
-              paddingTop: 0,
-              paddingBottom: 0,
               backgroundColor: 'transparent',
               borderWidth: 0,
-              ...(flat
-                ? { fontSize: 14, lineHeight: 16 }
-                : {
-                    fontSize: BOXED_CELL_FONT_SIZE,
-                    lineHeight: BOXED_CELL_FONT_SIZE + 2,
-                    fontWeight: '600' as const,
-                  }),
+              paddingTop: 0,
+              paddingBottom: 0,
+              fontSize: BARE_CELL_FONT_SIZE,
+              lineHeight: BARE_CELL_FONT_SIZE + 4,
+              fontWeight: '600' as const,
+              // The cell fixes the height; without this Android's EditText
+              // measures its own and pushes the floating label off the border.
+              height: BARE_CELL_FONT_SIZE + 10,
             }
-          : {
-              paddingTop: 6,
-              paddingBottom: 6,
-              ...(flat
-                ? { fontSize: 14, lineHeight: 18 }
-                : {
-                    fontSize: BOXED_CELL_FONT_SIZE,
-                    lineHeight: BOXED_CELL_FONT_SIZE + 4,
-                    fontWeight: '600' as const,
-                  }),
-              // Flat only: a transparent (not zero-width) border so the cell
-              // doesn't shift when the focus ring appears. A boxed cell keeps
-              // FormInput's own chrome, which already paints the raised
-              // background with a subtle→accent border on focus.
-              ...(flat && !focused
-                ? { backgroundColor: 'transparent', borderColor: 'transparent' }
-                : null),
-            }),
+          : Platform.OS === 'android'
+            ? {
+                // lineHeight stays fontSize + 2 in both variants; the boxed cell
+                // needs the taller line box, so its height grows with it.
+                height: flat ? 32 : BOXED_CELL_HEIGHT,
+                paddingTop: 0,
+                paddingBottom: 0,
+                backgroundColor: 'transparent',
+                borderWidth: 0,
+                ...(flat
+                  ? { fontSize: 14, lineHeight: 16 }
+                  : {
+                      fontSize: BOXED_CELL_FONT_SIZE,
+                      lineHeight: BOXED_CELL_FONT_SIZE + 2,
+                      fontWeight: '600' as const,
+                    }),
+              }
+            : {
+                paddingTop: 6,
+                paddingBottom: 6,
+                ...(flat
+                  ? { fontSize: 14, lineHeight: 18 }
+                  : {
+                      fontSize: BOXED_CELL_FONT_SIZE,
+                      lineHeight: BOXED_CELL_FONT_SIZE + 4,
+                      fontWeight: '600' as const,
+                    }),
+                // Flat only: a transparent (not zero-width) border so the cell
+                // doesn't shift when the focus ring appears. A boxed cell keeps
+                // FormInput's own chrome, which already paints the raised
+                // background with a subtle→accent border on focus.
+                ...(flat && !focused
+                  ? {
+                      backgroundColor: 'transparent',
+                      borderColor: 'transparent',
+                    }
+                  : null),
+              }),
         ...(textColor != null ? { color: textColor } : null),
       }}
     />
   );
 
-  if (Platform.OS !== 'android') return input;
+  // A bare cell has no chrome to paint on either platform; the surrounding
+  // timeline cell owns the border, the background and the focus accent.
+  if (bare || Platform.OS !== 'android') return input;
 
   // A boxed cell always paints its chrome; a flat one only while focused.
   const boxVisible = focused || !flat;

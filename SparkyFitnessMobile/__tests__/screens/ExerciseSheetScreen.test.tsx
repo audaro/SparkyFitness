@@ -223,12 +223,44 @@ describe('ExerciseSheetScreen', () => {
     });
 
     it("renders the entry's set rows through the shared card", () => {
-      const { getByTestId, getAllByText } = renderSheet();
+      const { getByTestId, getAllByTestId, getAllByText } = renderSheet();
 
       expect(getByTestId('exercise-sheet-sets')).toBeTruthy();
-      // Both of the plank's sets, numbered by the card's own rail.
-      expect(getAllByText('1').length).toBeGreaterThan(0);
+      // Both of the plank's sets, each a badge strung on the timeline rail.
+      expect(getAllByTestId('set-timeline-badge')).toHaveLength(2);
+      // One rail segment per row; abutting, they read as one thread.
+      expect(getAllByTestId('set-timeline-rail')).toHaveLength(2);
+      // The cursor set's badge is its start control (this is a timed hold), so
+      // only the upcoming set shows its number.
       expect(getAllByText('2').length).toBeGreaterThan(0);
+    });
+
+    it('labels only the cursor set, since four identical labels are noise', () => {
+      const { getAllByText } = renderSheet();
+
+      expect(getAllByText('Sec')).toHaveLength(1);
+    });
+
+    // The sheet covers the active workout's own docked bar, so without a footer
+    // the only way to log the set you opened it for would be its badge.
+    it('logs the cursor set from its own footer', () => {
+      const { getByTestId } = renderSheet();
+
+      fireEvent.press(getByTestId('exercise-sheet-log-set'));
+
+      expect(
+        useActiveWorkoutStore.getState().completedSetIds['101']
+      ).toBeTruthy();
+    });
+
+    // The cursor is the workout's, not this exercise's: a sheet opened on some
+    // other exercise must not offer to log a set that is not on it.
+    it('withholds the footer when the cursor is on another exercise', () => {
+      useActiveWorkoutStore.setState({ activeSetId: '999' });
+
+      const { queryByTestId } = renderSheet();
+
+      expect(queryByTestId('exercise-sheet-log-set')).toBeNull();
     });
 
     it('offers the hold control on the cursor set, since the store would take it', () => {

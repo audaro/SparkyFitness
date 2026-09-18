@@ -27,7 +27,11 @@ import MuscleRegionBadge from './MuscleRegionBadge';
 import FormInput from './FormInput';
 import RestPeriodChip from './RestPeriodChip';
 import ActiveWorkoutSetRow, {
+  TIMELINE_BADGE_SIZE,
+  TIMELINE_RAIL_INSET,
+  TIMELINE_ROW_GAP,
   type SetRowAccessoryHandle,
+  type SetRowLayout,
   type SetRowState,
 } from './ActiveWorkoutSetRow';
 import type { SetInputField } from './SetRowChrome';
@@ -146,6 +150,13 @@ interface ActiveWorkoutExerciseCardProps {
    * the two surfaces cannot drift in how a workout exercise is edited.
    */
   headerless?: boolean;
+  /**
+   * Set-list shape, forwarded to every row. `timeline` is the exercise sheet's
+   * badge-and-two-cells arrangement; it also drops the column header (the
+   * cells label themselves) and restyles Add Set as the last stop on the
+   * hairline. See {@link ActiveWorkoutSetRow}'s `layout`.
+   */
+  setLayout?: SetRowLayout;
   /**
    * Edit only: enables the inline calories field in the chip row. The text
    * comes from `exercise.editCaloriesText`; view mode instead shows
@@ -312,6 +323,7 @@ function ActiveWorkoutExerciseCard({
   onStartHold,
   holdingSetId = null,
   headerless = false,
+  setLayout = 'grid',
   metricColumn,
   weightUnit,
   distanceUnit = 'km',
@@ -361,6 +373,7 @@ function ActiveWorkoutExerciseCard({
     prColor,
     successColor,
     borderColor,
+    borderSubtle,
   ] = useCSSVariable([
     '--color-text-muted',
     '--color-accent-primary',
@@ -368,7 +381,10 @@ function ActiveWorkoutExerciseCard({
     '--color-pr',
     '--color-icon-success',
     '--color-border',
-  ]) as [string, string, string, string, string, string];
+    '--color-border-subtle',
+  ]) as [string, string, string, string, string, string, string];
+
+  const isTimeline = setLayout === 'timeline';
 
   const name =
     exercise.exercise_snapshot?.name ??
@@ -1498,7 +1514,10 @@ function ActiveWorkoutExerciseCard({
           />
         )}
 
-        {!cardioForm && exercise.sets.length > 0 && (
+        {/* The timeline's cells label themselves through their floating
+            notches, and it carries neither PREV nor the metric column, so the
+            header row has nothing left to name. */}
+        {!cardioForm && !isTimeline && exercise.sets.length > 0 && (
           <View className="flex-row items-center px-1 py-1.5">
             <Text
               className={`${durationLike ? 'flex-1' : 'w-9'} text-center text-xs font-semibold uppercase text-text-muted`}
@@ -1620,6 +1639,8 @@ function ActiveWorkoutExerciseCard({
                   onEditFieldChange={onEditFieldChange}
                   onAddSet={onAddSet}
                   onRegisterAccessoryHandle={onRegisterAccessoryHandle}
+                  layout={setLayout}
+                  timelineFirst={index === 0}
                 />
                 {!readOnly &&
                   expandedSetKey === renderKey &&
@@ -1675,11 +1696,58 @@ function ActiveWorkoutExerciseCard({
                     name,
                   })
             }
-            className="flex-row items-center justify-center gap-1.5 py-2.5 mt-1"
+            className={
+              isTimeline
+                ? 'flex-row items-center'
+                : 'flex-row items-center justify-center gap-1.5 py-2.5 mt-1'
+            }
+            style={
+              isTimeline
+                ? {
+                    gap: TIMELINE_ROW_GAP,
+                    paddingVertical: TIMELINE_ROW_GAP / 2,
+                  }
+                : undefined
+            }
           >
-            <Icon name="add" size={15} color={accentPrimary} />
+            {/* On the timeline, Add Set is the last stop on the rail rather
+                than a centred link under the table: a dashed badge where the
+                next set's number would be. */}
+            {isTimeline && exercise.sets.length > 0 && (
+              // The rail's last segment, ending on the dashed badge.
+              <View
+                pointerEvents="none"
+                className="absolute"
+                style={{
+                  left: TIMELINE_BADGE_SIZE / 2 - 1,
+                  top: 0,
+                  bottom: TIMELINE_RAIL_INSET,
+                  width: 2,
+                  backgroundColor: borderSubtle,
+                }}
+              />
+            )}
+            {isTimeline ? (
+              <View
+                className="items-center justify-center"
+                style={{
+                  width: TIMELINE_BADGE_SIZE,
+                  height: TIMELINE_BADGE_SIZE,
+                  borderRadius: TIMELINE_BADGE_SIZE / 2,
+                  borderWidth: 1,
+                  borderStyle: 'dashed',
+                  borderColor: accentPrimary,
+                }}
+              >
+                <Icon name="add" size={14} color={accentPrimary} />
+              </View>
+            ) : (
+              <Icon name="add" size={15} color={accentPrimary} />
+            )}
             <Text
-              className="text-sm font-medium"
+              className={
+                isTimeline ? 'text-base font-semibold' : 'text-sm font-medium'
+              }
               style={{ color: accentPrimary }}
             >
               {cardioForm

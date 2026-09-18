@@ -85,6 +85,7 @@ interface RenderOverrides {
   enableToggle?: boolean;
   /** Wire the set-type handler (makes the set number a menu trigger). */
   enableSetType?: boolean;
+  layout?: 'grid' | 'timeline';
 }
 
 function renderRow(overrides?: RenderOverrides) {
@@ -131,6 +132,7 @@ function renderRow(overrides?: RenderOverrides) {
       onPressSetType={current?.enableSetType ? onPressSetType : undefined}
       onStartHold={current?.enableStartHold ? onStartHold : undefined}
       isHolding={current?.isHolding}
+      layout={current?.layout}
     />
   );
   const utils = render(buildElement(overrides));
@@ -1766,5 +1768,55 @@ describe('ActiveWorkoutSetRow', () => {
       });
       expect(queryByTestId('start-hold-control')).toBeNull();
     });
+  });
+});
+
+// The exercise sheet's arrangement: the same drafts and commit handlers, laid
+// out as a state badge on a rail with the two value cells alone beside it.
+describe('timeline layout', () => {
+  it('drops PREV and the metric column, keeping just the two value cells', () => {
+    const { getByTestId, queryByTestId, queryByText } = renderRow({
+      layout: 'timeline',
+      previousSet: { reps: 8, weight: 55 } as ExerciseRecentSessionSet,
+    });
+
+    expect(getByTestId('set-timeline-cell-weight')).toBeTruthy();
+    expect(getByTestId('set-timeline-cell-reps')).toBeTruthy();
+    expect(queryByTestId('set-timeline-cell-rpe')).toBeNull();
+    // The PREVIOUS value would have rendered as "55 kg x 8" in the grid.
+    expect(queryByText(/55/)).toBeNull();
+  });
+
+  it('labels the cursor row through floating notches and nothing else', () => {
+    const cursor = renderRow({ layout: 'timeline', state: 'current' });
+    expect(cursor.getAllByText('Reps')).toHaveLength(1);
+    cursor.unmount();
+
+    const upcoming = renderRow({ layout: 'timeline', state: 'upcoming' });
+    expect(upcoming.queryByText('Reps')).toBeNull();
+  });
+
+  it("logs from the badge, which is the row's only control", () => {
+    const { getByTestId, callbacks } = renderRow({
+      layout: 'timeline',
+      state: 'upcoming',
+      displayNumber: 3,
+    });
+
+    expect(getByTestId('set-timeline-badge')).toBeTruthy();
+    fireEvent.press(getByTestId('set-timeline-badge'));
+
+    expect(callbacks.onComplete).toHaveBeenCalledWith('101');
+  });
+
+  it('un-completes a done row from the same badge', () => {
+    const { getByTestId, callbacks } = renderRow({
+      layout: 'timeline',
+      state: 'done',
+    });
+
+    fireEvent.press(getByTestId('set-timeline-badge'));
+
+    expect(callbacks.onUncomplete).toHaveBeenCalledWith('101');
   });
 });
