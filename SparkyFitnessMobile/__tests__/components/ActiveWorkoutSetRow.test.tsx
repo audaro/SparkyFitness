@@ -229,21 +229,49 @@ describe('ActiveWorkoutSetRow', () => {
       expect(callbacks.onActivateSet).toHaveBeenCalledWith('101', 'reps');
     });
 
-    it('renders cells as plain text until focused — no chip chrome on the resting grid', () => {
+    it('boxes every live cell, focused or not, at the log type size', () => {
+      // Decision 8 of the exercise-sheet redesign, reversing the earlier "every
+      // live cell is flat" rule: mid-set the row is read at arm's length, and a
+      // bare number floating under a column header does not carry. The edit
+      // forms keep the flat treatment (see the edit-mode block below) because a
+      // grid of chips reading as a form is right on a screen that is a form.
       const { getByLabelText } = renderRow({ state: 'current' });
       const input = getByLabelText('Weight');
-      expect(StyleSheet.flatten(input.props.style).backgroundColor).toBe(
-        'transparent'
-      );
-      expect(StyleSheet.flatten(input.props.style).borderColor).toBe(
-        'transparent'
-      );
+      const resting = StyleSheet.flatten(input.props.style);
+      expect(resting.backgroundColor).not.toBe('transparent');
+      expect(resting.borderColor).not.toBe('transparent');
+      expect(resting.borderWidth).toBe(1);
+      expect(resting.fontSize).toBe(17);
+      expect(resting.fontWeight).toBe('600');
 
-      // The chip + ring come back on the focused cell to mark the keyboard target.
+      // Focus only swaps FormInput's border to the accent; the box was already
+      // there, so the cell must not change size under the finger that taps it.
       fireEvent(input, 'focus');
-      expect(StyleSheet.flatten(input.props.style).backgroundColor).not.toBe(
-        'transparent'
-      );
+      const focused = StyleSheet.flatten(input.props.style);
+      expect(focused.backgroundColor).toBe(resting.backgroundColor);
+      expect(focused.fontSize).toBe(17);
+      expect(focused.lineHeight).toBe(resting.lineHeight);
+    });
+
+    it('keeps the bone-stock EditText shape on Android at the boxed size', () => {
+      // Boxing changes when the wrapper View paints, never where the chrome
+      // lives: the Android input itself stays borderless and unpadded with
+      // lineHeight = fontSize + 2, or it clips its digits on first focus (see
+      // the edit-mode sibling of this test).
+      const osSpy = jest.replaceProperty(Platform, 'OS', 'android');
+      try {
+        const { getByLabelText } = renderRow({ state: 'current' });
+        const style = StyleSheet.flatten(getByLabelText('Weight').props.style);
+        expect(style.height).toBe(36);
+        expect(style.paddingTop).toBe(0);
+        expect(style.paddingBottom).toBe(0);
+        expect(style.borderWidth).toBe(0);
+        expect(style.backgroundColor).toBe('transparent');
+        expect(style.fontSize).toBe(17);
+        expect(style.lineHeight).toBe(19);
+      } finally {
+        osSpy.restore();
+      }
     });
 
     it('reports RPE focus when the RPE column input is focused', () => {

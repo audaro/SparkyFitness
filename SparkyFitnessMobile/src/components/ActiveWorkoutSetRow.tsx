@@ -938,7 +938,7 @@ function ActiveWorkoutSetRow({
         })}
         className="w-16"
         placeholder={isEdit ? '–' : (assumedWeightText ?? '–')}
-        flat
+        flat={isEdit}
       />
     </View>
   );
@@ -962,7 +962,7 @@ function ActiveWorkoutSetRow({
         placeholder={
           isEdit ? '–' : assumed?.reps != null ? String(assumed.reps) : '–'
         }
-        flat
+        flat={isEdit}
       />
     </View>
   );
@@ -1000,7 +1000,7 @@ function ActiveWorkoutSetRow({
               : '–'
             : (assumedDurationText ?? '–')
         }
-        flat
+        flat={isEdit}
       />
     </View>
   );
@@ -1020,7 +1020,7 @@ function ActiveWorkoutSetRow({
           defaultValue: 'RPE',
         })}
         className="w-11"
-        flat
+        flat={isEdit}
         textColor={metricValue.color}
       />
     </View>
