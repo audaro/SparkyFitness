@@ -24,6 +24,7 @@ import AnchoredMenu, {
   type AnchorRect,
 } from '../components/AnchoredMenu';
 import BottomSheetPicker from '../components/BottomSheetPicker';
+import UpNextCoachCard from '../components/UpNextCoachCard';
 import Button from '../components/ui/Button';
 import Icon from '../components/Icon';
 import StatusView from '../components/StatusView';
@@ -758,6 +759,13 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
             <Text className="text-xs mt-1" style={{ color: textMuted }}>
               {payload.muscle_groups.map(titleCaseCanonical).join(', ')}
             </Text>
+
+            {/* Absent on every workout generated before the payload carried
+                one, which is why the card renders nothing rather than an
+                empty shell. */}
+            {payload.rationale != null && (
+              <UpNextCoachCard rationale={payload.rationale} />
+            )}
 
             <View className="flex-row items-center mt-3">
               <BottomSheetPicker<number>

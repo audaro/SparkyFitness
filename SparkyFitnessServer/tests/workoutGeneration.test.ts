@@ -17,6 +17,7 @@ import {
   KG_PER_LB,
   prescribeSets,
   rationaleFor,
+  workoutRationale,
   restSecondsFor,
   selectTargetMuscles,
   sessionBreadthFor,
@@ -2586,6 +2587,112 @@ describe('rationaleFor', () => {
     expect(rationaleFor('quadriceps', trimmed)).toBe(
       'fresh quadriceps · +2.5% from last session'
     );
+  });
+});
+
+describe('workoutRationale', () => {
+  const freshness = (entries: Record<string, number>) =>
+    Object.entries(entries).map(([muscle, value]) => ({
+      muscle,
+      freshness: value,
+      fatigueSets: 0,
+      lastTrained: null,
+    }));
+
+  it('names the muscles it chose and how recovered they are', () => {
+    expect(
+      workoutRationale({
+        targetMuscles: ['quadriceps', 'calves', 'glutes'],
+        droppedMuscles: [],
+        muscles: freshness({ quadriceps: 1, calves: 0.9, glutes: 0.86 }),
+        clientChoseMuscles: false,
+        goal: 'hypertrophy',
+      })
+    ).toBe(
+      'Built around quadriceps, calves and glutes — the freshest muscles you have today, at 92% recovered on average. Sets and reps are shaped for hypertrophy.'
+    );
+  });
+
+  it('does not claim the muscles were freshest when the user picked them', () => {
+    // Tapping Legs on sore legs is a decision, not an error — the picker
+    // shows the recovery percentage — so the card must not tell the user
+    // their sore quads are the freshest thing they own.
+    expect(
+      workoutRationale({
+        targetMuscles: ['quadriceps', 'hamstrings'],
+        droppedMuscles: [],
+        muscles: freshness({ quadriceps: 0.1, hamstrings: 0.2 }),
+        clientChoseMuscles: true,
+        goal: 'strength',
+      })
+    ).toBe(
+      'Built around the quadriceps and hamstrings you asked for. Sets and reps are shaped for strength.'
+    );
+  });
+
+  it('says when a muscle was dropped to fit the time, in the right number', () => {
+    expect(
+      workoutRationale({
+        targetMuscles: ['chest'],
+        droppedMuscles: ['neck'],
+        muscles: freshness({ chest: 1 }),
+        clientChoseMuscles: true,
+        goal: 'general',
+      })
+    ).toBe(
+      'Built around the chest you asked for. Neck did not fit the time and was left for another session. Sets and reps are shaped for general fitness.'
+    );
+    expect(
+      workoutRationale({
+        targetMuscles: ['chest'],
+        droppedMuscles: ['neck', 'forearms'],
+        muscles: freshness({ chest: 1 }),
+        clientChoseMuscles: true,
+        goal: 'general',
+      })
+    ).toContain('Neck and forearms did not fit the time and were left');
+  });
+
+  it('averages only over muscles the freshness vector actually covers', () => {
+    // A muscle missing from the vector would otherwise count as 0% and drag
+    // an honest 100% down to 50%.
+    expect(
+      workoutRationale({
+        targetMuscles: ['chest', 'neck'],
+        droppedMuscles: [],
+        muscles: freshness({ chest: 1 }),
+        clientChoseMuscles: false,
+        goal: 'hypertrophy',
+      })
+    ).toContain('at 100% recovered on average');
+  });
+
+  it('drops the percentage entirely when nothing is known', () => {
+    expect(
+      workoutRationale({
+        targetMuscles: ['chest'],
+        droppedMuscles: [],
+        muscles: [],
+        clientChoseMuscles: false,
+        goal: 'hypertrophy',
+      })
+    ).toBe(
+      'Built around chest — the freshest muscles you have today. Sets and reps are shaped for hypertrophy.'
+    );
+  });
+
+  it('says nothing about the exercise count or the duration', () => {
+    // Both are already in the header, and Replace rewrites the exercises
+    // without regenerating this string, so either one would go stale.
+    const text = workoutRationale({
+      targetMuscles: ['chest', 'triceps'],
+      droppedMuscles: [],
+      muscles: freshness({ chest: 1, triceps: 1 }),
+      clientChoseMuscles: false,
+      goal: 'hypertrophy',
+    });
+    expect(text).not.toMatch(/minute/i);
+    expect(text).not.toMatch(/exercise/i);
   });
 });
 

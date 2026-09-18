@@ -590,6 +590,33 @@ describe('UpNextScreen', () => {
     await waitFor(() => expect(generateAsync).toHaveBeenCalledWith({}));
   });
 
+  describe('coach card', () => {
+    it('shows the workout-level rationale when the payload carries one', () => {
+      setRecommendation(
+        makeRecommendation({
+          payload: makePayload({
+            rationale: 'Built around chest and triceps. Shaped for strength.',
+          }),
+        })
+      );
+
+      const screen = renderScreen();
+      expect(screen.getByTestId('up-next-coach-card')).toBeTruthy();
+      expect(
+        screen.getByText('Built around chest and triceps. Shaped for strength.')
+      ).toBeTruthy();
+    });
+
+    it('renders no card for a workout generated before the field existed', () => {
+      // `rationale` is optional on the payload schema precisely so those rows
+      // stay readable; an empty card in their place would be worse than none.
+      setRecommendation(makeRecommendation({ payload: makePayload() }));
+
+      const screen = renderScreen();
+      expect(screen.queryByTestId('up-next-coach-card')).toBeNull();
+    });
+  });
+
   describe('carrying the current workout forward', () => {
     // `muscle_groups` is `z.array(z.string())` on the wire — it carries whatever
     // a custom exercise's snapshot said — while `target_muscles` is the pinned

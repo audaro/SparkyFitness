@@ -16,6 +16,7 @@ import {
   todayInZone,
   warmupSetsFor,
   withWarmups,
+  workoutRationale,
   workoutRecommendationPayloadSchema,
   GENERATION_TUNABLES,
   RECOVERY_TUNABLES,
@@ -699,6 +700,21 @@ async function generateRecommendation(
     // lie the card would repeat.
     muscle_groups: fitted.targetMuscles,
     estimated_duration_minutes: estimateDurationMinutes(exercises),
+    rationale: workoutRationale({
+      targetMuscles: fitted.targetMuscles,
+      // Planned for and cut by the fitter. Comparing against the resolved
+      // list rather than `opts.targetMuscles` catches the engine's own picks
+      // too, and keeps the comparison in canonical casing either way.
+      droppedMuscles: targetMuscles.filter(
+        (muscle) => !fitted.targetMuscles.includes(muscle)
+      ),
+      muscles,
+      // A client that named muscles decided them; saying they are the
+      // freshest would be false as often as not, since the picker shows the
+      // recovery percentage and tapping Legs on sore legs is allowed.
+      clientChoseMuscles: (opts.targetMuscles?.length ?? 0) > 0,
+      goal: options.goal,
+    }),
     exercises,
   };
 

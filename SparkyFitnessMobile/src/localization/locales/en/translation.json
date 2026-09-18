@@ -5322,7 +5322,11 @@
     },
     "generateFailed": "Could not build a workout",
     "generateNoMatch": "No exercises matched your gym equipment. Try another gym profile.",
-    "replaceFailed": "Could not replace that exercise"
+    "replaceFailed": "Could not replace that exercise",
+    "coachLabel": "Coach",
+    "coachNote": "Coach note: {{note}}",
+    "coachCollapse": "Collapses the note",
+    "coachExpand": "Shows the whole note"
   },
   "gymProfiles": {
     "duplicateName": "You already have a profile with that name.",

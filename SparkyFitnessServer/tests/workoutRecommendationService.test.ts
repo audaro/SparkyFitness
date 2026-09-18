@@ -495,6 +495,29 @@ describe('generateRecommendation', () => {
     expect(result.payload.exercises[0].exercise_id).toBe(unleveledBench.id);
   });
 
+  it('explains the session, naming the muscles it actually kept', async () => {
+    const result =
+      await workoutRecommendationService.generateRecommendation(USER_ID);
+
+    expect(result.payload.rationale).toContain('Built around');
+    for (const muscle of result.payload.muscle_groups) {
+      expect(result.payload.rationale).toContain(muscle);
+    }
+  });
+
+  it('does not tell a user who picked their muscles that they were freshest', async () => {
+    // The picker already showed the recovery percentage; tapping a sore
+    // muscle is a decision, and the card must not contradict it.
+    const result = await workoutRecommendationService.generateRecommendation(
+      USER_ID,
+      { targetMuscles: ['lats'] }
+    );
+
+    expect(result.payload.rationale).toBe(
+      'Built around the lats you asked for. Sets and reps are shaped for general fitness.'
+    );
+  });
+
   it('narrows the catalog read to the muscles it actually chose', async () => {
     const result =
       await workoutRecommendationService.generateRecommendation(USER_ID);
