@@ -41,6 +41,7 @@ import {
   SafeFoodDetail,
   SafeMealDetail,
   SafeExerciseDetail,
+  SafeExerciseSheet,
   SafeWorkoutPresetDetail,
   SafeFoodSearch,
   SafeFoodEntryAdd,
@@ -473,6 +474,17 @@ function AppContent() {
               // iOS 26 defaults the pop gesture to full-screen swipes; keep it
               // edge-only here so interior right-swipes switch tabs instead of
               // navigating back.
+              fullScreenGestureEnabled: false,
+            })}
+          />
+          <Stack.Screen
+            name="ExerciseSheet"
+            component={SafeExerciseSheet}
+            options={({ route }) => createStackScreenOptions(route.params.item.name, {
+              headerBackTitle: t('screens.workout', { defaultValue: 'Workout' }),
+              // Same reason as ExerciseDetail: iOS 26 defaults the pop gesture
+              // to full-screen swipes, and interior right-swipes here should
+              // switch tabs rather than navigate back.
               fullScreenGestureEnabled: false,
             })}
           />

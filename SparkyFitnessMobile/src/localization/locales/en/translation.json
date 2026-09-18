@@ -2945,6 +2945,10 @@
       }
     }
   },
+  "exerciseSheet": {
+    "moreOptions": "More options",
+    "exerciseDetails": "Exercise details"
+  },
   "exerciseDetail": {
     "sharedPublicly": "Exercise shared publicly",
     "madePrivate": "Exercise made private",

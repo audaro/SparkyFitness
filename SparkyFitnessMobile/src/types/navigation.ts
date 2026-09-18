@@ -126,6 +126,33 @@ export type RootStackParamList = {
     // form, and pops back past ExerciseSearch.
     selectionReturnKey?: string;
   };
+  ExerciseSheet:
+    | {
+        /**
+         * Opened from the live workout: the sheet edits the session entry in
+         * the store, and the footer starts the entry's active set.
+         */
+        context: 'active-workout';
+        /** Catalog record for the hero, name and taxonomy line. */
+        item: Exercise;
+        /** The session exercise entry this sheet edits. */
+        entryId: string;
+      }
+    | {
+        /**
+         * Opened from Up Next, before the workout exists. A generated
+         * recommendation has no session entries and no per-set persistence, so
+         * the sheet edits a copy and hands it back to the Up Next screen, which
+         * holds it in the same local plan the superset builder uses. The footer
+         * starts the workout.
+         */
+        context: 'up-next';
+        item: Exercise;
+        /** The planned exercise's catalog id — its identity within the plan. */
+        exerciseId: string;
+        /** Route key of the Up Next screen the edited exercise returns to. */
+        returnKey: string;
+      };
   FoodSearch:
     | {
         date?: string;

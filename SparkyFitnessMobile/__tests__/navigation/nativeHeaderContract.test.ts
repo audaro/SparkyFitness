@@ -18,6 +18,8 @@ const NATIVE_TABS_ROUTE_EXCLUSIONS = {
   EditBarcode:
     'Root-stack settings/detail editor presented above the tab host.',
   ExerciseDetail: 'Root-stack detail route presented above the tab host.',
+  ExerciseSheet:
+    'Root-stack per-exercise session sheet presented above the tab host.',
   FoodEntryAdd: 'Root-stack food-entry modal presented from the tab host.',
   EditLoggedMeal: 'Root-stack diary editor presented above the tab host.',
   FoodEntryView: 'Root-stack diary detail route presented above the tab host.',
