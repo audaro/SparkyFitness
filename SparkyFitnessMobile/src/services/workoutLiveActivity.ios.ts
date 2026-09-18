@@ -58,6 +58,8 @@ let lastSentProps: WorkoutLiveActivityProps | null = null;
  */
 const REST_ADD_15_TARGET = 'rest-add-15';
 const REST_SKIP_TARGET = 'rest-skip';
+const HOLD_ADD_15_TARGET = 'hold-add-15';
+const HOLD_STOP_TARGET = 'hold-stop';
 const COMPLETE_SET_TARGET = 'complete-set';
 
 /**
@@ -130,6 +132,17 @@ function handleUserInteraction(event: UserInteractionEvent): void {
     case REST_SKIP_TARGET:
       store.dismissRest();
       break;
+    case HOLD_ADD_15_TARGET:
+      store.adjustHold(15);
+      break;
+    case HOLD_STOP_TARGET:
+      // Stop is the hold's Skip: it logs the set with the time actually held
+      // and starts the next rest. Unlike COMPLETE_SET_TARGET it needs no
+      // staleness guard — the store no-ops when no hold is running, and a
+      // press from a stale banner can only land on the hold it was painted
+      // for, since a hold belongs to the cursor.
+      store.stopHoldAndLog();
+      break;
     case COMPLETE_SET_TARGET:
       // The guarded variant rejects a press from a stale banner while a rest
       // is running/paused — it would complete the next set.
@@ -157,6 +170,7 @@ export function computeWorkoutLiveActivityProps(
     | 'completedSetIds'
     | 'activeSetId'
     | 'rest'
+    | 'hold'
   >,
   locale: WorkoutLiveActivityLocale = resolveWorkoutLiveActivityLocale(
     i18n.resolvedLanguage
@@ -171,6 +185,7 @@ export function computeWorkoutLiveActivityProps(
     completedSetIds,
     activeSetId,
     rest,
+    hold,
   } = state;
   if (sessionId == null || startedAt == null) return null;
 
@@ -189,8 +204,8 @@ export function computeWorkoutLiveActivityProps(
       labels,
       startedAt,
       phase: 'complete',
-      restStartedAt: null,
-      restEndsAt: null,
+      countdownStartedAt: null,
+      countdownEndsAt: null,
       pausedRemainingLabel: null,
       setLine: null,
       elapsedLabel: formatElapsed(startedAt, frozenAt),
@@ -202,6 +217,39 @@ export function computeWorkoutLiveActivityProps(
     ? `${desc.exerciseName ?? labels.exercise} · ${labels.set} ${desc.setNumber} ${labels.setOf} ${desc.setCount}`
     : null;
 
+  // Hold before rest: the two are mutually exclusive in the store, and the
+  // hold is the phase the user is physically in, so it wins any transient
+  // overlap a future action might introduce.
+  if (hold.state === 'holding' && hold.endsAt != null) {
+    return {
+      workoutName,
+      locale,
+      labels,
+      startedAt,
+      phase: 'holding',
+      countdownStartedAt: hold.endsAt - hold.targetSec * 1000,
+      countdownEndsAt: hold.endsAt,
+      pausedRemainingLabel: null,
+      setLine,
+      elapsedLabel: null,
+    };
+  }
+
+  if (hold.state === 'paused' && hold.pausedRemainingMs != null) {
+    return {
+      workoutName,
+      locale,
+      labels,
+      startedAt,
+      phase: 'hold-paused',
+      countdownStartedAt: null,
+      countdownEndsAt: null,
+      pausedRemainingLabel: formatRestCountdown(hold.pausedRemainingMs),
+      setLine,
+      elapsedLabel: null,
+    };
+  }
+
   if (rest.state === 'resting' && rest.endsAt != null) {
     return {
       workoutName,
@@ -209,8 +257,8 @@ export function computeWorkoutLiveActivityProps(
       labels,
       startedAt,
       phase: 'resting',
-      restStartedAt: rest.endsAt - rest.durationSec * 1000,
-      restEndsAt: rest.endsAt,
+      countdownStartedAt: rest.endsAt - rest.durationSec * 1000,
+      countdownEndsAt: rest.endsAt,
       pausedRemainingLabel: null,
       setLine,
       elapsedLabel: null,
@@ -223,9 +271,9 @@ export function computeWorkoutLiveActivityProps(
       locale,
       labels,
       startedAt,
-      phase: 'paused',
-      restStartedAt: null,
-      restEndsAt: null,
+      phase: 'rest-paused',
+      countdownStartedAt: null,
+      countdownEndsAt: null,
       pausedRemainingLabel: formatRestCountdown(rest.pausedRemainingMs),
       setLine,
       elapsedLabel: null,
@@ -238,8 +286,8 @@ export function computeWorkoutLiveActivityProps(
     labels,
     startedAt,
     phase: 'active',
-    restStartedAt: null,
-    restEndsAt: null,
+    countdownStartedAt: null,
+    countdownEndsAt: null,
     pausedRemainingLabel: null,
     setLine,
     elapsedLabel: null,
@@ -259,6 +307,8 @@ function labelsEqual(
     a.addFifteenSeconds === b.addFifteenSeconds &&
     a.addFifteenSecondsShort === b.addFifteenSecondsShort &&
     a.skipRest === b.skipRest &&
+    a.hold === b.hold &&
+    a.stopHold === b.stopHold &&
     a.workout === b.workout &&
     a.exercise === b.exercise &&
     a.set === b.set &&
@@ -276,8 +326,8 @@ function propsEqual(
     a.workoutName === b.workoutName &&
     a.startedAt === b.startedAt &&
     a.phase === b.phase &&
-    a.restStartedAt === b.restStartedAt &&
-    a.restEndsAt === b.restEndsAt &&
+    a.countdownStartedAt === b.countdownStartedAt &&
+    a.countdownEndsAt === b.countdownEndsAt &&
     a.pausedRemainingLabel === b.pausedRemainingLabel &&
     a.setLine === b.setLine &&
     a.elapsedLabel === b.elapsedLabel &&
@@ -390,6 +440,7 @@ export async function initWorkoutLiveActivity(): Promise<void> {
       state.startedAt === prevState.startedAt &&
       state.activeSetId === prevState.activeSetId &&
       state.rest === prevState.rest &&
+      state.hold === prevState.hold &&
       state.completedSetIds === prevState.completedSetIds
     ) {
       return;

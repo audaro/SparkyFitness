@@ -15,6 +15,8 @@ const FORBIDDEN_LITERALS = [
   '"Complete"',
   '"Add 15 seconds"',
   '"Skip rest"',
+  '"Hold"',
+  '"Stop hold"',
   '"Workout"',
   '"Exercise"',
   '"Set"',
@@ -26,6 +28,8 @@ const FORBIDDEN_LITERALS = [
   "'Complete'",
   "'Add 15 seconds'",
   "'Skip rest'",
+  "'Hold'",
+  "'Stop hold'",
   "'Workout'",
   "'Exercise'",
   "'Set'",
@@ -37,6 +41,8 @@ const FORBIDDEN_LITERALS = [
   '>Complete<',
   '>Add 15 seconds<',
   '>Skip rest<',
+  '>Hold<',
+  '>Stop hold<',
   '>Workout<',
   '>Exercise<',
   '>Set<',
@@ -67,6 +73,8 @@ describe('WorkoutLiveActivityLayout contract', () => {
       'props.labels.addFifteenSeconds',
       'props.labels.addFifteenSecondsShort',
       'props.labels.skipRest',
+      'props.labels.hold',
+      'props.labels.stopHold',
     ];
     for (const ref of labelRefs) {
       expect(LAYOUT_SRC).toContain(ref);
@@ -82,6 +90,8 @@ describe('WorkoutLiveActivityLayout contract', () => {
   it('keeps action target ids unchanged', () => {
     expect(LAYOUT_SRC).toContain('target="rest-add-15"');
     expect(LAYOUT_SRC).toContain('target="rest-skip"');
+    expect(LAYOUT_SRC).toContain('target="hold-add-15"');
+    expect(LAYOUT_SRC).toContain('target="hold-stop"');
     expect(LAYOUT_SRC).toContain('target="complete-set"');
   });
 
@@ -108,7 +118,7 @@ describe('WorkoutLiveActivityLayout contract', () => {
   it('keeps timestamps as numbers and the widget directive', () => {
     expect(LAYOUT_SRC).toMatch(/'widget'/);
     expect(LAYOUT_SRC).toMatch(/startedAt: number/);
-    expect(LAYOUT_SRC).toMatch(/restStartedAt: number \| null/);
-    expect(LAYOUT_SRC).toMatch(/restEndsAt: number \| null/);
+    expect(LAYOUT_SRC).toMatch(/countdownStartedAt: number \| null/);
+    expect(LAYOUT_SRC).toMatch(/countdownEndsAt: number \| null/);
   });
 });

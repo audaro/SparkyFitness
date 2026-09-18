@@ -19,6 +19,7 @@ import { addLog } from '../../src/services/LogService';
 
 jest.mock('../../src/services/notifications', () => ({
   scheduleRestNotification: jest.fn(async () => 'notif-abc'),
+  scheduleHoldNotification: jest.fn(async () => 'notif-hold'),
   cancelScheduledNotification: jest.fn(async () => undefined),
   fireRestCompleteCue: jest.fn(),
 }));
@@ -163,6 +164,34 @@ function makeSession(
   };
 }
 
+/**
+ * The same session as a plank: duration modality with a 45s target on each
+ * set, which is what `startHold` requires. Rest stays at 60s so the phase
+ * after a stopped hold is the same rest every other case asserts.
+ */
+function makeHoldSession(): PresetSessionResponse {
+  const session = makeSession();
+  const exercise = session.exercises[0];
+  return {
+    ...session,
+    exercises: [
+      {
+        ...exercise,
+        exercise_snapshot: {
+          ...exercise.exercise_snapshot!,
+          name: 'Plank',
+          modality: 'duration',
+        },
+        sets: exercise.sets.map((set) => ({
+          ...set,
+          reps: null,
+          duration: 45,
+        })),
+      },
+    ],
+  };
+}
+
 /** Flush all pending microtasks (resolved promises). */
 async function flushPromises(): Promise<void> {
   await jest.advanceTimersByTimeAsync(0);
@@ -243,6 +272,8 @@ describe('workoutLiveActivity', () => {
           addFifteenSeconds: 'Add 15 seconds',
           addFifteenSecondsShort: '+15s',
           skipRest: 'Skip rest',
+          hold: 'Hold',
+          stopHold: 'Stop hold',
           workout: 'Workout',
           exercise: 'Exercise',
           set: 'Set',
@@ -250,8 +281,8 @@ describe('workoutLiveActivity', () => {
         },
         startedAt: FIXED_NOW,
         phase: 'active',
-        restStartedAt: null,
-        restEndsAt: null,
+        countdownStartedAt: null,
+        countdownEndsAt: null,
         pausedRemainingLabel: null,
         setLine: 'Bench Press · Set 1 of 2',
         elapsedLabel: null,
@@ -269,8 +300,8 @@ describe('workoutLiveActivity', () => {
       expect(instance.update).toHaveBeenLastCalledWith(
         expect.objectContaining({
           phase: 'resting',
-          restStartedAt: FIXED_NOW,
-          restEndsAt: FIXED_NOW + 60_000,
+          countdownStartedAt: FIXED_NOW,
+          countdownEndsAt: FIXED_NOW + 60_000,
           setLine: 'Bench Press · Set 2 of 2',
         })
       );
@@ -279,9 +310,9 @@ describe('workoutLiveActivity', () => {
       await flushPromises();
       expect(instance.update).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          phase: 'paused',
-          restStartedAt: null,
-          restEndsAt: null,
+          phase: 'rest-paused',
+          countdownStartedAt: null,
+          countdownEndsAt: null,
           pausedRemainingLabel: '1:00',
         })
       );
@@ -308,7 +339,7 @@ describe('workoutLiveActivity', () => {
         expect.objectContaining({
           phase: 'complete',
           elapsedLabel: '02:05',
-          restEndsAt: null,
+          countdownEndsAt: null,
           setLine: null,
         })
       );
@@ -475,7 +506,7 @@ describe('workoutLiveActivity', () => {
       useActiveWorkoutStore.getState().pauseRest();
       await flushPromises();
       expect(instance.update).toHaveBeenLastCalledWith(
-        expect.objectContaining({ phase: 'paused' })
+        expect.objectContaining({ phase: 'rest-paused' })
       );
     });
 
@@ -494,7 +525,7 @@ describe('workoutLiveActivity', () => {
       expect(instance.update).toHaveBeenLastCalledWith(
         expect.objectContaining({
           phase: 'resting',
-          restEndsAt: FIXED_NOW + 90_000,
+          countdownEndsAt: FIXED_NOW + 90_000,
         })
       );
     });
@@ -516,7 +547,7 @@ describe('workoutLiveActivity', () => {
       expect(instance.update).toHaveBeenLastCalledWith(
         expect.objectContaining({
           phase: 'resting',
-          restEndsAt: FIXED_NOW + 75_000,
+          countdownEndsAt: FIXED_NOW + 75_000,
         })
       );
     });
@@ -534,7 +565,7 @@ describe('workoutLiveActivity', () => {
       await flushPromises();
 
       expect(instance.update).toHaveBeenLastCalledWith(
-        expect.objectContaining({ phase: 'active', restEndsAt: null })
+        expect.objectContaining({ phase: 'active', countdownEndsAt: null })
       );
     });
 
@@ -550,7 +581,7 @@ describe('workoutLiveActivity', () => {
       expect(instance.update).toHaveBeenLastCalledWith(
         expect.objectContaining({
           phase: 'resting',
-          restEndsAt: FIXED_NOW + 60_000,
+          countdownEndsAt: FIXED_NOW + 60_000,
           setLine: 'Bench Press · Set 2 of 2',
         })
       );
@@ -587,6 +618,115 @@ describe('workoutLiveActivity', () => {
       await flushPromises();
 
       expect(instance.update.mock.calls.length).toBe(updateCount);
+    });
+  });
+
+  describe('hold phase', () => {
+    it('paints the hold as its own countdown phase', async () => {
+      await initHydrated();
+      useActiveWorkoutStore.getState().startWorkout(makeHoldSession());
+      await flushPromises();
+      const instance = createdInstances[0];
+
+      useActiveWorkoutStore.getState().startHold('101');
+      await flushPromises();
+
+      expect(instance.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          phase: 'holding',
+          countdownStartedAt: FIXED_NOW,
+          countdownEndsAt: FIXED_NOW + 45_000,
+          // The set line still names the set being held, not the next one:
+          // the cursor does not move until the hold logs.
+          setLine: 'Plank · Set 1 of 2',
+        })
+      );
+    });
+
+    it('freezes the countdown into a label when the hold is paused', async () => {
+      await initHydrated();
+      useActiveWorkoutStore.getState().startWorkout(makeHoldSession());
+      await flushPromises();
+      const instance = createdInstances[0];
+
+      useActiveWorkoutStore.getState().startHold('101');
+      jest.setSystemTime(new Date(FIXED_NOW + 15_000));
+      useActiveWorkoutStore.getState().pauseHold();
+      await flushPromises();
+
+      expect(instance.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          phase: 'hold-paused',
+          countdownStartedAt: null,
+          countdownEndsAt: null,
+          pausedRemainingLabel: '0:30',
+        })
+      );
+    });
+
+    it('extends the hold by 15s on hold-add-15', async () => {
+      await initHydrated();
+      useActiveWorkoutStore.getState().startWorkout(makeHoldSession());
+      await flushPromises();
+      const instance = createdInstances[0];
+
+      useActiveWorkoutStore.getState().startHold('101');
+      await flushPromises();
+
+      fireInteraction('hold-add-15');
+      await flushPromises();
+
+      expect(instance.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          phase: 'holding',
+          countdownEndsAt: FIXED_NOW + 60_000,
+        })
+      );
+    });
+
+    it('logs the set with the time actually held on hold-stop', async () => {
+      await initHydrated();
+      useActiveWorkoutStore.getState().startWorkout(makeHoldSession());
+      await flushPromises();
+      const instance = createdInstances[0];
+
+      useActiveWorkoutStore.getState().startHold('101');
+      jest.setSystemTime(new Date(FIXED_NOW + 20_000));
+      fireInteraction('hold-stop');
+      await flushPromises();
+
+      // The hold ends into the set's rest, with the cursor on the next set.
+      expect(instance.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          phase: 'resting',
+          countdownEndsAt: FIXED_NOW + 20_000 + 60_000,
+          setLine: 'Plank · Set 2 of 2',
+        })
+      );
+      const logged = useActiveWorkoutStore
+        .getState()
+        .session?.exercises[0].sets.find((set) => String(set.id) === '101');
+      expect(logged?.duration).toBe(20);
+    });
+
+    it('ignores a complete-set press while a hold is running', async () => {
+      await initHydrated();
+      useActiveWorkoutStore.getState().startWorkout(makeHoldSession());
+      await flushPromises();
+      const instance = createdInstances[0];
+
+      useActiveWorkoutStore.getState().startHold('101');
+      await flushPromises();
+      const updateCount = instance.update.mock.calls.length;
+
+      // The lock screen never shows Complete during a hold, but a stale banner
+      // could — logging the plank mid-plank is the bug this guards.
+      fireInteraction('complete-set');
+      await flushPromises();
+
+      expect(instance.update.mock.calls.length).toBe(updateCount);
+      expect(useActiveWorkoutStore.getState().hold.state).toBe('holding');
+      expect(useActiveWorkoutStore.getState().activeSetId).toBe('101');
     });
   });
 
@@ -672,8 +812,8 @@ describe('workoutLiveActivity', () => {
       expect(lastUpdate).toMatchObject({
         startedAt: FIXED_NOW,
         phase: 'active',
-        restStartedAt: null,
-        restEndsAt: null,
+        countdownStartedAt: null,
+        countdownEndsAt: null,
       });
     });
   });

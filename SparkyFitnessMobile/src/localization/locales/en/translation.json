@@ -272,6 +272,8 @@
       "addFifteenSeconds": "Add 15 seconds",
       "addFifteenSecondsShort": "+15s",
       "skipRest": "Skip rest",
+      "hold": "Hold",
+      "stopHold": "Stop hold",
       "workout": "Workout",
       "exercise": "Exercise",
       "set": "Set",
