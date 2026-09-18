@@ -621,14 +621,37 @@ describe('ActiveWorkoutScreen persistent rest bar', () => {
   });
 
   it('completes the cursor set from the bar and starts the next rest', () => {
+    // A third Bench set, so the cursor's 102 is not the exercise's last —
+    // finishing an exercise deliberately starts no rest at all.
+    const session = makeSession();
+    session.exercises[0].sets.push({
+      ...session.exercises[0].sets[1],
+      id: 103,
+      set_number: 3,
+    });
+    useActiveWorkoutStore.getState().startWorkout(session);
+
     const { getByLabelText } = renderScreen();
 
     fireEvent.press(getByLabelText('Log set'));
 
     const store = useActiveWorkoutStore.getState();
     expect(store.completedSetIds['102']).toBeTruthy();
-    expect(store.activeSetId).toBe('201');
+    expect(store.activeSetId).toBe('103');
     expect(store.rest.state).toBe('resting');
+  });
+
+  it("starts no rest and no next-up after an exercise's last set", () => {
+    const { getByLabelText } = renderScreen();
+
+    // 102 is Bench's last. Squat and Deadlift are untouched, and the cursor
+    // does not walk into them — the user picks what to do next.
+    fireEvent.press(getByLabelText('Log set'));
+
+    const store = useActiveWorkoutStore.getState();
+    expect(store.completedSetIds['102']).toBeTruthy();
+    expect(store.activeSetId).toBeNull();
+    expect(store.rest.state).toBe('ready');
   });
 
   it('hides the bar once every set is complete', () => {
