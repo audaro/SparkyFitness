@@ -135,12 +135,14 @@ function startRestTimer(
 }
 
 /**
- * Completes the set at `pointer` and starts its rest — the body shared by the
- * checkbox and by a hold that has just been resolved, since a finished hold is
- * a finished set and must land exactly where a ticked box does.
+ * Completes the set at `pointer` and starts its rest — the body every way of
+ * finishing a set goes through: the checkbox, the hold's Stop button and the
+ * hold running out, which must all land in the same place.
  *
- * Any running hold is cleared first: a hold is the work of a set, so a set
- * that is now complete cannot still be being held.
+ * A hold running on this very set is logged before it is cleared, because
+ * ticking the box mid-plank is a way of ending the hold and the honest answer
+ * is the time actually held. Without that, the checkbox sitting inches from
+ * the Stop button silently recorded the prescription instead.
  */
 function completeSetInDraft(
   draft: WorkoutPlaybackDraft,
@@ -151,7 +153,18 @@ function completeSetInDraft(
     return draft;
   }
 
-  let nextDraft = setWorkoutPlaybackHoldTimer(draft, IDLE_HOLD_TIMER);
+  const holdTimer = getWorkoutPlaybackHoldTimer(draft);
+  const isHoldingThisSet =
+    holdTimer.state !== 'idle' &&
+    holdTimer.target_exercise_index === pointer.exerciseIndex &&
+    holdTimer.target_set_index === pointer.setIndex;
+
+  let nextDraft = isHoldingThisSet
+    ? updateWorkoutSetAtPointer(draft, pointer, {
+        duration: getWorkoutPlaybackHeldSeconds(holdTimer),
+      })
+    : draft;
+  nextDraft = setWorkoutPlaybackHoldTimer(nextDraft, IDLE_HOLD_TIMER);
   nextDraft = setWorkoutPlaybackPointer(nextDraft, pointer);
   nextDraft = completeCurrentWorkoutSet(nextDraft);
 
@@ -165,9 +178,9 @@ function completeSetInDraft(
 }
 
 /**
- * Ends a running hold: logs the time actually held onto the set's duration,
- * then completes it. Serves both the Stop button and the countdown running
- * out, so neither can log the set differently from the other.
+ * Ends a running hold by completing the set it was holding. Serves the Stop
+ * button and the countdown running out; the time held is written by
+ * `completeSetInDraft`, so all three ways out of a hold log the same number.
  */
 function resolveHoldInDraft(draft: WorkoutPlaybackDraft): WorkoutPlaybackDraft {
   const holdTimer = getWorkoutPlaybackHoldTimer(draft);
@@ -183,7 +196,6 @@ function resolveHoldInDraft(draft: WorkoutPlaybackDraft): WorkoutPlaybackDraft {
     exerciseIndex: holdTimer.target_exercise_index,
     setIndex: holdTimer.target_set_index,
   };
-  const heldSeconds = getWorkoutPlaybackHeldSeconds(holdTimer);
   const set = draft.exercises[pointer.exerciseIndex]?.sets[pointer.setIndex];
 
   // The set it was holding is gone or already logged: drop the hold rather
@@ -192,11 +204,7 @@ function resolveHoldInDraft(draft: WorkoutPlaybackDraft): WorkoutPlaybackDraft {
     return setWorkoutPlaybackHoldTimer(draft, IDLE_HOLD_TIMER);
   }
 
-  const withDuration = updateWorkoutSetAtPointer(draft, pointer, {
-    duration: heldSeconds,
-  });
-
-  return completeSetInDraft(withDuration, pointer);
+  return completeSetInDraft(draft, pointer);
 }
 
 const WorkoutPlaybackPage = () => {

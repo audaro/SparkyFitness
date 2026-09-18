@@ -439,6 +439,45 @@ describe('WorkoutPlaybackPage', () => {
       expect(screen.getByLabelText('Pause')).toBeInTheDocument();
     });
 
+    it('logs the time held when the set is ticked off mid-hold', () => {
+      renderPlank();
+
+      fireEvent.click(screen.getByLabelText('Start hold for set 1'));
+
+      act(() => {
+        jest.advanceTimersByTime(20_000);
+      });
+
+      // The checkbox sits inches from the Stop button and is a legitimate way
+      // to end a hold, so it must log what was held rather than the
+      // prescription it would have recorded for an untimed set.
+      fireEvent.click(screen.getAllByLabelText('Complete set 1')[0]!);
+
+      expect(
+        (screen.getByLabelText('Duration set 1') as HTMLInputElement).value
+      ).toBe('20');
+      expect(screen.getAllByRole('checkbox')[0]).toBeChecked();
+      expect(screen.queryByText('Hold')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Pause')).toBeInTheDocument();
+    });
+
+    it('leaves an untimed set alone when a hold is running elsewhere', () => {
+      renderPlank();
+
+      fireEvent.click(screen.getByLabelText('Start hold for set 1'));
+
+      act(() => {
+        jest.advanceTimersByTime(20_000);
+      });
+
+      // Set 2 is not the held set: ticking it keeps its own prescription.
+      fireEvent.click(screen.getAllByLabelText('Complete set 2')[0]!);
+
+      expect(
+        (screen.getByLabelText('Duration set 2') as HTMLInputElement).value
+      ).toBe('45');
+    });
+
     it('logs the full target and starts the rest when the hold runs out', () => {
       renderPlank();
 
