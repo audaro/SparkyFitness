@@ -19,10 +19,12 @@ const COLORS: Record<string, string> = {
   '--color-accent-primary': '#e11d48',
   '--color-text-muted': '#9ca3af',
   '--color-progress-track': '#1f2937',
+  '--color-text-primary': '#f3f4f6',
 };
 
 const ACCENT = COLORS['--color-accent-primary'];
 const MUTED = COLORS['--color-text-muted'];
+const INK = COLORS['--color-text-primary'];
 
 const insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const frame = { x: 0, y: 0, width: 390, height: 844 };
@@ -41,6 +43,7 @@ function renderBar(
     onResume: jest.fn(),
     onCompleteSet: jest.fn(),
     onPressBar: jest.fn(),
+    nextSetNumber: 3,
     ...overrides,
   };
   const utils = render(
@@ -66,15 +69,32 @@ describe('ActiveWorkoutRestBar', () => {
     );
   });
 
-  it('renders the countdown and the on-deck label', () => {
+  it('renders the countdown under a REST eyebrow, naming what is on deck', () => {
     const { getByText } = renderBar();
     expect(getByText('0:45')).toBeTruthy();
-    expect(getByText('Incline DB Press · Set 3')).toBeTruthy();
+    expect(getByText('Rest')).toBeTruthy();
+    expect(getByText('Then Incline DB Press · Set 3')).toBeTruthy();
   });
 
-  it('renders the target line when a next-set target is provided', () => {
+  it('names the target in the on-deck line when one is provided', () => {
     const { getByText } = renderBar({ nextSetText: '135 lbs × 8' });
-    expect(getByText('Target 135 lbs × 8')).toBeTruthy();
+    expect(
+      getByText('Then Incline DB Press · Set 3 · 135 lbs × 8')
+    ).toBeTruthy();
+  });
+
+  it('logs the on-deck set from the sheet footer without waiting the clock out', () => {
+    const { getByText, getByLabelText, props } = renderBar({
+      nextSetNumber: 3,
+    });
+    expect(getByText('Log set 3 now')).toBeTruthy();
+    fireEvent.press(getByLabelText('Complete set'));
+    expect(props.onCompleteSet).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops the footer when there is no set number to log', () => {
+    const { queryByLabelText } = renderBar({ nextSetNumber: null });
+    expect(queryByLabelText('Complete set')).toBeNull();
   });
 
   it('sets the progress fill width from the progress fraction', () => {
@@ -82,12 +102,12 @@ describe('ActiveWorkoutRestBar', () => {
     expect(fillStyle(getByTestId).width).toBe('50%');
   });
 
-  it('uses the accent color while resting', () => {
+  it('carries the phase color on the chrome and plain ink on the countdown', () => {
+    // The number is what gets read at a glance, so it stays text-primary and
+    // the accent goes on the track and the pause target around it.
     const { getByTestId, getByText } = renderBar({ state: 'resting' });
     expect(fillStyle(getByTestId).backgroundColor).toBe(ACCENT);
-    expect(StyleSheet.flatten(getByText('0:45').props.style).color).toBe(
-      ACCENT
-    );
+    expect(StyleSheet.flatten(getByText('0:45').props.style).color).toBe(INK);
   });
 
   it('renders muted colors while paused', () => {
@@ -136,6 +156,7 @@ describe('ActiveWorkoutRestBar', () => {
     fireEvent.press(getByLabelText('Skip rest'));
     fireEvent.press(getByLabelText('Pause rest'));
     fireEvent.press(getByLabelText('Extend rest by 15 seconds'));
+    fireEvent.press(getByLabelText('Complete set'));
     expect(props.onPressBar).not.toHaveBeenCalled();
   });
 
@@ -159,7 +180,7 @@ describe('ActiveWorkoutRestBar', () => {
     const { getByTestId, getByText } = renderBar();
     expect(getByTestId('rest-bar-glass')).toBeTruthy();
     expect(getByText('0:45')).toBeTruthy();
-    expect(getByText('Incline DB Press · Set 3')).toBeTruthy();
+    expect(getByText('Then Incline DB Press · Set 3')).toBeTruthy();
   });
 
   it('keeps the controls wired in glass mode', () => {
@@ -183,7 +204,9 @@ describe('ActiveWorkoutRestBar', () => {
       expect(getByText('Incline DB Press · Set 3')).toBeTruthy();
       expect(getByText('Target 135 lbs × 8')).toBeTruthy();
       expect(getByLabelText('Complete set')).toBeTruthy();
-      // Timer chrome is gone: no countdown, track, or rest controls.
+      // Sheet chrome is gone: no eyebrow, countdown, track, or rest controls.
+      // A display-size 0:00 with nothing counting is what this state avoids.
+      expect(queryByText('Rest')).toBeNull();
       expect(queryByText('0:45')).toBeNull();
       expect(queryByTestId('rest-progress-fill')).toBeNull();
       expect(queryByLabelText('Skip rest')).toBeNull();

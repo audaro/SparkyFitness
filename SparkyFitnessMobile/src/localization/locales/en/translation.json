@@ -356,7 +356,10 @@
       "resume": "Resume rest",
       "targetValue": "Target {{value}}",
       "shorten": "Shorten rest by 15 seconds",
-      "extend": "Extend rest by 15 seconds"
+      "extend": "Extend rest by 15 seconds",
+      "thenNext": "Then {{label}} · {{target}}",
+      "thenNextNoTarget": "Then {{label}}",
+      "logSetNow": "Log set {{number}} now"
     },
     "setDetail": {
       "addNote": "Add a note for this set…",
@@ -409,7 +412,14 @@
       "subtractSecondsShort": "−{{seconds}}s",
       "addSecondsShort": "+{{seconds}}s",
       "logsThenRest": "Logs at 0:00, then {{rest}} rest",
-      "logsAtZero": "Logs at 0:00"
+      "logsAtZero": "Logs at 0:00",
+      "holdingHint": "{{label}} · {{afterZero}}"
+    },
+    "timer": {
+      "restPhase": "Rest",
+      "holdPhase": "Hold",
+      "skip": "Skip",
+      "stop": "Stop"
     }
   },
   "addSheet": {

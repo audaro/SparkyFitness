@@ -45,6 +45,7 @@ import ActiveWorkoutRestBar, {
   REST_BAR_GLASS_CLEARANCE,
 } from '../components/ActiveWorkoutRestBar';
 import ActiveWorkoutHoldSheet from '../components/ActiveWorkoutHoldSheet';
+import { TIMER_SHEET_GLASS_CLEARANCE } from '../components/WorkoutTimerSheet';
 import ActionSheet, {
   type ActionSheetItem,
   type ActionSheetRef,
@@ -1287,11 +1288,19 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
   // running, nothing already held — so the control is never shown dead.
   const canStartHold =
     !holdActive && restState === 'ready' && activeSetId != null;
-  // With Liquid Glass tabs active the rest bar floats over the log instead of
-  // docking below it, so the scroll content reserves clearance for the pill.
-  const restBarPadding = usesGlassRestBar
-    ? REST_BAR_GLASS_CLEARANCE + insets.bottom
-    : 16;
+  // With Liquid Glass tabs active the bottom surface floats over the log
+  // instead of docking below it, so the scroll content reserves clearance for
+  // it. Which surface is floating decides how much: the running timer is a
+  // full sheet, the on-deck bar is one compact row, and reserving the sheet's
+  // height for the bar would leave a hand's width of dead space under the log
+  // between every set. A hold gets the sheet's clearance too — it takes the
+  // same dock, and before E3 it reserved nothing at all.
+  const bottomSurfaceVisible = holdActive || restBarVisible;
+  const bottomSurfacePadding = !usesGlassRestBar
+    ? 16
+    : (holdActive || restState !== 'ready'
+        ? TIMER_SHEET_GLASS_CLEARANCE
+        : REST_BAR_GLASS_CLEARANCE) + insets.bottom;
   const activeSetDescription = describeActiveSet(session, activeSetId);
   const restLabel =
     activeSetDescription == null
@@ -1433,7 +1442,9 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         className="flex-1"
         contentContainerClassName="px-3 pt-2"
         contentContainerStyle={{
-          paddingBottom: restBarVisible ? restBarPadding : insets.bottom + 16,
+          paddingBottom: bottomSurfaceVisible
+            ? bottomSurfacePadding
+            : insets.bottom + 16,
         }}
         onScroll={handleScroll}
         scrollEventThrottle={32}
@@ -1568,6 +1579,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
           state={restState}
           label={restLabel}
           nextSetText={restNextSetText}
+          nextSetNumber={activeSetDescription?.setNumber ?? null}
           onAdjust={(deltaSec) =>
             useActiveWorkoutStore.getState().adjustRest(deltaSec)
           }
