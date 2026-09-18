@@ -1570,14 +1570,32 @@ function ActiveWorkoutExerciseCard({
             );
           })}
 
-        {!readOnly && !cardioForm && (
+        {/* The cardio effort form has no set table to add a row to, so it
+            normally has no add control either. In the forms it gets one
+            anyway, labelled for what it does: a second set takes the entry
+            past `rendersCardioEffortForm`'s one-set limit, so the block
+            becomes a table of timed intervals — which is the only way to
+            prescribe "6 x 30s" without starting a workout, and the only way
+            those rounds can be held by the hold timer. A distance already
+            entered on the first set is kept and still shows on the logged
+            workout; the interval table just does not edit it. Live is
+            deliberately excluded: mid-run is not when the shape of the entry
+            should change. */}
+        {(!cardioForm || isEdit) && !readOnly && (
           <Pressable
             onPress={() => onAddSet?.(exercise.id)}
             accessibilityRole="button"
-            accessibilityLabel={t('activeWorkout.exercise.addSet', {
-              defaultValue: 'Add set to {{name}}',
-              name,
-            })}
+            accessibilityLabel={
+              cardioForm
+                ? t('activeWorkout.exercise.addInterval', {
+                    defaultValue: 'Add interval to {{name}}',
+                    name,
+                  })
+                : t('activeWorkout.exercise.addSet', {
+                    defaultValue: 'Add set to {{name}}',
+                    name,
+                  })
+            }
             className="flex-row items-center justify-center gap-1.5 py-2.5 mt-1"
           >
             <Icon name="add" size={15} color={accentPrimary} />
@@ -1585,9 +1603,13 @@ function ActiveWorkoutExerciseCard({
               className="text-sm font-medium"
               style={{ color: accentPrimary }}
             >
-              {t('activeWorkout.exercise.addSetLabel', {
-                defaultValue: 'Add set',
-              })}
+              {cardioForm
+                ? t('activeWorkout.exercise.addIntervalLabel', {
+                    defaultValue: 'Add interval',
+                  })
+                : t('activeWorkout.exercise.addSetLabel', {
+                    defaultValue: 'Add set',
+                  })}
             </Text>
           </Pressable>
         )}

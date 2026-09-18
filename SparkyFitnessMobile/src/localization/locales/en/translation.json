@@ -399,8 +399,10 @@
       "changeMetric": "Change metric column",
       "notesForSet": "Notes for set {{number}}",
       "addSet": "Add set to {{name}}",
+      "addInterval": "Add interval to {{name}}",
       "caloriesUnit": "kcal",
       "addSetLabel": "Add set",
+      "addIntervalLabel": "Add interval",
       "setProgress": "Set {{index}} of {{total}}",
       "setsDone": "{{done}} of {{total}} sets"
     },

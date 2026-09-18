@@ -256,6 +256,30 @@ describe('ActiveWorkoutExerciseCard', () => {
       expect(utils.getByText('Duration (min)')).toBeTruthy();
       expect(utils.getByText('Distance (km)')).toBeTruthy();
       expect(utils.queryByLabelText('Add set to Bench Press')).toBeNull();
+      // Live: the shape of the entry is not up for renegotiation mid-run.
+      expect(utils.queryByLabelText('Add interval to Bench Press')).toBeNull();
+    });
+
+    it('offers the cardio form an Add interval control in the forms', () => {
+      // The only way to prescribe "6 x 30s" without starting a workout: a
+      // second set takes the entry past the one-set limit, so the block
+      // becomes a table of timed intervals the hold timer can run.
+      const utils = renderCard(true, {
+        mode: 'edit',
+        exercise: withModality('duration_distance'),
+      });
+      expect(utils.queryByLabelText('Add set to Bench Press')).toBeNull();
+      fireEvent.press(utils.getByLabelText('Add interval to Bench Press'));
+      expect(utils.callbacks.onAddSet).toHaveBeenCalledWith('ex-uuid-1');
+    });
+
+    it('keeps the Add set wording for a set table in the forms', () => {
+      const utils = renderCard(true, {
+        mode: 'edit',
+        exercise: withModality('duration'),
+      });
+      expect(utils.getByLabelText('Add set to Bench Press')).toBeTruthy();
+      expect(utils.queryByLabelText('Add interval to Bench Press')).toBeNull();
     });
 
     it('labels the distance input in miles when that is the display unit', () => {
