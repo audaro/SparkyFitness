@@ -47,6 +47,7 @@ import {
   compareSetRecords,
   effectiveSetDurationSec,
   formatDurationSeconds,
+  formatSetLoad,
   formatVolume,
   getExerciseVolumeKg,
   isWarmupSetType,
@@ -235,6 +236,29 @@ interface ActiveWorkoutExerciseCardProps {
 }
 
 /**
+ * Media tile on a collapsed exercise row. Big enough that the photo reads as
+ * the exercise at a glance while scanning the log, which is the row's whole
+ * job once the card is shut.
+ */
+const COLLAPSED_MEDIA_SIZE = 52;
+
+/**
+ * Media tile in the expanded card's own header, where the set table below is
+ * what the eye is on and the tile is only an anchor for the name.
+ */
+const HEADER_MEDIA_SIZE = 42;
+
+/** Height of a per-set progress pip on the cursor's collapsed row. */
+const SET_PIP_HEIGHT = 4;
+
+/**
+ * Widest the pip strip grows to. Pips are `flex-1` inside it, so a long
+ * exercise divides the same strip into thinner marks instead of running the
+ * row's width.
+ */
+const SET_PIP_STRIP_MAX_WIDTH = 160;
+
+/**
  * Exercise image with a category-icon fallback. Exported so the reorder list
  * can reuse the exact thumbnail treatment.
  */
@@ -242,10 +266,13 @@ export function ExerciseThumb({
   exercise,
   getImageSource,
   size,
+  radius = 8,
 }: {
   exercise: WorkoutCardExercise;
   getImageSource: GetImageSource;
   size: number;
+  /** Corner radius of the tile; scales with `size` at the larger sizes. */
+  radius?: number;
 }) {
   const textMuted = String(useCSSVariable('--color-text-muted'));
   const snapshot = exercise.exercise_snapshot;
@@ -257,11 +284,11 @@ export function ExerciseThumb({
   return (
     <SafeImage
       source={image ? getImageSource(image) : null}
-      style={{ width: size, height: size, borderRadius: 8 }}
+      style={{ width: size, height: size, borderRadius: radius }}
       fallback={
         <View
           className="bg-raised items-center justify-center"
-          style={{ width: size, height: size, borderRadius: 8 }}
+          style={{ width: size, height: size, borderRadius: radius }}
         >
           <Icon name={fallbackIcon} size={size * 0.55} color={textMuted} />
         </View>
@@ -320,12 +347,21 @@ function ActiveWorkoutExerciseCard({
   const readOnly = mode === 'view';
   const isEdit = mode === 'edit';
   const isLive = mode === 'live';
-  const [textMuted, accentPrimary, textSecondary, prColor] = useCSSVariable([
+  const [
+    textMuted,
+    accentPrimary,
+    textSecondary,
+    prColor,
+    successColor,
+    borderColor,
+  ] = useCSSVariable([
     '--color-text-muted',
     '--color-accent-primary',
     '--color-text-secondary',
     '--color-pr',
-  ]) as [string, string, string, string];
+    '--color-icon-success',
+    '--color-border',
+  ]) as [string, string, string, string, string, string];
 
   const name =
     exercise.exercise_snapshot?.name ??
@@ -638,20 +674,37 @@ function ActiveWorkoutExerciseCard({
     [onLongPressSet, translateSetKey]
   );
 
-  const thumb = (
-    <View>
-      <ExerciseThumb
-        exercise={exercise}
-        getImageSource={getImageSource}
-        size={42}
-      />
-      {isDone && !isEdit && (
-        <View className="absolute" style={{ right: -3, top: -3 }}>
-          <CompletionCheck size={15} iconSize={9} />
-        </View>
-      )}
-    </View>
-  );
+  /**
+   * The media tile and its completion badge at a caller-chosen size. The
+   * collapsed row runs at {@link COLLAPSED_MEDIA_SIZE} and the expanded card's
+   * own header stays at the tighter {@link HEADER_MEDIA_SIZE}, so growing the
+   * row does not also grow the card it opens into. The badge and the corner
+   * radius are derived from the size rather than passed, so the two surfaces
+   * cannot drift into differently-proportioned tiles.
+   */
+  const renderThumb = (size: number) => {
+    const badge = Math.round(size * 0.38);
+    const offset = -Math.round(badge * 0.2);
+    return (
+      <View>
+        <ExerciseThumb
+          exercise={exercise}
+          getImageSource={getImageSource}
+          size={size}
+          radius={Math.round(size * 0.21)}
+        />
+        {isDone && !isEdit && (
+          <View
+            className="absolute rounded-full bg-background"
+            style={{ right: offset, top: offset, padding: 2 }}
+          >
+            <CompletionCheck size={badge} iconSize={Math.round(badge * 0.6)} />
+          </View>
+        )}
+      </View>
+    );
+  };
+  const thumb = renderThumb(HEADER_MEDIA_SIZE);
 
   if (!expanded) {
     const volumeKg = getExerciseVolumeKg(exercise);
@@ -689,21 +742,75 @@ function ActiveWorkoutExerciseCard({
       : volumeKg > 0
         ? ` · ${formatVolume(volumeKg, weightUnit)}`
         : '';
-    const subtitle = cardioForm
-      ? cardioParts.join(' · ')
-      : readOnly || isEdit || anyComplete
-        ? `${exercise.sets.length} sets${detail}`
-        : `${exercise.sets.length} sets`;
+    const doneCount = exercise.sets.filter(
+      (s) => completedSetIds[String(s.id)]
+    ).length;
+    // The cursor lives on exactly one set across the whole workout, so the
+    // exercise holding it is the one the row treatment marks as current.
+    const activeIndex = isLive
+      ? exercise.sets.findIndex((s) => String(s.id) === activeSetId)
+      : -1;
+    const isCurrent = activeIndex >= 0;
+    const activeSet = isCurrent ? exercise.sets[activeIndex] : undefined;
+    // Built with the same formatter the rest bar uses, so the on-deck target
+    // reads identically whether you see it on the row or under the countdown.
+    const activeLoad =
+      activeSet == null
+        ? null
+        : formatSetLoad(
+            {
+              weightKg: activeSet.weight,
+              reps: activeSet.reps,
+              durationSec: durationLike
+                ? effectiveSetDurationSec(
+                    {
+                      duration: activeSet.duration ?? null,
+                      reps: activeSet.reps,
+                    },
+                    modality
+                  )
+                : null,
+            },
+            weightUnit,
+            t
+          );
+    const setsLine = isCurrent
+      ? `${t('activeWorkout.exercise.setProgress', {
+          defaultValue: 'Set {{index}} of {{total}}',
+          index: activeIndex + 1,
+          total: exercise.sets.length,
+        })}${activeLoad != null ? ` · ${activeLoad}` : ''}`
+      : isLive && doneCount > 0
+        ? `${t('activeWorkout.exercise.setsDone', {
+            defaultValue: '{{done}} of {{total}} sets',
+            done: doneCount,
+            total: exercise.sets.length,
+          })}${detail}`
+        : readOnly || isEdit || anyComplete
+          ? `${exercise.sets.length} sets${detail}`
+          : `${exercise.sets.length} sets`;
+    const subtitle = cardioForm ? cardioParts.join(' · ') : setsLine;
+    // The brand names the machine this was logged on — useful at the rack, but
+    // secondary to where the workout is up to, so it trails the progress.
+    const subtitleLine =
+      exercise.equipment_brand && subtitle
+        ? `${subtitle} · ${exercise.equipment_brand}`
+        : subtitle || (exercise.equipment_brand ?? '');
+    // The row's ⋯ is the same menu the expanded header carries. Collapsed it
+    // used to be long-press only, which nothing on screen advertised.
+    const showOverflow = !readOnly && onPressOverflow != null;
 
     return (
-      <View className="border-b border-border-subtle">
+      <View
+        className={`border-b border-border-subtle ${isCurrent ? 'bg-surface' : ''}`}
+      >
         <View className="flex-row items-center gap-3 px-2 py-3">
           <Pressable
             onPress={() => onToggleExpanded(exercise.id)}
             onLongPress={longPressMenu}
             accessible={false}
           >
-            {thumb}
+            {renderThumb(COLLAPSED_MEDIA_SIZE)}
           </Pressable>
           <Pressable
             onPress={() => onToggleExpanded(exercise.id)}
@@ -714,30 +821,85 @@ function ActiveWorkoutExerciseCard({
               defaultValue: 'Expand {{name}}',
               name,
             })}
-            className="flex-1 self-stretch flex-row items-center gap-3"
+            className="flex-1 self-stretch justify-center"
           >
-            <View className="flex-1">
-              <Text
-                numberOfLines={2}
-                className={`text-base ${isDone ? 'text-text-secondary' : 'text-text-primary'}`}
-              >
-                {name}
-              </Text>
-              {exercise.equipment_brand ? (
-                <Text className="text-xs text-text-muted mt-0.5">
-                  {exercise.equipment_brand}
-                </Text>
-              ) : null}
-            </View>
             <Text
-              className="text-sm text-text-muted"
-              style={{ fontVariant: ['tabular-nums'] }}
+              numberOfLines={2}
+              className={`text-base font-semibold ${isDone ? 'text-text-secondary' : 'text-text-primary'}`}
             >
-              {subtitle}
+              {name}
             </Text>
-            <Icon name="chevron-forward" size={16} color={textMuted} />
+            {subtitleLine ? (
+              <Text
+                numberOfLines={1}
+                className="text-text-muted mt-0.5"
+                style={{
+                  fontSize: 13,
+                  lineHeight: 18,
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
+                {subtitleLine}
+              </Text>
+            ) : null}
+            {isCurrent && (
+              <View
+                testID="exercise-set-pips"
+                className="flex-row mt-2"
+                style={{ gap: 4, maxWidth: SET_PIP_STRIP_MAX_WIDTH }}
+              >
+                {exercise.sets.map((s) => {
+                  const setId = String(s.id);
+                  return (
+                    <View
+                      key={setId}
+                      testID={`exercise-set-pip-${setId}`}
+                      style={{
+                        flex: 1,
+                        height: SET_PIP_HEIGHT,
+                        borderRadius: SET_PIP_HEIGHT / 2,
+                        backgroundColor: completedSetIds[setId]
+                          ? successColor
+                          : setId === activeSetId
+                            ? accentPrimary
+                            : borderColor,
+                      }}
+                    />
+                  );
+                })}
+              </View>
+            )}
           </Pressable>
+          {showOverflow ? (
+            <Pressable
+              onPress={openOverflowMenu}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('activeWorkout.exercise.moreOptions', {
+                defaultValue: 'More options for {{name}}',
+                name,
+              })}
+              className="p-1"
+            >
+              <Icon name="ellipsis-horizontal" size={18} color={textMuted} />
+            </Pressable>
+          ) : (
+            <Icon name="chevron-forward" size={16} color={textMuted} />
+          )}
         </View>
+        {/*
+          Drawn after the row rather than before it: the collapsed row and the
+          expanded card's header have to stay the same child index of this
+          View, or React remounts the thumbnail on every expand/collapse and
+          the image reloads with a visible flash.
+        */}
+        {isCurrent && (
+          <View
+            testID="current-exercise-rail"
+            className="absolute left-0 top-0 bottom-0"
+            style={{ width: 3, backgroundColor: accentPrimary }}
+          />
+        )}
       </View>
     );
   }

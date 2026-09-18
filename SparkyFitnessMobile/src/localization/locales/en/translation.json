@@ -395,7 +395,9 @@
       "notesForSet": "Notes for set {{number}}",
       "addSet": "Add set to {{name}}",
       "caloriesUnit": "kcal",
-      "addSetLabel": "Add set"
+      "addSetLabel": "Add set",
+      "setProgress": "Set {{index}} of {{total}}",
+      "setsDone": "{{done}} of {{total}} sets"
     },
     "nextSet": "Next Set",
     "hold": {

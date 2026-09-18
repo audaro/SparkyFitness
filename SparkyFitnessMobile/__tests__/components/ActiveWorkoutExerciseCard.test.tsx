@@ -427,15 +427,111 @@ describe('ActiveWorkoutExerciseCard', () => {
     expect(callbacks.onPressOverflow).toHaveBeenCalledWith('ex-uuid-1');
   });
 
-  it('offers no overflow trigger while collapsed (expand first)', () => {
-    const { queryByLabelText } = renderCard(false);
-    expect(queryByLabelText('More options for Bench Press')).toBeNull();
+  it('carries the overflow trigger on the collapsed row too', () => {
+    // The menu used to be long-press-only while collapsed, which nothing on
+    // screen advertised; the row now ends in the same ⋯ the header carries.
+    const { getByLabelText, callbacks } = renderCard(false);
+
+    fireEvent.press(getByLabelText('More options for Bench Press'));
+
+    expect(callbacks.onPressOverflow).toHaveBeenCalledWith('ex-uuid-1');
+  });
+
+  describe('collapsed row', () => {
+    /** `completedSetIds` stores a completion timestamp, not a flag. */
+    const DONE_AT = Date.parse('2026-07-06T10:00:00.000Z');
+
+    /** Three working sets, so "of 3" and the pip strip have something to say. */
+    const threeSets = () =>
+      makeExercise({
+        sets: [
+          {
+            id: 101,
+            set_number: 1,
+            set_type: 'normal',
+            reps: 10,
+            weight: 60,
+            duration: null,
+            rest_time: 90,
+            notes: null,
+            rpe: null,
+            completed_at: null,
+            is_pr: false,
+          },
+          {
+            id: 102,
+            set_number: 2,
+            set_type: 'normal',
+            reps: 8,
+            weight: 65,
+            duration: null,
+            rest_time: 90,
+            notes: null,
+            rpe: null,
+            completed_at: null,
+            is_pr: false,
+          },
+          {
+            id: 103,
+            set_number: 3,
+            set_type: 'normal',
+            reps: 6,
+            weight: 70,
+            duration: null,
+            rest_time: 90,
+            notes: null,
+            rpe: null,
+            completed_at: null,
+            is_pr: false,
+          },
+        ],
+      });
+
+    it('names the set the cursor is on and what it is programmed for', () => {
+      const { getByText } = renderCard(false, {
+        exercise: threeSets(),
+        activeSetId: '102',
+        completedSetIds: { '101': DONE_AT },
+      });
+      expect(getByText('Set 2 of 3 · 65 kg × 8')).toBeTruthy();
+    });
+
+    it('marks the cursor exercise with an accent rail and one pip per set', () => {
+      const { getByTestId, getAllByTestId } = renderCard(false, {
+        exercise: threeSets(),
+        activeSetId: '102',
+        completedSetIds: { '101': DONE_AT },
+      });
+      expect(getByTestId('current-exercise-rail')).toBeTruthy();
+      expect(getByTestId('exercise-set-pips')).toBeTruthy();
+      expect(getAllByTestId(/^exercise-set-pip-/)).toHaveLength(3);
+    });
+
+    it('leaves the rail and pips off an exercise the cursor is not on', () => {
+      const { queryByTestId } = renderCard(false, {
+        exercise: threeSets(),
+        activeSetId: '999',
+        completedSetIds: { '101': DONE_AT },
+      });
+      expect(queryByTestId('current-exercise-rail')).toBeNull();
+      expect(queryByTestId('exercise-set-pips')).toBeNull();
+    });
+
+    it('counts the sets already logged on an exercise the cursor has left', () => {
+      const { getByText } = renderCard(false, {
+        exercise: threeSets(),
+        activeSetId: '999',
+        completedSetIds: { '101': DONE_AT, '102': DONE_AT },
+      });
+      expect(getByText(/^2 of 3 sets/)).toBeTruthy();
+    });
   });
 
   it('extends the collapsed expand target through the row padding on both sides', () => {
-    // The 16px chevron sits flush against the row's px-2 (8px) right padding;
-    // without right slop, taps aimed at the icon land in dead margin and the
-    // row never expands. Left slop covers the gap-3 strip next to the thumb.
+    // The trailing ⋯/chevron sits flush against the row's px-2 (8px) right
+    // padding; without right slop, taps aimed just inside it land in dead
+    // margin and the row never expands. Left slop covers the gap-3 strip
+    // next to the thumb.
     const { getByLabelText } = renderCard(false);
     const { hitSlop } = getByLabelText('Expand Bench Press').props;
     expect(hitSlop.right).toBeGreaterThanOrEqual(8);
