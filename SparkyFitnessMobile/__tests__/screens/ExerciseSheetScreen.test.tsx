@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -273,6 +273,8 @@ describe('ExerciseSheetScreen', () => {
 
     it('skips a set this exercise has already logged', () => {
       useActiveWorkoutStore.getState().completeSet('101');
+      // The footer is what's under test, and a running rest takes its place.
+      useActiveWorkoutStore.getState().dismissRest();
       useActiveWorkoutStore.setState({ activeSetId: '999' });
 
       const { getByText } = renderSheet();
@@ -289,6 +291,57 @@ describe('ExerciseSheetScreen', () => {
       fireEvent.press(getByTestId('exercise-sheet-log-set'));
 
       expect(useActiveWorkoutStore.getState().activeSetId).toBe('102');
+    });
+
+    // Logging from the sheet started a rest the user could only see by backing
+    // out to the exercise list -- the screen they had deliberately left.
+    it('shows the rest its own Log Set started', () => {
+      const { getByTestId, queryByTestId } = renderSheet();
+
+      fireEvent.press(getByTestId('exercise-sheet-log-set'));
+
+      expect(useActiveWorkoutStore.getState().rest.state).toBe('resting');
+      expect(getByTestId('rest-countdown')).toBeTruthy();
+      // One log control at a time: the timer's footer logs the cursor set, and
+      // the sheet's own would name a different one right underneath it.
+      expect(queryByTestId('exercise-sheet-log-set')).toBeNull();
+    });
+
+    // The rest belongs to the workout, not to one exercise, and it names its
+    // own target -- so it shows here whichever exercise the sheet is on.
+    it('shows a rest that belongs to another exercise', () => {
+      useActiveWorkoutStore.getState().completeSet('101');
+      useActiveWorkoutStore.setState({ activeSetId: '999' });
+
+      const { getByTestId, queryByTestId } = renderSheet();
+
+      expect(getByTestId('rest-countdown')).toBeTruthy();
+      expect(queryByTestId('exercise-sheet-log-set')).toBeNull();
+    });
+
+    it('brings the Log Set footer back once the rest is skipped', () => {
+      const { getByTestId, queryByTestId } = renderSheet();
+      fireEvent.press(getByTestId('exercise-sheet-log-set'));
+      expect(queryByTestId('exercise-sheet-log-set')).toBeNull();
+
+      act(() => {
+        useActiveWorkoutStore.getState().dismissRest();
+      });
+
+      expect(queryByTestId('rest-countdown')).toBeNull();
+      expect(getByTestId('exercise-sheet-log-set')).toBeTruthy();
+    });
+
+    it('shows the hold sheet while a timed set is being held', () => {
+      const { getByTestId, queryByTestId } = renderSheet();
+
+      fireEvent.press(getByTestId('start-hold-control'));
+
+      expect(getByTestId('hold-countdown')).toBeTruthy();
+      // Hold and rest are mutually exclusive in the store, and so are their
+      // surfaces here.
+      expect(queryByTestId('rest-countdown')).toBeNull();
+      expect(queryByTestId('exercise-sheet-log-set')).toBeNull();
     });
 
     it('offers the hold control on the cursor set, since the store would take it', () => {

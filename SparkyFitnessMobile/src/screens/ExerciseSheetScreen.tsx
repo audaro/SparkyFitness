@@ -6,6 +6,8 @@ import { CommonActions } from '@react-navigation/native';
 import { useCSSVariable } from 'uniwind';
 
 import ActiveWorkoutExerciseCard from '../components/ActiveWorkoutExerciseCard';
+import ActiveWorkoutHoldSheet from '../components/ActiveWorkoutHoldSheet';
+import ActiveWorkoutRestBar from '../components/ActiveWorkoutRestBar';
 import CoachNoteCard from '../components/CoachNoteCard';
 import { type AnchorRect } from '../components/AnchoredMenu';
 import ExerciseHeroMedia from '../components/ExerciseHeroMedia';
@@ -20,6 +22,8 @@ import Button from '../components/ui/Button';
 import { usePreferences } from '../hooks';
 import { useActiveWorkoutRestSheet } from '../hooks/useActiveWorkoutRestSheet';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
+import { useHoldCountdown } from '../hooks/useHoldCountdown';
+import { useRestCountdown } from '../hooks/useRestCountdown';
 import { useSelectedExercise } from '../hooks/useSelectedExercise';
 import { localizeExerciseTaxonomyValue } from '../localization/exerciseTaxonomy';
 import { useAppPreferencesStore } from '../stores/appPreferencesStore';
@@ -30,7 +34,9 @@ import {
 import type { RootStackScreenProps } from '../types/navigation';
 import {
   applyCardSetsToPlannedExercise,
+  describeActiveSet,
   formatRestChip,
+  formatSetLoad,
   plannedExerciseToCardExercise,
   resolveSnapshotModality,
   type WorkoutCardSet,
@@ -174,6 +180,22 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
   const restState = useActiveWorkoutStore((s) => s.rest.state);
   const holdSetId = useActiveWorkoutStore((s) => s.hold.setId);
   const holdState = useActiveWorkoutStore((s) => s.hold.state);
+  const session = useActiveWorkoutStore((s) => s.session);
+  // The sheet has no once-a-second clock of its own, so both countdowns tick
+  // themselves here (the active-workout screen passes selfTick: false because
+  // its elapsed header already re-renders every second).
+  const { remainingMs: restRemainingMs, progress: restProgress } =
+    useRestCountdown();
+  const { remainingMs: holdRemainingMs, progress: holdProgress } =
+    useHoldCountdown();
+  // The rest the held set rolls into, for the hold sheet's "then 0:30 rest"
+  // hint -- a primitive selector, so an unrelated edit can't re-render through
+  // it.
+  const holdNextRestSec = useActiveWorkoutStore((s) =>
+    s.hold.setId == null
+      ? null
+      : (s.steps.find((step) => step.setId === s.hold.setId)?.restSec ?? null)
+  );
 
   const metricColumn = useAppPreferencesStore(
     (s) => s.activeWorkoutMetricColumn
@@ -469,6 +491,41 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
     return index < 0 ? null : (entry.sets[index].set_number ?? index + 1);
   }, [entry, sheetLogSetId]);
 
+  /**
+   * Which bottom surface the live sheet shows.
+   *
+   * A running timer belongs to the workout, not to one exercise, and it names
+   * its own target ("Then Bench Dips · Set 2"), so it shows here whichever
+   * exercise the sheet happens to be on -- logging a set from this sheet used
+   * to start a rest the user could only see by backing out to the list.
+   *
+   * It REPLACES the Log Set footer rather than stacking above it: the timer's
+   * own footer logs the cursor set and the sheet's logs this exercise's, and
+   * two log buttons naming different sets, one above the other, is the same
+   * confusion the HUD was suppressed for. Hold and rest are mutually exclusive
+   * in the store, so at most one of the three ever renders.
+   */
+  const holdActive = holdState !== 'idle';
+  const restTimerVisible = !holdActive && restState !== 'ready';
+
+  const activeSetDescription = describeActiveSet(session, activeSetId);
+  const cursorLabel =
+    activeSetDescription == null
+      ? ''
+      : `${activeSetDescription.exerciseName ?? t('workout.exercise', { defaultValue: 'Exercise' })} · ${t('workout.setNumber', { defaultValue: 'Set {{number}}', number: activeSetDescription.setNumber })}`;
+  const cursorTargetText =
+    activeSetDescription == null
+      ? null
+      : formatSetLoad(activeSetDescription, weightUnit, t);
+
+  const holdDescription = holdActive
+    ? describeActiveSet(session, holdSetId)
+    : null;
+  const holdLabel =
+    holdDescription == null
+      ? ''
+      : `${holdDescription.exerciseName ?? t('workout.exercise', { defaultValue: 'Exercise' })} · ${t('workout.setNumber', { defaultValue: 'Set {{number}}', number: holdDescription.setNumber })}`;
+
   const restChipLabel = useMemo(() => {
     const sets = planDraft?.exercise.sets ?? entry?.sets;
     const restSec = sets?.[0]?.rest_time;
@@ -482,7 +539,8 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
-          paddingBottom: sheetLogSetId != null ? 12 : 16,
+          paddingBottom:
+            holdActive || restTimerVisible || sheetLogSetId != null ? 12 : 16,
         }}
       >
         {/* Full bleed, under the status bar: the demonstration is what the
@@ -655,7 +713,44 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
         starting the workout, and a second Start pill here would be a second
         way to begin the same session.
       */}
-      {sheetLogSetId != null && (
+      {holdActive && (
+        <ActiveWorkoutHoldSheet
+          remainingMs={holdRemainingMs}
+          progress={holdProgress}
+          paused={holdState === 'paused'}
+          label={holdLabel}
+          nextRestSec={holdNextRestSec}
+          onAdjust={(deltaSec) =>
+            useActiveWorkoutStore.getState().adjustHold(deltaSec)
+          }
+          onPause={() => useActiveWorkoutStore.getState().pauseHold()}
+          onResume={() => useActiveWorkoutStore.getState().resumeHold()}
+          onStop={() => useActiveWorkoutStore.getState().stopHoldAndLog()}
+        />
+      )}
+
+      {restTimerVisible && (
+        <ActiveWorkoutRestBar
+          remainingMs={restRemainingMs}
+          progress={restProgress}
+          state={restState}
+          label={cursorLabel}
+          nextSetText={cursorTargetText}
+          nextSetNumber={activeSetDescription?.setNumber ?? null}
+          onAdjust={(deltaSec) =>
+            useActiveWorkoutStore.getState().adjustRest(deltaSec)
+          }
+          onSkip={() => useActiveWorkoutStore.getState().dismissRest()}
+          onPause={() => useActiveWorkoutStore.getState().pauseRest()}
+          onResume={() => useActiveWorkoutStore.getState().resumeRest()}
+          onCompleteSet={() => {
+            const id = useActiveWorkoutStore.getState().activeSetId;
+            if (id != null) handleCompleteSet(id);
+          }}
+        />
+      )}
+
+      {!holdActive && !restTimerVisible && sheetLogSetId != null && (
         <FooterActionBar>
           <Button
             variant="primary"
