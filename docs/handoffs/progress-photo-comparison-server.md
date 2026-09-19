@@ -13,6 +13,8 @@ measured, a pair can be compared, and the result is cached and graded.
 | `039bb1210` | `shared/src/schemas/api/ProgressPhotoComparison.api.zod.ts` — the wire contract plus `assessComparability`, its thresholds, and `ratioDeltas` |
 | `f9f19ee36` | Migration `20260918160000` — `check_in_photo_analysis` and `progress_photo_comparisons`, RLS, database Zod, docs |
 | `05c526751` | `integrations/vision/visionService.ts`, `services/progressPhotoComparisonService.ts`, `routes/progressPhotoComparisonRoutes.ts`, env wiring |
+| `f2dd1e6ee` | `unreliableRatios` — names the ratios an arm was resting on (found by the end-to-end run below) |
+| `e4ede33b1` | The capture-screen hint that stops it happening |
 
 Endpoints, all under `/api/progress-photo-comparisons`:
 
@@ -23,7 +25,43 @@ Endpoints, all under `/api/progress-photo-comparisons`:
 | `GET` | `/` | List the caller's comparisons, newest first |
 | `GET` | `/:id` | One comparison |
 
-**Nothing is pushed.** Four commits sit on `feat/hold-timer` ahead of origin.
+**Nothing is pushed.** Seven commits sit on `feat/hold-timer` ahead of origin.
+
+## The end-to-end run, and what it found
+
+One real photograph was compared against a copy of itself that had only been
+moved and relit — 2.5° of roll, 3% closer, 18px across, a little brighter and
+warmer — through the real service, a real RLS-scoped Postgres and a running
+sidecar. Nothing mocked.
+
+The plumbing held: residual 0.20% of body height, verdict `comparable`, the
+exposure correction fired, the repeat call came back from cache in 3ms instead
+of 534ms, the guard rails refused a self-pair and a reversed pair, and a
+different user saw nothing.
+
+The measurements did not:
+
+| stop | drift from a pure camera move | arm inside the row |
+| --- | --- | --- |
+| shoulder | −0.1% | no |
+| thigh | −2.1% | no |
+| chest | +0.6% | yes |
+| waist | −5.0% | yes |
+| hip | +6.2% | yes |
+
+A silhouette cannot tell an arm from the torso it rests against, and how much
+arm falls in a row moves with every degree of roll. The response was offering a
+5% narrower waist and a 5% wider hip on a body that had not changed at all.
+`f2dd1e6ee` names those ratios so a report cannot attribute them to the body;
+`e4ede33b1` asks the user to hold their arms clear, which is what makes the
+problem rare rather than merely labelled.
+
+**Re-running it:** `SparkyFitnessServer/tmp-vision-e2e.script.ts` (untracked,
+git-excluded — it needs the ~29 MB model and a live sidecar, so CI cannot have
+it). It wants a scratch database built from `db/migrations` + `rls_policies.sql`
+plus the grants from `db/grantPermissions.ts`, two seeded `check_in_photos` rows
+with real JPEGs on disk, `SPARKY_FITNESS_DB_NAME` pointed at the scratch
+database and `VISION_MICROSERVICE_URL=http://localhost:8100`.
 
 ## Gate status
 
@@ -74,15 +112,17 @@ permission, `X-Content-Type-Options: nosniff`).
 
 ## Open risks
 
-- **No end-to-end run.** Every test mocks either the sidecar or the database.
-  Nothing has yet sent two real photographs through `POST /` against a running
-  `SparkyFitnessVision` and a real Postgres. Do that before building UI on it.
+- **The end-to-end run covered the service, not the route.** Express, auth and
+  the permission middleware were exercised only by the mocked route tests.
+- **It was one photograph moved, not two sessions weeks apart.** That proves
+  the alignment and exposure path on real pixels; it proves nothing about how
+  the numbers behave when a body actually changes.
 - **The thresholds are guesses.** `COMPARABILITY_THRESHOLDS` has never been
   checked against a pair of real photos taken weeks apart. The first honest
   calibration is to shoot a pair deliberately badly and see what it says.
-- **Arm overlap is reported, not solved.** `arms_overlap` flags a stop whose
-  row an arm was inside; a waist measured that way tracks how someone stood.
-  The capture screen still has no hint telling the user to hold their arms
-  clear of their body, which is the mitigation that would make it rare.
+- **Arm overlap is labelled and discouraged, not solved.** A stop an arm was
+  inside is still measured and still reported; `unreliable_ratios` only says
+  not to believe it. Anyone who photographs with their arms down gets a
+  comparison with three of five stops unusable.
 - **Phase 1 has still never run on a device.** The guided viewfinder is tested
   under jest only.
