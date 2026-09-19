@@ -38,6 +38,7 @@ jobs:
       mobile: ${{ steps.filter.outputs.mobile }}
       server: ${{ steps.filter.outputs.server }}
       garmin: ${{ steps.filter.outputs.garmin }}
+      vision: ${{ steps.filter.outputs.vision }}
       migrations: ${{ steps.filter.outputs.migrations }}
     steps:
       - name: Checkout code
@@ -83,6 +84,9 @@ jobs:
               - *root-workspace-config
             garmin:
               - 'SparkyFitnessGarmin/**'
+              - '.github/workflows/ci-tests.yml'
+            vision:
+              - 'SparkyFitnessVision/**'
               - '.github/workflows/ci-tests.yml'
             # Files whose change can break a fresh-install migration run.
             # Includes the jobs' own execution path (workflow + script) so a
@@ -409,6 +413,40 @@ jobs:
           rm -rf db/migrations db/rls_policies.sql
           git checkout HEAD -- db/migrations db/rls_policies.sql
           pnpm run test:migrations
+
+  vision-tests:
+    name: Vision Tests
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.vision == 'true'
+
+    defaults:
+      run:
+        working-directory: SparkyFitnessVision
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      # The model weights are deliberately NOT downloaded here. Every test in
+      # this suite works on synthetic bodies and a stubbed detector, because
+      # what can be tested exactly is the arithmetic over a mask and a landmark
+      # set - not whether MediaPipe finds a person, which needs real
+      # photographs this repository does not ship. A CI job that pulled 29 MB
+      # of weights would still not be testing that.
+      - name: Run tests
+        run: pytest tests/ -q
 
   garmin-tests:
     name: Garmin Tests

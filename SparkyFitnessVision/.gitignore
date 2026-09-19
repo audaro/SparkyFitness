@@ -1,0 +1,4 @@
+# The virtualenv and the downloaded model weights are build artifacts, not
+# source: the pose model alone is 29 MB. `models/download.sh` fetches them.
+.venv/
+.models/
