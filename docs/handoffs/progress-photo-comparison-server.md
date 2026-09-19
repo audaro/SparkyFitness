@@ -15,6 +15,7 @@ measured, a pair can be compared, and the result is cached and graded.
 | `05c526751` | `integrations/vision/visionService.ts`, `services/progressPhotoComparisonService.ts`, `routes/progressPhotoComparisonRoutes.ts`, env wiring |
 | `f2dd1e6ee` | `unreliableRatios` — names the ratios an arm was resting on (found by the end-to-end run below) |
 | `e4ede33b1` | The capture-screen hint that stops it happening |
+| `9760dce24` | The second-opinion reconciliation below — recompute-on-read, the posture rule for silhouette area, and `arms_obscured` |
 
 Endpoints, all under `/api/progress-photo-comparisons`:
 
@@ -25,7 +26,8 @@ Endpoints, all under `/api/progress-photo-comparisons`:
 | `GET` | `/` | List the caller's comparisons, newest first |
 | `GET` | `/:id` | One comparison |
 
-**Nothing is pushed.** Seven commits sit on `feat/hold-timer` ahead of origin.
+**Nothing is pushed.** Thirteen commits sit on `feat/hold-timer` ahead of origin
+(eight of them this feature, five predating it).
 
 ## The end-to-end run, and what it found
 
@@ -63,13 +65,61 @@ plus the grants from `db/grantPermissions.ts`, two seeded `check_in_photos` rows
 with real JPEGs on disk, `SPARKY_FITNESS_DB_NAME` pointed at the scratch
 database and `VISION_MICROSERVICE_URL=http://localhost:8100`.
 
+The pair itself is built from one real full-body photograph: save it as the
+before, then for the after rotate it −2.5°, scale it 1.03×, crop 18px right and
+9px down, and multiply the R/G/B channels by 1.06/1.04/1.01 with offsets
++6/+5/+3. That is a camera that moved and a room that got brighter and warmer,
+with the body held constant — which is the only way to tell a real shape change
+from the measurement noise the alignment and exposure machinery exists to
+absorb.
+
+## The second-opinion review, and what was done about it
+
+Four findings came back. Three were accepted, one partly.
+
+**1. `unreliable_ratios` was persisted.** It was written into the analysis row
+beside the measurements, so a change to the contamination rule reached only
+pairs compared after the change. The reviewer suggested backfilling old rows;
+recomputing on read is better, because it needs no backfill and cannot drift
+again. The list is now derived from the stored `arms_overlap` flags on every
+read, exactly as the verdict already was, and `storedDeterministicSchema` omits
+the field so a future author cannot reintroduce it by accident.
+
+**2. The silhouette-area ratio was struck out too eagerly.** It listed no stops,
+so the first implementation marked it unreliable whenever an arm touched
+anything. Accepted, but narrowed: it is now struck out on a posture *change*
+between the two photos rather than on any overlap. Area integrates over the
+whole body instead of reading one row of pixels, and it held to 0.05% across
+the same pair whose arm-crossed waist and hip moved 4.7% and 5.4% — it is the
+one shape number that survives an arms-down habit, and throwing it away would
+leave such a pair with nothing.
+
+**3. A stub `deterministic` blob could crash the read path.** Real. Added a
+`safeParse` guard in `readDeterministic` and realistic fixtures in the service
+tests.
+
+**4. Degrade the verdict whenever any ratio is unreliable.** Partly accepted.
+A pair with *no* trustworthy shape ratio left is now `not_comparable` with
+reason `arms_obscured` — "comparable" is a promise that something can be
+compared, and with every shape number struck out there is nothing behind it.
+The blanket degrade to `marginal` was declined: two well-framed photos of
+someone who always stands with their arms down really are comparable, and
+saying otherwise would punish exactly the consistency the feature wants.
+
+The reconciled code was re-run through the same end-to-end harness. Same
+posture in both photos, so silhouette area survived (−0.05%) alongside the
+arm-free shoulder (−0.05%) and thigh (−0.27%), while `waist_shoulder`,
+`waist_height` and `hip_shoulder` came back struck out carrying the 4–5% drift.
+A row fetched back from Postgres produced the same struck-out list with no
+column storing it, and the verdict stayed `comparable`.
+
 ## Gate status
 
 | Gate | Result |
 | --- | --- |
 | `SparkyFitnessServer` `tsc --noEmit` | pass |
 | `SparkyFitnessServer` eslint (new files) | pass |
-| `SparkyFitnessServer` full vitest | 6567 passed, 50 skipped |
+| `SparkyFitnessServer` full vitest | 6580 passed, 50 skipped |
 | Frontend `pnpm run validate` | pass |
 | Mobile `pnpm run validate` | pass |
 | Fresh-install migrations (empty DB → HEAD `db/migrations` + `rls_policies.sql`) | pass |
@@ -90,10 +140,13 @@ parameter "auth_user_id"` — a harness artifact, not a defect in the migration.
 
 ## The two decisions worth not re-litigating
 
-**No `verdict` column.** Comparability thresholds are starting values from the
-blueprint, not numbers measured off real pairs. They will move. Storing the
-answer would freeze last month's rule onto this month's question, so the tables
-store measurements and `assessComparability` runs on every read.
+**Nothing stores a judgement — not the verdict, not `unreliable_ratios`.**
+Comparability thresholds and the arm-contamination rule are starting values
+from the blueprint, not numbers measured off real pairs. They will move.
+Storing either answer would freeze last month's rule onto this month's
+question, so the tables store measurements and both `assessComparability` and
+`unreliableRatios` run on every read. `storedDeterministicSchema` omits the
+field so the type system enforces it.
 
 **No localhost default for `VISION_MICROSERVICE_URL`.** Unset means the feature
 is absent and `/status` says so. A default would turn "not installed" into a
@@ -123,6 +176,7 @@ permission, `X-Content-Type-Options: nosniff`).
 - **Arm overlap is labelled and discouraged, not solved.** A stop an arm was
   inside is still measured and still reported; `unreliable_ratios` only says
   not to believe it. Anyone who photographs with their arms down gets a
-  comparison with three of five stops unusable.
+  comparison resting on shoulder, thigh and silhouette area alone — enough to
+  stay `comparable`, but a thinner answer than the capture hint would give.
 - **Phase 1 has still never run on a device.** The guided viewfinder is tested
   under jest only.
