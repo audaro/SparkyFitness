@@ -47,8 +47,19 @@ models/download.sh          # ~29 MB, not in git
 ```
 
 The main server finds it through `VISION_MICROSERVICE_URL`. With that variable
-unset the whole feature is simply absent — no comparison endpoints, no errors,
-and every other part of the app behaves exactly as it did before.
+unset the whole feature is simply absent — `GET /api/progress-photo-comparisons/status`
+reports it as unconfigured, no comparison is ever attempted, and every other
+part of the app behaves exactly as it did before. There is deliberately no
+localhost default: a guess would turn "not installed" into a connection refused
+on every photo.
+
+The server side is `SparkyFitnessServer/integrations/vision/visionService.ts`
+(the client) and `services/progressPhotoComparisonService.ts` (caching and the
+guard rails: same angle, before actually before, never a photo against itself).
+It caches what this service measures in `check_in_photo_analysis` and
+`progress_photo_comparisons`, and recomputes the comparability verdict from
+those numbers on every read — so a threshold change in `@workspace/shared`
+reaches pairs measured months ago without re-running a single inference.
 
 ```bash
 .venv/bin/python -m pytest tests/ -q

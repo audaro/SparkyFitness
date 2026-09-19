@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-09-16_
+_Last updated: 2026-09-18_
 
 SparkyFitness Server is the backend API package for the SparkyFitness monorepo. Use this file as the primary guide for work inside `SparkyFitnessServer/`.
 
@@ -208,6 +208,7 @@ When searching, ignore noisy/generated directories unless you explicitly need th
 
 - Provider-specific adapters live under `integrations/`; coordinating logic usually lives in `services/` and persistence in `models/`
 - Current adapters span food/nutrition (OpenFoodFacts, FatSecret, Nutritionix, USDA, Mealie, Tandoor, Norish, SwissFood, Yazio), fitness devices (Garmin Connect sync plus FIT file import via `integrations/garminfit/` + `services/fitImportService.ts`, Withings, Fitbit, Oura, Polar, Strava, Hevy), exercise databases (Wger, FreeExerciseDB, and the ExerciseDB v1 mirror in `integrations/exercisedb/` — catalog-pack import only, granular machine tags mapped through `../shared/src/constants/exercisedb.ts`; its media is © Gym Visual, localized into the importing user's uploads and never redistributed, and the unauthenticated `/uploads/exercises` image-recovery route is free-exercise-db-only, which is why its download directories carry an `exercisedb_` prefix), drug catalogs (NLM RxTerms, openFDA NDC directory), and health-data import (Google Health, generic/mobile health data)
+- **Optional services must stay optional.** `integrations/vision/visionService.ts` talks to `SparkyFitnessVision`, the progress-photo measurement sidecar, and reads `VISION_MICROSERVICE_URL` per call with **no localhost default** — unset means the comparison feature is absent, and `GET /api/progress-photo-comparisons/status` is how a client finds that out instead of discovering it as a failed request. The client's two error classes are load-bearing: a 4xx from the sidecar means the *photo* is unusable (surfaced as 422, cached, never retried), anything else means the *service* is (surfaced as 503, never cached, retried); confusing them sends someone off to retake a perfectly good photo because a container was down
 - Scheduled jobs currently include backups, session cleanup, and hourly sync loops for Withings, Garmin, Fitbit, Oura, Polar, and Strava
 - Integration work often spans route, service, repository, cron, and external-provider settings code; inspect the whole path before calling the work complete
 - **OAuth linking (`/authorize`, `/callback`) is self-only, and `state` is a server-issued single-use nonce.** Never derive a user id from a callback request body, and never gate an authorize route with `checkPermissionMiddleware('diary')` — on GET that resolves to `diary_read`, which would hand a read-only delegate the owner's decrypted OAuth client id. Use `requireSelfActor` plus `utils/oauthState.ts`. Withings and Polar follow this pattern; Oura, Fitbit and Strava are self-only but still send `state = userId` and ignore it on callback (tracked follow-up)
@@ -246,6 +247,8 @@ When searching, ignore noisy/generated directories unless you explicitly need th
   inspect the relevant `integrations/*` code, then the matching service and repository files
 - Open Food Facts publication:
   inspect `services/openFoodFactsManualContributionService.ts`, `integrations/openfoodfacts/openFoodFactsContribution.ts`, and `constants/openFoodFacts.ts`; retained automatic queue code is dormant and needs a new migration before a future release can activate its triggers
+- Progress-photo comparison issue:
+  inspect `routes/progressPhotoComparisonRoutes.ts`, `services/progressPhotoComparisonService.ts`, `integrations/vision/visionService.ts`, and `SparkyFitnessVision/README.md`; the comparability thresholds and the verdict itself live in `shared/src/schemas/api/ProgressPhotoComparison.api.zod.ts`, and **nothing stores a verdict** — it is recomputed from the saved measurements on every read so tuning a threshold reaches pairs measured months earlier
 - Health data or date bucketing issue:
   inspect `integrations/healthData/healthDataRoutes.ts`, `services/measurementService.ts`, and `utils/timezoneLoader.ts`
 - Water, hydration, caffeine, or alcohol issue:

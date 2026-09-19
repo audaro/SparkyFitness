@@ -105,6 +105,9 @@ services:
 
       # --- Integrations ---
       GARMIN_MICROSERVICE_URL: ${GARMIN_MICROSERVICE_URL:-http://sparkyfitness-garmin:${GARMIN_SERVICE_PORT:-8000}} # Garmin microservice URL
+      # Optional vision sidecar. Empty means the progress-photo comparison
+      # feature is simply absent; no default is guessed.
+      VISION_MICROSERVICE_URL: ${VISION_MICROSERVICE_URL:-}
 
       # --- Outbound Proxy Settings (optional) ---
       HTTP_PROXY: ${HTTP_PROXY:-} # Optional forward proxy for the server's outbound requests
