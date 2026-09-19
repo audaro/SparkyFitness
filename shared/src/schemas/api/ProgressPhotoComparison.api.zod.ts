@@ -148,6 +148,7 @@ export const COMPARABILITY_REASONS = [
   "alignment_residual",
   "lighting_changed",
   "camera_tilt",
+  "arms_obscured",
   "pose_not_detected",
   "not_analyzed",
 ] as const;
@@ -200,6 +201,12 @@ export interface ComparabilityInput {
    * photos taken through guided capture carry it.
    */
   tilt_delta_deg?: number | null;
+  /**
+   * The shape ratios that were measured and are not arm-contaminated. Omit it
+   * (or pass null) when there are no measurements to offer; an empty array
+   * means there genuinely is nothing left to say.
+   */
+  trustworthy_ratios?: readonly string[] | null;
 }
 
 export interface ComparabilityOutcome {
@@ -268,15 +275,27 @@ export function assessComparability(
     }
   }
 
+  // Arm contamination is a caveat on individual numbers, not a fault in the
+  // pair, so it does not degrade a verdict on its own: two well-framed photos
+  // of someone who always stands with their arms down really are comparable,
+  // and saying otherwise would punish exactly the consistency the feature
+  // wants. But a verdict of "comparable" is a promise that something can be
+  // compared. When every shape number has been struck out there is nothing
+  // behind the promise, and the honest answer is no.
+  const trustworthy = input.trustworthy_ratios;
+  if (trustworthy != null && trustworthy.length === 0) {
+    degrade("not_comparable", "arms_obscured");
+  }
+
   return { verdict, reasons };
 }
 
 /**
  * Which width stops each ratio is built from.
  *
- * `mask_area_height2` is measured from the whole silhouette rather than from
- * any one row, so it has no stops and is never marked unreliable on this
- * ground — an arm against the body is inside the mask either way.
+ * `mask_area_height2` has none: it integrates the whole silhouette instead of
+ * reading one row, which is why it is governed by the separate rule below
+ * rather than by any single stop.
  */
 export const RATIO_STOPS: Record<keyof BodyRatios, BodyWidthStop[]> = {
   waist_shoulder: ["waist", "shoulder"],
@@ -309,12 +328,42 @@ export function unreliableRatios(
   const unreliable: (keyof BodyRatios)[] = [];
   for (const key of BODY_RATIO_KEYS) {
     const stops = RATIO_STOPS[key];
+    if (stops.length === 0) {
+      if (armPostureChanged(before, after)) unreliable.push(key);
+      continue;
+    }
     const touched = stops.some(
       (stop) => before.arms_overlap[stop] || after.arms_overlap[stop],
     );
     if (touched) unreliable.push(key);
   }
   return unreliable;
+}
+
+/**
+ * Did the arms sit differently in the two photos?
+ *
+ * Silhouette *area* is not indifferent to the arms. An arm held clear adds its
+ * own outline; an arm pressed to the torso hides behind it, and the union is
+ * smaller than the sum. So the area measure is safe only while the posture
+ * holds — an arms-out photo against an arms-down one compares two different
+ * outlines of the same body.
+ *
+ * Which is a weaker condition than the one the row-based stops need, and
+ * deliberately so. A row is sensitive to a couple of degrees of roll (measured:
+ * 5-6% on the waist and hip between a photograph and a rolled copy of itself),
+ * because roll changes how much arm falls in that one line. Area integrates
+ * over the whole body, and moved 0.25% across the same pair. Marking it
+ * unreliable whenever an arm touches anything would throw away the one shape
+ * number that survives an arms-down habit, which is the common case.
+ */
+function armPostureChanged(
+  before: Pick<PhotoMetrics, "arms_overlap">,
+  after: Pick<PhotoMetrics, "arms_overlap">,
+): boolean {
+  return BODY_WIDTH_STOPS.some(
+    (stop) => before.arms_overlap[stop] !== after.arms_overlap[stop],
+  );
 }
 
 /**
@@ -365,6 +414,21 @@ export const comparisonDeterministicSchema = z.object({
 export type ComparisonDeterministic = z.infer<
   typeof comparisonDeterministicSchema
 >;
+
+/**
+ * What actually goes into the database.
+ *
+ * `unreliable_ratios` is left out on purpose. It is a judgement derived from
+ * `arms_overlap`, which is stored inside `before` and `after`, and judgements
+ * here follow the same rule as the verdict: recompute them on read so that
+ * changing how they are decided reaches rows measured months earlier, instead
+ * of a stored answer that keeps replying with last month's rule.
+ */
+export const storedDeterministicSchema = comparisonDeterministicSchema.omit({
+  unreliable_ratios: true,
+});
+
+export type StoredDeterministic = z.infer<typeof storedDeterministicSchema>;
 
 export const comparisonResponseSchema = z.object({
   id: z.string().uuid(),

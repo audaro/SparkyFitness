@@ -37,17 +37,19 @@ vi.mock('fs', () => ({
 const BEFORE_ID = 'a1b2c3d4-e5f6-4890-abcd-ef1234567890';
 const AFTER_ID = 'b2c3d4e5-f6a7-4901-bcde-f12345678901';
 
+const noArms = {
+  shoulder: false,
+  chest: false,
+  waist: false,
+  hip: false,
+  thigh: false,
+};
+
 const metrics = (waistShoulder: number) => ({
   height_px: 1000,
   image_size: [900, 1600],
   widths_px: { shoulder: 300, chest: 280, waist: 220, hip: 260, thigh: 150 },
-  arms_overlap: {
-    shoulder: false,
-    chest: false,
-    waist: false,
-    hip: false,
-    thigh: false,
-  },
+  arms_overlap: noArms,
   ratios: {
     waist_shoulder: waistShoulder,
     waist_height: 0.22,
@@ -58,6 +60,48 @@ const metrics = (waistShoulder: number) => ({
   },
   background: { luminance: 180, chroma: 4 },
   visibility: { eyes: 0.99, shoulders: 0.98, hips: 0.95, ankles: 0.9 },
+});
+
+/**
+ * A stored `deterministic` blob, as the column actually holds one.
+ *
+ * `unreliable_ratios` is deliberately absent: it is not stored, and a row
+ * written before it existed looks exactly like this.
+ */
+const storedDeterministic = (
+  overrides: {
+    residual_norm?: number;
+    armsOnBefore?: Partial<Record<string, boolean>>;
+    armsOnBoth?: Partial<Record<string, boolean>>;
+    ratio_deltas?: Record<string, number>;
+  } = {}
+) => ({
+  before: {
+    ...metrics(0.75),
+    arms_overlap: {
+      ...noArms,
+      ...(overrides.armsOnBoth ?? {}),
+      ...(overrides.armsOnBefore ?? {}),
+    },
+  },
+  after: {
+    ...metrics(0.7),
+    arms_overlap: { ...noArms, ...(overrides.armsOnBoth ?? {}) },
+  },
+  alignment: {
+    residual_px: 6,
+    residual_norm: overrides.residual_norm ?? 0.006,
+    scale: 1.01,
+  },
+  exposure: { luminance_delta: 2, chroma_delta: 0.4, corrected: true },
+  ratio_deltas: overrides.ratio_deltas ?? {
+    waist_shoulder: -0.05,
+    hip_shoulder: 0.01,
+    shoulder_height: 0.001,
+    thigh_height: 0.002,
+    mask_area_height2: -0.001,
+  },
+  engine: 'mediapipe-0.10.35/pose_landmarker_heavy/metrics-1',
 });
 
 const visionResult = {
@@ -185,10 +229,7 @@ describe('progressPhotoComparisonService.createComparison', () => {
           id: 'c3d4e5f6-a7b8-4012-8def-123456789012',
           before_photo_id: BEFORE_ID,
           after_photo_id: AFTER_ID,
-          deterministic: {
-            alignment: { residual_norm: 0.001 },
-            exposure: { luminance_delta: 1 },
-          },
+          deterministic: storedDeterministic({ residual_norm: 0.001 }),
           failure_reason: null,
           created_at: '2026-03-01T00:00:00.000Z',
         },
@@ -275,10 +316,7 @@ describe('progressPhotoComparisonService.createComparison', () => {
           id: 'c3d4e5f6-a7b8-4012-8def-123456789012',
           before_photo_id: BEFORE_ID,
           after_photo_id: AFTER_ID,
-          deterministic: {
-            alignment: { residual_norm: 0.2 },
-            exposure: { luminance_delta: 1 },
-          },
+          deterministic: storedDeterministic({ residual_norm: 0.2 }),
           failure_reason: null,
           created_at: '2026-03-01T00:00:00.000Z',
         },
@@ -293,6 +331,98 @@ describe('progressPhotoComparisonService.createComparison', () => {
 
     expect(result?.verdict).toBe('not_comparable');
     expect(result?.reasons).toEqual(['alignment_residual']);
+  });
+
+  it('grades a row written before unreliable_ratios existed', async () => {
+    // The column never held the field, and it was not backfilled: it is
+    // recomputed from the arms_overlap flags the row already stores. A cached
+    // pair from last month therefore arrives with today's rule applied rather
+    // than with an absent array the response type promises is there.
+    queue = [
+      [
+        {
+          id: 'c3d4e5f6-a7b8-4012-8def-123456789012',
+          before_photo_id: BEFORE_ID,
+          after_photo_id: AFTER_ID,
+          deterministic: storedDeterministic({ armsOnBoth: { waist: true } }),
+          failure_reason: null,
+          created_at: '2026-03-01T00:00:00.000Z',
+        },
+      ],
+      [
+        { id: BEFORE_ID, entry_date: '2026-01-01' },
+        { id: AFTER_ID, entry_date: '2026-03-01' },
+      ],
+    ];
+
+    const result = await comparisonService.getComparisonById('u', 'x');
+
+    expect(result?.deterministic?.unreliable_ratios).toEqual([
+      'waist_shoulder',
+    ]);
+    // waist_height is contaminated too, but neither photo produced a delta for
+    // it, so there is nothing for the caveat to attach to.
+    expect(result?.deterministic?.ratio_deltas).not.toHaveProperty(
+      'waist_height'
+    );
+    expect(result?.verdict).toBe('comparable');
+  });
+
+  it('refuses to half-read a stored shape it does not recognise', async () => {
+    // Better an honest "no measurements", which the caller can re-request with
+    // force, than numbers of unknown provenance dressed up as a comparison.
+    queue = [
+      [
+        {
+          id: 'c3d4e5f6-a7b8-4012-8def-123456789012',
+          before_photo_id: BEFORE_ID,
+          after_photo_id: AFTER_ID,
+          deterministic: { alignment: { residual_norm: 0.001 } },
+          failure_reason: null,
+          created_at: '2026-03-01T00:00:00.000Z',
+        },
+      ],
+      [
+        { id: BEFORE_ID, entry_date: '2026-01-01' },
+        { id: AFTER_ID, entry_date: '2026-03-01' },
+      ],
+    ];
+
+    const result = await comparisonService.getComparisonById('u', 'x');
+
+    expect(result?.deterministic).toBeNull();
+    expect(result?.verdict).toBe('not_comparable');
+    // Not pose_not_detected: a body was found, the row just cannot be read.
+    expect(result?.reasons).toEqual(['not_analyzed']);
+  });
+
+  it('says a pair is not comparable when nothing measurable survives', async () => {
+    // "Comparable" is a promise that something can be compared. With every
+    // shape number struck out there is nothing behind the promise.
+    queue = [
+      [
+        {
+          id: 'c3d4e5f6-a7b8-4012-8def-123456789012',
+          before_photo_id: BEFORE_ID,
+          after_photo_id: AFTER_ID,
+          deterministic: storedDeterministic({
+            armsOnBoth: { waist: true, hip: true, shoulder: true },
+            ratio_deltas: { waist_shoulder: -0.05, hip_shoulder: 0.01 },
+          }),
+          failure_reason: null,
+          created_at: '2026-03-01T00:00:00.000Z',
+        },
+      ],
+      [
+        { id: BEFORE_ID, entry_date: '2026-01-01' },
+        { id: AFTER_ID, entry_date: '2026-03-01' },
+      ],
+    ];
+
+    const result = await comparisonService.getComparisonById('u', 'x');
+
+    expect(result?.verdict).toBe('not_comparable');
+    expect(result?.reasons).toEqual(['arms_obscured']);
   });
 
   it('drops a pair whose photos are no longer both visible', async () => {

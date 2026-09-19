@@ -103,6 +103,36 @@ describe('assessComparability', () => {
     ).toEqual([]);
   });
 
+  it('does not punish a consistent arms-down habit', () => {
+    // Two well-framed photos of someone who always stands the same way really
+    // are comparable. Degrading them would penalise exactly the consistency
+    // the feature is trying to encourage.
+    expect(
+      assessComparability({
+        ...good,
+        trustworthy_ratios: ['shoulder_height', 'mask_area_height2'],
+      }).verdict
+    ).toBe('comparable');
+  });
+
+  it('refuses a pair with no trustworthy shape left', () => {
+    // "Comparable" is a promise that something can be compared; with every
+    // shape number struck out there is nothing behind it.
+    const result = assessComparability({ ...good, trustworthy_ratios: [] });
+
+    expect(result.verdict).toBe('not_comparable');
+    expect(result.reasons).toEqual(['arms_obscured']);
+  });
+
+  it('skips the shape term when the caller has nothing to say about it', () => {
+    // Absent is not the same as empty: a row with no measurements at all must
+    // not be reported as one whose measurements were all struck out.
+    expect(assessComparability({ ...good }).reasons).toEqual([]);
+    expect(
+      assessComparability({ ...good, trustworthy_ratios: null }).reasons
+    ).toEqual([]);
+  });
+
   it('refuses a residual it cannot read', () => {
     // A NaN residual means the fit did not converge. Comparing it against a
     // threshold is always false, which would silently pass the pair.
@@ -222,9 +252,11 @@ describe('unreliableRatios', () => {
     // Measured on a real photograph moved and relit but otherwise identical:
     // the arm-free shoulder held to 0.1% while the arm-crossed hip drifted
     // 6.2%. A report reading that as progress would be describing an elbow.
+    // Same posture in both, so this isolates the stop rule from the separate
+    // silhouette-area rule below.
     const result = unreliableRatios(
       { arms_overlap: { ...clear, hip: true } },
-      { arms_overlap: clear }
+      { arms_overlap: { ...clear, hip: true } }
     );
 
     expect(result).toEqual(['hip_shoulder']);
@@ -241,7 +273,14 @@ describe('unreliableRatios', () => {
       { arms_overlap: { ...clear, waist: true } }
     );
 
-    expect(before).toEqual(['waist_shoulder', 'waist_height']);
+    // Silhouette area comes along here and not in the test above, because
+    // these two fixtures disagree about the arms rather than merely both
+    // having them down.
+    expect(before).toEqual([
+      'waist_shoulder',
+      'waist_height',
+      'mask_area_height2',
+    ]);
     expect(after).toEqual(before);
   });
 
@@ -251,30 +290,52 @@ describe('unreliableRatios', () => {
     expect(
       unreliableRatios(
         { arms_overlap: { ...clear, shoulder: true } },
-        { arms_overlap: clear }
+        { arms_overlap: { ...clear, shoulder: true } }
       )
     ).toEqual(['waist_shoulder', 'hip_shoulder', 'shoulder_height']);
   });
 
-  it('leaves the whole-silhouette ratio alone', () => {
-    // An arm against the body is inside the mask either way, so mask area is
-    // not made worse by it - and claiming otherwise would throw away the one
-    // measurement that survives a bad stance.
-    const everything = {
-      shoulder: true,
+  it('leaves the whole-silhouette ratio alone while the posture holds', () => {
+    // Area integrates over the body instead of reading one line, so it does
+    // not lurch with a couple of degrees of roll the way a row does: measured
+    // at 0.25% across the same pair that moved the waist and hip 5-6%.
+    // Striking it out whenever an arm touched anything would throw away the
+    // one shape number that survives an arms-down habit.
+    const armsDown = {
+      shoulder: false,
       chest: true,
       waist: true,
       hip: true,
-      thigh: true,
+      thigh: false,
     };
 
     expect(
-      unreliableRatios(
-        { arms_overlap: everything },
-        { arms_overlap: everything }
-      )
+      unreliableRatios({ arms_overlap: armsDown }, { arms_overlap: armsDown })
     ).not.toContain('mask_area_height2');
-    expect(RATIO_STOPS.mask_area_height2).toEqual([]);
+  });
+
+  it('strikes out silhouette area when the arms moved between the two', () => {
+    // An arm held clear adds its own outline; an arm pressed to the torso
+    // hides behind it. Arms-out against arms-down compares two different
+    // outlines of the same body, which area cannot see past.
+    const armsDown = {
+      shoulder: false,
+      chest: true,
+      waist: true,
+      hip: true,
+      thigh: false,
+    };
+    const armsOut = {
+      shoulder: false,
+      chest: false,
+      waist: false,
+      hip: false,
+      thigh: false,
+    };
+
+    expect(
+      unreliableRatios({ arms_overlap: armsDown }, { arms_overlap: armsOut })
+    ).toContain('mask_area_height2');
   });
 
   it('has a stop list for every ratio', () => {

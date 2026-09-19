@@ -8,9 +8,12 @@ import {
   ratioDeltas,
   unreliableRatios,
   photoMetricsSchema,
+  storedDeterministicSchema,
+  type BodyRatios,
   type ComparabilityOutcome,
   type ComparisonDeterministic,
   type ComparisonResponse,
+  type StoredDeterministic,
 } from '@workspace/shared';
 import {
   comparePhotos,
@@ -110,12 +113,11 @@ const loadPhotoImage = async (
 /**
  * Fold the sidecar's response into the shape that gets stored.
  *
- * Note what is dropped: the landmarks, which are cached per photo instead, and
- * the aligned JPEGs, which are never stored at all.
+ * Note what is dropped: the landmarks, which are cached per photo instead, the
+ * aligned JPEGs, which are never stored at all, and `unreliable_ratios`, which
+ * `readDeterministic` recomputes on the way back out.
  */
-const toDeterministic = (
-  comparison: VisionComparison
-): ComparisonDeterministic => {
+const toDeterministic = (comparison: VisionComparison): StoredDeterministic => {
   // Parsed, not trusted: the deltas are computed from what the contract
   // accepted rather than from the raw payload, so a sidecar that starts
   // sending a different shape fails here instead of producing a number.
@@ -127,7 +129,6 @@ const toDeterministic = (
     alignment: comparison.alignment,
     exposure: comparison.exposure,
     ratio_deltas: ratioDeltas(before.ratios, after.ratios),
-    unreliable_ratios: unreliableRatios(before, after),
     engine: comparison.engine,
   };
 };
@@ -145,14 +146,60 @@ const verdictFor = (
   failureReason: string | null
 ): ComparabilityOutcome => {
   if (!deterministic) {
+    // `failure_reason` is set when the sidecar refused the photo; its absence
+    // here means the row held measurements this code could not read, which is
+    // an absent analysis rather than an absent body.
     return {
       verdict: 'not_comparable',
-      reasons: [
-        failureReason === 'not_analyzed' ? 'not_analyzed' : 'pose_not_detected',
-      ],
+      reasons: [failureReason ? 'pose_not_detected' : 'not_analyzed'],
     };
   }
-  return assessComparability(deterministic);
+  const measured = Object.keys(deterministic.ratio_deltas);
+  return assessComparability({
+    ...deterministic,
+    trustworthy_ratios: measured.filter(
+      (key) =>
+        !deterministic.unreliable_ratios.includes(key as keyof BodyRatios)
+    ),
+  });
+};
+
+/**
+ * Rebuild the full response shape from what the row actually holds.
+ *
+ * Two things happen here rather than at write time. `unreliable_ratios` is
+ * recomputed from the stored `arms_overlap` flags, so rows written before that
+ * rule existed - or before it last changed - are graded by today's rule rather
+ * than carrying a stale answer or, worse, no answer at all where the type
+ * promises one.
+ *
+ * And it is intersected with the deltas that actually exist. A ratio neither
+ * photo could compute is absent from `ratio_deltas`, and naming it as
+ * untrustworthy would be a caveat attached to nothing - a caller walking the
+ * list to mark up numbers would look for one that was never there.
+ */
+const readDeterministic = (raw: unknown): ComparisonDeterministic | null => {
+  if (raw === null || raw === undefined) return null;
+  const parsed = storedDeterministicSchema.safeParse(raw);
+  if (!parsed.success) {
+    // A row this code cannot read is treated as having no measurements rather
+    // than partially decoded into numbers of unknown provenance. Loud, because
+    // it means a stored shape and this schema have diverged, and the row needs
+    // re-measuring (POST with `force`) rather than displaying.
+    log(
+      'error',
+      '[progressPhotoComparison] Stored measurements do not match the schema; treating the pair as unmeasured',
+      parsed.error.issues[0]
+    );
+    return null;
+  }
+  const stored = parsed.data;
+  const unreliable = unreliableRatios(stored.before, stored.after);
+  const measured = new Set(Object.keys(stored.ratio_deltas));
+  return {
+    ...stored,
+    unreliable_ratios: unreliable.filter((key) => measured.has(key)),
+  };
 };
 
 /** Cache both photos' measurements as a by-product of a comparison. */
@@ -205,9 +252,7 @@ const rowToResponse = (
   row: any,
   gapInDays: number
 ): ComparisonResponse => {
-  const deterministic: ComparisonDeterministic | null = row.deterministic
-    ? (row.deterministic as ComparisonDeterministic)
-    : null;
+  const deterministic = readDeterministic(row.deterministic);
   const outcome = verdictFor(deterministic, row.failure_reason ?? null);
   return {
     id: String(row.id),
@@ -284,7 +329,7 @@ export const createComparison = async (
   const beforeImage = await loadPhotoImage(userId, beforePhotoId);
   const afterImage = await loadPhotoImage(userId, afterPhotoId);
 
-  let deterministic: ComparisonDeterministic | null = null;
+  let deterministic: StoredDeterministic | null = null;
   let failureReason: string | null = null;
   let engine = 'unknown';
   let comparison: VisionComparison | null = null;
