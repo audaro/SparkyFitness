@@ -300,6 +300,17 @@ describe('ProgressPhotoCaptureScreen', () => {
     expect(meta.reference_opacity).toBeUndefined();
   });
 
+  it('always tells the user to hold their arms clear', async () => {
+    // Not decoration, and not conditional on whether there is a reference
+    // photo. The waist and hip are read across the silhouette, which cannot
+    // tell an arm from the torso it rests against: on two photos of a body
+    // that had not changed, an arm against the side moved those measurements
+    // 5-6%. This sentence is the only thing that prevents it.
+    const { getByText } = renderScreen();
+
+    expect(getByText(/arms slightly away from your sides/i)).toBeTruthy();
+  });
+
   it('does not upload when the camera returns nothing', async () => {
     mockTakePictureAsync.mockResolvedValue(undefined);
     const { getByLabelText } = renderScreen();

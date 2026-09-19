@@ -347,6 +347,22 @@ const ProgressPhotoCaptureScreen: React.FC<Props> = ({ navigation, route }) => {
                 })}
         </Text>
 
+        {/*
+          Not decoration. The waist and hip are measured by reading across the
+          silhouette, and a silhouette cannot tell an arm from the torso it is
+          resting against — an arm held against the body moved those numbers by
+          5-6% between two photos of a body that had not changed at all, purely
+          with how far the arm hung into the row. Arms clear of the sides is
+          the one thing the person can do that makes those measurements mean
+          anything, so it is said on every shot rather than buried in help.
+        */}
+        <Text className="text-center text-xs text-white/70">
+          {t('progressPhotos.capture.armsHint', {
+            defaultValue:
+              'Hold your arms slightly away from your sides, or the waist and hip measurements follow your arms instead of you.',
+          })}
+        </Text>
+
         <View className="flex-row items-center justify-between">
           <TouchableOpacity
             className="rounded-full bg-black/50 px-4 py-2"

@@ -5273,6 +5273,7 @@
       "ghostHint": "Line yourself up with the photo from {{date}}",
       "loadingReference": "Finding your last shot at this angle…",
       "firstShotHint": "Your first shot at this angle — every later one lines up with it, so stand square and leave room above and below.",
+      "armsHint": "Hold your arms slightly away from your sides, or the waist and hip measurements follow your arms instead of you.",
       "ghostOpacityValue": "{{percent}}%",
       "timerValue": "{{seconds}}s"
     }
