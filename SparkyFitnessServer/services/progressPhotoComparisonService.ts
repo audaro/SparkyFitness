@@ -6,6 +6,7 @@ import { localDateToDay, daysBetween as dayGap } from '@workspace/shared';
 import {
   assessComparability,
   ratioDeltas,
+  unreliableRatios,
   photoMetricsSchema,
   type ComparabilityOutcome,
   type ComparisonDeterministic,
@@ -126,6 +127,7 @@ const toDeterministic = (
     alignment: comparison.alignment,
     exposure: comparison.exposure,
     ratio_deltas: ratioDeltas(before.ratios, after.ratios),
+    unreliable_ratios: unreliableRatios(before, after),
     engine: comparison.engine,
   };
 };

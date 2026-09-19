@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   assessComparability,
   ratioDeltas,
+  unreliableRatios,
+  RATIO_STOPS,
+  BODY_RATIO_KEYS,
   photoMetricsSchema,
   COMPARABILITY_THRESHOLDS,
   LAB_L_RANGE,
@@ -197,5 +200,88 @@ describe('photoMetricsSchema', () => {
     });
 
     expect(parsed.ratios.waist_shoulder).toBeNull();
+  });
+});
+
+describe('unreliableRatios', () => {
+  const clear = {
+    shoulder: false,
+    chest: false,
+    waist: false,
+    hip: false,
+    thigh: false,
+  };
+
+  it('finds nothing wrong when the arms were clear of the body', () => {
+    expect(
+      unreliableRatios({ arms_overlap: clear }, { arms_overlap: clear })
+    ).toEqual([]);
+  });
+
+  it('names every ratio built on a stop an arm was inside', () => {
+    // Measured on a real photograph moved and relit but otherwise identical:
+    // the arm-free shoulder held to 0.1% while the arm-crossed hip drifted
+    // 6.2%. A report reading that as progress would be describing an elbow.
+    const result = unreliableRatios(
+      { arms_overlap: { ...clear, hip: true } },
+      { arms_overlap: clear }
+    );
+
+    expect(result).toEqual(['hip_shoulder']);
+  });
+
+  it('is contaminated by either end of the pair', () => {
+    // The delta is a difference, so one bad end is enough to poison it.
+    const before = unreliableRatios(
+      { arms_overlap: { ...clear, waist: true } },
+      { arms_overlap: clear }
+    );
+    const after = unreliableRatios(
+      { arms_overlap: clear },
+      { arms_overlap: { ...clear, waist: true } }
+    );
+
+    expect(before).toEqual(['waist_shoulder', 'waist_height']);
+    expect(after).toEqual(before);
+  });
+
+  it('spreads from a shared stop to everything built on it', () => {
+    // The shoulder is the denominator of two ratios and the numerator of a
+    // third; an arm across it takes all three down.
+    expect(
+      unreliableRatios(
+        { arms_overlap: { ...clear, shoulder: true } },
+        { arms_overlap: clear }
+      )
+    ).toEqual(['waist_shoulder', 'hip_shoulder', 'shoulder_height']);
+  });
+
+  it('leaves the whole-silhouette ratio alone', () => {
+    // An arm against the body is inside the mask either way, so mask area is
+    // not made worse by it - and claiming otherwise would throw away the one
+    // measurement that survives a bad stance.
+    const everything = {
+      shoulder: true,
+      chest: true,
+      waist: true,
+      hip: true,
+      thigh: true,
+    };
+
+    expect(
+      unreliableRatios(
+        { arms_overlap: everything },
+        { arms_overlap: everything }
+      )
+    ).not.toContain('mask_area_height2');
+    expect(RATIO_STOPS.mask_area_height2).toEqual([]);
+  });
+
+  it('has a stop list for every ratio', () => {
+    // A ratio missing from RATIO_STOPS would silently never be marked
+    // unreliable, which is the failure that stays invisible.
+    for (const key of BODY_RATIO_KEYS) {
+      expect(RATIO_STOPS[key]).toBeDefined();
+    }
   });
 });

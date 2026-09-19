@@ -272,6 +272,52 @@ export function assessComparability(
 }
 
 /**
+ * Which width stops each ratio is built from.
+ *
+ * `mask_area_height2` is measured from the whole silhouette rather than from
+ * any one row, so it has no stops and is never marked unreliable on this
+ * ground — an arm against the body is inside the mask either way.
+ */
+export const RATIO_STOPS: Record<keyof BodyRatios, BodyWidthStop[]> = {
+  waist_shoulder: ["waist", "shoulder"],
+  waist_height: ["waist"],
+  hip_shoulder: ["hip", "shoulder"],
+  shoulder_height: ["shoulder"],
+  thigh_height: ["thigh"],
+  mask_area_height2: [],
+};
+
+/**
+ * The ratios that were measured but must not be read as body change.
+ *
+ * A silhouette cannot tell an arm from the torso it is resting against, so a
+ * row an arm falls inside measures the pair of them. That is not a small
+ * effect: on a real photograph moved and relit but otherwise identical, the
+ * arm-free stops held to within 2% while the arm-crossed waist and hip drifted
+ * 5-6% in opposite directions — enough to read as visible progress in a report
+ * where nothing whatsoever had changed.
+ *
+ * Named rather than dropped, because "measured, but it moves with how you
+ * stood" and "not measured" are different claims. A ratio is unreliable if
+ * either photo had an arm in any stop it is built from: the delta is a
+ * difference, so contaminating one end is enough.
+ */
+export function unreliableRatios(
+  before: Pick<PhotoMetrics, "arms_overlap">,
+  after: Pick<PhotoMetrics, "arms_overlap">,
+): (keyof BodyRatios)[] {
+  const unreliable: (keyof BodyRatios)[] = [];
+  for (const key of BODY_RATIO_KEYS) {
+    const stops = RATIO_STOPS[key];
+    const touched = stops.some(
+      (stop) => before.arms_overlap[stop] || after.arms_overlap[stop],
+    );
+    if (touched) unreliable.push(key);
+  }
+  return unreliable;
+}
+
+/**
  * After minus before, for every ratio both photos actually have.
  *
  * A ratio either side declined to compute is left out rather than treated as
@@ -303,6 +349,15 @@ export const comparisonDeterministicSchema = z.object({
   ratio_deltas: z.partialRecord(
     z.enum(BODY_RATIO_KEYS as [keyof BodyRatios, ...(keyof BodyRatios)[]]),
     z.number(),
+  ),
+  /**
+   * Ratios present in `ratio_deltas` that a report must not attribute to the
+   * body. See `unreliableRatios`. Kept alongside the deltas rather than
+   * subtracted from them so the caller can show the number and the caveat
+   * together instead of silently having neither.
+   */
+  unreliable_ratios: z.array(
+    z.enum(BODY_RATIO_KEYS as [keyof BodyRatios, ...(keyof BodyRatios)[]]),
   ),
   engine: z.string(),
 });
