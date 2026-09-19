@@ -25,6 +25,7 @@ BEGIN
     'ai_service_settings',
     'check_in_measurements',
     'check_in_photos',
+    'check_in_photo_analysis',
     'coach_profiles',
     'custom_categories',
     'custom_measurements',
@@ -54,6 +55,7 @@ BEGIN
     'openfoodfacts_product_read_rate_limit',
     'openfoodfacts_sync_queue',
     'profiles',
+    'progress_photo_comparisons',
     'sparky_chat_history',
     'admin_activity_logs',
     'api_key',
@@ -624,6 +626,11 @@ WITH CHECK (admin_user_id = current_user_id() AND is_admin());
 -- Diary access tables
 SELECT create_checkin_policy('check_in_measurements');
 SELECT create_checkin_policy('check_in_photos');
+-- Derived progress-photo data: measurements of a check-in photo and of a
+-- pair of them. They carry no permission of their own -- whoever may see the
+-- photo may see what was measured from it.
+SELECT create_checkin_policy('check_in_photo_analysis');
+SELECT create_checkin_policy('progress_photo_comparisons');
 -- Custom categories/measurements are surfaced through the check-in feature and
 -- every /measurements route is guarded by checkPermissionMiddleware('checkin'),
 -- so their RLS must use the check-in policy. The previous diary policy required
