@@ -417,15 +417,20 @@ export const requestHealthPermissions = async (
           writePermissionsSet.add('HKQuantityTypeIdentifierActiveEnergyBurned');
         }
       } else if (p.recordType === 'Nutrition') {
-        // HealthKit authorizes the *contents* of a Food correlation, not the correlation
-        // type itself — passing HKCorrelationTypeIdentifierFood to requestAuthorization
-        // raises an NSInvalidArgumentException. So both directions request only the
-        // contained dietary quantity types: read auth on each lets queryCorrelationSamples
-        // return the correlation (symmetric with how writeback saves a correlation with
-        // write auth on the contained types only). Read and write accumulate into separate
-        // Sets, so the two Nutrition perms (read from HealthMetrics, write from
-        // WritebackMetrics) never clobber.
+        // The two directions are NOT symmetric, and that asymmetry is the whole
+        // reason this branch exists. Writing a Food correlation is authorized by
+        // the samples it contains — a correlation type in `toShare` raises an
+        // NSInvalidArgumentException — but READING one is authorized by the
+        // correlation type as well as its contents, and a type never passed to
+        // requestAuthorization stays notDetermined forever rather than resolving
+        // to granted or denied. Requesting only the contained types therefore
+        // left HKCorrelationQuery throwing "authorization not determined" on
+        // every single sync while all 17 dietary types were granted, so the
+        // whole Nutrition metric read as unreadable and the loose-sample
+        // fallback below it never ran. The contained types stay on the read side
+        // too: readLooseNutrition queries them directly.
         if (p.accessType === 'read') {
+          readPermissionsSet.add('HKCorrelationTypeIdentifierFood');
           DIETARY_WRITE_IDENTIFIERS.forEach((identifier) =>
             readPermissionsSet.add(identifier)
           );

@@ -162,10 +162,44 @@ describe('read/write direction independence', () => {
         { accessType: 'read', recordType },
         { accessType: 'write', recordType },
       ]);
-      expect(toRead.length).toBeGreaterThan(0);
-      expect(toShare).toEqual(toRead);
+      expect(toShare.length).toBeGreaterThan(0);
+      // Not an equality: every shareable type is also read, but Nutrition reads
+      // one type it can never share (see the Food correlation suite below), so
+      // asserting the two arrays match would pin the bug that caused #2210.
+      expect(toRead).toEqual(expect.arrayContaining(toShare));
     }
   );
+});
+
+// A Food correlation read is authorized by the correlation type AND its contents;
+// a write is authorized by the contents alone. Requesting only the contents left
+// the correlation type notDetermined forever — not denied, never resolved — so
+// queryCorrelationSamples threw "authorization not determined" on every sync,
+// the whole Nutrition metric was reported unreadable, and the loose-sample
+// fallback after it never ran.
+describe('nutrition read authorization', () => {
+  const FOOD_CORRELATION = 'HKCorrelationTypeIdentifierFood';
+
+  it('authorizes the Food correlation type alongside its contained types', async () => {
+    const toRead = await readTypesFor([
+      { accessType: 'read', recordType: 'Nutrition' },
+    ]);
+
+    expect(toRead).toContain(FOOD_CORRELATION);
+    expect(toRead).toContain('HKQuantityTypeIdentifierDietaryEnergyConsumed');
+    expect(toRead).toContain('HKQuantityTypeIdentifierDietaryProtein');
+  });
+
+  it('never asks to share the correlation type', async () => {
+    // HealthKit raises an NSInvalidArgumentException for a correlation type in
+    // toShare, which would fail the whole request for every metric in it.
+    const { toShare } = await authorizeWith([
+      { accessType: 'read', recordType: 'Nutrition' },
+      { accessType: 'write', recordType: 'Nutrition' },
+    ]);
+
+    expect(toShare).not.toContain(FOOD_CORRELATION);
+  });
 });
 
 describe('authorization request logging', () => {

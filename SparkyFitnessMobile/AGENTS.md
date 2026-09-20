@@ -1,6 +1,6 @@
 # AGENTS.md
 
-_Last updated: 2026-09-19_
+_Last updated: 2026-09-20_
 
 SparkyFitness Mobile is a React Native 0.86 + Expo SDK 57 app for syncing Apple Health / Health Connect data with the SparkyFitness backend, tracking nutrition, hydration, fasting, measurements, exercise, saved foods, meal templates, custom exercises, workout presets, iOS / Android widgets, the active workout HUD, and the Sparky AI chat.
 
@@ -152,6 +152,7 @@ npx expo prebuild --clean
 - Per-day content-signature hashing skips unchanged days. Each run deletes prior tracked UUIDs then saves fresh records; failed deletes are retried next run.
 - `HealthDataWriteback` on `SyncScreen` owns the remove flow. `BottomSheetPicker` offers all-time purge or date range through `DateRangeSheet`; both call `removeWrittenData(range)` and clear tracking.
 - Inbound iOS nutrition sync reads food correlations with a rolling nutrition lookback and upserts by `(source, source_id)` server-side.
+- **A Food correlation is authorized asymmetrically, and only the read side needs the correlation type.** Writing one is authorized by the dietary quantity types it contains (a correlation type in `toShare` raises an `NSInvalidArgumentException`), but `HKCorrelationQuery` checks `HKCorrelationTypeIdentifierFood` itself as well as its contents — and a type never passed to `requestAuthorization` stays **notDetermined**, which is neither granted nor denied and never resolves on its own. Requesting only the contained types therefore failed every Nutrition read with "authorization not determined" on every sync, indefinitely, while all 17 dietary types were granted; the loose-sample fallback inside `handleNutrition` never ran either, because the correlation query throws before it. Both sides are pinned by `__tests__/services/healthkit/workoutPermissions.test.ts`. The general shape is worth remembering for any HealthKit type read through a wrapper type: **a read that fails identically forever is a permission that was never asked for, not one that was refused** — a refusal returns empty.
 
 ## Native Patches
 
