@@ -723,7 +723,30 @@ describe('ExerciseSearchScreen', () => {
       expect(screen.queryByText('Failed to load exercises')).toBeNull();
     });
 
-    it('keeps the shortlist reachable when a typed search finds nothing', () => {
+    it('stands aside for the results once a search is active', () => {
+      // The shortlist is six rows tall and the keyboard covers the rest of the
+      // screen, so leaving it pinned above the results pushed every match below
+      // the fold: a search that found plenty looked like a search that found
+      // nothing.
+      mockUseExerciseSearch.mockReturnValue({
+        searchResults: [localExercise],
+        isSearching: false,
+        isSearchActive: true,
+        isSearchError: false,
+      } as any);
+      mockUseExerciseAlternatives.mockReturnValue({
+        alternatives: [localAlternative],
+        isLoading: false,
+        isError: false,
+      });
+
+      const screen = renderScreen({ suggestForExerciseId: SOURCE_ID });
+
+      expect(screen.queryByTestId('suggested-section')).toBeNull();
+      expect(screen.getByText('Bench Press')).toBeTruthy();
+    });
+
+    it('tells the user a search found nothing, without the shortlist', () => {
       mockUseExerciseSearch.mockReturnValue({
         searchResults: [],
         isSearching: false,
@@ -738,8 +761,7 @@ describe('ExerciseSearchScreen', () => {
 
       const screen = renderScreen({ suggestForExerciseId: SOURCE_ID });
 
-      expect(screen.getByTestId('suggested-section')).toBeTruthy();
-      // The empty state moves inside the list rather than replacing it.
+      expect(screen.queryByTestId('suggested-section')).toBeNull();
       expect(screen.getByText('No matching exercises found')).toBeTruthy();
     });
 

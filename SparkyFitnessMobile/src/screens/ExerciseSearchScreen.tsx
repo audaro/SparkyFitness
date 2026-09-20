@@ -513,15 +513,23 @@ const ExerciseSearchScreen: React.FC<ExerciseSearchScreenProps> = ({
   );
 
   /**
-   * The "Suggested" block, rendered as a list header above both the idle
-   * library sections and the search results — so a user who starts typing
-   * scrolls past the shortlist rather than losing it.
+   * The "Suggested" block: the shortlist of ranked alternatives, rendered as a
+   * list header above the idle library sections.
+   *
+   * It is hidden as soon as a search is active. It used to stay pinned above
+   * the results so a user who started typing could scroll back to it, but the
+   * shortlist is six rows tall and the keyboard covers the rest of the screen,
+   * so the matches for what they typed rendered entirely below the fold — a
+   * search for "smith machine" returning nineteen rows read as returning none.
+   * Someone who has typed a query has asked for something the shortlist did not
+   * offer; clearing the query brings it straight back.
    *
    * A failed or empty lookup renders nothing: the fallback for "no suggestions"
    * is the plain search this screen already is, not an error in place of it.
    */
   const suggestedSection = useMemo(() => {
     if (!suggestForExerciseId || isAlternativesError) return null;
+    if (isSearchActive) return null;
     if (!isAlternativesLoading && alternatives.length === 0) return null;
     return (
       <View testID="suggested-section">
@@ -542,6 +550,7 @@ const ExerciseSearchScreen: React.FC<ExerciseSearchScreenProps> = ({
   }, [
     t,
     suggestForExerciseId,
+    isSearchActive,
     alternatives,
     isAlternativesLoading,
     isAlternativesError,
@@ -597,13 +606,14 @@ const ExerciseSearchScreen: React.FC<ExerciseSearchScreenProps> = ({
   /**
    * Why the results list is empty — loading, failed, filtered out, or no match.
    *
-   * `inline` matters: StatusView's default container is `flex-1`, which
-   * collapses to nothing inside a list's content container. As a whole-screen
-   * return it needs the default; as a ListEmptyComponent it needs inline.
+   * Always a whole-screen return, so it keeps StatusView's default `flex-1`
+   * container. It was once also a ListEmptyComponent, which needs `inline`
+   * because `flex-1` collapses to nothing inside a list's content container —
+   * bring that prop back if it is ever rendered inside a list again.
    */
-  const renderSearchEmptyState = (inline = false) => {
+  const renderSearchEmptyState = () => {
     if (isSearching) {
-      return <StatusView loading inline={inline} />;
+      return <StatusView loading />;
     }
     if (isSearchError) {
       return (
@@ -612,7 +622,6 @@ const ExerciseSearchScreen: React.FC<ExerciseSearchScreenProps> = ({
           title={t('exerciseSearch.states.failedToSearch', {
             defaultValue: 'Failed to search exercises',
           })}
-          inline={inline}
         />
       );
     }
@@ -624,7 +633,6 @@ const ExerciseSearchScreen: React.FC<ExerciseSearchScreenProps> = ({
             filter: ownershipFilter,
             onReset: () => setOwnershipFilter('all'),
           })}
-          inline={inline}
         />
       );
     }
@@ -633,17 +641,15 @@ const ExerciseSearchScreen: React.FC<ExerciseSearchScreenProps> = ({
         title={t('exerciseSearch.noMatches', {
           defaultValue: 'No matching exercises found',
         })}
-        inline={inline}
       />
     );
   };
 
   const renderSearchResults = () => {
-    // With no Suggested block there is nothing worth keeping on screen, so an
-    // empty or failed search stays a full-screen status view. With one, the
-    // list renders regardless and the status moves inside it — a search that
-    // found nothing must not take the shortlist down with it.
-    if (!suggestedSection && filteredSearchResults.length === 0) {
+    // The Suggested shortlist is hidden while a search is active, so the
+    // results are the only thing on screen and an empty or failed search is a
+    // full-screen status view rather than a status tucked under a header.
+    if (filteredSearchResults.length === 0) {
       return renderSearchEmptyState();
     }
 
@@ -653,8 +659,6 @@ const ExerciseSearchScreen: React.FC<ExerciseSearchScreenProps> = ({
           data={filteredSearchResults}
           keyExtractor={(item) => item.id}
           renderItem={renderExerciseRow}
-          ListHeaderComponent={suggestedSection}
-          ListEmptyComponent={renderSearchEmptyState(true)}
           keyboardShouldPersistTaps="handled"
           contentContainerClassName="pb-safe-or-4"
         />
