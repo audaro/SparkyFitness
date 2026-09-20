@@ -582,6 +582,15 @@ const UpNextScreen: React.FC<UpNextScreenProps> = ({ navigation, route }) => {
     handleEditedExercise
   );
 
+  // The sheet's Replace, for a planned exercise it cannot swap itself. It
+  // arrives as the outgoing id and runs the same handler the row menu runs, so
+  // both routes into a replacement share one flow and one server round trip.
+  useParamHandoff(
+    route.params?.replaceExerciseId,
+    route.params?.replaceNonce,
+    handleReplaceExercise
+  );
+
   const gymOptions = useMemo(
     () => [
       ...profiles.map((profile) => ({

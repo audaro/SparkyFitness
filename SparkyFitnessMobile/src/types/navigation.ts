@@ -295,6 +295,14 @@ export type RootStackParamList = {
         /** A plan exercise the sheet edited, handed back for `editPlan`. */
         editedExercise?: PlannedExercise;
         editNonce?: number;
+        /**
+         * A planned exercise the sheet asked to replace. The sheet cannot run
+         * the swap itself — replacing re-prescribes the whole workout on the
+         * server — so it hands the id back and Up Next runs the same flow its
+         * own row menu does.
+         */
+        replaceExerciseId?: string;
+        replaceNonce?: number;
       }
     | undefined;
   // Split list and muscle grid for the next generated workout. Takes no

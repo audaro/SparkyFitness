@@ -472,10 +472,32 @@ describe('ExerciseSheetScreen', () => {
       expect(queryByTestId('exercise-sheet-rationale')).toBeNull();
     });
 
-    it('leaves replacing the exercise to Up Next, which owns the payload', () => {
-      const { queryByTestId } = renderPlanSheet();
+    it('hands a replace back to Up Next, which owns the payload', () => {
+      // The sheet offers Replace but cannot perform it: the server
+      // re-prescribes the whole workout, so the sheet passes the outgoing id
+      // to Up Next and closes rather than splicing one exercise itself.
+      const { getByTestId } = renderPlanSheet();
 
-      expect(queryByTestId('exercise-sheet-replace-chip')).toBeNull();
+      fireEvent.press(getByTestId('exercise-sheet-replace-chip'));
+
+      const last = mockNavigation.dispatch.mock.calls.at(-1)?.[0];
+      expect(last?.source).toBe('UpNext-1');
+      expect(last?.payload?.params?.replaceExerciseId).toBe('ex-1');
+      expect(last?.payload?.params?.replaceNonce).toBeGreaterThan(0);
+      expect(mockNavigation.goBack).toHaveBeenCalled();
+    });
+
+    it('does not swap the exercise on the spot', () => {
+      const { getByTestId } = renderPlanSheet();
+
+      fireEvent.press(getByTestId('exercise-sheet-replace-chip'));
+
+      // Navigating to the picker itself would be the live-workout flow, where
+      // the sheet stays open on the incoming exercise. A planned one leaves.
+      expect(mockNavigation.navigate).not.toHaveBeenCalledWith(
+        'ExerciseSearch',
+        expect.anything()
+      );
     });
 
     it('hands an added set back to Up Next, copying the last one', () => {

@@ -1095,6 +1095,17 @@ describe('UpNextScreen', () => {
       });
     });
 
+    it('runs the same flow when the sheet asks for a replace', () => {
+      // The exercise sheet cannot swap a planned exercise itself, so it hands
+      // the outgoing id back here. Both routes must reach one server call.
+      renderScreen({ replaceExerciseId: EX_A, replaceNonce: 1 });
+
+      expect(navigation.navigate).toHaveBeenCalledWith('ExerciseSearch', {
+        returnKey: 'UpNext-key',
+        suggestForExerciseId: EX_A,
+      });
+    });
+
     it('ignores a selection that arrives without a Replace behind it', () => {
       // A stale param from some other flow must not silently swap an exercise.
       renderScreen({
