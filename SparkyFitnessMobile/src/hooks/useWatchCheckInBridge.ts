@@ -35,6 +35,24 @@ import { usePreferences } from './usePreferences';
 import { useDailySummary } from './useDailySummary';
 import type { CheckInMeasurement } from '../types/measurements';
 
+/**
+ * Is this push failure just "there is no watch app to push to"?
+ *
+ * A paired watch without the app installed is an ordinary, permanent state, not
+ * a fault — and the push effect re-runs on every logged food, drink, weigh-in or
+ * unit change, so at WARNING it filled the log with the same line and buried the
+ * failures that mean something.
+ *
+ * Matched on the message because the underlying `WCErrorCodeWatchAppNotInstalled`
+ * does not survive ExpoModulesCore's wrapping: JS receives an
+ * `UnexpectedException` carrying only the localized description. An unrecognized
+ * failure stays a WARNING, which is the safe direction for a match that goes
+ * stale against a future iOS wording.
+ */
+export function isWatchAppNotInstalledError(message: string): boolean {
+  return message.toLowerCase().includes('watch app is not installed');
+}
+
 /** Clamps a goal-progress fraction to 0...1 — passing a goal always reads as 1. */
 function goalProgress(consumed: number, goal: number): number {
   if (goal <= 0) return 0;
@@ -440,7 +458,11 @@ export function useWatchCheckInBridge(enabled: boolean): void {
     } catch (error) {
       // A failed push is recoverable: the watch keeps its cached context and asks
       // again next time it becomes reachable.
-      addLog(`Watch context push failed: ${String(error)}`, 'WARNING');
+      const message = String(error);
+      addLog(
+        `Watch context push failed: ${message}`,
+        isWatchAppNotInstalledError(message) ? 'DEBUG' : 'WARNING'
+      );
     }
     // Everything read above is a dep, so logging food, drinking water or
     // flipping the phone's unit setting all give `pushContext` a new identity —
