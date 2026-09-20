@@ -5276,6 +5276,15 @@
       "armsHint": "Hold your arms slightly away from your sides, or the waist and hip measurements follow your arms instead of you.",
       "ghostOpacityValue": "{{percent}}%",
       "timerValue": "{{seconds}}s"
+    },
+    "aligned": {
+      "toggle": "Align the two photos",
+      "toggleHint": "Fits the later photo onto the earlier one and matches the light, so only the body is left to differ.",
+      "working": "Measuring both photos…",
+      "failed": "These two photos could not be aligned. Turn this off to compare them side by side.",
+      "caveat": "These two shots differ in more than the body — read the overlay as a rough guide rather than a measurement.",
+      "sliderA11y": "Before and after, aligned. Swipe up or down to move the divider.",
+      "sliderValueA11y": "{{percent}}% before"
     }
   },
   "caffeine": {

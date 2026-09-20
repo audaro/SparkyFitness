@@ -4,6 +4,10 @@ import ProgressPhotoCompareScreen from '../../src/screens/ProgressPhotoCompareSc
 import { useCheckInPhotoGallery } from '../../src/hooks/useCheckInPhotos';
 import { useCheckInPhotoSource } from '../../src/hooks/useCheckInPhotoSource';
 import { usePreferences } from '../../src/hooks/usePreferences';
+import {
+  useAlignedPhotoPair,
+  useVisionAvailability,
+} from '../../src/hooks/useAlignedPhotoPair';
 import type { ProgressPhotoDay } from '../../src/types/checkInPhotos';
 
 jest.mock('../../src/hooks/useCheckInPhotos', () => ({
@@ -14,6 +18,10 @@ jest.mock('../../src/hooks/useCheckInPhotoSource', () => ({
 }));
 jest.mock('../../src/hooks/usePreferences', () => ({
   usePreferences: jest.fn(),
+}));
+jest.mock('../../src/hooks/useAlignedPhotoPair', () => ({
+  useAlignedPhotoPair: jest.fn(),
+  useVisionAvailability: jest.fn(),
 }));
 jest.mock('../../src/hooks/useScreenHeader', () => ({
   useScreenHeader: jest.fn(() => null),
@@ -55,6 +63,30 @@ const mockUseSource = useCheckInPhotoSource as jest.MockedFunction<
 const mockUsePreferences = usePreferences as jest.MockedFunction<
   typeof usePreferences
 >;
+const mockUseAvailability = useVisionAvailability as jest.MockedFunction<
+  typeof useVisionAvailability
+>;
+const mockUseAlignedPair = useAlignedPhotoPair as jest.MockedFunction<
+  typeof useAlignedPhotoPair
+>;
+
+const alignedPair = {
+  before: 'data:image/jpeg;base64,BEFORE',
+  after: 'data:image/jpeg;base64,AFTER',
+  aspectRatio: 0.75,
+};
+
+const setAligned = (
+  overrides: Partial<ReturnType<typeof useAlignedPhotoPair>> = {}
+) => {
+  mockUseAlignedPair.mockReturnValue({
+    pair: alignedPair,
+    comparison: null,
+    isLoading: false,
+    error: null,
+    ...overrides,
+  } as unknown as ReturnType<typeof useAlignedPhotoPair>);
+};
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() };
 
@@ -114,6 +146,12 @@ describe('ProgressPhotoCompareScreen', () => {
     mockUsePreferences.mockReturnValue({
       preferences: { default_weight_unit: 'kg' },
     } as unknown as ReturnType<typeof usePreferences>);
+    mockUseAvailability.mockReturnValue({
+      isAvailable: false,
+      isDown: false,
+      isLoading: false,
+    });
+    setAligned();
     // Gallery order is newest-first, as the server returns it.
     setGallery([
       day('2026-03-20', 78),
@@ -259,5 +297,116 @@ describe('ProgressPhotoCompareScreen', () => {
     const { queryByText } = renderScreen();
 
     expect(queryByText(/Δ/)).toBeNull();
+  });
+
+  describe('aligned mode', () => {
+    it('offers no alignment toggle on a server without the sidecar', () => {
+      // The feature is optional server-side. A switch that always fails is
+      // worse than no switch at all.
+      const { queryByText } = renderScreen();
+
+      expect(queryByText('Align the two photos')).toBeNull();
+    });
+
+    it('does not ask for an aligned pair until the toggle is on', () => {
+      mockUseAvailability.mockReturnValue({
+        isAvailable: true,
+        isDown: false,
+        isLoading: false,
+      });
+
+      renderScreen();
+
+      // Enabled false: opening the screen must not spend a sidecar round trip
+      // on a pair nobody asked to see.
+      expect(mockUseAlignedPair).toHaveBeenCalledWith(
+        '2026-03-01-front',
+        '2026-03-20-front',
+        false
+      );
+    });
+
+    it('swaps the two panes for the slider once it is on', () => {
+      mockUseAvailability.mockReturnValue({
+        isAvailable: true,
+        isDown: false,
+        isLoading: false,
+      });
+
+      const { getByRole, getByLabelText } = renderScreen();
+
+      act(() => {
+        fireEvent(getByRole('switch'), 'valueChange', true);
+      });
+
+      expect(
+        getByLabelText(
+          'Before and after, aligned. Swipe up or down to move the divider.'
+        )
+      ).toBeTruthy();
+      expect(mockUseAlignedPair).toHaveBeenLastCalledWith(
+        '2026-03-01-front',
+        '2026-03-20-front',
+        true
+      );
+    });
+
+    it('keeps both date pickers reachable in aligned mode', () => {
+      // One image where there were two must not cost the ability to change
+      // which two days are being compared.
+      mockUseAvailability.mockReturnValue({
+        isAvailable: true,
+        isDown: false,
+        isLoading: false,
+      });
+
+      const { getByRole, getByLabelText } = renderScreen();
+
+      act(() => {
+        fireEvent(getByRole('switch'), 'valueChange', true);
+      });
+
+      expect(getByLabelText('Choose the Before day')).toBeTruthy();
+      expect(getByLabelText('Choose the After day')).toBeTruthy();
+    });
+
+    it('says a pair could not be aligned instead of showing nothing', () => {
+      mockUseAvailability.mockReturnValue({
+        isAvailable: true,
+        isDown: false,
+        isLoading: false,
+      });
+      setAligned({ pair: null, error: new Error('422') });
+
+      const { getByRole, getByText } = renderScreen();
+
+      act(() => {
+        fireEvent(getByRole('switch'), 'valueChange', true);
+      });
+
+      expect(getByText(/could not be aligned/)).toBeTruthy();
+    });
+
+    it('warns when the pair is not comparable rather than narrating it straight', () => {
+      mockUseAvailability.mockReturnValue({
+        isAvailable: true,
+        isDown: false,
+        isLoading: false,
+      });
+      setAligned({
+        comparison: {
+          verdict: 'marginal',
+          reasons: ['lighting_changed'],
+        } as unknown as ReturnType<typeof useAlignedPhotoPair>['comparison'],
+      });
+
+      const { getByRole, getByText } = renderScreen();
+
+      act(() => {
+        fireEvent(getByRole('switch'), 'valueChange', true);
+      });
+
+      expect(getByText(/rough guide rather than a measurement/)).toBeTruthy();
+    });
   });
 });
