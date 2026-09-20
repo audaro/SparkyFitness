@@ -9,6 +9,7 @@ import {
   unreliableRatios,
   photoMetricsSchema,
   storedDeterministicSchema,
+  type AlignedPair,
   type BodyRatios,
   type ComparabilityOutcome,
   type ComparisonDeterministic,
@@ -486,6 +487,67 @@ export const getComparisonById = async (
   return response ?? null;
 };
 
+/**
+ * Both frames of a stored comparison, warped into one geometry.
+ *
+ * Read-only on purpose: this re-runs the sidecar to produce pixels and does
+ * NOT write the numbers it gets back. A viewing should not silently re-measure
+ * a pair — if a sidecar upgrade should change the stored measurements, that is
+ * what `POST` with `force` is for, and it is a thing the user asked for rather
+ * than a side effect of opening a slider.
+ */
+export const getAlignedPair = async (
+  userId: string,
+  comparisonId: string
+): Promise<AlignedPair> => {
+  if (!isVisionConfigured()) {
+    throw new ComparisonRequestError(
+      503,
+      'Photo comparison is not configured on this server'
+    );
+  }
+
+  const comparison = await getComparisonById(userId, comparisonId);
+  if (!comparison) {
+    throw new ComparisonRequestError(404, 'Comparison not found');
+  }
+  if (!comparison.deterministic) {
+    // The stored row already records that one of these photos could not be
+    // measured. Re-running the model on the same two files to rediscover that
+    // would cost a round trip to reach the same refusal.
+    throw new ComparisonRequestError(
+      422,
+      'This pair could not be measured, so there is nothing to align'
+    );
+  }
+
+  const [beforeImage, afterImage] = await Promise.all([
+    loadPhotoImage(userId, comparison.before_photo_id),
+    loadPhotoImage(userId, comparison.after_photo_id),
+  ]);
+
+  const aligned = await comparePhotos(beforeImage, afterImage, true);
+  if (!aligned.aligned_before_jpeg || !aligned.aligned_after_jpeg) {
+    // The sidecar answered but did not include what was asked for. Loud,
+    // because the alternative is a slider rendering one frame twice, which
+    // looks exactly like a body that did not change.
+    throw new VisionServiceError(
+      'aligned_frames_missing',
+      false,
+      'Vision service returned a comparison without the aligned frames'
+    );
+  }
+
+  return {
+    before_jpeg: aligned.aligned_before_jpeg,
+    after_jpeg: aligned.aligned_after_jpeg,
+    // The before photo is the frame the other was fitted to, so its own size
+    // is the size of both.
+    frame: photoMetricsSchema.parse(aligned.before.metrics).image_size,
+    engine: aligned.engine,
+  };
+};
+
 export const listComparisons = async (
   userId: string,
   limit = 50
@@ -510,6 +572,7 @@ export const listComparisons = async (
 export default {
   createComparison,
   findComparison,
+  getAlignedPair,
   getComparisonById,
   listComparisons,
 };

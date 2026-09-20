@@ -210,4 +210,55 @@ router.get(
   }
 );
 
+/**
+ * @swagger
+ * /progress-photo-comparisons/{id}/aligned:
+ *   get:
+ *     summary: Both photos of a comparison, warped into one frame
+ *     description: >
+ *       Returns the pair as base64 JPEG, ready for a before/after slider: the
+ *       before photo as shot, and the after photo fitted onto it by the same
+ *       similarity transform the comparison measured, with its exposure matched
+ *       to the before photo's. Nothing is stored, so this costs a round trip to
+ *       the vision sidecar each time it is asked for.
+ *     tags: [Wellness & Metrics]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: The aligned pair.
+ *       404:
+ *         description: No such comparison, or it is not visible to the caller.
+ *       422:
+ *         description: The pair was never measurable, so there is nothing to align.
+ *       503:
+ *         description: The vision service is not configured or not reachable.
+ */
+router.get(
+  '/:id/aligned',
+  authenticate,
+  checkPermissionMiddleware('checkin'),
+  async (req, res) => {
+    const parsed = IdParamSchema.safeParse(req.params);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message });
+      return;
+    }
+    try {
+      res.json(
+        await comparisonService.getAlignedPair(req.userId, parsed.data.id)
+      );
+    } catch (err) {
+      respondToError(res, err, 'aligned');
+    }
+  }
+);
+
 export default router;

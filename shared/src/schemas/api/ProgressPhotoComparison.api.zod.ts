@@ -453,3 +453,37 @@ export const createComparisonRequestSchema = z.object({
 export type CreateComparisonRequest = z.infer<
   typeof createComparisonRequestSchema
 >;
+
+// --- The aligned pair ---
+
+/**
+ * Both photos warped into one frame, for a before/after slider.
+ *
+ * Base64 JPEG rather than two image URLs, because the two frames are produced
+ * by a single pass over the pair: the similarity transform that registers them
+ * and the exposure correction that relights the after photo both fall out of
+ * the same fit, and asking for one frame at a time would run that fit twice to
+ * hand back two halves of one answer.
+ *
+ * Nothing here is stored. These bytes are derived from the two originals and
+ * the alignment, all three of which the server already has, and keeping a copy
+ * would double what a comparison costs on disk while freezing today's warp
+ * into a file that outlives it. The trade is a sidecar round trip per viewing,
+ * paid on an explicit request to see the pair rather than on every photo list.
+ *
+ * Both frames are re-encoded by the same encoder at the same quality even
+ * though the before photo is returned geometrically untouched — a slider
+ * crossfading between a pristine original and a re-encoded warp would show an
+ * encoder artefact in exactly the place the user is looking for a change.
+ */
+export const alignedPairSchema = z.object({
+  /** The before photo, unwarped: it is the frame the other is fitted to. */
+  before_jpeg: z.string(),
+  /** The after photo, warped onto the before frame and exposure-matched. */
+  after_jpeg: z.string(),
+  /** Pixel size of both frames, `[width, height]`. */
+  frame: z.tuple([z.number().int(), z.number().int()]),
+  engine: z.string(),
+});
+
+export type AlignedPair = z.infer<typeof alignedPairSchema>;

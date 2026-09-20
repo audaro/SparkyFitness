@@ -445,3 +445,125 @@ describe('progressPhotoComparisonService.createComparison', () => {
     expect(await comparisonService.listComparisons('u')).toEqual([]);
   });
 });
+
+describe('progressPhotoComparisonService.getAlignedPair', () => {
+  const COMPARISON_ID = 'c3d4e5f6-a7b8-4012-8def-123456789012';
+  let mockClient: MockDbClient;
+  let queue: unknown[][];
+
+  /** The comparison row, then the two photos' dates `withDates` asks for. */
+  const storedPair = (deterministic: unknown) => {
+    queue = [
+      [
+        {
+          id: COMPARISON_ID,
+          before_photo_id: BEFORE_ID,
+          after_photo_id: AFTER_ID,
+          deterministic,
+          failure_reason: deterministic ? null : 'pose_not_detected',
+          created_at: '2026-03-01T00:00:00.000Z',
+        },
+      ],
+      [
+        { id: BEFORE_ID, entry_date: '2026-01-01' },
+        { id: AFTER_ID, entry_date: '2026-03-01' },
+      ],
+    ];
+  };
+
+  beforeEach(() => {
+    queue = [];
+    mockClient = createMockDbClient([]);
+    mockClient.query.mockImplementation(() =>
+      Promise.resolve({ rows: queue.shift() ?? [] })
+    );
+    // @ts-expect-error mock typing
+    getClient.mockResolvedValue(mockClient);
+    vi.mocked(checkInPhotoService.getPhotoFileById).mockResolvedValue(
+      '/uploads/check-in/u/2026-01-01/front.jpg'
+    );
+    vi.mocked(isVisionConfigured).mockReturnValue(true);
+    vi.mocked(comparePhotos).mockResolvedValue({
+      ...visionResult,
+      aligned_before_jpeg: 'BEFOREBYTES',
+      aligned_after_jpeg: 'AFTERBYTES',
+    } as never);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns both frames and the size they share', async () => {
+    storedPair(storedDeterministic());
+
+    const pair = await comparisonService.getAlignedPair('u', COMPARISON_ID);
+
+    expect(pair.before_jpeg).toBe('BEFOREBYTES');
+    expect(pair.after_jpeg).toBe('AFTERBYTES');
+    // The before photo is the frame the after one was fitted to, so one size
+    // describes both; a slider that sized its two layers separately would
+    // scale them differently and invent a change.
+    expect(pair.frame).toEqual([900, 1600]);
+    expect(comparePhotos).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      true
+    );
+  });
+
+  it('does not rewrite the stored measurements', async () => {
+    // Viewing a pair must not silently re-measure it. Re-measuring is what
+    // POST with `force` is for, and it is a thing the user asks for.
+    storedPair(storedDeterministic());
+
+    await comparisonService.getAlignedPair('u', COMPARISON_ID);
+
+    const statements = mockClient.query.mock.calls.map((call) =>
+      String(call[0])
+    );
+    expect(statements.some((sql) => /INSERT|UPDATE/i.test(sql))).toBe(false);
+  });
+
+  it('404s a comparison the caller cannot see, without reading any photo', async () => {
+    queue = [[]];
+
+    await expect(
+      comparisonService.getAlignedPair('u', COMPARISON_ID)
+    ).rejects.toMatchObject({ status: 404 });
+    expect(checkInPhotoService.getPhotoFileById).not.toHaveBeenCalled();
+    expect(comparePhotos).not.toHaveBeenCalled();
+  });
+
+  it('refuses a pair that was never measurable instead of asking again', async () => {
+    // The row already records that the model could not read one of these
+    // photos. Re-running it on the same two files buys the same refusal at the
+    // cost of a round trip.
+    storedPair(null);
+
+    await expect(
+      comparisonService.getAlignedPair('u', COMPARISON_ID)
+    ).rejects.toMatchObject({ status: 422 });
+    expect(comparePhotos).not.toHaveBeenCalled();
+  });
+
+  it('fails loudly when the sidecar answers without the frames', async () => {
+    // Falling back to the unaligned originals would render a camera move as a
+    // body change, which is the one thing this whole feature exists to stop.
+    storedPair(storedDeterministic());
+    vi.mocked(comparePhotos).mockResolvedValue(visionResult as never);
+
+    await expect(
+      comparisonService.getAlignedPair('u', COMPARISON_ID)
+    ).rejects.toThrow(VisionServiceError);
+  });
+
+  it('says the feature is absent rather than calling an unset service', async () => {
+    vi.mocked(isVisionConfigured).mockReturnValue(false);
+
+    await expect(
+      comparisonService.getAlignedPair('u', COMPARISON_ID)
+    ).rejects.toMatchObject({ status: 503 });
+    expect(getClient).not.toHaveBeenCalled();
+  });
+});

@@ -19,6 +19,7 @@ vi.mock('../services/progressPhotoComparisonService.js', async () => {
     default: {
       createComparison: vi.fn(),
       findComparison: vi.fn(),
+      getAlignedPair: vi.fn(),
       getComparisonById: vi.fn(),
       listComparisons: vi.fn(),
     },
@@ -171,5 +172,72 @@ describe('progressPhotoComparisonRoutes', () => {
 
     const tooMany = await request(app).get('/?limit=5000');
     expect(tooMany.status).toBe(400);
+  });
+
+  it('serves the aligned pair', async () => {
+    vi.mocked(comparisonService.getAlignedPair).mockResolvedValue({
+      before_jpeg: 'AAAA',
+      after_jpeg: 'BBBB',
+      frame: [900, 1600],
+      engine: 'mediapipe/test',
+    } as never);
+
+    const res = await request(app).get(`/${comparison.id}/aligned`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.frame).toEqual([900, 1600]);
+    expect(comparisonService.getAlignedPair).toHaveBeenCalledWith(
+      'test-user-id',
+      comparison.id
+    );
+  });
+
+  it('does not let the aligned path be swallowed by the single-comparison route', async () => {
+    // `/:id` and `/:id/aligned` are different depths, so Express keeps them
+    // apart — but only while the id pattern stays one segment. A future
+    // wildcard there would route the slider into the JSON handler and the
+    // client would render a verdict as an image.
+    vi.mocked(comparisonService.getAlignedPair).mockResolvedValue({
+      before_jpeg: 'AAAA',
+      after_jpeg: 'BBBB',
+      frame: [900, 1600],
+      engine: 'mediapipe/test',
+    } as never);
+
+    await request(app).get(`/${comparison.id}/aligned`);
+
+    expect(comparisonService.getComparisonById).not.toHaveBeenCalled();
+  });
+
+  it('reports an unmeasurable pair as the photo problem it is', async () => {
+    vi.mocked(comparisonService.getAlignedPair).mockRejectedValue(
+      new ComparisonRequestError(
+        422,
+        'This pair could not be measured, so there is nothing to align'
+      )
+    );
+
+    const res = await request(app).get(`/${comparison.id}/aligned`);
+
+    expect(res.status).toBe(422);
+  });
+
+  it('reports a sidecar outage on the aligned path as a service problem', async () => {
+    // The user can retake a photo; they cannot restart a container. A 422 here
+    // would send them off to reshoot two perfectly good pictures.
+    vi.mocked(comparisonService.getAlignedPair).mockRejectedValue(
+      new VisionServiceError('ECONNREFUSED', false, 'sidecar down')
+    );
+
+    const res = await request(app).get(`/${comparison.id}/aligned`);
+
+    expect(res.status).toBe(503);
+  });
+
+  it('rejects an id that is not a uuid before calling anything', async () => {
+    const res = await request(app).get('/not-a-uuid/aligned');
+
+    expect(res.status).toBe(400);
+    expect(comparisonService.getAlignedPair).not.toHaveBeenCalled();
   });
 });
