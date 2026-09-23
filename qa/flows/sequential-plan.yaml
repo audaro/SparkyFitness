@@ -1,0 +1,207 @@
+appId: ${APP_ID}
+---
+# Run a three-session sequential workout plan from the Exercise tab's banner,
+# twice: once finishing the session, once only starting it — and let the oracle
+# say what the plan's position should be after each.
+#
+# WHY THIS SCENARIO EXISTS. A sequential plan has no weekdays. Which session is
+# "today's" is computed from what has been logged against the plan so far
+# (computeSequentialPlanProgression, server-side), and the banner renders that
+# answer verbatim: a plan name, a session name and an (n/total) position. So
+# every interesting bug here is a bug in a computed claim that the screen is
+# incapable of contradicting — and the two cases that must not be confused look
+# identical on it, because a live workout writes ALL of its exercise entries the
+# moment it starts, empty, before a single rep exists. A plan that counted a
+# started session as a finished one would advance the banner while the user is
+# still warming up, and the screen would look perfectly correct either way.
+#
+# WHAT IS SEEDED, and why it has to be: qa/setup/sequential-plan.sh puts an
+# exercise catalog and the plan itself in the database. A fresh account has
+# neither, and the plan is the load-bearing one — workout plans are authored on
+# the web frontend, so no mobile flow can create one. See
+# qa/fixtures/sequential-plan.mjs for the rotation's shape and why it is three
+# sessions of one preset each.
+#
+# THE SECOND START IS THE POINT. Phase 1 runs session 1 the way a person does
+# (start, complete a set, end the workout) and is the control: a finished
+# session must advance the plan. Phase 2 starts whatever the banner then offers
+# and walks away without logging anything, leaving the session live — which is
+# exactly what the user reported. Nothing about phase 2 can be asserted from the
+# screen, so it asserts nothing here; qa/oracles/sequential-plan.mjs reads what
+# the server now says the banner should show.
+#
+# SELECTORS. crawl.yaml's four rules apply, and rule 4 is why Start is matched
+# with a leading `.*`: the banner's button is an icon and a label, so it can
+# report as "play, Start". A bare "Start" would also be a full-string match
+# against nothing else on the tab — the tab's own primary button is "Start a
+# workout" — but the icon makes the prefix necessary rather than defensive.
+- runFlow: lib/boot.yaml
+# Before anything can start a live workout: the rest timer asks for
+# notifications, and the prompt must not be allowed to land on ActiveWorkout.
+- runFlow: lib/grant-notifications.yaml
+
+# === phase 1: the banner on a plan nothing has been logged against ==========
+# The banner sits under the day's log, below the week card and the recovery
+# strip, so it is scrolled to rather than assumed on screen.
+- tapOn: "Exercise"
+- scrollUntilVisible:
+    element:
+      text: ".*QA Rotation.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+# A plan with nothing logged against it must be at its first session, and this
+# is the one place in the scenario where the expected answer is not in doubt —
+# so it is asserted here and computed by the oracle everywhere after.
+#
+# Two assertions rather than one regex across the whole line: the banner's
+# heading is a Text with nested Texts inside it, and whether iOS reports that as
+# one accessibility element with the position concatenated or as separate ones
+# is not something this flow should depend on. Either way both must be on
+# screen, and neither string appears anywhere else in the app.
+- assertVisible: ".*QA Push.*"
+- assertVisible: ".*1/3.*"
+- takeScreenshot: sequential-plan-1-before-start
+
+# === run session 1 to the end ===============================================
+# Starting expands the session's preset into a live workout and tags every
+# entry with the assignment, which is what the fork's useStartPlanAssignment
+# does and what the oracle checks first — upstream defines that callback inside
+# the Diary screen, and this fork has no exercise list there.
+- tapOn: ".*Start"
+# The landing signal is the header's per-exercise progress bar, not the End
+# Workout button: that button is at the bottom of the log, and Maestro honours
+# occlusion, so waiting on it here fails on a screen that is perfectly fine.
+- extendedWaitUntil:
+    visible:
+      id: "header-segment"
+    timeout: 90000
+- waitForAnimationToEnd
+
+# One set of four, and nothing is typed. The rest bar's button acts on whichever
+# set is active (set 1, on arrival), so it needs no anchor and no assumption
+# about which of the identical rows a selector lands on.
+- tapOn: "Log Set"
+
+- scrollUntilVisible:
+    element: "End Workout"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn: "End Workout"
+# The confirmation is a native alert whose default button carries the SAME text
+# as the button that opened it, so the alert's own button is identified by
+# sitting to the right of the cancel one, which exists nowhere else.
+- extendedWaitUntil:
+    visible: "Keep going"
+    timeout: 20000
+- tapOn:
+    text: "End Workout"
+    rightOf: "Keep going"
+- extendedWaitUntil:
+    visible: "Workout Complete"
+    timeout: 60000
+- tapOn: "Done"
+
+# === phase 2: start the next session and log nothing ========================
+# ONE SESSION PER DAY, and it is the client that says so: ExerciseSummary hides
+# a plan's banner for the selected day as soon as ANY entry on that day carries
+# one of the plan's assignments (`isPlanCompletedToday`). So the banner is gone
+# from today the moment phase 1 starts, and asking for it here is how this
+# scenario failed its first run — the flow scrolled the whole tab and reported
+# "No visible element found: .*QA Rotation.*" on a screen that was behaving
+# exactly as designed.
+#
+# The next day is therefore where the next session is offered, and the tab's own
+# DateNavigator is how this run gets there: the banner and the day's log are
+# scoped to the tab's selected date (ExerciseSummary takes `entryDate`, and the
+# plan read is GET /active/<that date>), so selecting tomorrow renders exactly
+# the banner tomorrow will render — the server's progression query bounds logged
+# entries at `entry_date <= <date>`, so today's session counts toward it either
+# way. Nothing about the device clock is touched, and nothing has to wait.
+#
+# What that does NOT change is where a started workout lands: useStartLiveWorkout
+# dates every live session `getTodayDate()`, deliberately, so the session phase 2
+# starts from tomorrow's banner is still logged today. That is the one asymmetry
+# in this simulation, and it is the harmless direction — it keeps both starts in
+# today's diary where the oracle already reads them, and it is why the banner is
+# still on screen in phase 3 rather than hidden by the session it just started.
+- tapOn: "Exercise"
+- scrollUntilVisible:
+    element: "Next day"
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+- tapOn: "Next day"
+- scrollUntilVisible:
+    element:
+      text: ".*QA Rotation.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+# What the banner reads here is deliberately NOT asserted. Session 1 was
+# finished, so it should have advanced — but which session the flow starts next
+# is the banner's answer, not this flow's assumption, and the oracle can tell
+# from the database which one was offered: the entries the next tap creates
+# carry that session's assignment id. Asserting it here would stop the run
+# before the phase that matters.
+- takeScreenshot: sequential-plan-2-after-finished-session
+
+- tapOn: ".*Start"
+- extendedWaitUntil:
+    visible:
+      id: "header-segment"
+    timeout: 90000
+- waitForAnimationToEnd
+# NOTHING is logged. The session stays live; the workout is left the way a
+# person leaves it when they get distracted between warm-up and first set — the
+# header's close button, which keeps the session and its HUD bar alive.
+- tapOn: "Close workout"
+
+# === phase 3: the banner over a session that was started and not logged =====
+# The app is restarted to get here, and it is the only way out: closing the
+# live workout goes back to phase 1's celebration screen (starting a workout
+# replaces the current route, so finishing one and starting the next leaves
+# [.., WorkoutComplete, ActiveWorkout]), and that screen's Done button sits
+# underneath the active-workout bar, which the driver cannot see and so taps
+# instead — straight back into the live workout. lib/relaunch.yaml says more.
+# It also models the honest thing: the next time the user opens the app.
+- runFlow: lib/relaunch.yaml
+
+# The relaunch lands on Home, and the Exercise TAB cannot be tapped from there:
+# once a workout has been logged, Home's dashboard carries an Exercise card
+# whose heading is a plain "Exercise" Text high up the tree, so the tab label at
+# the bottom is no longer the only match and the tap lands on the card, which
+# presses nothing. (crawl.yaml's selector rule 2 — "Home has no Exercise" — was
+# written before that card had anything to show.) Settings is the way across:
+# its own rows collide with Food and Home, never with Exercise, which is why
+# phase 1 reaches the tab from there too.
+#
+# The landing is then verified rather than assumed, because a tap that hits the
+# wrong element still reports success and the next two commands would scrub the
+# date navigator of whatever screen it left us on.
+- tapOn: "Settings"
+- tapOn: "Exercise"
+- extendedWaitUntil:
+    visible: "Start a workout"
+    timeout: 60000
+
+# The selected day does not survive a restart, so tomorrow is chosen again —
+# the same reason as in phase 2, and still the day the abandoned session's
+# banner would be read on.
+- scrollUntilVisible:
+    element: "Next day"
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+- tapOn: "Next day"
+- scrollUntilVisible:
+    element:
+      text: ".*QA Rotation.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+# The screenshot is the record of what the user would see the morning after
+# starting a session and walking away from it. The verdict is the oracle's: it
+# reads the position the server computes, which is what this banner renders.
+- takeScreenshot: sequential-plan-3-after-started-only

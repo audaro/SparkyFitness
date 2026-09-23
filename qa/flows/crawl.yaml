@@ -34,6 +34,13 @@ appId: ${APP_ID}
 #    last on purpose: its rows are titled "Food" and "Home", which would shadow
 #    those two tabs.
 #
+#    "Home has no Exercise" holds only while the dashboard's Exercise card has
+#    nothing to show, which is true in this flow and false the moment a workout
+#    is logged: the card's heading is a plain "Exercise" Text above the tab bar
+#    in the tree, so the tap lands on it and presses nothing. A flow that logs
+#    exercise before switching tabs goes via Settings instead — see
+#    sequential-plan.yaml, which found this.
+#
 # 3. The driver has no notion of the fold. An element below it — or behind the
 #    tab bar, or under the floating "Talk to Sparky" button — still reads as
 #    on-screen and 100% visible, so the tap lands on whatever occupies those

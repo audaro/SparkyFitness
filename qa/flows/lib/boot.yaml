@@ -11,21 +11,7 @@ appId: ${APP_ID}
     permissions:
       all: allow
 
-# A fresh install has no saved packager, so expo-dev-launcher shows its
-# discovered servers. Match on the QA port specifically: a developer's own Metro
-# is normally on 8081 and would otherwise be picked at random.
-- runFlow:
-    when:
-      visible: "DEVELOPMENT SERVERS"
-    commands:
-      - tapOn: ".*:8082.*"
-      # The launcher confirms a deep link into itself with a system dialog the
-      # first time; it is absent once the app is the registered handler.
-      - runFlow:
-          when:
-            visible: "Open"
-          commands:
-            - tapOn: "Open"
+- runFlow: dev-launcher.yaml
 
 # Long: this is the wait for the first bundle, which from a cold Metro is
 # minutes rather than seconds.

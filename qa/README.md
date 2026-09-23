@@ -218,6 +218,69 @@ and the stub's own tool-call ids collided within a second, which is exactly
 what a client keyed on those ids does with them — so the oracle now holds the
 ids distinct.
 
+`flows/sequential-plan.yaml` is the eighth, and its subject is a *position*. A
+sequential workout plan has no weekdays: which of its sessions is "today's" is
+computed from what has been logged against the plan so far
+(`computeSequentialPlanProgression`, server-side), and the Exercise tab's banner
+prints that answer verbatim — a plan name, a session name and an `(n/total)`.
+The two states that must never be confused render identically on it, because a
+live workout writes every one of its exercise entries the moment it starts,
+empty and unlogged: a session someone *finished* and a session someone merely
+*opened*.
+
+So the flow runs the banner twice. Session one start-to-finish (one set of four
+completed, workout ended), which is the control — a finished session has to move
+the plan on. Then whatever the banner offers next, started and walked away from
+with nothing logged, which is the case worth the scenario. Neither half asserts
+anything about the second and third sessions on screen; `oracles/sequential-
+plan.mjs` reads the entries the two starts wrote and then asks the same endpoint
+the banner reads what position the plan is in.
+
+Four things it checks, none of them visible. **That the tag survived**: each
+start's entries carry the plan assignment they came from, which is the only
+input the whole progression has — and in this fork the callback that writes it
+lives in a hook of its own (`useStartPlanAssignment`), because upstream defines
+it inside a Diary exercise list this fork does not render. **That the preset
+expanded**: a session assignment names a preset, and starting it has to become
+the preset's exercises rather than one row. **That a finished session advanced
+the plan** — read out of the database rather than off the screen, and evidence
+about the screen either way, since the flow tapped whichever session the banner
+offered and the entries record which one that was. **That a started session did
+not**: session two was opened and nothing in it was ever completed, so the
+position must still be session two. A plan that has moved to session three
+counted an opened workout as a done one, and the session the user is in the
+middle of stops being offered anywhere.
+
+Getting the banner on screen three times took four things that are worth knowing
+before writing anything else against a plan. **A plan offers one session per
+day, and the client is what says so**: `ExerciseSummary` hides a plan's banner
+for the selected day the moment any entry on that day carries one of the plan's
+assignments, so it is gone from today as soon as phase 1 *starts* — the first
+run of this scenario failed looking for it on a screen that was behaving
+exactly as designed. **The next day is reachable without touching the clock**,
+because the banner and the day's log are scoped to the tab's own selected date
+and the progression query bounds logged entries at `entry_date <= <date>`: the
+tab's `Next day` chevron renders precisely the banner tomorrow will render.
+**A live workout is always dated today** whatever day the tab is showing
+(`useStartLiveWorkout` uses `getTodayDate()`), which is the one asymmetry in
+that simulation and the harmless direction — both starts stay in today's diary,
+where the oracle already reads them. And **the way out of the second workout is
+a relaunch** (`flows/lib/relaunch.yaml`), because closing it goes back to phase
+1's celebration screen, whose `Done` button sits under the active-workout bar:
+`WorkoutComplete` is not in that bar's `HIDDEN_ROUTES` and its footer takes no
+account of it, so with a workout live the only control that dismisses the screen
+is covered — and the driver, which cannot see occlusion, taps the bar and goes
+straight back into the workout. A person is not much better off.
+
+The relaunch also put a hole in a selector rule. `crawl.yaml`'s rule 2 says the
+Exercise tab can be switched to from Home because "Home has no Exercise" — true
+until the dashboard's Exercise card has something to show, which it does the
+moment a workout is logged. Its heading is a plain `Exercise` Text high up the
+tree, so the tab label at the bottom stops being the only match and the tap
+lands on the card, which presses nothing: two taps in a row reported success and
+left the app on Home. Settings is the way across (its own rows collide with Food
+and Home, never with Exercise), and the landing is asserted rather than assumed.
+
 `app-logs.mjs` is the cheapest broad coverage in the harness: `LogService.ts`
 already writes structured entries into AsyncStorage and most screens are wrapped
 in error boundaries that log on the way down, so every scenario gets
@@ -230,7 +293,8 @@ noise by week two and stops being read.
 
 ## Seeding what the app cannot make
 
-There are two setup scripts, and everything worth generalizing is in them.
+Every scenario that needs a fixture the app cannot make has a setup script;
+three of them hold reasoning worth generalizing.
 
 **The photograph.** The simulator has no camera, so the only way a photo reaches
 the app is the library, and the library only holds what `xcrun simctl addmedia`
@@ -297,6 +361,17 @@ next run produces a different workout. So the oracle also asserts the table stil
 holds exactly 34 rows, and that this run's slice of `server.log` contains no
 `free-exercise-db` line (`setup/suggested-workout.sh` records the log's byte
 offset first, because `server.log` outlives a single run).
+
+**The workout plan** (`fixtures/sequential-plan.mjs`,
+`qa-sequential-plan.mjs`) is seeded because the app under test cannot author
+one. Mobile starts a plan's session and renders its banner; plans themselves are
+created on the web frontend, so a sequential plan had no way into a
+mobile-driven run at all. It is built through the real API in the only order the
+server accepts — three presets, then the plan whose assignments name them, since
+an assignment pointing at a preset that does not exist is rejected — and then
+verified out of the database, where `day_of_week` is asserted to be NULL on
+every assignment: a sequential plan that kept a weekday would resolve as a
+weekly one on that day and as nothing at all on the other six.
 
 **The gym profile** (`fixtures/gym-profile.mjs`, `qa-gym-profile.mjs`) is seeded
 for the opposite reason to everything above: not because a run would go wrong

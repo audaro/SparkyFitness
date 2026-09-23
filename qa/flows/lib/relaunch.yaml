@@ -1,0 +1,36 @@
+appId: ${APP_ID}
+---
+# Restart the app and land back on the tabs, with everything the server knows
+# intact and everything the app kept in memory gone.
+#
+# This is the way out of a screen the driver cannot leave. Two things stack up
+# to make one: WorkoutComplete pins its Done button to the bottom of the screen
+# and takes no account of the active-workout bar, so with a workout live the
+# bar sits on top of it (WorkoutComplete is not in the bar's HIDDEN_ROUTES) —
+# and the driver cannot see occlusion, so the tap on Done lands on the bar and
+# opens the live workout instead. A relaunch is also honest about what it
+# models: the next time the user picks the phone up.
+#
+# What does NOT survive is anything held in memory: a tab's selected day is
+# Zustand state, not persisted, so a scenario that had scrubbed the date has to
+# scrub it again after this. The live workout itself does survive — that store
+# is persisted — so the bar comes back with it.
+- launchApp
+- runFlow: dev-launcher.yaml
+# The tab bar is the signal that the app is up and past its splash. Long,
+# because a relaunch re-downloads the bundle from Metro.
+- extendedWaitUntil:
+    visible: "Exercise"
+    timeout: 240000
+# The dev menu can come up with a shake or a stray gesture during the launch;
+# same defence, and same tell, as lib/boot.yaml.
+- runFlow:
+    when:
+      visible: "Runtime version:.*"
+    commands:
+      - tapOn: "Close"
+# A rendered tab bar is not yet an interactive one: a tap dispatched while the
+# app is still hydrating is swallowed silently, which reads downstream as a tab
+# that would not switch. Settling here is what makes the first tap after a
+# relaunch land.
+- waitForAnimationToEnd

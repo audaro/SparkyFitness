@@ -1,0 +1,70 @@
+appId: ${APP_ID}
+---
+# Connect the dev build to the QA packager, if it is asking.
+#
+# Extracted from lib/boot.yaml because a scenario that relaunches the app
+# mid-run has to do exactly this again (sequential-plan does, to get off a
+# screen whose only way out is covered by the active-workout bar), and a second
+# copy of the reasoning below would be a second copy to keep true.
+#
+# Every command here is conditional: a launch that already knows its packager
+# goes straight to the app and this flow is a no-op.
+# A fresh install has no saved packager, so expo-dev-launcher shows its
+# discovered servers. Match on the QA port specifically: a developer's own Metro
+# is normally on 8081, another project's on something else again, and all of
+# them are listed together — the launcher discovers every packager on the
+# network, not just this app's, so the row has to be chosen by port rather than
+# taken as the only one.
+#
+# DISCOVERY IS NEITHER INSTANT NOR GUARANTEED, and both halves below are there
+# because of a real failure. It runs over the local network rather than by
+# asking the host: on a simulator that has never discovered this Metro the list
+# renders with the heading and no rows at all, and then fills in over the next
+# minute or two. Looking for the row the moment the heading appears is how a run
+# fails 20 seconds in with `Element not found: Text matching regex: .*:8082.*`,
+# reported as though the app had never launched — so it is waited for, and the
+# wait is optional so that a list which never mentions 8082 falls through to the
+# deep link instead of failing here. The link is the same URL the row would have
+# opened.
+- runFlow:
+    when:
+      visible: "DEVELOPMENT SERVERS"
+    commands:
+      - extendedWaitUntil:
+          visible: ".*:8082.*"
+          timeout: 180000
+          optional: true
+      # The fallback is tested FIRST, and the order is the fix for a run that
+      # did both: these two branches are evaluated in sequence against the live
+      # screen, so tapping the row makes it disappear and a `notVisible` branch
+      # placed after the tap then fires as well, deep-linking on top of an app
+      # already loading — which left the app dead on the home screen and the
+      # boot waiting four minutes for a screen nobody was rendering. Asking for
+      # the absence first is safe in both directions: the link only fires when
+      # the row was never there, and a tap skipped because the row has gone is
+      # a tap that has already happened.
+      - runFlow:
+          when:
+            notVisible: ".*:8082.*"
+          commands:
+            # Hardcoded alongside the selector above rather than parameterized,
+            # for the same reason: this harness owns port 8082.
+            - openLink: exp+sparkyfitnessmobile://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8082
+      - runFlow:
+          when:
+            visible: ".*:8082.*"
+          commands:
+            - tapOn: ".*:8082.*"
+      # Either way in is confirmed by a system dialog the first time, and it is
+      # absent once the app is the registered handler — the wait is what stops
+      # the conditional tap below from being evaluated before the dialog has
+      # animated in and skipped.
+      - extendedWaitUntil:
+          visible: "Open"
+          timeout: 15000
+          optional: true
+      - runFlow:
+          when:
+            visible: "Open"
+          commands:
+            - tapOn: "Open"
