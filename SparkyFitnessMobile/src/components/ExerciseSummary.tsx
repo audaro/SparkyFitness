@@ -49,25 +49,48 @@ const ExerciseSummary: React.FC<ExerciseSummaryProps> = ({
     Record<string, string>
   >({});
 
-  const loggedAssignmentIds = useMemo(() => {
+  // The plan assignments this day's log says were actually *performed*.
+  //
+  // Merely carrying the assignment id is not evidence of that: a live plan
+  // session is created server-side the moment it is started, with every
+  // prescribed set already written, so an entry appears in the day's log
+  // before a rep is lifted. Treated as done, a session the user opened and
+  // walked away from hid the plan banner for the rest of the day — and the
+  // banner is the only way back into that session. So this mirrors the rule
+  // the server's progression read applies (`workoutPlanTemplateRepository`):
+  // one ticked set anywhere in the entry counts it, and an entry with no sets
+  // at all counts because nothing in it could have been ticked.
+  const performedAssignmentIds = useMemo(() => {
     const ids = new Set<string>();
+    const addId = (id: string | number | null | undefined) => {
+      if (id != null) ids.add(String(id));
+    };
+    // A missing `sets` is read the same way as an empty one: nothing in the
+    // entry could have been ticked. The rest of this file guards it too — the
+    // day's totals above do — because the entry shapes reaching here include
+    // hand-logged and synced rows that carry no set list at all.
+    const isPerformed = (
+      sets: { completed_at: string | null }[] | undefined | null
+    ) =>
+      !sets ||
+      sets.length === 0 ||
+      sets.some((set) => set.completed_at != null);
+
     for (const session of exerciseEntries) {
-      if (
-        'workout_plan_assignment_id' in session &&
-        session.workout_plan_assignment_id != null
-      ) {
-        ids.add(String(session.workout_plan_assignment_id));
-      }
-      if ('exercises' in session && Array.isArray(session.exercises)) {
-        for (const ex of session.exercises) {
-          if (
-            ex &&
-            'workout_plan_assignment_id' in ex &&
-            ex.workout_plan_assignment_id != null
-          ) {
-            ids.add(String(ex.workout_plan_assignment_id));
-          }
+      if (session.type === 'preset') {
+        const performed = session.exercises.filter((ex) =>
+          isPerformed(ex.sets)
+        );
+        // The session-level tag names the plan session as a whole, so any
+        // performed exercise under it is enough to count it.
+        if (performed.length > 0) {
+          addId(session.workout_plan_assignment_id);
         }
+        for (const ex of performed) {
+          addId(ex.workout_plan_assignment_id);
+        }
+      } else if (isPerformed(session.sets)) {
+        addId(session.workout_plan_assignment_id);
       }
     }
     return ids;
@@ -80,11 +103,11 @@ const ExerciseSummary: React.FC<ExerciseSummaryProps> = ({
         String(a.id)
       );
       const isPlanCompletedToday = planAssignmentIds.some((id) =>
-        loggedAssignmentIds.has(id)
+        performedAssignmentIds.has(id)
       );
       return !isPlanCompletedToday;
     });
-  }, [activePlans, loggedAssignmentIds]);
+  }, [activePlans, performedAssignmentIds]);
 
   const getDistinctSessionsForPlan = (
     plan: WorkoutPlanTemplate

@@ -563,22 +563,49 @@ const ExerciseCard = ({
     };
   }, [exerciseEntries]);
 
-  const loggedAssignmentIds = useMemo(() => {
+  // The plan assignments this day's log says were actually *performed*.
+  //
+  // Merely carrying the assignment id is not evidence of that: a live plan
+  // session is created server-side the moment it is started, with every
+  // prescribed set already written, so the entry is in the day's log before a
+  // rep is lifted — a session started on the phone and abandoned would
+  // otherwise hide this banner, which is the way back into it. Mirrors the
+  // rule the server's progression read applies
+  // (`workoutPlanTemplateRepository`): one ticked set anywhere in the entry
+  // counts it, and an entry with no sets at all counts because nothing in it
+  // could have been ticked.
+  const performedAssignmentIds = useMemo(() => {
     const ids = new Set<string>();
     if (!exerciseEntries || !Array.isArray(exerciseEntries)) return ids;
+    const addId = (id: string | number | null | undefined) => {
+      if (id != null) ids.add(String(id));
+    };
+    // A missing `sets` is read the same way as an empty one: nothing in the
+    // entry could have been ticked. The rest of this file guards it too — the
+    // day's totals above do — because the entry shapes reaching here include
+    // hand-logged and synced rows that carry no set list at all.
+    const isPerformed = (
+      sets: { completed_at: string | null }[] | undefined | null
+    ) =>
+      !sets ||
+      sets.length === 0 ||
+      sets.some((set) => set.completed_at != null);
+
     for (const groupedEntry of exerciseEntries) {
-      if (groupedEntry.workout_plan_assignment_id != null) {
-        ids.add(String(groupedEntry.workout_plan_assignment_id));
-      }
-      if (
-        groupedEntry.type === 'preset' &&
-        Array.isArray(groupedEntry.exercises)
-      ) {
-        for (const item of groupedEntry.exercises) {
-          if (item.workout_plan_assignment_id != null) {
-            ids.add(String(item.workout_plan_assignment_id));
-          }
+      if (groupedEntry.type === 'preset') {
+        const performed = (groupedEntry.exercises || []).filter((item) =>
+          isPerformed(item.sets)
+        );
+        // The session-level tag names the plan session as a whole, so any
+        // performed exercise under it is enough to count it.
+        if (performed.length > 0) {
+          addId(groupedEntry.workout_plan_assignment_id);
         }
+        for (const item of performed) {
+          addId(item.workout_plan_assignment_id);
+        }
+      } else if (isPerformed(groupedEntry.sets)) {
+        addId(groupedEntry.workout_plan_assignment_id);
       }
     }
     return ids;
@@ -592,12 +619,12 @@ const ExerciseCard = ({
           (a: WorkoutPlanAssignment) => String(a.id)
         );
         const isPlanCompletedToday = planAssignmentIds.some((id: string) =>
-          loggedAssignmentIds.has(id)
+          performedAssignmentIds.has(id)
         );
         return !isPlanCompletedToday;
       }
     );
-  }, [activePlans, loggedAssignmentIds]);
+  }, [activePlans, performedAssignmentIds]);
 
   const getDistinctSessionsForPlan = (plan: WorkoutPlanTemplate) => {
     if (!plan.assignments || plan.assignments.length === 0) return [];

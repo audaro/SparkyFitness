@@ -563,7 +563,29 @@ async function getActiveWorkoutPlanForDate(
           continue;
         }
 
-        // Query logged exercise entries linked to assignments of this template in strict chronological order
+        // Query performed exercise entries linked to assignments of this
+        // template in strict chronological order.
+        //
+        // "Performed" is the load-bearing word, and it is the same rule the
+        // rest of the server applies to plan-linked entries
+        // (`getRecentSessionsForExercise`, `getFrequentSets`,
+        // `getMuscleFatigueInputs`): a plan session's sets are written with
+        // their prescribed reps and weight the moment it is *started* — the
+        // mobile live workout creates the whole entry server-side at tap, and
+        // `entry_mode: 'prefill'` writes the sessions days in advance — so
+        // without a completion test "opened" and "finished" are the same input
+        // and the plan advances to the next session before a rep is lifted.
+        // Ticking a set is the only explicit statement that something was
+        // done, so one stamped `completed_at` anywhere in the entry is what
+        // counts it.
+        //
+        // A plan-linked entry carrying no set rows at all is counted, because
+        // nothing can have been ticked in it: that shape is a hand-logged or
+        // imported session (cardio, duration only), never a laid-out live one,
+        // and excluding it would freeze the plan on one session forever — a
+        // worse failure than the one above. An entry with filled-in sets and
+        // no stamp is indistinguishable from an abandoned session, and is
+        // deliberately not counted.
         const loggedEntriesQuery = `
           SELECT ee.id, ee.workout_plan_assignment_id, ee.entry_date, ee.created_at
           FROM exercise_entries ee
@@ -571,6 +593,17 @@ async function getActiveWorkoutPlanForDate(
           WHERE a.template_id = $1
             AND ee.entry_date <= $2
             AND ee.entry_date >= $3
+            AND (
+              EXISTS (
+                SELECT 1 FROM exercise_entry_sets done
+                 WHERE done.exercise_entry_id = ee.id
+                   AND done.completed_at IS NOT NULL
+              )
+              OR NOT EXISTS (
+                SELECT 1 FROM exercise_entry_sets any_set
+                 WHERE any_set.exercise_entry_id = ee.id
+              )
+            )
           ORDER BY ee.entry_date ASC, ee.created_at ASC, ee.id ASC
         `;
         const loggedEntriesResult = await client.query(loggedEntriesQuery, [
