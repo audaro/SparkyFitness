@@ -1,0 +1,17 @@
+"widget.calorie.name" = "Калории";
+"widget.macro.name" = "Макросы";
+"widget.protein" = "Белок";
+"widget.carbs" = "Углеводы";
+"widget.fat" = "Жиры";
+"widget.search_food" = "Поиск продуктов";
+"widget.scan_barcode" = "Сканировать штрихкод";
+"widget.calorie.description" = "Общее потребление калорий за сегодня.";
+"widget.macro.description" = "Обзор потребления белка, углеводов и жиров за сегодня.";
+"widget.kcal_left" = "осталось ккал";
+"widget.kcal" = "ккал";
+"widget.food" = "Продукт";
+"widget.burned" = "Сожжено";
+"widget.goal" = "Цель";
+"widget.grams" = "%@ г";
+"widget.a11y.kcal_left" = "Осталось %@ ккал";
+"widget.a11y.kcal" = "%@ ккал";

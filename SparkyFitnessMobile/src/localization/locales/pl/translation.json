@@ -686,7 +686,6 @@
     "hydration": "Nawodnienie",
     "ofVolume": "z {{value}} {{unit}}",
     "perBottle": "{{value}} {{unit}} na butelkę",
-    "configureWaterContainer": "Skonfiguruj pojemnik na wodę na serwerze, aby włączyć przyciski szybkiego dodawania i odejmowania",
     "exercise": "Ćwiczenia",
     "minutes": "Minuty",
     "calories": "Kalorie",

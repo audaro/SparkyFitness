@@ -149,6 +149,15 @@ describe('classifyActivitySport — provider-declared', () => {
       })
     ).toEqual({ sport: 'strength', confidence: 'declared' });
   });
+
+  it('treats Liftosaur as strength', () => {
+    expect(
+      classifyActivitySport({
+        providerName: 'Liftosaur',
+        detailData: { workout: { programName: 'GZCLP' } },
+      })
+    ).toEqual({ sport: 'strength', confidence: 'declared' });
+  });
 });
 
 describe('classifyActivitySport — notes templates', () => {

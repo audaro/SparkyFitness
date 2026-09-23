@@ -489,7 +489,6 @@
     "hydration": "Hydratatie",
     "ofVolume": "van {{value}} {{unit}}",
     "perBottle": "{{value}} {{unit}} per fles",
-    "configureWaterContainer": "Configureer de watercontainer op de server om\nsnelknoppen voor toevoegen/verwijderen in te schakelen",
     "exercise": "Oefening",
     "minutes": "Minuten",
     "calories": "Calorieën",

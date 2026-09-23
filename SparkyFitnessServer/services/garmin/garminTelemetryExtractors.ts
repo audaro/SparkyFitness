@@ -118,6 +118,8 @@ export interface ExtractedLap {
   avg_power_watts: number | null;
   elevation_gain_meters: number | null;
   elevation_loss_meters: number | null;
+  moving_time_seconds: number | null;
+  avg_moving_speed_mps: number | null;
   /** epoch ms, used only for windowing laps to the right exercise entry; not persisted */
   startMs: number;
   /** epoch ms, used only for windowing laps to the right exercise entry; not persisted */
@@ -208,6 +210,18 @@ export function extractGarminLaps(payload: UnknownRecord): ExtractedLap[] {
         elevation_loss_meters: firstNum(lap, [
           'elevation_loss_meters',
           'elevationLoss',
+        ]),
+        // FIT laps duplicate duration/speed onto movingDuration/averageMovingSpeed
+        // (fitActivityTransform.ts buildLapDtos): FIT's LapMesg has no separate
+        // "excluding stops" figure at lap granularity, so moving and total are
+        // the same value there. Garmin Connect's lapDTOs can differ.
+        moving_time_seconds: firstInt(lap, [
+          'moving_time_seconds',
+          'movingDuration',
+        ]),
+        avg_moving_speed_mps: firstNum(lap, [
+          'avg_moving_speed_mps',
+          'averageMovingSpeed',
         ]),
         startMs: startTime.getTime(),
         endMs: endTime.getTime(),

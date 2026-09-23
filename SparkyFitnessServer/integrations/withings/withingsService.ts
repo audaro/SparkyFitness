@@ -5,6 +5,14 @@ import { log } from '../../config/logging.js';
 import withingsDataProcessor from './withingsDataProcessor.js';
 import { logRawResponse } from '../../utils/diagnosticLogger.js';
 import { claimOAuthState, persistOAuthState } from '../../utils/oauthState.js';
+import { describeError } from '../../utils/errors.js';
+import type {
+  WithingsActivity,
+  WithingsHeartSeries,
+  WithingsMeasureGroup,
+  WithingsSleepSeries,
+  WithingsWorkout,
+} from '../../types/withings.js';
 const WITHINGS_API_BASE_URL = 'https://wbsapi.withings.net';
 const WITHINGS_ACCOUNT_BASE_URL = 'https://account.withings.com';
 interface WithingsTokenBody {
@@ -201,8 +209,10 @@ async function exchangeCodeForTokens(
     }
     return { success: true, userId: userid, ownerUserId };
   } catch (error) {
-    // @ts-expect-error TS(2571): Object is of type 'unknown'.
-    log('error', `Error exchanging Withings code for tokens: ${error.message}`);
+    log(
+      'error',
+      `Error exchanging Withings code for tokens: ${describeError(error)}`
+    );
     throw error;
   } finally {
     client.release();
@@ -308,8 +318,7 @@ async function refreshAccessToken(userId: string) {
   } catch (error) {
     log(
       'error',
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      `Error refreshing Withings access token for user ${userId}: ${error.message}`
+      `Error refreshing Withings access token for user ${userId}: ${describeError(error)}`
     );
     throw error;
   } finally {
@@ -358,7 +367,7 @@ async function fetchMeasuresData(
   userId: string,
   startDate: number,
   endDate: number
-) {
+): Promise<WithingsMeasureGroup[]> {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -367,8 +376,7 @@ async function fetchMeasuresData(
       [userId]
     );
     const withingsUserId = providerResult.rows[0].external_user_id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let allGroups: any = [];
+    let allGroups: WithingsMeasureGroup[] = [];
     let offset = 0;
     let hasMore = true;
     while (hasMore) {
@@ -405,8 +413,7 @@ async function fetchMeasuresData(
   } catch (error) {
     log(
       'error',
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      `Error fetching Withings measures data for user ${userId}: ${error.message}`
+      `Error fetching Withings measures data for user ${userId}: ${describeError(error)}`
     );
     throw error;
   } finally {
@@ -434,7 +441,7 @@ async function fetchHeartData(
   userId: string,
   startDate: number,
   endDate: number
-) {
+): Promise<WithingsHeartSeries[]> {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -443,8 +450,7 @@ async function fetchHeartData(
       [userId]
     );
     const withingsUserId = providerResult.rows[0].external_user_id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let allSeries: any = [];
+    let allSeries: WithingsHeartSeries[] = [];
     let offset = 0;
     let hasMore = true;
     while (hasMore) {
@@ -484,8 +490,7 @@ async function fetchHeartData(
   } catch (error) {
     log(
       'error',
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      `Error fetching Withings heart data for user ${userId}: ${error.message}`
+      `Error fetching Withings heart data for user ${userId}: ${describeError(error)}`
     );
     throw error;
   } finally {
@@ -513,7 +518,7 @@ async function fetchSleepData(
   userId: string,
   startDate: number,
   endDate: number
-) {
+): Promise<WithingsSleepSeries[]> {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -522,8 +527,7 @@ async function fetchSleepData(
       [userId]
     );
     const withingsUserId = providerResult.rows[0].external_user_id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let allSeries: any = [];
+    let allSeries: WithingsSleepSeries[] = [];
     let currentStart = startDate;
     const SECONDS_IN_DAY = 24 * 60 * 60;
     // Withings limit: only 24h of high-frequency data per call
@@ -560,8 +564,7 @@ async function fetchSleepData(
   } catch (error) {
     log(
       'error',
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      `Error fetching Withings sleep data for user ${userId}: ${error.message}`
+      `Error fetching Withings sleep data for user ${userId}: ${describeError(error)}`
     );
     throw error;
   } finally {
@@ -590,7 +593,7 @@ async function fetchSleepSummaryData(
   userId: string,
   startDateYMD: string,
   endDateYMD: string
-) {
+): Promise<WithingsSleepSeries[]> {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -599,8 +602,7 @@ async function fetchSleepSummaryData(
       [userId]
     );
     const withingsUserId = providerResult.rows[0].external_user_id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let allSeries: any = [];
+    let allSeries: WithingsSleepSeries[] = [];
     let offset = 0;
     let hasMore = true;
     while (hasMore) {
@@ -642,8 +644,7 @@ async function fetchSleepSummaryData(
   } catch (error) {
     log(
       'error',
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      `Error fetching Withings sleep summary data for user ${userId}: ${error.message}`
+      `Error fetching Withings sleep summary data for user ${userId}: ${describeError(error)}`
     );
     throw error;
   } finally {
@@ -656,7 +657,7 @@ async function fetchActivityData(
   userId: string,
   startDateYMD: string,
   endDateYMD: string
-) {
+): Promise<WithingsActivity[]> {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -665,8 +666,7 @@ async function fetchActivityData(
       [userId]
     );
     const withingsUserId = providerResult.rows[0].external_user_id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let allActivities: any = [];
+    let allActivities: WithingsActivity[] = [];
     let offset = 0;
     let hasMore = true;
     while (hasMore) {
@@ -705,8 +705,7 @@ async function fetchActivityData(
   } catch (error) {
     log(
       'error',
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      `Error fetching Withings activity data for user ${userId}: ${error.message}`
+      `Error fetching Withings activity data for user ${userId}: ${describeError(error)}`
     );
     throw error;
   } finally {
@@ -719,7 +718,7 @@ async function fetchWorkoutsData(
   userId: string,
   startDateYMD: string,
   endDateYMD: string
-) {
+): Promise<WithingsWorkout[]> {
   const accessToken = await getValidAccessToken(userId);
   const client = await getClient(userId);
   try {
@@ -728,8 +727,7 @@ async function fetchWorkoutsData(
       [userId]
     );
     const withingsUserId = providerResult.rows[0].external_user_id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let allSeries: any = [];
+    let allSeries: WithingsWorkout[] = [];
     let offset = 0;
     let hasMore = true;
     while (hasMore) {
@@ -771,8 +769,7 @@ async function fetchWorkoutsData(
   } catch (error) {
     log(
       'error',
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      `Error fetching Withings workout data for user ${userId}: ${error.message}`
+      `Error fetching Withings workout data for user ${userId}: ${describeError(error)}`
     );
     throw error;
   } finally {
@@ -856,8 +853,7 @@ async function disconnectWithings(userId: string) {
   } catch (error) {
     log(
       'error',
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      `Error disconnecting Withings account for user ${userId}: ${error.message}`
+      `Error disconnecting Withings account for user ${userId}: ${describeError(error)}`
     );
     throw error;
   } finally {
@@ -889,8 +885,7 @@ async function getStatus(userId: string) {
   } catch (error) {
     log(
       'error',
-      // @ts-expect-error TS(2571): Object is of type 'unknown'.
-      `Error getting Withings status for user ${userId}: ${error.message}`
+      `Error getting Withings status for user ${userId}: ${describeError(error)}`
     );
     throw error;
   } finally {

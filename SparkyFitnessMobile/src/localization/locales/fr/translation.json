@@ -241,7 +241,8 @@
     "rest": {
       "title": "Repos complet",
       "nextSetTitle": "Repos complet : préparation de la série suivante",
-      "bodySetProgress": "{{name}} · Série {{setNumber}} sur {{setCount}}"
+      "bodySetProgress": "{{name}} · Série {{setNumber}} sur {{setCount}}",
+      "bodySetProgressDuration": "{{setProgress}} · {{duration}} cible"
     },
     "fasting": {
       "title": "Objectif de jeûne atteint",
@@ -253,13 +254,126 @@
       "moreOptionsFor": "Plus d'options pour {{exerciseName}}",
       "moreOptionsFallback": "Plus d'options pour faire de l'exercice",
       "notesFor": "Notes pour {{exerciseName}}",
-      "notesFallback": "Notes sur l'exercice"
+      "notesFallback": "Notes sur l'exercice",
+      "addNote": "Ajoutez une note pour cet exercice…",
+      "addSetFallback": "Ajouter une série à l'exercice",
+      "addSetTo": "Ajouter une série à {{exerciseName}}",
+      "addSet": "Ajouter un ensemble",
+      "best": "Meilleur {{value}}",
+      "caloriesBurnedFallback": "Calories brûlées lors de l'exercice",
+      "caloriesBurnedFor": "Calories brûlées pour {{exerciseName}}",
+      "changeMetricColumn": "Modifier la colonne de métrique",
+      "collapseFallback": "Exercice d'effondrement",
+      "collapse": "Réduire {{exerciseName}}",
+      "editCaloriesFallback": "Modifier les calories brûlées lors de l'exercice",
+      "expand": "Développer {{exerciseName}}",
+      "expandFallback": "Développer l'exercice",
+      "viewDetailsFor": "Voir les détails de {{exerciseName}}",
+      "viewDetailsFallback": "Voir les détails de l'exercice",
+      "editCaloriesFor": "Modifier les calories brûlées pour {{exerciseName}}",
+      "setSummary_one": "{{count}} ensemble{{detail}}",
+      "setSummary_many": "{{count}} ensembles{{detail}}",
+      "setSummary_other": "{{count}} ensembles{{detail}}",
+      "notesForSet": "Notes pour l'ensemble {{setNumber}}"
     },
     "liveActivity": {
       "rest": "Repos",
       "paused": "En pause",
       "elapsed": "Écoulé",
-      "workoutComplete": "Entraînement terminé"
+      "workoutComplete": "Entraînement terminé",
+      "complete": "Complet",
+      "addFifteenSeconds": "Ajoutez 15 secondes",
+      "addFifteenSecondsShort": "+15s",
+      "skipRest": "Passer le reste",
+      "workout": "Entraînement",
+      "exercise": "Exercice",
+      "set": "Ensemble",
+      "setOf": "de"
+    },
+    "bar": {
+      "clearWorkout": "Séance d'entraînement claire",
+      "clear": "Clair",
+      "clearWorkoutTitle": "Séance d'entraînement sans encombre ?",
+      "saveFailed": "Impossible d'enregistrer votre séance d'entraînement",
+      "unsavedChanges": "Certaines modifications n'ont pas atteint le serveur.",
+      "discardAnyway": "Ignorer quand même",
+      "endWithoutSaving": "Cela mettra fin à la séance d'entraînement en cours sans enregistrer la progression.",
+      "doneStartNextSet": "C'est fait, commencez la série suivante.",
+      "finishWorkout": "Terminer la séance d'entraînement",
+      "open": "Ouvrir l'entraînement en cours",
+      "pause": "Pause",
+      "resume": "Resume",
+      "skipRest": "Passer le reste",
+      "resting": "Au repos",
+      "paused": "En pause",
+      "workoutComplete": "Entraînement terminé",
+      "workoutActive": "Entraînement actif",
+      "nextSet": "{{prefix}} : {{exercise}} — {{set}}",
+      "nextUpSet": "Au programme : {{exerciseName}} — série {{setNumber}}/{{setCount}}",
+      "next": "Suivant",
+      "nextUp": "À suivre",
+      "doneNext": "C'est fait, commencez la série suivante."
+    },
+    "header": {
+      "addExercise": "Ajouter de l'exercice",
+      "back": "arrière",
+      "clearAllSets": "Effacer toutes les séries enregistrées",
+      "discardWorkout": "Abandonner la séance",
+      "elapsedTime": "{{time}} écoulé",
+      "endWorkout": "Terminer la séance",
+      "exerciseProgress_one": "Exercice {{completed}} / {{count}}",
+      "exerciseProgress_many": "{{completed}} / {{count}} exercices",
+      "exerciseProgress_other": "{{completed}} / {{count}} exercices",
+      "renameWorkout": "Renommer la séance d'entraînement",
+      "reorderExercises": "Réorganiser les exercices",
+      "menu": "Programme d'entraînement",
+      "settings": "Paramètres d'entraînement"
+    },
+    "rail": {
+      "add": "Ajouter",
+      "addExercise": "Ajouter de l'exercice"
+    },
+    "rest": {
+      "addSecondsShort": "+{{seconds}}s",
+      "subtractSecondsShort": "−{{seconds}}s",
+      "completeSet": "Ensemble complet",
+      "completeSetTitle": "Ensemble complet",
+      "extendBySeconds": "Prolonger le repos de {{seconds}} secondes",
+      "shortenBySeconds": "Réduire le temps de repos de {{seconds}} secondes",
+      "skip": "Passer le reste",
+      "pause": "Pause de repos",
+      "resume": "Reprendre le repos",
+      "targetValue": "Cible {{value}}",
+      "shorten": "Réduisez le temps de repos de 15 secondes.",
+      "extend": "Prolongez le temps de repos de 15 secondes."
+    },
+    "setDetail": {
+      "addNote": "Ajouter une note pour cet ensemble…",
+      "notesForSet": "Notes pour l'ensemble {{setNumber}}",
+      "notes": "Notes sur le jeu"
+    },
+    "setRow": {
+      "changeType": "Modifier le type pour le jeu {{setNumber}}",
+      "delete": "Supprimer l'ensemble {{setNumber}}",
+      "duration": "Durée",
+      "log": "Jeu de bûches {{setNumber}}",
+      "reps": "Répétitions",
+      "complete": "Série {{setNumber}} terminée",
+      "incomplete": "Ensemble incomplet {{setNumber}}",
+      "weight": "Poids",
+      "rpe": "RPE",
+      "fillFromPrevious": "Remplissez l'ensemble {{setNumber}} à partir de la précédente"
+    },
+    "columns": {
+      "set": "Ensemble",
+      "previous": "Précédent",
+      "seconds": "Seconde"
+    },
+    "exercise": {
+      "expand": "Développer {{name}}",
+      "viewDetails": "Voir les détails de {{name}}",
+      "collapse": "Réduire {{name}}",
+      "moreOptions": "Plus d'options pour {{name}}"
     }
   },
   "foodEntryAdd": {
@@ -270,5 +384,45 @@
   "mealBuilder": {
     "totalAmount": "Quantité totale ({{unit}}) *",
     "servingUnit": "Portion"
+  },
+  "progressPhotos": {
+    "frameCountRanged": "{{current}} de {{total}} · {{range}}",
+    "deltaBadge": "Δ {{value}}",
+    "cameraPermission": "L'autorisation de caméra requise",
+    "cameraPermissionHint": "Autorisez l'accès à la caméra pour SparkyFitness dans les paramètres.",
+    "compare": "Comparer",
+    "compareTitle": "Comparer",
+    "before": "Avant",
+    "after": "Après",
+    "historyDescription": "Vos photos pour cet angle, plus récentes en premier.",
+    "speedFast": "Rapide",
+    "loadError": "Impossible de charger les photos de progression.",
+    "takePhoto": "Prenez une photo",
+    "chooseLibrary": "Choisissez depuis la bibliothèque",
+    "remove": "Supprimer la photo",
+    "title": "Photos de progression",
+    "angle": {
+      "front": "Avant",
+      "back": "Arrière",
+      "side": "Côté"
+    },
+    "noWeight": "Aucun poids enregistré",
+    "logWeight": "Enregistrer un poids",
+    "logWeightA11y": "Enregistrez votre poids pour ce jour",
+    "openPhotoA11y": "Voir cette photo en plein écran",
+    "sincePrevious": "{{delta}} depuis la précédente",
+    "emptyTitle": "Pas encore de photos pour {{angle}}"
+  },
+  "healthTrendsSettings": {
+    "moveDown": "Descendre"
+  },
+  "screens": {
+    "library": {
+      "mealPlans": "Plans de repas",
+      "mealPlansSubtitle": "Répéter les repas certains jours",
+      "exercises": "Exercices",
+      "workoutPresets": "Programmes d'entraînement prédéfinis",
+      "medications": "Médicaments"
+    }
   }
 }

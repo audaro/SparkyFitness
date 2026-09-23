@@ -1,21 +1,40 @@
 import crypto from 'crypto';
 import { log } from '../config/logging.js';
+
+/**
+ * Defaults shared with docker-compose and the tracked .env templates. Keep the
+ * three in step: a value that differs between them silently points the server
+ * at a database other than the one Compose created.
+ */
+export const DEFAULT_APP_DB_USER = 'sparky_app';
+const DEFAULTED_VARS: Record<string, string> = {
+  SPARKY_FITNESS_DB_HOST: 'sparkyfitness-db',
+  SPARKY_FITNESS_DB_NAME: 'sparkyfitness_db',
+  SPARKY_FITNESS_DB_USER: 'sparky',
+};
+
 function runPreflightChecks() {
+  // Connection details that docker-compose already supplies, so they only ever
+  // fall back here on a bare-metal or external-database install. Defaulting
+  // rather than refusing keeps a Compose deployment working with nothing but
+  // the secrets set, which is what the .env templates and the generator assume.
+  for (const [varName, fallback] of Object.entries(DEFAULTED_VARS)) {
+    if (!process.env[varName]) {
+      process.env[varName] = fallback;
+      log(
+        'info',
+        `${varName} was not set; using "${fallback}". Set it explicitly for a bare-metal or external database.`
+      );
+    }
+  }
   const mandatoryVars = {
-    SPARKY_FITNESS_DB_HOST:
-      'Required for DB connection. Use "localhost" for local development, or "sparkyfitness-db" for Docker deployments.',
-    SPARKY_FITNESS_DB_NAME:
-      'Required for database connection. Default is often "sparkyfitness_db".',
-    SPARKY_FITNESS_DB_USER:
-      'Required for database connection. This is super user with default is often "sparky".',
     SPARKY_FITNESS_DB_PASSWORD: 'Required for database connection.',
-    SPARKY_FITNESS_APP_DB_USER:
-      'Required for database connection. This is regular user without any admin access and default is often "sparkyapp".',
-    SPARKY_FITNESS_APP_DB_PASSWORD: 'Required for database connection.',
     SPARKY_FITNESS_FRONTEND_URL:
       'Required for CORS security. E.g. https://sparkyfitness.domain.com  or http://localhost:8080 for development.',
     SPARKY_FITNESS_API_ENCRYPTION_KEY:
       "Must be persistent to decrypt database data. Generate with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
+    BETTER_AUTH_SECRET:
+      'Signs session cookies and encrypts stored 2FA/TOTP secrets, so it must be persistent. A value that changes between restarts logs every user out and permanently locks out anyone with 2FA enabled. Generate with: openssl rand -base64 32',
   };
   const missingMandatory = Object.keys(mandatoryVars).filter(
     (varName) => !process.env[varName]
@@ -39,24 +58,30 @@ function runPreflightChecks() {
       'Preflight checks failed: Missing mandatory environment variables.'
     );
   }
-  // Handle BETTER_AUTH_SECRET as a soft requirement
-  if (!process.env.BETTER_AUTH_SECRET) {
-    const generatedSecret = crypto.randomBytes(32).toString('hex');
-    process.env.BETTER_AUTH_SECRET = generatedSecret;
-    console.warn(
-      '\x1b[33m%s\x1b[0m',
-      'WARNING: BETTER_AUTH_SECRET is not set!'
+  // The application database role is provisioned by the server itself, so both
+  // of these are soft requirements: when absent we pick a default name and mint
+  // a password, and `applyMigrations` creates or updates the role to match.
+  //
+  // This must happen here, before `db/poolManager.ts` is ever imported, because
+  // that module builds both pools at module load and freezes whatever it reads.
+  // `tests/bootOrder.test.ts` guards the ordering that makes this safe.
+  if (!process.env.SPARKY_FITNESS_APP_DB_USER) {
+    process.env.SPARKY_FITNESS_APP_DB_USER = DEFAULT_APP_DB_USER;
+    log(
+      'info',
+      `SPARKY_FITNESS_APP_DB_USER was not set; using "${DEFAULT_APP_DB_USER}".`
     );
-    console.warn(
-      'A temporary secret has been generated to allow the server to start.'
+  }
+  if (!process.env.SPARKY_FITNESS_APP_DB_PASSWORD) {
+    process.env.SPARKY_FITNESS_APP_DB_PASSWORD = crypto
+      .randomBytes(32)
+      .toString('hex');
+    log(
+      'info',
+      'SPARKY_FITNESS_APP_DB_PASSWORD was not set; generated one for this run ' +
+        'and the application role will be updated to match. Set it explicitly ' +
+        'if more than one server shares this database.'
     );
-    console.warn(
-      'IMPORTANT: Please set BETTER_AUTH_SECRET in your .env file to ensure user sessions remain valid across server restarts.'
-    );
-    console.warn(
-      '------------------------------------------------------------------\n'
-    );
-    log('warn', 'BETTER_AUTH_SECRET was missing and auto-generated.');
   }
   log('info', 'Environment variable pre-flight checks passed successfully.');
 }

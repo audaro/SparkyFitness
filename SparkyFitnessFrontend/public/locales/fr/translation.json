@@ -552,7 +552,22 @@
       "adaptiveTdee": "TDEE adaptatif",
       "burnedEnergyBreakdown": "Répartition de l'énergie dépensée :",
       "profileIncompleteDesc": "Le poids, la taille et l'âge sont manquants. Les objectifs caloriques pourraient être inexacts.",
-      "projectedBurn": "Dépense énergétique quotidienne totale estimée"
+      "projectedBurn": "Dépense énergétique quotidienne totale estimée",
+      "dailyBurn": "Projection de l'appareil",
+      "dataPoints": "Points de données",
+      "energyBurnedBreakdownTitle": "Répartition de la dépense énergétique",
+      "expenditure": "Dépense",
+      "fallbackReason": "En utilisant l'estimation : {{reason}}",
+      "katchCunninghamMissingDesc": "Le poids et le taux de graisse corporelle sont manquants. Les objectifs caloriques pourraient être inexacts.",
+      "netEnergy": "Énergie nette : {{netCalories}}",
+      "netEnergyBreakdown": "{{dailyIntakeCalories}} consommées - {{finalTotalCaloriesBurned}} brûlées",
+      "goalModeTarget": "Cible du mode Objectif",
+      "healthConnectProjectionSource": "Health Connect calories totales",
+      "fallbackProjectionSource": "Basculement vers le métabolisme de base (BMR) + calories actives",
+      "legacyProjectionSource": "Projection de l'appareil",
+      "sparkyfitnessBurned": "SparkyFitness a tout donné",
+      "summaryUnavailableDesc": "Impossible de charger votre résumé énergétique quotidien. Essayez d'actualiser la page.",
+      "summaryUnavailableTitle": "Résumé quotidien indisponible"
     },
     "editExerciseEntryDialog": {
       "setLabel": "Définir",
@@ -580,7 +595,9 @@
       "imageLabel": "Image",
       "updateSuccess": "Mise à jour de l'exercice réussie.",
       "updateError": "Mise à jour de l'exercice échouée.",
-      "customActivityDetailsLabel": "Détails de l'activité personnalisée"
+      "customActivityDetailsLabel": "Détails de l'activité personnalisée",
+      "syncedProviderBackup": "Sauvegarde synchronisée du fournisseur (protégée)",
+      "telemetryHeader": "Télémétrie et métriques d'activité"
     },
     "activityDetailsEditor": {
       "fieldNameLabel": "Nom du champs",
@@ -658,7 +675,9 @@
       "details": "Détails",
       "energy": "Énergie",
       "exercises": "Exercices",
-      "name": "Nom"
+      "name": "Nom",
+      "deleteConfirmationDescription": "Êtes-vous sûr de vouloir supprimer cet exercice ? Cette action est irréversible.",
+      "deleteImpactDescription": "Cet exercice est utilisé dans d'autres journaux ou programmes d'entraînement. Sa suppression pourrait affecter ces enregistrements."
     },
     "exerciseImportCSV": {
       "importExerciseData": "Importer les données de l'exercice",
@@ -690,7 +709,11 @@
       "copied": "Copié !",
       "copiedToClipboard": "'{{value}}' copié.",
       "parseSuccessful": "Analyse réussie",
-      "readError": "Échec de lecture du fichier sélectionné"
+      "readError": "Échec de lecture du fichier sélectionné",
+      "fileTooLarge": "Le fichier sélectionné est trop volumineux. Veuillez télécharger un fichier de moins de 25 Mo.",
+      "dataParsedSuccessfully": "Les données CSV ont été analysées et chargées avec succès.",
+      "headersMapped": "En-têtes mappés",
+      "mapRequiredFields": "Les en-têtes de votre fichier CSV ne correspondent pas au format requis. Veuillez associer les champs pour continuer."
     },
     "playbackModal": {
       "voiceLabel": "Voix :",
@@ -744,7 +767,27 @@
       "processFile": "Traiter le fichier",
       "standardValuesDescription": "Lors de l'importation de définitions d'exercices, assurez-vous que les valeurs pour « Niveau », « Force » et « Mécanique » correspondent à ces options standard.",
       "standardValuesForDropdowns": "Valeurs standard pour les listes déroulantes de définition d'exercices",
-      "title": "Importer l'historique des entrées d'exercices"
+      "title": "Importer l'historique des entrées d'exercices",
+      "fileTooLarge": "Le fichier sélectionné est trop volumineux. Veuillez télécharger un fichier de moins de 25 Mo.",
+      "pasteFirst": "Veuillez d'abord coller des données CSV.",
+      "pastePlaceholder": "Ou collez le contenu CSV ici...",
+      "rowsRejected": "{{failed}} lignes sur {{total}} n'ont pas pu être importées — voir les détails ci-dessous.",
+      "headersMapped": "En-têtes mappés",
+      "mapRequiredFields": "Les en-têtes de votre fichier CSV ne correspondent pas au format requis. Veuillez associer les champs pour continuer.",
+      "confirmImport": "Confirmer et importer {{count}} entrées",
+      "customFieldsInfo": "« Activité » et « Valeur » sont des champs personnalisés que vous pouvez ajouter à chaque entrée d'exercice.",
+      "dataCleared": "Toutes les données analysées ont été effacées.",
+      "description": "Importez un fichier CSV contenant l'historique de vos séances d'entraînement. Le système créera de nouveaux exercices ou modèles s'ils n'existent pas encore, puis importera vos séances, vos séries et les détails de vos activités.",
+      "emptyEntryAdded": "Nouvelle entrée vide ajoutée. Veuillez en renseigner les détails.",
+      "emptyFile": "Le fichier sélectionné est vide.",
+      "importSuccess": "Les entrées d'exercices historiques ont été importées avec succès. Les entrées d'exercices historiques ont été importées avec succès.",
+      "invalidDate": "Ligne {{rowNum}} : format de date invalide pour « {{date}} ». Format attendu : {{format}}.",
+      "invalidSetNumber": "Ligne {{rowNum}} : Numéro d'ensemble invalide '{{value}}'.",
+      "unitsHint": "Unités attendues dans le CSV : Poids : {{weightUnit}} ; Distance : {{distanceUnit}} ; Durée : minutes ; Temps de repos : secondes ; Calories brûlées : calories",
+      "validationError": "Ligne {{rowNum}} : Champs obligatoires « entry_date » ou « exercise_name » manquants. Ligne ignorée.",
+      "copiedToClipboard": "« {{value}} » copié dans le presse-papiers.",
+      "importError": "Échec de l'importation de l'historique des exercices. Veuillez réessayer.",
+      "partialImportError": "Certaines entrées n'ont pas pu être importées : {{details}}"
     },
     "logExerciseEntryDialog": {
       "logExercise": "Enregistrer l'exercice : {{exerciseName}}",
@@ -753,8 +796,42 @@
       "saving": "Sauvegarde...",
       "sessionNotes": "Notes",
       "uploadImage": "Photo",
-      "caloriesBurnedOptional": "Calories brûlées (optionnel)"
-    }
+      "caloriesBurnedOptional": "Calories brûlées (optionnel)",
+      "addSet": "Ajouter un ensemble",
+      "avgHeartRateLabel": "Fréquence cardiaque moyenne (bpm)"
+    },
+    "workoutPlaybackDialog": {
+      "finish": "Terminer la séance",
+      "finishError": "Échec de l'enregistrement de la séance. Votre progression locale est conservée et vous pouvez réessayer.",
+      "finishing": "Enregistrement...",
+      "noDraft": "Aucun brouillon d'entraînement n'a été trouvé pour cette date."
+    },
+    "workoutPlaybackPage": {
+      "columnReps": "Répétitions",
+      "columnRest": "Repos",
+      "columnSet": "Série",
+      "columnType": "Type",
+      "columnWeight": "Poids",
+      "completed": "Terminé",
+      "customRest": "Personnalisé (secondes)",
+      "description": "Suivez vos séries en temps réel, surveillez les temps de repos et enregistrez votre séance une fois terminée.",
+      "elapsedTime": "Durée",
+      "inProgress": "En Cours",
+      "progress": "Séries"
+    },
+    "exerciseSearch": {
+      "add": "Ajouter",
+      "noResults": "Aucun exercice trouvé.",
+      "placeholder": "Rechercher des exercices…",
+      "popular": "Les plus utilisés",
+      "recent": "Récent",
+      "searching": "Recherche…",
+      "selectButton": "Sélectionner"
+    },
+    "failedToFetchById": "Impossible de charger les détails de l'exercice.",
+    "failedToFetchDetails": "Impossible de récupérer les détails de l'exercice. Veuillez réessayer.",
+    "failedToFetchSuggested": "Impossible de charger les exercices suggérés.",
+    "lastEntries": "Dernières {{limit}} entrées"
   },
   "workoutPresetsManager": {
     "addPresetButton": "Ajouter un modèle",
@@ -765,7 +842,6 @@
     "editPresetTooltip": "Modifier ce modèle",
     "deletePresetTooltip": "Supprimer ce modèle",
     "loading": "Chargement...",
-    "loadMore": "Charger plus",
     "noExercisesInPreset": "Aucun exercices dans ce modèle",
     "failedToLoadPresets": "Echec de chargement du modèle d'entrainement.",
     "createSuccess": "Modèle d'entrainement créé.",
@@ -797,7 +873,8 @@
     "deleteError": "Échec de suppression du plan d'entrainement.",
     "updateStatusError": "Impossible de trouver le plan d'entrainement à mettre à jour.",
     "toggleStatusSuccess": "Plan d'entrainement {{status}} avec succès.",
-    "toggleStatusError": "Échec de la modification du statut du plan d'entraînement."
+    "toggleStatusError": "Échec de la modification du statut du plan d'entraînement.",
+    "status": "Statut"
   },
   "exerciseCard": {
     "noEntries": "Aucune donnée d'exercice pour aujourd’hui.",
@@ -871,7 +948,25 @@
     "failedToDeleteExerciseEntry": "Échec de suppression de l'exercice.",
     "playInstructions": "Lire les instructions",
     "exerciseEntryDeletedSuccessfully": "Exercice supprimée avec succès.",
-    "loadingExercises": "Chargement des exercices..."
+    "loadingExercises": "Chargement des exercices...",
+    "deletePresetEntry": "Supprimer l'entrée prédéfinie",
+    "editExerciseDescription": "Modifiez les détails ci-dessous.",
+    "startWorkout": "Démarrer la séance",
+    "workoutPreset": "Modèles de Séance",
+    "activeCaloriesValue": "{{calories}} actives",
+    "setCount": "{{count}} série",
+    "secondsShort": "{{count}}s",
+    "repCount": "{{count}} répétition",
+    "meta": {
+      "beginner": "Débutant",
+      "intermediate": "Intermédiaire",
+      "expert": "Expert",
+      "pull": "Tirage",
+      "push": "Poussée",
+      "static": "Isométrique",
+      "isolation": "Isolation",
+      "compound": "Poly-articulaire"
+    }
   },
   "enhancedFoodSearch": {
     "private": "Privé",
@@ -927,7 +1022,8 @@
     "addToFavorites": "Ajouter aux favoris",
     "removeFromFavorites": "Retirer des favoris",
     "failedToLoadFavorites": "Échec du chargement des favoris.",
-    "failedToUpdateFavorite": "Échec de la mise à jour du favori."
+    "failedToUpdateFavorite": "Échec de la mise à jour du favori.",
+    "provider": "Fournisseur de données"
   },
   "foodSearchDialog": {
     "title": "Rechercher et ajouter un aliment",
@@ -2521,7 +2617,18 @@
     "saveSuccessDesc": "Les paramètres de calcul ont été enregistrés avec succès !",
     "selectBmrAlgorithm": "Sélectionner l'algorithme BMR",
     "selectBodyFatAlgorithm": "Sélectionner l'algorithme de calcul de la masse graisseuse",
-    "selectEnergyUnitPlaceholder": "Sélectionner une unité d'énergie"
+    "selectEnergyUnitPlaceholder": "Sélectionner une unité d'énergie",
+    "bmrAlgorithmOptions": {
+      "mifflinStJeor": "Mifflin-St Jeor",
+      "revisedHarrisBenedict": "Équation de Harris-Benedict révisée",
+      "katchMcArdle": "Katch-McArdle",
+      "cunningham": "Cunningham",
+      "oxford": "Oxford"
+    },
+    "bodyFatAlgorithmOptions": {
+      "usNavy": "U.S. Navy",
+      "bmiMethod": "Méthode de l'IMC"
+    }
   },
   "sleepScience": {
     "chronotypeEarlyDesc": "Vous vous réveillez naturellement tôt et êtes plus performant le matin.",
@@ -2759,7 +2866,12 @@
       "context": "Contexte / notes",
       "contextPlaceholder": "ex. Survenu 4 heures après la prise de ma dose du soir.",
       "bristol": "Journal des selles (échelle de Bristol)",
-      "bristolType": "Type de Bristol {{n}}"
+      "bristolType": "Type de Bristol {{n}}",
+      "calendarDescription": "Enregistrement de la fréquence et de la gravité des symptômes au cours des 30 derniers jours",
+      "clear": "Clair",
+      "trendingUp": "En hausse par rapport au début de la période",
+      "trendingDown": "Tendance à la baisse par rapport au début de la période",
+      "dayTooltip": "{{date}} : {{count}} enregistrés, gravité maximale {{severity}}"
     },
     "fasting": {
       "title": "Minuteur de jeûne GLP-1 oral",
@@ -2946,7 +3058,12 @@
       "pharmacyDetail": "Pharmacie",
       "packagingPhoto": "Photo du comprimé/de l'emballage",
       "effectivenessDetail": "Efficacité",
-      "todayTab": "Aujourd'hui"
+      "todayTab": "Aujourd'hui",
+      "doctorPrefix": "Dr.",
+      "prescriberDetail": "Prescripteur",
+      "rxNumberDetail": "Numéro d'ordonnance",
+      "adherenceDescriptionBefore": "Les calendriers et les listes de contrôle quotidiennes pour les médicaments autres que les agonistes du GLP-1 sont pleinement fonctionnels. Gérez les règles de planification ci-dessous et enregistrez la prise quotidienne à partir de",
+      "adherenceDescriptionAfter": "tab."
     },
     "schedule": {
       "heading": "Horaires et rappels",
@@ -3044,7 +3161,28 @@
       "configGlp1Checkin": "Suivi quotidien du GLP-1",
       "chartCheckInScore": "Score d'auto-évaluation (0-10)",
       "chartHunger": "Niveau de faim",
-      "chartFoodNoise": "Préoccupation alimentaire"
+      "chartFoodNoise": "Préoccupation alimentaire",
+      "chartEnergy": "Énergie",
+      "confidenceScore": "Score de confiance",
+      "strength": {
+        "strong": "Forte",
+        "moderate": "Modérée",
+        "weak": "Faible"
+      },
+      "correlationStrength": "Corrélation {{strength}}",
+      "hydrationBenefit": "<strong>Bénéfice d'hydratation fort : </strong> Boire plus d'eau aide à réduire la constipation. Restez hydraté pour réduire les troubles intestinaux.",
+      "proteinInsufficient": "Données insuffisantes. Enregistrez tous les jours de la nourriture et des effets secondaires de nausée pour identifier des corrélations.",
+      "sleepInsufficient": "Données de sommeil insuffisantes pour calculer une corrélation sur cette période.",
+      "configAdherence": "Graphique d'évolution de l'observance",
+      "chartAdherenceRate": "Taux d'observance",
+      "chartFullness": "Plénitude",
+      "hydrationUnexpected": "<strong>Association positive inattendue :</strong> Augmentez activement l'apport hydrique pour favoriser les effets d'une alimentation riche en fibres ou d'un traitement médicamenteux.",
+      "reducedIntake": "<strong>Réduction de l'apport :</strong> Les pics de nausées correspondent aux jours où l'apport en protéines est plus faible, probablement en raison d'une perte d'appétit.",
+      "restBenefit": "<strong>Bienfaits du repos :</strong> Une durée de sommeil accrue est associée à une moindre sévérité de la fatigue. Veillez à maintenir des habitudes de coucher régulières.",
+      "hypersomnia": "<strong>Association avec l'hypersomnie :</strong> Une fatigue accrue pourrait entraîner un besoin de sommeil plus long ou des périodes de repos au lit.",
+      "doseDependentNausea": "<strong>Nausées dose-dépendantes :</strong> Des doses plus élevées de médicament sont associées à une aggravation des nausées. Envisagez de discuter des étapes de titration ou d'un fractionnement de la posologie.",
+      "adaptationBenefit": "<strong>Avantage lié à l'adaptation :</strong> Aucune corrélation positive. L'organisme s'est bien adapté aux niveaux de dose, sans effets secondaires.",
+      "doseInsufficient": "Nécessite des relevés de doses de GLP-1 actif et des journaux de nausées enregistrés pour cette période."
     },
     "subtype": {
       "all": "Tous",
@@ -3093,7 +3231,39 @@
     "print": {
       "dates": "Période de rapport :",
       "header": "Rapport sur les médicaments prescrits",
-      "name": "Nom :"
+      "name": "Nom :",
+      "patient": "Patient",
+      "targetWeight": "Poids cible :",
+      "adherenceRate": "Taux d'adhésion :",
+      "reportDate": "Date du rapport :",
+      "activeMedications": "Médicaments en cours",
+      "medication": "Médicament",
+      "type": "Type",
+      "strength": "Force",
+      "frequency": "Fréquence",
+      "prescriber": "Prescripteur",
+      "titrationSteps": "Étapes de titration et de sevrage progressif",
+      "dose": "Dose",
+      "startDate": "Date de début",
+      "weeks": "Semaines",
+      "status": "Statue",
+      "note": "Note",
+      "recentInjections": "Historique récent des injections",
+      "date": "Date",
+      "doseMg": "Dose (mg)",
+      "injectionSite": "Site d'injection",
+      "notes": "Notes",
+      "recentSymptoms": "Journaux de symptômes récents",
+      "symptom": "Symptôme",
+      "severity": "Gravité",
+      "location": "Emplacement",
+      "notesContext": "Notes / Contexte",
+      "dateRangeSeparator": "à",
+      "notSet": "Non défini"
+    },
+    "noSelection": {
+      "title": "Aucun médicament sélectionné",
+      "description": "Sélectionnez un médicament dans la liste pour consulter les calendriers, les notes et les outils de coaching GLP-1."
     }
   },
   "chat": {

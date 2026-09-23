@@ -1,0 +1,48 @@
+{
+  "sourceLocale": "en",
+  "fallbackLocale": "en",
+  "locales": {
+    "en": {
+      "languageCode": "en",
+      "intlLocale": "en-US",
+      "displayNameKey": "settings.language.english",
+      "defaultDisplayName": "English"
+    },
+    "pl": {
+      "languageCode": "pl",
+      "intlLocale": "pl-PL",
+      "displayNameKey": "settings.language.polish",
+      "defaultDisplayName": "Polski"
+    },
+    "es": {
+      "languageCode": "es",
+      "intlLocale": "es-ES",
+      "displayNameKey": "settings.language.spanish",
+      "defaultDisplayName": "Español"
+    },
+    "de": {
+      "languageCode": "de",
+      "intlLocale": "de-DE",
+      "displayNameKey": "settings.language.german",
+      "defaultDisplayName": "Deutsch"
+    },
+    "zh-Hans": {
+      "languageCode": "zh-Hans",
+      "intlLocale": "zh-Hans-CN",
+      "displayNameKey": "settings.language.simplifiedChinese",
+      "defaultDisplayName": "简体中文"
+    },
+    "zh-Hant": {
+      "languageCode": "zh-Hant",
+      "intlLocale": "zh-Hant-TW",
+      "displayNameKey": "settings.language.traditionalChinese",
+      "defaultDisplayName": "正體中文"
+    },
+    "yue-Hant": {
+      "languageCode": "yue-Hant",
+      "intlLocale": "yue-Hant-HK",
+      "displayNameKey": "settings.language.cantoneseTraditional",
+      "defaultDisplayName": "正體粵語"
+    }
+  }
+}

@@ -241,7 +241,8 @@ export const sessionCacheKey = (record: unknown): string | null => {
 export async function prefetchSessionRoutes(
   startTime: Date,
   endTime: Date,
-  limit: number
+  limit: number,
+  force = false
 ): Promise<void> {
   prefetchedRoutes.clear();
   if (limit <= 0) return;
@@ -311,8 +312,11 @@ export async function prefetchSessionRoutes(
 
     // Sessions whose telemetry is already collected are skipped by enrichment,
     // so they are not candidates and warming their route would be wasted
-    // consent work.
-    if (await hasEnrichedSession(sessionCacheKey(session))) continue;
+    // consent work. A forced run will re-read them, so they are candidates
+    // again — and warming here is what keeps their consent dialogs outside the
+    // engine's per-metric timeout.
+    if (!force && (await hasEnrichedSession(sessionCacheKey(session))))
+      continue;
 
     candidates++;
 

@@ -96,6 +96,11 @@ describe('useCopyFamilyFoodEntries', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ['dailySummary', '2026-08-24'],
+      refetchType: 'all',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['caffeineActive', '2026-08-24'],
+      refetchType: 'all',
     });
     expect(invalidateSpy).not.toHaveBeenCalledWith({
       queryKey: expect.arrayContaining(['familyDailySummary']),

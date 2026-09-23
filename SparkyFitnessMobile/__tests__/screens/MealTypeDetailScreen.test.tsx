@@ -10,6 +10,7 @@ import { usePreferences } from '../../src/hooks/usePreferences';
 import { useCopyFoodEntries } from '../../src/hooks/useCopyFoodEntries';
 import type { FoodEntry } from '../../src/types/foodEntries';
 import type { MealType } from '../../src/types/mealTypes';
+import type { DailyGoals } from '../../src/types/goals';
 import type { RootStackScreenProps } from '../../src/types/navigation';
 
 type ScreenProps = RootStackScreenProps<'MealTypeDetail'>;
@@ -111,9 +112,16 @@ jest.mock('../../src/components/FoodNutritionSummary', () => {
   const { Text, View } = require('react-native');
   return {
     __esModule: true,
-    default: ({ name }: { name?: string }) => (
+    default: ({
+      name,
+      calorieGoal,
+    }: {
+      name?: string;
+      calorieGoal?: number;
+    }) => (
       <View testID="nutrition-summary">
         <Text>{name}</Text>
+        {calorieGoal != null ? <Text>{`/ ${calorieGoal}`}</Text> : null}
       </View>
     ),
   };
@@ -182,13 +190,16 @@ const entry = (
   meal_type: string
 ): FoodEntry => ({ id, meal_type_id, meal_type }) as FoodEntry;
 
-const setSummary = (foodEntries: FoodEntry[]) => {
+const setSummary = (
+  foodEntries: FoodEntry[],
+  extras?: { goals?: DailyGoals | null; calorieGoal?: number }
+) => {
   mockUseDailySummary.mockReturnValue({
     summary: {
       foodEntries,
       exerciseEntries: [],
-      goals: null,
-      calorieGoal: 0,
+      goals: extras?.goals ?? null,
+      calorieGoal: extras?.calorieGoal ?? 0,
     },
     isLoading: false,
     isError: false,
@@ -312,5 +323,46 @@ describe('MealTypeDetailScreen', () => {
       date: '2026-01-01',
       mealTypeId: undefined,
     });
+  });
+
+  it('a custom type shows the target calories configured for it', () => {
+    setSummary([entry('1', 'custom-pw', 'Pre-Workout')], {
+      goals: {
+        custom_meal_percentages: { 'pre-workout': 20 },
+      } as unknown as DailyGoals,
+      calorieGoal: 2000,
+    });
+    const view = renderScreen({
+      date: '2026-01-01',
+      mealTypeId: 'custom-pw',
+      mealType: 'Pre-Workout',
+    });
+    expect(view.getByText('/ 400')).toBeTruthy();
+  });
+
+  it('a custom type named dinner never inherits the system Dinner target', () => {
+    setSummary([entry('1', 'custom-d', 'dinner')], {
+      goals: { dinner_percentage: 30 } as DailyGoals,
+      calorieGoal: 2000,
+    });
+    const view = renderScreen({
+      date: '2026-01-01',
+      mealTypeId: 'custom-d',
+      mealType: 'dinner',
+    });
+    expect(view.queryByText(/\/ \d+/)).toBeNull();
+  });
+
+  it('a system meal still reads its legacy column', () => {
+    setSummary([entry('1', 'sys-b', 'breakfast')], {
+      goals: { breakfast_percentage: 25 } as DailyGoals,
+      calorieGoal: 2000,
+    });
+    const view = renderScreen({
+      date: '2026-01-01',
+      mealTypeId: 'sys-b',
+      mealType: 'breakfast',
+    });
+    expect(view.getByText('/ 500')).toBeTruthy();
   });
 });

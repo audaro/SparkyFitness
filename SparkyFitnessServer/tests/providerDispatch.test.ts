@@ -1766,3 +1766,51 @@ describe('JSON extraction with multiple balanced candidates', () => {
     }
   });
 });
+
+describe('dispatchAiRequest — default request timeout', () => {
+  // Self-hosted runtimes pay a model cold start on the first request, so any
+  // service type that carries its own URL gets the long default, not just
+  // Ollama. Cloud providers keep the short one.
+  let timeoutSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+  });
+
+  afterEach(() => {
+    timeoutSpy.mockRestore();
+  });
+
+  it.each([
+    ['openai_compatible', 300_000],
+    ['custom', 300_000],
+    ['openai', 90_000],
+  ])('%s defaults to %sms', async (serviceType, expected) => {
+    mockFetch(openAiBody(JSON.stringify(SAMPLE)));
+    await dispatchAiRequest(
+      baseRequest({
+        provider: makeProvider({
+          service_type: serviceType,
+          custom_url: 'http://localhost:8080/v1',
+        }),
+        networkPolicy: PRIVATE_NETWORK_POLICY,
+      })
+    );
+    expect(timeoutSpy).toHaveBeenCalledWith(expected);
+  });
+
+  it('an explicit timeoutMs still wins over the defaults', async () => {
+    mockFetch(openAiBody(JSON.stringify(SAMPLE)));
+    await dispatchAiRequest(
+      baseRequest({
+        provider: makeProvider({
+          service_type: 'openai_compatible',
+          custom_url: 'http://localhost:8080/v1',
+        }),
+        networkPolicy: PRIVATE_NETWORK_POLICY,
+        timeoutMs: 1_000,
+      })
+    );
+    expect(timeoutSpy).toHaveBeenCalledWith(1_000);
+  });
+});

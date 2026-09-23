@@ -14,6 +14,7 @@ import {
 } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { LapDTO } from '@/types/exercises';
+import { paceMinPerUnit } from '@/utils/activityReportUtil';
 
 interface LapTableProps {
   lapDTOs: LapDTO[];
@@ -27,8 +28,10 @@ interface ProcessedLap {
   lapDurationSeconds: number;
   cumulativeDistance: number;
   cumulativeDuration: number;
-  averageSpeed: number;
-  averageMovingSpeed: number;
+  /** min per display unit; 0 when the lap has no distance or no time */
+  avgPace: number;
+  /** min per display unit; 0 when the lap reported no moving time */
+  avgMovingPace: number;
   movingDurationSeconds: number;
   averageHR: number;
   maxHR: number;
@@ -54,12 +57,16 @@ const ActivityReportLapTable: React.FC<LapTableProps> = ({
     return `${m}:${String(s).padStart(2, '0')}`;
   };
 
-  const formatPace = (speedMs: number): string => {
-    if (!speedMs || speedMs <= 0) return t('common.notApplicable', 'N/A');
-    let paceMinPerKm = 1000 / (speedMs * 60);
-    if (distanceUnit === 'miles') paceMinPerKm *= 1.60934;
-    const m = Math.floor(paceMinPerKm);
-    const s = Math.round((paceMinPerKm - m) * 60);
+  const formatPace = (pace: number): string => {
+    if (!pace || pace <= 0 || !Number.isFinite(pace))
+      return t('common.notApplicable', 'N/A');
+    let m = Math.floor(pace);
+    let s = Math.round((pace - m) * 60);
+    // 7.999 min would otherwise render "7:60"
+    if (s === 60) {
+      m += 1;
+      s = 0;
+    }
     return `${m}:${String(s).padStart(2, '0')}`;
   };
 
@@ -92,8 +99,8 @@ const ActivityReportLapTable: React.FC<LapTableProps> = ({
         lapDurationSeconds: durSec,
         cumulativeDistance: (prev?.cumulativeDistance ?? 0) + dist,
         cumulativeDuration: (prev?.cumulativeDuration ?? 0) + durSec,
-        averageSpeed: lap.averageSpeed ?? 0,
-        averageMovingSpeed: lap.averageMovingSpeed ?? 0,
+        avgPace: paceMinPerUnit(dist, durSec),
+        avgMovingPace: paceMinPerUnit(dist, lap.movingDuration ?? 0),
         movingDurationSeconds: lap.movingDuration ?? 0,
         averageHR: lap.averageHR ?? 0,
         maxHR: lap.maxHR ?? 0,
@@ -111,6 +118,10 @@ const ActivityReportLapTable: React.FC<LapTableProps> = ({
   const showHRCols = processedLaps.some((l) => l.averageHR > 0);
   const showCadenceCols = processedLaps.some((l) => l.averageRunCadence > 0);
   const showMovingTime = processedLaps.some((l) => l.movingDurationSeconds > 0);
+  // Moving pace needs both a moving time and a distance to divide it into.
+  // Rows written before the moving-telemetry columns existed have neither, and
+  // without this guard the column rendered a full stripe of N/A.
+  const showMovingPace = processedLaps.some((l) => l.avgMovingPace > 0);
   const showCalories = processedLaps.some((l) => l.calories > 0);
 
   const sortedLaps = [...processedLaps].sort((a, b) => {
@@ -154,16 +165,23 @@ const ActivityReportLapTable: React.FC<LapTableProps> = ({
     processedLaps.length > 0
       ? Math.max(...processedLaps.map((l) => l.maxRunCadence))
       : 0;
-  const avgSpeed =
-    processedLaps.length > 0
-      ? processedLaps.reduce((s, l) => s + l.averageSpeed, 0) /
-        processedLaps.length
-      : 0;
-  const avgMovingSpeed =
-    processedLaps.length > 0
-      ? processedLaps.reduce((s, l) => s + l.averageMovingSpeed, 0) /
-        processedLaps.length
-      : 0;
+  // Total distance over total time, NOT the mean of the per-lap paces. Laps
+  // differ in length, so averaging their paces weights a 0.01 km lap the same
+  // as a 1.08 km one — which is how the totals row previously reported 27:06
+  // for a workout whose real overall pace was 23:08.
+  const totalAvgPace = paceMinPerUnit(totalDist, totalDurSec);
+  // Moving pace is summed over ONLY the laps that reported a moving time, so
+  // its distance and its time describe the same laps. Dividing the whole
+  // workout's distance by a partial moving time reads far too fast — a lap
+  // with distance but no moving telemetry contributed its kilometres without
+  // its seconds, which halved the figure on a two-lap workout.
+  const movingLaps = processedLaps.filter(
+    (l) => l.movingDurationSeconds > 0 && l.lapDistance > 0
+  );
+  const totalAvgMovingPace = paceMinPerUnit(
+    movingLaps.reduce((s, l) => s + l.lapDistance, 0),
+    movingLaps.reduce((s, l) => s + l.movingDurationSeconds, 0)
+  );
 
   const NA = t('common.notApplicable', 'N/A');
 
@@ -246,7 +264,7 @@ const ActivityReportLapTable: React.FC<LapTableProps> = ({
                 <>
                   <th
                     className="py-3 px-4 text-center text-sm font-bold text-muted-foreground cursor-pointer"
-                    onClick={() => handleSort('averageSpeed')}
+                    onClick={() => handleSort('avgPace')}
                   >
                     {t('reports.activityReportLapTable.avgPace', 'Avg Pace')} (
                     {distanceUnit === 'km'
@@ -254,24 +272,29 @@ const ActivityReportLapTable: React.FC<LapTableProps> = ({
                       : t('reports.activityReportLapTable.minPerMi', 'min/mi')}
                     )
                     <FaWalking className="block text-purple-500 mx-auto" />
-                    {getSortIndicator('averageSpeed')}
+                    {getSortIndicator('avgPace')}
                   </th>
-                  <th
-                    className="py-3 px-4 text-center text-sm font-bold text-muted-foreground cursor-pointer"
-                    onClick={() => handleSort('averageMovingSpeed')}
-                  >
-                    {t(
-                      'reports.activityReportLapTable.avgMovingPace',
-                      'Avg Moving Pace'
-                    )}{' '}
-                    (
-                    {distanceUnit === 'km'
-                      ? t('reports.activityReportLapTable.minPerKm', 'min/km')
-                      : t('reports.activityReportLapTable.minPerMi', 'min/mi')}
-                    )
-                    <FaWalking className="block text-purple-500 mx-auto" />
-                    {getSortIndicator('averageMovingSpeed')}
-                  </th>
+                  {showMovingPace && (
+                    <th
+                      className="py-3 px-4 text-center text-sm font-bold text-muted-foreground cursor-pointer"
+                      onClick={() => handleSort('avgMovingPace')}
+                    >
+                      {t(
+                        'reports.activityReportLapTable.avgMovingPace',
+                        'Avg Moving Pace'
+                      )}{' '}
+                      (
+                      {distanceUnit === 'km'
+                        ? t('reports.activityReportLapTable.minPerKm', 'min/km')
+                        : t(
+                            'reports.activityReportLapTable.minPerMi',
+                            'min/mi'
+                          )}
+                      )
+                      <FaWalking className="block text-purple-500 mx-auto" />
+                      {getSortIndicator('avgMovingPace')}
+                    </th>
+                  )}
                 </>
               )}
 
@@ -382,11 +405,13 @@ const ActivityReportLapTable: React.FC<LapTableProps> = ({
                 {showPaceCols && (
                   <>
                     <td className="py-2 px-4 border-b border-border text-center">
-                      {formatPace(lap.averageSpeed)}
+                      {formatPace(lap.avgPace)}
                     </td>
-                    <td className="py-2 px-4 border-b border-border text-center">
-                      {formatPace(lap.averageMovingSpeed)}
-                    </td>
+                    {showMovingPace && (
+                      <td className="py-2 px-4 border-b border-border text-center">
+                        {formatPace(lap.avgMovingPace)}
+                      </td>
+                    )}
                   </>
                 )}
                 {showHRCols && (
@@ -450,11 +475,13 @@ const ActivityReportLapTable: React.FC<LapTableProps> = ({
               {showPaceCols && (
                 <>
                   <td className="py-2 px-4 text-center">
-                    {formatPace(avgSpeed)}
+                    {formatPace(totalAvgPace)}
                   </td>
-                  <td className="py-2 px-4 text-center">
-                    {formatPace(avgMovingSpeed)}
-                  </td>
+                  {showMovingPace && (
+                    <td className="py-2 px-4 text-center">
+                      {formatPace(totalAvgMovingPace)}
+                    </td>
+                  )}
                 </>
               )}
               {showHRCols && (

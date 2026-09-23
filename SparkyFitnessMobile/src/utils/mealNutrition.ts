@@ -306,9 +306,26 @@ export function calculateMealNutrition(entries: FoodEntry[]): MealNutrition {
   };
 }
 
+export interface MealPercentageOptions {
+  /**
+   * System meals may read the flat `<name>_percentage` columns. Custom types
+   * must not — those columns are keyed by name, so a custom "breakfast" would
+   * inherit the system Breakfast share. Custom shares live in
+   * `custom_meal_percentages`.
+   */
+  allowLegacyKeys?: boolean;
+}
+
+/**
+ * Returns the configured share for a meal, preferring custom percentages keyed
+ * by lowercased name and treating spaces and underscores as aliases. Unless
+ * disabled, the lookup falls back to the legacy `<name>_percentage` fields.
+ * Returns 0 when no goals or matching percentage exist.
+ */
 export function getMealPercentage(
   mealName: string,
-  goals?: DailyGoals
+  goals?: DailyGoals,
+  options?: MealPercentageOptions
 ): number {
   if (!goals) return 0;
 
@@ -326,6 +343,8 @@ export function getMealPercentage(
     }
   }
 
+  if (options?.allowLegacyKeys === false) return 0;
+
   const legacyKey = `${key}_percentage` as keyof DailyGoals;
   if (legacyKey in goals && typeof goals[legacyKey] === 'number') {
     return (goals[legacyKey] as number) ?? 0;
@@ -337,4 +356,24 @@ export function getMealPercentage(
   }
 
   return 0;
+}
+
+/**
+ * Returns the rounded calorie target for a meal.
+ *
+ * Custom meal types use only `custom_meal_percentages`; system meal types may
+ * also use the legacy `<name>_percentage` fields. Returns 0 when the goals,
+ * calorie goal, or matching percentage are unavailable.
+ */
+export function getMealTargetCalories(
+  mealName: string,
+  isSystemMealType: boolean,
+  goals?: DailyGoals,
+  calorieGoal?: number
+): number {
+  if (!goals || !calorieGoal) return 0;
+  const percentage = getMealPercentage(mealName, goals, {
+    allowLegacyKeys: isSystemMealType,
+  });
+  return Math.round((calorieGoal * percentage) / 100);
 }

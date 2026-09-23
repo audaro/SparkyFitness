@@ -527,7 +527,6 @@
     "editPresetTooltip": "Bu ön ayarı düzenleyin",
     "deletePresetTooltip": "Bu ön ayarı sil",
     "loading": "Yükleniyor...",
-    "loadMore": "Daha Fazla Yükle",
     "noExercisesInPreset": "Bu ön ayarda egzersiz yok",
     "failedToLoadPresets": "Antrenman ön ayarları yüklenemedi.",
     "createSuccess": "Antrenman ön ayarı başarıyla oluşturuldu.",

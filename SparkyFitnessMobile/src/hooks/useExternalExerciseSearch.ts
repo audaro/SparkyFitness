@@ -3,6 +3,7 @@ import { useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
 import { searchExternalExercises } from '../services/api/externalExerciseSearchApi';
 import { externalExerciseSearchQueryKey } from './queryKeys';
 import { useDebounce } from './useDebounce';
+import { useAppLanguageCode } from '../localization/i18n';
 
 export function useExternalExerciseSearch(
   searchText: string,
@@ -12,12 +13,16 @@ export function useExternalExerciseSearch(
   const { enabled = true, providerId } = options ?? {};
   const debouncedSearch = useDebounce(searchText.trim(), 600);
   const isSearchActive = debouncedSearch.length >= 3;
+  // Part of the key: results are language-specific, so switching languages must
+  // refetch instead of serving the previous language from cache.
+  const language = useAppLanguageCode();
 
   const query = useInfiniteQuery({
     queryKey: externalExerciseSearchQueryKey(
       providerType,
       debouncedSearch,
-      providerId
+      providerId,
+      language
     ),
     queryFn: async ({ pageParam }) => {
       if (!providerId) {

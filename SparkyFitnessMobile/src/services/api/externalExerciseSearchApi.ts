@@ -1,4 +1,5 @@
 import { apiFetch } from './apiClient';
+import { getAppLanguageCode } from '../../localization/i18n';
 import { transformExerciseRow } from './exerciseApi';
 import type { Exercise } from '../../types/exercise';
 import type { PaginatedExternalExerciseSearchResult } from '../../types/externalExercises';
@@ -10,12 +11,16 @@ export async function searchExternalExercises(
   page = 1,
   pageSize = 20
 ): Promise<PaginatedExternalExerciseSearchResult> {
+  // Resolved here rather than passed in so no call site can forget it: without
+  // `language` the server falls back to English and localized queries return
+  // nothing (searching "Beinpresse" against wger yields an empty list).
   const params = new URLSearchParams({
     query,
     providerType,
     providerId,
     page: String(page),
     pageSize: String(pageSize),
+    language: getAppLanguageCode(),
   });
 
   return apiFetch<PaginatedExternalExerciseSearchResult>({
@@ -47,7 +52,12 @@ export async function importExercise(
         serviceName: 'External Exercise Search',
         operation: 'import wger exercise',
         method: 'POST',
-        body: { wgerExerciseId: Number(externalId) },
+        // Without `language` the server imports the English name even when the
+        // result was found in another language (`language || 'en'` server-side).
+        body: {
+          wgerExerciseId: Number(externalId),
+          language: getAppLanguageCode(),
+        },
       });
       return transformExerciseRow(row);
     }

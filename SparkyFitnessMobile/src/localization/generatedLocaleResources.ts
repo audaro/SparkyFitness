@@ -3,12 +3,36 @@
  * Do not edit by hand; run pnpm run i18n:generate.
  */
 import type { SupportedLanguage } from './localeRegistry';
+import locale_deTranslation from './locales/de/translation.json';
 import locale_enTranslation from './locales/en/translation.json';
 import locale_esTranslation from './locales/es/translation.json';
+import locale_frTranslation from './locales/fr/translation.json';
+import locale_huTranslation from './locales/hu/translation.json';
+import locale_itTranslation from './locales/it/translation.json';
+import locale_lvTranslation from './locales/lv/translation.json';
+import locale_nb_NOTranslation from './locales/nb-NO/translation.json';
+import locale_nlTranslation from './locales/nl/translation.json';
 import locale_plTranslation from './locales/pl/translation.json';
+import locale_pt_BRTranslation from './locales/pt-BR/translation.json';
+import locale_ruTranslation from './locales/ru/translation.json';
+import locale_yue_HantTranslation from './locales/yue-Hant/translation.json';
+import locale_zh_HansTranslation from './locales/zh-Hans/translation.json';
+import locale_zh_HantTranslation from './locales/zh-Hant/translation.json';
 
 export const RESOURCE_MAP = {
+  "de": { translation: locale_deTranslation },
   "en": { translation: locale_enTranslation },
   "es": { translation: locale_esTranslation },
+  "fr": { translation: locale_frTranslation },
+  "hu": { translation: locale_huTranslation },
+  "it": { translation: locale_itTranslation },
+  "lv": { translation: locale_lvTranslation },
+  "nb-NO": { translation: locale_nb_NOTranslation },
+  "nl": { translation: locale_nlTranslation },
   "pl": { translation: locale_plTranslation },
+  "pt-BR": { translation: locale_pt_BRTranslation },
+  "ru": { translation: locale_ruTranslation },
+  "yue-Hant": { translation: locale_yue_HantTranslation },
+  "zh-Hans": { translation: locale_zh_HansTranslation },
+  "zh-Hant": { translation: locale_zh_HantTranslation },
 } satisfies Record<SupportedLanguage, { translation: object }>;

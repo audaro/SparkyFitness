@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sparky_calorie_widget_name">Calorie</string>
+    <string name="sparky_widget_description">Riepilogo calorico giornaliero con collegamenti di aggiunta rapida</string>
+    <string name="sparky_macro_widget_name">Macro</string>
+    <string name="sparky_macro_widget_description">Proteine, carboidrati e grassi di oggi con collegamenti di aggiunta rapida</string>
+    <string name="widget_kcal_left">Mancano %1$s kcal</string>
+    <string name="widget_kcal_left_empty">- kcal rimanenti</string>
+    <string name="widget_grams">%1$s g</string>
+    <string name="widget_protein">Proteine</string>
+    <string name="widget_carbs">Carbo</string>
+    <string name="widget_fat">Grassi</string>
+    <string name="widget_search_food">Cerca alimento</string>
+    <string name="widget_scan_barcode">Scansiona codice</string>
+    <string name="widget_preview_calories_left">Mancano 1.650 kcal</string>
+    <string name="widget_preview_macros_left">Mancano 1.024 kcal</string>
+    <string name="widget_preview_grams_protein">51 g</string>
+    <string name="widget_preview_grams_carbs">136 g</string>
+    <string name="widget_preview_grams_fat">32 g</string>
+</resources>

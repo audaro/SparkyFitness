@@ -1,1 +1,8 @@
-{}
+{
+  "ios": {
+    "NSCameraUsageDescription": "Aplikácia SparkyFitness potrebuje prístup k vášmu fotoaparátu na skenovanie čiarových kódov a štítkov potravín.",
+    "NSHealthShareUsageDescription": "Aplikácia SparkyFitness číta údaje o zdraví (ako sú aktivity, cvičenia a telesné miery), aby ich mohla zobraziť v aplikácii a synchronizovať s vaším vlastným serverom SparkyFitness.",
+    "NSHealthUpdateUsageDescription": "Aplikácia SparkyFitness zapisuje informácie o výžive a pitnom režime zaznamenané v aplikácii do Apple Health, čím udržiava obe platformy zosynchronizované.",
+    "NSLocalNetworkUsageDescription": "Aplikácia SparkyFitness sa pripája k vlastným serverom vo vašej lokálnej sieti."
+  }
+}

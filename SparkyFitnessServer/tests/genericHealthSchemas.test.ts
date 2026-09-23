@@ -151,6 +151,8 @@ describe('Generic Health & Workout Zod Schemas', () => {
       avg_power_watts: 240.0,
       elevation_gain_meters: 10.0,
       elevation_loss_meters: 5.0,
+      moving_time_seconds: 280,
+      avg_moving_speed_mps: 3.57,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -160,6 +162,8 @@ describe('Generic Health & Workout Zod Schemas', () => {
     expect(parsed.entry_date).toBe('2026-07-29');
     expect(parsed.user_id).toBe('22222222-2222-2222-2222-222222222222');
     expect(parsed.avg_respiration_brpm).toBe(22.0);
+    expect(parsed.moving_time_seconds).toBe(280);
+    expect(parsed.avg_moving_speed_mps).toBe(3.57);
   });
 
   it('should validate exerciseEntryGpsPointsSchema (one row per workout, points array)', () => {

@@ -130,10 +130,12 @@ export {
 
 export const syncHealthData = (
   syncDuration: SyncDuration,
-  healthMetricStates: HealthMetricStates = {}
+  healthMetricStates: HealthMetricStates = {},
+  forceTelemetry = false
 ): Promise<SyncResult> =>
   runForegroundSync(healthReadProvider, syncDuration, healthMetricStates, {
     logTag: '[HealthKitService]',
     emptyMessage: 'No new health data to sync.',
     timeoutLabelPrefix: 'HealthKit query',
+    forceTelemetry,
   });

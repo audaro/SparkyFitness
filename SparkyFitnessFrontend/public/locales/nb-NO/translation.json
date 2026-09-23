@@ -600,7 +600,6 @@
     "addPresetButton": "Legg til forhåndsinnstilling",
     "editPresetTooltip": "Rediger denne forhåndsinnstillingen",
     "loading": "Laster...",
-    "loadMore": "Last inn flere",
     "failedToLoadPresets": "Kunne ikke laste inn treningsmaler.",
     "deleteError": "Kunne ikke slette treningsmal.",
     "exercises": "Øvelser",

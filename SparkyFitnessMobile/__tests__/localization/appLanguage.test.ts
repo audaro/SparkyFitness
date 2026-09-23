@@ -52,7 +52,8 @@ describe('normalizePreference', () => {
     ['en-GB', 'en'],
     ['pl', 'pl'],
     ['pl-PL', 'pl'],
-    ['de-DE', 'system'],
+    // `sv` has a Weblate directory but is not registered, so it is unsupported.
+    ['sv-SE', 'system'],
     [null, 'system'],
   ])('%s normalizes to %s', (input, expected) => {
     expect(normalizePreference(input)).toBe(expected);
@@ -127,9 +128,9 @@ describe('app language service', () => {
       (getLocales as jest.Mock).mockReturnValue([{ languageCode: 'en' }]);
       (getLocales as jest.Mock).mockReturnValue([
         {
-          languageCode: 'de',
-          languageTag: 'de-DE',
-          regionCode: 'DE',
+          languageCode: 'sv',
+          languageTag: 'sv-SE',
+          regionCode: 'SE',
           textDirection: 'ltr',
         },
       ]);
@@ -418,7 +419,7 @@ describe('app language service', () => {
 
     it('repairs an unsupported native locale to system', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'en' });
-      mockNative.getApplicationLanguage.mockResolvedValue('de-DE');
+      mockNative.getApplicationLanguage.mockResolvedValue('sv-SE');
 
       await initializeAppLanguage();
 
@@ -456,7 +457,7 @@ describe('app language service', () => {
 
     it('falls back to expo-localization when the native value is unsupported', async () => {
       useAppPreferencesStore.setState({ languagePreference: 'system' });
-      mockNative.getEffectiveLanguage.mockResolvedValue('de-DE');
+      mockNative.getEffectiveLanguage.mockResolvedValue('sv-SE');
       (getLocales as jest.Mock).mockReturnValue([
         {
           languageCode: 'en',

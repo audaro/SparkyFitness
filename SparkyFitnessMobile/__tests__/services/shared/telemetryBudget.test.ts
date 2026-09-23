@@ -1,6 +1,7 @@
 import {
   BACKGROUND_TELEMETRY_BUDGET,
   FOREGROUND_TELEMETRY_BUDGET,
+  createGraceWindowClaimLimiter,
   createTelemetryRunContext,
 } from '../../../src/services/shared/telemetryBudget';
 
@@ -114,5 +115,86 @@ describe('collected-session staging is run-scoped (PR #2218 review)', () => {
 
     const next = createTelemetryRunContext();
     expect(next.drainCollected()).toEqual([]);
+  });
+});
+
+describe('createGraceWindowClaimLimiter', () => {
+  it('never limits sessions outside the grace window', () => {
+    const allow = createGraceWindowClaimLimiter(2);
+    for (let i = 0; i < 50; i++) expect(allow(false)).toBe(true);
+  });
+
+  it('caps grace-window claims at half the budget', () => {
+    const allow = createGraceWindowClaimLimiter(FOREGROUND_TELEMETRY_BUDGET);
+    let allowed = 0;
+    for (let i = 0; i < FOREGROUND_TELEMETRY_BUDGET; i++) {
+      if (allow(true)) allowed++;
+    }
+    expect(allowed).toBe(Math.ceil(FOREGROUND_TELEMETRY_BUDGET / 2));
+    expect(allowed).toBeLessThan(FOREGROUND_TELEMETRY_BUDGET);
+  });
+
+  it('leaves a background run a slot for the backlog', () => {
+    // The starvation case: 3 recent heart-rate-less workouts would otherwise
+    // take the whole background budget on every single run (#2191).
+    const allow = createGraceWindowClaimLimiter(BACKGROUND_TELEMETRY_BUDGET);
+    expect(allow(true)).toBe(true);
+    expect(allow(true)).toBe(true);
+    expect(allow(true)).toBe(false);
+    // The slot it preserved is still there for an older session.
+    expect(allow(false)).toBe(true);
+  });
+
+  it('keeps at least one grace-window slot even on a budget of one', () => {
+    const allow = createGraceWindowClaimLimiter(1);
+    expect(allow(true)).toBe(true);
+    expect(allow(true)).toBe(false);
+  });
+
+  it('does not cap an uncapped run', () => {
+    const allow = createGraceWindowClaimLimiter(Number.POSITIVE_INFINITY);
+    for (let i = 0; i < 500; i++) expect(allow(true)).toBe(true);
+  });
+});
+
+describe('TelemetryRunContext budget', () => {
+  it('reports the slot count the run started with', () => {
+    expect(createTelemetryRunContext({ budget: 3 }).budget).toBe(3);
+  });
+
+  it('is infinite when uncapped, so nothing reserves a share of nothing', () => {
+    expect(createTelemetryRunContext().budget).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
+// Re-sending workout details is a run flag, never a cache wipe. The reuse
+// cache is not range-aware, so clearing it would invalidate every session ever
+// collected — not just the window the user picked — and later background runs
+// would grind back through that whole backlog three at a time, which is the
+// starvation the cache was added to end (#2191).
+describe('TelemetryRunContext.force', () => {
+  it('is off unless asked for, so automatic runs stay cheap', () => {
+    expect(createTelemetryRunContext().force).toBe(false);
+    expect(createTelemetryRunContext({ budget: 3 }).force).toBe(false);
+    expect(
+      createTelemetryRunContext({ budget: 3, interactive: false }).force
+    ).toBe(false);
+  });
+
+  it('is set only when the caller opts in', () => {
+    expect(createTelemetryRunContext({ force: true }).force).toBe(true);
+  });
+
+  it('does not widen the budget — a forced run is still capped', () => {
+    const ctx = createTelemetryRunContext({ budget: 2, force: true });
+    expect(ctx.claim()).toBe(true);
+    expect(ctx.claim()).toBe(true);
+    expect(ctx.claim()).toBe(false);
+  });
+
+  it('leaves staging behaviour unchanged, so forced sessions re-cache', () => {
+    const ctx = createTelemetryRunContext({ force: true });
+    ctx.stageCollected('uuid-1:2026-09-14T20:47:50Z');
+    expect(ctx.drainCollected()).toEqual(['uuid-1:2026-09-14T20:47:50Z']);
   });
 });

@@ -981,7 +981,10 @@ type AssumableSet = Pick<
  * in a live workout. Each field resolves independently, first match wins:
  *
  *   1. The same-position set from the exercise's most recent prior session
- *      (what the PREVIOUS column shows).
+ *      (what the PREVIOUS column shows), bumped by the progression increment
+ *      when weight-progression overload is active — each set is bumped from
+ *      its own prior weight, not flattened to one suggested weight, so
+ *      pyramid/ascending-weight sets keep their relative spread.
  *   2. The planned value captured at live start (the preset's programmed set).
  *   3. The preceding row's effective value — its entered value, else its
  *      resolved placeholder.
@@ -999,7 +1002,7 @@ export function resolveAssumedSetValues(
   sets: readonly AssumableSet[],
   previousSets: readonly ExerciseRecentSessionSet[] | undefined,
   plannedBySetId?: Record<string, AssumedSetValues>,
-  suggestedProgressionWeightKg?: number | null,
+  progressionIncrementKg?: number | null,
   plannedOutranksPrevious = false
 ): AssumedSetValues[] {
   const lastEffective = {
@@ -1023,9 +1026,11 @@ export function resolveAssumedSetValues(
 
     const effectivePreviousWeight =
       tier === 'working' &&
-      suggestedProgressionWeightKg != null &&
-      suggestedProgressionWeightKg > 0
-        ? suggestedProgressionWeightKg
+      progressionIncrementKg != null &&
+      progressionIncrementKg > 0 &&
+      previous?.weight != null &&
+      previous.weight > 0
+        ? previous.weight + progressionIncrementKg
         : previous?.weight;
 
     // The client-side progression suggestion rides with `previous` rather than

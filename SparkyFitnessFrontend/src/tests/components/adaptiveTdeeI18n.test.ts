@@ -62,11 +62,20 @@ describe('Adaptive TDEE translation interpolation', () => {
     expect(formula).toContain('in lbs × 2722 kcal/lbs');
   });
 
-  it.each(['de', 'es', 'ru'] as const)(
-    'keeps unsynced %s formula copy on the kg density, not the per-lb figure',
+  /**
+   * Weblate syncs locales one at a time, so a locale is either on the
+   * unit-aware copy ({{kcalPerUnit}}/{{massUnit}}) or still on the legacy
+   * kg-only copy ({{kcalPerKg}}). Derive which from the catalog instead of
+   * hardcoding a locale list that goes stale on the next sync.
+   */
+  const catalogs = { de, es, ru } as const;
+
+  it.each(Object.keys(catalogs) as (keyof typeof catalogs)[])(
+    'renders the %s formula copy against whichever density its catalog uses',
     (lng) => {
-      // de/es/ru still say "kg" / "кг" and interpolate {{kcalPerKg}}. Passing
-      // the converted 2722 kcal/lb under that key prints "2722 kcal/kg".
+      const source = catalogs[lng].settings.breakdown.adaptiveFormula;
+      const unitAware = source.includes('{{kcalPerUnit}}');
+
       const formula = i18n.t('settings.breakdown.adaptiveFormula', {
         lng,
         ...lbsVars,
@@ -78,10 +87,15 @@ describe('Adaptive TDEE translation interpolation', () => {
 
       expect(formula).not.toMatch(/\{\{/);
       expect(explainer).not.toMatch(/\{\{/);
-      expect(formula).toContain('6000');
-      expect(formula).not.toContain('2722');
-      expect(explainer).toContain('6000');
-      expect(explainer).not.toContain('2722');
+
+      // Synced locales print the per-lb figure; unsynced ones still say
+      // "kg" / "кг" and must keep the kg density, never the converted per-lb number.
+      const expected = unitAware ? '2722' : '6000';
+      const forbidden = unitAware ? '6000' : '2722';
+      expect(formula).toContain(expected);
+      expect(formula).not.toContain(forbidden);
+      expect(explainer).toContain(expected);
+      expect(explainer).not.toContain(forbidden);
     }
   );
 });

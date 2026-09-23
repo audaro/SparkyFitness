@@ -24,6 +24,12 @@ export interface ActionSheetItem {
   key: string;
   label: string;
   /**
+   * Secondary line under the label, for actions whose difference cannot be
+   * carried by a short label alone. Optional: an item without one renders
+   * exactly as before.
+   */
+  description?: string;
+  /**
    * Consecutive items sharing a group render as one block, separated from
    * adjacent blocks by a spacer band. Ungrouped items chunk together.
    */
@@ -254,10 +260,16 @@ const ActionSheet = React.forwardRef<ActionSheetRef, ActionSheetProps>(
                   key={item.key}
                   testID={`action-sheet-item-${item.key}`}
                   onPress={() => handleItemPress(item)}
-                  className="flex-row items-center px-4 py-3.5 border-b border-border-subtle"
+                  className="px-4 py-3.5 border-b border-border-subtle"
                   style={{ borderBottomWidth: StyleSheet.hairlineWidth }}
                   accessibilityRole="button"
-                  accessibilityLabel={item.label}
+                  // Screen readers announce the description with the label, so
+                  // the distinction is not sighted-only.
+                  accessibilityLabel={
+                    item.description
+                      ? `${item.label}. ${item.description}`
+                      : item.label
+                  }
                 >
                   <Text
                     className={`text-base font-medium ${
@@ -268,6 +280,11 @@ const ActionSheet = React.forwardRef<ActionSheetRef, ActionSheetProps>(
                   >
                     {item.label}
                   </Text>
+                  {item.description ? (
+                    <Text className="text-sm text-text-muted mt-0.5">
+                      {item.description}
+                    </Text>
+                  ) : null}
                 </Pressable>
               ))}
             </React.Fragment>

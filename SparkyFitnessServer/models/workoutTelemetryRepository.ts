@@ -135,10 +135,12 @@ export async function _bulkInsertExerciseEntryLapsWithClient(
       lap.avg_power_watts ?? null,
       lap.elevation_gain_meters ?? null,
       lap.elevation_loss_meters ?? null,
+      lap.moving_time_seconds ?? null,
+      lap.avg_moving_speed_mps ?? null,
     ]);
     const query = format(
       `INSERT INTO exercise_entry_laps
-        (user_id, exercise_entry_id, entry_date, lap_index, start_time, end_time, duration_seconds, distance_meters, calories, avg_heart_rate, max_heart_rate, avg_respiration_brpm, max_respiration_brpm, avg_speed_mps, max_speed_mps, avg_cadence, avg_power_watts, elevation_gain_meters, elevation_loss_meters)
+        (user_id, exercise_entry_id, entry_date, lap_index, start_time, end_time, duration_seconds, distance_meters, calories, avg_heart_rate, max_heart_rate, avg_respiration_brpm, max_respiration_brpm, avg_speed_mps, max_speed_mps, avg_cadence, avg_power_watts, elevation_gain_meters, elevation_loss_meters, moving_time_seconds, avg_moving_speed_mps)
        VALUES %L
        ON CONFLICT (exercise_entry_id, lap_index) DO UPDATE SET
          entry_date = EXCLUDED.entry_date,
@@ -156,7 +158,9 @@ export async function _bulkInsertExerciseEntryLapsWithClient(
          avg_cadence = EXCLUDED.avg_cadence,
          avg_power_watts = EXCLUDED.avg_power_watts,
          elevation_gain_meters = EXCLUDED.elevation_gain_meters,
-         elevation_loss_meters = EXCLUDED.elevation_loss_meters
+         elevation_loss_meters = EXCLUDED.elevation_loss_meters,
+         moving_time_seconds = EXCLUDED.moving_time_seconds,
+         avg_moving_speed_mps = EXCLUDED.avg_moving_speed_mps
        RETURNING *`,
       values
     );

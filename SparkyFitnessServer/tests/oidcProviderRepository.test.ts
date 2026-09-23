@@ -29,6 +29,38 @@ describe('oidcProviderRepository', () => {
     getSystemClient.mockResolvedValue(mockClient);
     vi.clearAllMocks();
   });
+  describe('upsertEnvOidcProvider', () => {
+    it.each([false, true])(
+      'preserves the original error and releases the client (rollback fails: %s)',
+      async (rollbackFails) => {
+        const originalError = new Error('provider save failed');
+        mockClient.query.mockImplementation(async (sql: string) => {
+          if (sql.includes('INSERT INTO')) throw originalError;
+          if (sql === 'ROLLBACK' && rollbackFails) {
+            throw new Error('rollback failed');
+          }
+          return { rows: [] };
+        });
+        vi.mocked(fetch).mockResolvedValue({ ok: false } as Response);
+
+        await expect(
+          oidcProviderRepository.upsertEnvOidcProvider({
+            provider_id: 'test-provider',
+            issuer_url: 'https://identity.example.test',
+            client_id: 'client',
+            client_secret: 'secret',
+            domain: 'example.test',
+            is_env_configured: true,
+          })
+        ).rejects.toBe(originalError);
+
+        expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+        expect(mockClient.release).toHaveBeenCalledExactlyOnceWith(
+          rollbackFails
+        );
+      }
+    );
+  });
   describe('createOidcProvider', () => {
     it('should persist is_env_configured in additional_config', async () => {
       const providerData = {
@@ -65,6 +97,121 @@ describe('oidcProviderRepository', () => {
     });
   });
   describe('updateOidcProvider', () => {
+    it.each([
+      ['authentik', 'oidc-authentik'],
+      ['oidc-authentik', 'authentik'],
+      ['00000000-0000-4000-8000-000000000001', 'oidc-authentik'],
+    ])(
+      'updates the resolved provider for lookup %s',
+      async (lookupId, providerId) => {
+        const rowId = '00000000-0000-4000-8000-000000000001';
+        mockClient.query.mockResolvedValueOnce({
+          rows: [
+            { id: rowId, provider_id: providerId, client_secret: 'old-secret' },
+          ],
+        });
+        mockClient.query.mockResolvedValueOnce({ rows: [{ id: rowId }] });
+        vi.mocked(fetch).mockResolvedValue({
+          ok: true,
+          json: async () => ({}),
+        } as Response);
+
+        await oidcProviderRepository.updateOidcProvider(lookupId, {
+          issuer_url: 'https://identity.example.com',
+          client_id: 'sparky',
+        });
+
+        const parameters = mockClient.query.mock.calls[1][1];
+        expect(parameters[13]).toBe(rowId);
+        expect(parameters[12]).toBe(providerId);
+        expect(
+          parameters[11].redirectURI.endsWith(`/sso/callback/${providerId}`)
+        ).toBe(true);
+        expect(parameters[3]).toBe('old-secret');
+      }
+    );
+
+    it.each([
+      [undefined, 'existing-admins'],
+      [null, null],
+      ['', ''],
+      ['new-admins', 'new-admins'],
+    ])(
+      'preserves update defaults for admin group %s',
+      async (adminGroup, expected) => {
+        mockClient.query.mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'row-id',
+              provider_id: 'authentik',
+              client_secret: 'old-secret',
+              additional_config: JSON.stringify({
+                admin_group: 'existing-admins',
+              }),
+            },
+          ],
+        });
+        mockClient.query.mockResolvedValueOnce({ rows: [{ id: 'row-id' }] });
+        vi.mocked(fetch).mockResolvedValue({ ok: false } as Response);
+
+        await oidcProviderRepository.updateOidcProvider('authentik', {
+          issuer_url: 'https://defaults.example.test',
+          client_id: 'sparky',
+          admin_group: adminGroup,
+        });
+
+        const parameters = mockClient.query.mock.calls[1][1];
+        expect(JSON.parse(parameters[10]).admin_group).toBe(expected);
+        expect(parameters[3]).toBe('old-secret');
+        expect(parameters[11].clientSecret).toBe('old-secret');
+      }
+    );
+
+    it('retains an explicitly supplied replacement provider ID', async () => {
+      mockClient.query.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'row-id',
+            provider_id: 'old-provider',
+            client_secret: 'old-secret',
+          },
+        ],
+      });
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 'row-id' }] });
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      } as Response);
+
+      await oidcProviderRepository.updateOidcProvider('old-provider', {
+        issuer_url: 'https://identity.example.com',
+        client_id: 'sparky',
+        provider_id: 'replacement-provider',
+      });
+
+      const parameters = mockClient.query.mock.calls[1][1];
+      expect(parameters[13]).toBe('row-id');
+      expect(parameters[12]).toBe('replacement-provider');
+      expect(parameters[11].redirectURI).toContain(
+        '/sso/callback/replacement-provider'
+      );
+    });
+
+    it('rejects a missing provider without issuing an update', async () => {
+      mockClient.query.mockResolvedValueOnce({ rows: [] });
+
+      await expect(
+        oidcProviderRepository.updateOidcProvider('missing', {
+          issuer_url: 'https://identity.example.com',
+          client_id: 'sparky',
+          client_secret: 'new-secret',
+        })
+      ).rejects.toThrow('OIDC provider not found');
+
+      expect(mockClient.query).toHaveBeenCalledTimes(1);
+      expect(mockClient.release).toHaveBeenCalledTimes(2);
+    });
+
     it('should update is_env_configured in additional_config', async () => {
       const providerId = 'test-id';
       const providerData = {
@@ -74,7 +221,13 @@ describe('oidcProviderRepository', () => {
         is_env_configured: true,
       };
       mockClient.query.mockResolvedValueOnce({
-        rows: [{ client_secret: 'old-secret' }],
+        rows: [
+          {
+            id: 'test-row-id',
+            provider_id: providerId,
+            client_secret: 'old-secret',
+          },
+        ],
       }); // for getOidcProviderById inside update
       mockClient.query.mockResolvedValueOnce({ rows: [] }); // for update
       // Mock fetch for discovery document

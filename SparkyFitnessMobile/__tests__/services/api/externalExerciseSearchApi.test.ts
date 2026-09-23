@@ -6,6 +6,7 @@ import {
   getActiveServerConfig,
   type ServerConfig,
 } from '../../../src/services/storage';
+import { getAppLanguageCode } from '../../../src/localization/i18n';
 
 jest.mock('../../../src/services/storage', () => ({
   getActiveServerConfig: jest.fn(),
@@ -16,6 +17,14 @@ jest.mock('../../../src/services/storage', () => ({
 jest.mock('../../../src/services/LogService', () => ({
   addLog: jest.fn(),
 }));
+
+jest.mock('../../../src/localization/i18n', () => ({
+  getAppLanguageCode: jest.fn(() => 'en'),
+}));
+
+const mockGetAppLanguageCode = getAppLanguageCode as jest.MockedFunction<
+  typeof getAppLanguageCode
+>;
 
 const mockGetActiveServerConfig = getActiveServerConfig as jest.MockedFunction<
   typeof getActiveServerConfig
@@ -35,6 +44,7 @@ describe('externalExerciseSearchApi', () => {
     (globalThis as any).fetch = mockFetch;
     jest.spyOn(console, 'log').mockImplementation(() => {});
     jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockGetAppLanguageCode.mockReturnValue('en');
   });
 
   afterEach(() => {
@@ -65,6 +75,30 @@ describe('externalExerciseSearchApi', () => {
       expect(url).toContain('providerId=provider-1');
       expect(url).toContain('page=2');
       expect(url).toContain('pageSize=10');
+      expect(url).toContain('language=en');
+    });
+
+    it('sends the active app language so localized queries match', async () => {
+      mockGetAppLanguageCode.mockReturnValue('de');
+      mockGetActiveServerConfig.mockResolvedValue(testConfig);
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            items: [],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              totalCount: 0,
+              hasMore: false,
+            },
+          }),
+      });
+
+      await searchExternalExercises('Beinpresse', 'wger', 'p-1');
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain('language=de');
     });
 
     it('uses default page and pageSize', async () => {
@@ -121,7 +155,25 @@ describe('externalExerciseSearchApi', () => {
         'https://example.com/api/exercises/add-external',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ wgerExerciseId: 42 }),
+          body: JSON.stringify({ wgerExerciseId: 42, language: 'en' }),
+        })
+      );
+    });
+
+    it('imports the wger exercise in the active app language', async () => {
+      mockGetAppLanguageCode.mockReturnValue('de');
+      mockGetActiveServerConfig.mockResolvedValue(testConfig);
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ id: 'new-ex-1', name: 'Beinpresse' }),
+      });
+
+      await importExercise('wger', '371');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://example.com/api/exercises/add-external',
+        expect.objectContaining({
+          body: JSON.stringify({ wgerExerciseId: 371, language: 'de' }),
         })
       );
     });

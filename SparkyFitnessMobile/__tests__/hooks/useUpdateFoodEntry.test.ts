@@ -148,7 +148,7 @@ describe('useUpdateFoodEntry', () => {
     });
   });
 
-  test('invalidateCache invalidates dailySummaryQueryKey for entry date', () => {
+  test('invalidateCache invalidates dailySummary and caffeine keys for entry date', () => {
     const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
     const { result } = renderHook(
@@ -168,7 +168,17 @@ describe('useUpdateFoodEntry', () => {
       queryKey: dailySummaryQueryKey('2026-03-01'),
       refetchType: 'all',
     });
-    expect(invalidateSpy).toHaveBeenCalledTimes(1);
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['caffeineActive', '2026-03-01'],
+      refetchType: 'all',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['waterIntakeLog', '2026-03-01'],
+      refetchType: 'all',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['foods'],
+    });
 
     invalidateSpy.mockRestore();
   });
@@ -194,10 +204,17 @@ describe('useUpdateFoodEntry', () => {
       refetchType: 'all',
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['caffeineActive', '2026-03-01'],
+      refetchType: 'all',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: dailySummaryQueryKey('2026-03-05'),
       refetchType: 'all',
     });
-    expect(invalidateSpy).toHaveBeenCalledTimes(2);
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['caffeineActive', '2026-03-05'],
+      refetchType: 'all',
+    });
 
     invalidateSpy.mockRestore();
   });

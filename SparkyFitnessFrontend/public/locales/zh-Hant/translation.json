@@ -87,7 +87,8 @@
       "cyclic": "週期規律連：續服用 {{on}} 天休、息 {{off}} 天",
       "monthly": "每月第 {{day}} 天",
       "prn": "視需求服用 (PRN)",
-      "taper": "劑量遞減 / 劑量調整"
+      "taper": "劑量遞減 / 劑量調整",
+      "mealRelationSuffix": " ({{meal}})"
     },
     "calendar": {
       "loggedCount_other": "已紀錄 {{count}} 筆症狀",
@@ -245,10 +246,10 @@
       "tablet": "藥錠",
       "capsule": "膠囊",
       "liquid": "液態藥劑",
-      "injection": "注射劑",
+      "injection": "注射",
       "patch": "藥貼片",
       "inhaler": "吸入劑",
-      "drops": "藥水滴劑",
+      "drops": "滴劑",
       "cream": "藥用乳膏",
       "suppository": "栓劑",
       "other": "其他類型",
@@ -347,7 +348,7 @@
       "type": "排程類型",
       "daily": "每日固定時間",
       "weekly": "指定每週天數",
-      "everyNDays": "每隔 N 天一次",
+      "everyNDays": "每 N 天",
       "cyclic": "週期式 (服用 / 休息交替)",
       "monthly": "每月固定日期",
       "prn": "視需求服用 (PRN)",
@@ -360,7 +361,7 @@
       "prnReason": "服用原因 (選填)",
       "prnReasonPlaceholder": "範例：疼痛感",
       "prnMax": "單日最大服用劑量",
-      "doseOverride": "指定服用劑量 (選填)",
+      "doseOverride": "劑量 (選填)",
       "withMeal": "用餐搭配",
       "anyTime": "任意時間",
       "beforeMeal": "餐前服用",
@@ -471,14 +472,14 @@
       "hydrationBenefit": "<strong>強補水益處：</strong>較高的喝水量與較低的便秘嚴重程度相關。保持充足水分，以減少腸道副作用.",
       "hydrationUnexpected": "<strong>意外的正相關：</strong>請主動增加液體攝取，以幫助緩解高纖維或藥物反應.",
       "hydrationInsufficient": "資料點不足，無法建立關係。請繼續記錄喝水和症狀.",
-      "proteinTolerance": "<strong>蛋白質耐受性：</strong>較高的每日蛋白質攝取與較低的噁心程度相關。請繼續食用富含蛋白質的瘦肉餐點.",
-      "reducedIntake": "<strong>攝取減少：</strong>噁心發作對應蛋白質紀錄較低的日期，可能是食慾受抑制所致.",
+      "proteinTolerance": "<strong>蛋白質耐受性：</strong> 較高的每日蛋白質攝取與較低的噁心程度相關。請繼續食用富含蛋白質的瘦肉餐點.",
+      "reducedIntake": "<strong>攝取減少：</strong> 噁心發作對應蛋白質紀錄較低的日期，可能是食慾受抑制所致.",
       "proteinInsufficient": "資料不足。請記錄每日食物與噁心副作用，以建立相關性.",
-      "restBenefit": "<strong>休息益處：</strong>睡眠時長增加與疲勞程度降低相關。請保持規律的作息習慣.",
-      "hypersomnia": "<strong>嗜睡關聯：</strong>較高的疲勞程度可能會引發更長的睡眠需求或臥床時間.",
+      "restBenefit": "<strong>休息益處：</strong> 睡眠時長增加與疲勞程度降低相關。請保持規律的作息習慣.",
+      "hypersomnia": "<strong>嗜睡關聯：</strong> 較高的疲勞程度可能會引發更長的睡眠需求或臥床時間.",
       "sleepInsufficient": "此範圍內睡眠或疲勞紀錄不足，無法計算相關性.",
-      "doseDependentNausea": "<strong>劑量依賴性噁心：</strong>較高的用藥劑量與噁心嚴重程度增加相關。可考慮與醫生討論逐步調整劑量或拆分服用方案.",
-      "adaptationBenefit": "<strong>適應益處：</strong>沒有正相關性。身體已良好適應目前劑量水準，未出現副作用.",
+      "doseDependentNausea": "<strong>劑量依賴性噁心：</strong> 較高的用藥劑量與噁心嚴重程度增加相關。可考慮與醫生討論逐步調整劑量或拆分服用方案.",
+      "adaptationBenefit": "<strong>適應益處：</strong> 沒有正相關性。身體已良好適應目前劑量水準，未出現副作用.",
       "doseInsufficient": "需要此日期範圍內有 GLP-1 劑量紀錄與噁心日誌."
     },
     "subtype": {
@@ -604,7 +605,11 @@
     "autoCalculateSelect": "納入批次自動計算",
     "autoCalculateSelectAll": "全選",
     "autoCalculateSelectNone": "全不選",
-    "autoCalculateApplySelected": "自動計算所選（{{count}}）"
+    "autoCalculateApplySelected": "自動計算所選（{{count}}）",
+    "caffeine": "咖啡因",
+    "waterContent": "水分含量",
+    "alcohol": "酒精",
+    "abv": "酒精濃度（%）"
   },
   "calculationSettings": {
     "showNetCarbs": "顯示淨碳水數值 (總碳水扣除纖維量)",
@@ -640,7 +645,9 @@
     "saveSuccessDesc": "計算設定已成功儲存！",
     "selectBmrAlgorithm": "選擇 BMR 演算法",
     "selectBodyFatAlgorithm": "選擇體脂演算法",
-    "selectEnergyUnitPlaceholder": "選擇能量單位"
+    "selectEnergyUnitPlaceholder": "選擇能量單位",
+    "useExternalBmr": "使用檢查記錄與同步裝置所量測的 BMR",
+    "useExternalBmrHint": "預設為關閉——在你開啟前一律使用你選擇的公式。開啟後，檢查記錄中記錄的 BMR，或從智慧體重計／健康服務同步的 BMR，會在該日取代公式（前提是對你而言生理上合理）。有些裝置回報的 BMR 是每日累計總量而非速率，因此這項功能預設不開啟。"
   },
   "aboutDialog": {
     "title": "關於 SparkyFitness",
@@ -893,7 +900,21 @@
       "exercises": "運動",
       "name": "名稱",
       "deleteConfirmationDescription": "確定要刪除此運動嗎？此操作無法復原.",
-      "deleteImpactDescription": "此運動已被其他紀錄或訓練計畫使用。刪除它可能會影響這些紀錄."
+      "deleteImpactDescription": "此運動已被其他紀錄或訓練計畫使用。刪除它可能會影響這些紀錄.",
+      "bulkDeleteDescription": "從你的動作庫、所有訓練預設與訓練計劃中移除這 {{count}} 個動作。已記錄的訓練會保留在你的日記中。",
+      "cancel": "取消",
+      "delete": "刪除",
+      "deleteExerciseConfirmTitle": "刪除{{exerciseName}}？",
+      "deleteKeepsDiaryHint": "刪除會將動作從你的動作庫、預設與計劃中移除。已記錄的訓練會保留名稱、圖片、組數與次數。",
+      "deleteWithHistory": "連同歷史記錄一起刪除",
+      "diaryEntriesCount": "{{count}} 筆已記錄的訓練",
+      "exerciseUnused": "這個動作尚未在任何地方使用。",
+      "exerciseUsedByOtherUsersWarning": "這個動作被其他使用者使用。你只能隱藏它。隱藏後它不會再出現在搜尋結果中，但不影響他們既有的歷史記錄、預設或計劃。",
+      "exerciseUsedIn": "這個動作用於：",
+      "hide": "隱藏",
+      "warning": "警告！",
+      "workoutPlansCount": "{{count}} 個訓練計劃",
+      "workoutPresetsCount": "{{count}} 個訓練預設"
     },
     "exerciseImportCSV": {
       "importExerciseData": "匯入運動資料",
@@ -1082,7 +1103,6 @@
     "editPresetTooltip": "編輯此模板",
     "deletePresetTooltip": "刪除此模板",
     "loading": "載入中…",
-    "loadMore": "載入更多",
     "noExercisesInPreset": "此模板內沒有任何運動項目",
     "failedToLoadPresets": "載入訓練模板清單失敗。",
     "createSuccess": "訓練模板建立成功。",
@@ -1100,7 +1120,8 @@
     "name": "名稱",
     "presets": "預設",
     "startWorkout": "開始訓練",
-    "stats": "統計"
+    "stats": "統計",
+    "emptyPresetError": "無法開始或記錄沒有動作的訓練預設。"
   },
   "workoutPlansManager": {
     "addPlanButton": "新增訓練計畫",
@@ -1411,7 +1432,12 @@
       "wednesday": "星期三",
       "thursday": "星期四",
       "friday": "星期五",
-      "saturday": "星期六"
+      "saturday": "星期六",
+      "standardDrinkUnit": "標準飲酒單位",
+      "weeklyAlcoholLimit": "每週酒精上限（標準飲酒量）",
+      "noWeeklyLimit": "未設定上限",
+      "caffeineHalfLife": "咖啡因半衰期（小時）",
+      "targetBedtime": "目標就寢時間"
     },
     "waterTracking": {
       "title": "飲水紀錄設定",
@@ -1423,7 +1449,9 @@
       "saveWaterDisplayUnit": "儲存飲水單位設定",
       "addExerciseWater": "運動流汗損耗水量納入每日目標計算",
       "addExerciseWaterHint": "系統會依照活動估計的排汗量，自動提高當日建議飲水量。",
-      "liters": "公升"
+      "liters": "公升",
+      "addFoodWater": "將食物中的水分計入攝取量",
+      "addFoodWaterHint": "將已記錄食物的水分含量併入每日水分總量，除非已由連結的容器計入。"
     },
     "nutrientDisplay": {
       "title": "營養素顯示設定",
@@ -1929,7 +1957,7 @@
       "activityModerate": "中度活躍（×1.55）",
       "activityNone": "無（×1.0）",
       "activityNotMuch": "久坐（×1.2）",
-      "adaptiveActivityHint": "在自適應模式下，此設定作為備用，直到你有足夠的追蹤資料.",
+      "adaptiveActivityHint": "在自適應模式下，此設定是你有足夠追蹤資料前的備用估算，之後也會持續用來設定合理性上限。你量測到的 TDEE 會被限制在 BMR × 此倍數的 ±500 kcal 範圍內，因此設得太低可能會壓住實際更高的消耗量。",
       "adaptiveGoal": "自適應目標",
       "adaptiveGoalDescription": "你的熱量目標由實測消耗推導而來，即將你記錄的攝取量與最近 28 天的體重趨勢進行對比。一旦你有幾週穩定的體重與食物紀錄，這是最準確的選擇.",
       "allowNegativeAdjustment": "允許備用預測值降低目標",
@@ -2068,7 +2096,8 @@
       "unsafeLossText": "每週減重超過體重的 1.5% 被視為過度。這種速率會大幅增加嚴重肌肉流失、嗜睡、荷爾蒙失衡與營養缺乏的風險。請選擇不那麼激進的目標模式.",
       "calibrationDescription": "Sparky 的自適應 TDEE 引擎需要至少 {{required}} 天的持續追蹤才能準確計算你的代謝（目前使用回退估算）。為加快校正：",
       "calibrationWeightTip": "每週至少記錄體重 3-4 次.",
-      "calibrationFoodTip": "每天記錄食物攝取（>200 大卡/天）."
+      "calibrationFoodTip": "每天記錄食物攝取（>200 大卡/天）.",
+      "livePreviewSavedNote": "BMR 與體脂會隨你變更設定而更新。消耗量由伺服器依你儲存的設定計算，因此消耗量與最終目標只會在你儲存後才變動。"
     },
     "mfa": {
       "confirmPassword": "輸入密碼以繼續",
@@ -2116,8 +2145,8 @@
       "goalMaintain": "維持（0% 變化）",
       "surplus": "盈餘",
       "deficit": "赤字",
-      "adaptiveFormula": "公式：平均每日熱量 −（每日體重變化（kg）× {{kcalPerKg}} kcal/kg）",
-      "adaptiveFormulaExplainer": "{{kcalPerKg}} kcal/kg 是一公斤體重所代表的能量，因此你的體重趨勢可以轉換為熱量。體重的增減是脂肪（約 9,441 kcal/kg）與瘦組織和水分（約 1,816 kcal/kg）的混合，{{kcalPerKg}} 反映的是典型混合比例。",
+      "adaptiveFormula": "公式：平均每日熱量 −（每日體重變化 {{massUnit}} × {{kcalPerUnit}} kcal/{{massUnit}}）",
+      "adaptiveFormulaExplainer": "{{kcalPerUnit}} kcal/{{massUnit}} 代表每 {{unitName}} 體重所含的能量，因此可將你的體重趨勢換算成熱量。體重的增減是脂肪（約 {{fatPerUnit}} kcal/{{massUnit}}）與瘦組織和水分（約 {{leanPerUnit}} kcal/{{massUnit}}）的混合，{{kcalPerUnit}} 反映的是典型混合比例。",
       "adjustment": "調整",
       "goalAdjustmentLabel": "目標調整："
     },
@@ -2524,7 +2553,7 @@
     "saveChanges": "儲存變更",
     "active": "啟用",
     "pickADate": "選擇日期",
-    "no": "是",
+    "no": "否",
     "monday": "否",
     "wednesday": "星期一",
     "thursday": "星期二",
@@ -2541,7 +2570,7 @@
       "saturday": "六"
     },
     "indefinite": "無期限",
-    "kcal": "kcal",
+    "kcal": "千卡 (kcal)",
     "kJ": "kJ",
     "breakfast": "早餐",
     "lunch": "午餐",
@@ -2578,8 +2607,8 @@
     "info": "資訊",
     "items": "個項目",
     "kJUnit": "kJ",
-    "kcalUnit": "kcal",
-    "loading": "正在載入…",
+    "kcalUnit": "千卡",
+    "loading": "正在載入...",
     "min": "分鐘",
     "minutesUnit": "時間",
     "next": "下一步",
@@ -2641,7 +2670,7 @@
     "addSuccess": "食物新增成功.",
     "calculateExplanation": {
       "bmrMeasured": "實測",
-      "bmrMeasuredDesc": "使用你實測的 BMR。未套用任何公式.",
+      "bmrMeasuredDesc": "使用當日記錄的量測 BMR {{value}} {{unit}}（來自智慧體重計或健康 App 同步）。不套用你的 {{algorithm}} 公式。",
       "dialogDescription": "逐步分解你的每日能量目標的計算方式.",
       "todayTarget": "今日目標的計算方式",
       "bmrTitle": "1. 基礎代謝率（BMR）",
@@ -2652,8 +2681,8 @@
       "currentBodyFat": "目前體脂：",
       "currentBodyFatMeasured": "目前體脂（實測）：",
       "noMeasurement": "無測量值",
-      "mifflinMath": "公式：10 × 體重 + 6.25 × 身高 - 5 × 年齡 + 偏移量（{{offset}}） / 計算：10 × {{weight}} + 6.25 × {{height}} - 5 × {{age}} {{sign}} {{absoluteOffset}} = {{result}} kcal",
-      "navyMissingMeasurements": "公式：美國海軍法（女性需要腰圍、頸圍與臀圍） / 缺少用於公式視覺化的測量值。請前往「打卡」記錄腰圍與頸圍.",
+      "mifflinMath": "公式：10 × 體重 + 6.25 × 身高 - 5 × 年齡 + 偏移量 ({{offset}})\n計算：10 × {{weight}} + 6.25 × {{height}} - 5 × {{age}} {{sign}} {{absoluteOffset}} = {{result}} kcal",
+      "navyMissingMeasurements": "公式：美國海軍法（女性需要腰圍、頸圍同臀圍）\n缺少用嚟公式視覺化嘅測量值。請去「打卡」記錄腰圍同頸圍.",
       "goalCalculationTitle": "{{step}}. 每日熱量目標計算",
       "calculationMethod": "{{method}} 方法",
       "manualDailyGoal": "手動每日熱量目標",
@@ -2669,16 +2698,16 @@
         "adaptive": "自適應"
       },
       "requiresBodyFat": "需要體重與體脂率。計算：已跳過（使用 Mifflin-St Jeor 回退）.",
-      "katchMath": "公式：370 + 21.6 × 瘦體重（其中瘦體重 = 體重 ×（1 - 體脂/100）） / 計算：370 + 21.6 ×（{{weight}} kg ×（1 - {{bodyFat}}/100））= {{result}} kcal",
-      "cunninghamMath": "公式：500 + 22 × 瘦體重（其中瘦體重 = 體重 ×（1 - 體脂/100）） / 計算：500 + 22 ×（{{weight}} kg ×（1 - {{bodyFat}}/100））= {{result}} kcal",
-      "harrisMaleMath": "公式：13.397 × 體重 + 4.799 × 身高 - 5.677 × 年齡 + 88.362 / 計算：13.397 × {{weight}} + 4.799 × {{height}} - 5.677 × {{age}} + 88.362 = {{result}} kcal",
-      "harrisFemaleMath": "公式：9.247 × 體重 + 3.098 × 身高 - 4.33 × 年齡 + 447.593 / 計算：9.247 × {{weight}} + 3.098 × {{height}} - 4.33 × {{age}} + 447.593 = {{result}} kcal",
-      "oxfordMaleMath": "公式：14.2 × 體重 + 593 / 計算：14.2 × {{weight}} + 593 = {{result}} kcal",
-      "oxfordFemaleMath": "公式：10.9 × 體重 + 677 / 計算：10.9 × {{weight}} + 677 = {{result}} kcal",
-      "bmiBodyFatMath": "公式：1.2 × BMI + 0.23 × 年齡 - 常數（{{constant}}） / 計算：1.2 × {{bmi}}（BMI）+ 0.23 × {{age}} - {{constant}} = {{result}}%",
+      "katchMath": "公式：370 + 21.6 × 瘦體重（瘦體重 = 體重 ×（1 - 體脂/100））\n計算：370 + 21.6 ×（{{weight}} kg ×（1 - {{bodyFat}}/100））= {{result}} kcal",
+      "cunninghamMath": "公式：500 + 22 × 瘦體重（瘦體重 = 體重 ×（1 - 體脂/100））\n計算：500 + 22 ×（{{weight}} kg ×（1 - {{bodyFat}}/100））= {{result}} kcal",
+      "harrisMaleMath": "公式：13.397 × 體重 + 4.799 × 身高 - 5.677 × 年齡 + 88.362\n計算：13.397 × {{weight}} + 4.799 × {{height}} - 5.677 × {{age}} + 88.362 = {{result}} kcal",
+      "harrisFemaleMath": "公式：9.247 × 體重 + 3.098 × 身高 - 4.33 × 年齡 + 447.593\n計算：9.247 × {{weight}} + 3.098 × {{height}} - 4.33 × {{age}} + 447.593 = {{result}} kcal",
+      "oxfordMaleMath": "公式：14.2 × 體重 + 593\n計算：14.2 × {{weight}} + 593 = {{result}} kcal",
+      "oxfordFemaleMath": "公式：10.9 × 體重 + 677\n計算：10.9 × {{weight}} + 677 = {{result}} kcal",
+      "bmiBodyFatMath": "公式：1.2 × BMI + 0.23 × 年齡 - 常數（{{constant}}）\n計算：1.2 × {{bmi}}（BMI）+ 0.23 × {{age}} - {{constant}} = {{result}}%",
       "invalidMeasurements": "用於日誌計算的測量值無效.",
-      "navyMaleMath": "公式（男性）：86.01 × log10(腰圍 - 頸圍) - 70.041 × log10(身高) + 36.76（單位：英吋） / 計算：86.01 × log10({{waist}}in - {{neck}}in) - 70.041 × log10({{height}}in) + 36.76 / 計算結果：{{result}}%",
-      "navyFemaleMath": "公式（女性）：163.205 × log10(腰圍 + 臀圍 - 頸圍) - 97.684 × log10(身高) - 78.387（單位：英吋） / 計算：163.205 × log10({{waist}}in + {{hips}}in - {{neck}}in) - 97.684 × log10({{height}}in) - 78.387 / 計算結果：{{result}}%",
+      "navyMaleMath": "公式（男）：86.01 × log10(腰圍 - 頸圍) - 70.041 × log10(身高) + 36.76（單位：英寸）\n計算：86.01 × log10({{waist}}in - {{neck}}in) - 70.041 × log10({{height}}in) + 36.76\n計算結果：{{result}}%",
+      "navyFemaleMath": "公式（女）：163.205 × log10(腰圍 + 臀圍 - 頸圍) - 97.684 × log10(身高) - 78.387（單位：英寸）\n計算：163.205 × log10({{waist}}in + {{hips}}in - {{neck}}in) - 97.684 × log10({{height}}in) - 78.387\n計算結果：{{result}}%",
       "fallbackInsufficient": "由於資料不足，目標將使用回退 BMR（{{value}} {{unit}}）.",
       "fallbackWeight": "目標將使用回退 BMR（{{value}} {{unit}}），因為缺少體重紀錄（需要至少 2 筆相隔 7 天以上的體重紀錄）.",
       "fallbackCalories": "目標將使用回退 BMR（{{value}} {{unit}}），因為缺少熱量紀錄（需要至少 7 天 ≥200 大卡）.",
@@ -2707,7 +2736,21 @@
       "fallbackBaselineDetail": "BMR（{{bmr}}）× 活動倍數（{{multiplier}}）= {{result}} {{unit}}（已使用回退：歷史不足 [<{{required}} 天]；已繞過 {{raw}} {{unit}} 的原始計算）",
       "adaptiveTdeeExpenditure": "自適應 TDEE（消耗）",
       "adaptiveManualGoal": "自適應手動熱量目標",
-      "targetSafeRange": "✓ 目標處於代謝安全下限之上的安全範圍內."
+      "targetSafeRange": "✓ 目標處於代謝安全下限之上的安全範圍內.",
+      "bmrMeasuredScope": "量測值只在記錄當日有效。沒有量測值的日子會回到公式計算。若要停止使用量測值，請在「計算設定」中關閉「使用檢查記錄與同步裝置所量測的 BMR」。",
+      "weightTrendTerm": "體重趨勢：{{start}} → {{end}}（整個區間 {{days}} 天共 {{change}}）= 每天 {{daily}} {{massUnit}}——取你記錄體重的 7 天平均值，而非原始讀數，缺漏的天數會以相鄰兩側填補",
+      "weightTrendCalories": "該趨勢產生的能量：−（{{daily}} {{massUnit}}/天 × {{kcalPerUnit}} kcal/{{massUnit}}）≈ {{value}}",
+      "tdeeSum": "（{{intake}} {{sign}} {{delta}}）",
+      "adaptiveClamped": "原始估算 {{raw}} {{unit}} 已被限制為 {{capped}} {{unit}}，即你以 BMR 為基礎之估算的 ±{{band}} {{unit}} 合理性上限（{{min}}–{{max}} {{unit}}）。",
+      "intakeWindow": "（{{start}} 至 {{end}} 之間 {{logged}} 個已記錄日子的平均值；低於 200 kcal 的日子會排除，不會算作零）",
+      "adaptivePlausibilityBand": "依你活動量（×{{multiplier}}）得出的合理性上限：{{min}}–{{max}} {{unit}}。估算在此範圍內，因此按計算結果採用。",
+      "adjustmentMode": "每日熱量目標調整：{{mode}}",
+      "deviceProjectionCaveat": "在此模式下，你的日記目標來自裝置預測至午夜的總熱量，此處無法得知。下方數字為儲存目標的推導過程，會與日記顯示的內容不同。",
+      "modeAdaptive": "自適應目標",
+      "modeDynamic": "動態目標",
+      "modeFixed": "固定目標",
+      "modePercentage": "百分比賺回",
+      "modeDevice": "裝置預測"
     },
     "copyAllError": "複製全天失敗.",
     "copyAllFromYesterday": "從昨天複製全部",
@@ -2775,7 +2818,36 @@
     "entryImageRemoveFailedTitle": "移除失敗",
     "entryImageRemoveFailed": "無法為此條目移除照片.",
     "inheritedPhotoAlt": "繼承的圖片 {{number}}",
-    "savingPhotos": "正在儲存照片…"
+    "savingPhotos": "正在儲存照片…",
+    "caffeine": {
+      "title": "咖啡因動力學",
+      "activeCaffeine": "作用中的咖啡因",
+      "activeNow": "目前作用中",
+      "halfLifeLabel": "半衰期 {{hours}} 小時",
+      "atBedtime": "就寢時",
+      "bedtimeCutoff": "最後一杯咖啡時間",
+      "cutoffDesc": "以 {{dose}} 毫克劑量計",
+      "anytimeSafe": "任何時間",
+      "estimatedTimes": "預估時間",
+      "contributingDoses": "近期劑量（48 小時內）",
+      "sleepImpactMinimal": "對睡眠影響極小",
+      "sleepImpactLow": "對睡眠影響低",
+      "sleepImpactModerate": "對睡眠影響中等",
+      "sleepImpactHigh": "對睡眠影響高",
+      "failedToLoad": "無法載入目前咖啡因資料。",
+      "cutoffPassed": "現在喝已經太晚",
+      "cutoffOver": "今晚已經超標",
+      "cutoffOverDesc": "就寢時已超過 {{threshold}} 毫克",
+      "crossingNote": "從 {{time}} 起回到 {{threshold}} 毫克以下",
+      "underThreshold": "今晚維持在 {{threshold}} 毫克以下",
+      "legendCurve": "作用中的咖啡因",
+      "legendThreshold": "睡眠門檻 {{threshold}} 毫克",
+      "legendBedtime": "就寢時間 {{time}}",
+      "legendNow": "現在",
+      "legendDose": "已記錄劑量",
+      "legendEstimated": "推估時間",
+      "legendCutoff": "最後一杯 {{dose}} 毫克，{{time}}"
+    }
   },
   "foodDiary": {
     "title": "飲食日記",
@@ -2810,7 +2882,13 @@
       "deletedSuccess": "飲水紀錄已移除",
       "deletedError": "刪除飲水資料失敗",
       "editTime": "點擊修改登記時間",
-      "noManualToRemove": "這裡只能移除手動記錄的喝水"
+      "noManualToRemove": "這裡只能移除手動記錄的喝水",
+      "fromFood": "包含來自食物的 {{volume}} {{unit}}",
+      "linkedFoodRemovedTitle": "食物記錄已移除",
+      "linkedFoodRemoved": "關聯的食物記錄也已從你的食物日記中移除。",
+      "linkedDrink": "已連結食物記錄",
+      "noWaterCredit": "不計水分",
+      "noWaterCreditHint": "這杯飲品設定為不計入水分"
     },
     "copyFoodEntryDialog": {
       "title": "複製飲食紀錄",
@@ -2934,7 +3012,8 @@
       "photos": "照片",
       "sleep": "睡眠"
     },
-    "noRecentActivity": "找不到近期活動."
+    "noRecentActivity": "找不到近期活動.",
+    "failedToLoadPreviousCustom": "無法載入先前的自訂數值。"
   },
   "sleepTimelineEditor": {
     "sleepTimeline": "睡眠階段時間軸",
@@ -3099,7 +3178,11 @@
     "foods": "食物",
     "name": "名稱",
     "removeFromFavorites": "從收藏中移除",
-    "notes": "備註"
+    "notes": "備註",
+    "bulkDeleteDescription": "從你的食物庫、所有餐點與餐點計劃中移除這 {{count}} 項食物。已記錄的項目會保留在你的日記中。",
+    "deleteKeepsDiaryHint": "刪除會將食物從你的食物庫、餐點與餐點計劃中移除。你的日記記錄會保留名稱、品牌與營養資料。",
+    "deleteMealPlanKeepsPastHistoryHint": "此食物用於你的餐點計劃。刪除它會移除日記中未來排定的餐點，但會保留你過去記錄的歷史。",
+    "deleteWithHistory": "連同歷史記錄一起刪除"
   },
   "mealManagement": {
     "failedToLoadMeals": "載入餐點清單失敗。",
@@ -3185,7 +3268,7 @@
     "mealDescriptionPlaceholder": "範例：我固定的晨起餐食",
     "shareWithPublic": "開放公開分享",
     "shareWithPublicNote": "提醒：餐點內所有食物都會一併變更為公開狀態。",
-    "foodsInMeal": "餐點內容",
+    "foodsInMeal": "餐點中的食物",
     "noFoodsInMeal": "此餐點尚未加入任何食物。",
     "totalNutrition": "總營養資訊：熱量 {{calories}}、蛋白質 {{protein}}g、碳水 {{carbs}}g、脂肪 {{fat}}g",
     "totalNutritionLabel": "總營養：",
@@ -3426,7 +3509,10 @@
       "vitaminA": "維生素 A（μg）",
       "vitaminC": "維生素 C（mg）",
       "calcium": "鈣（mg）",
-      "iron": "鐵（mg）"
+      "iron": "鐵（mg）",
+      "caffeine": "咖啡因（毫克）",
+      "waterContent": "水分含量（毫升）",
+      "alcohol": "酒精（公克）"
     },
     "exerciseEntriesExportHeaders": {
       "date": "日期",
@@ -3687,7 +3773,25 @@
     "hips": "臀圍",
     "height": "身高",
     "bodyFatPercentage": "體脂 %",
-    "nutrientBalance": "{{nutrient}} 平衡"
+    "nutrientBalance": "{{nutrient}} 平衡",
+    "alcohol": {
+      "weeklyAlcohol": "每週酒精攝取量",
+      "standardDrinks": "標準杯",
+      "limit": "上限",
+      "overLimit": "超過上限",
+      "onTrack": "低於上限",
+      "noLimit": "未設定每週上限",
+      "drinksRemaining_other": "剩餘 {{count}} 杯",
+      "drinksOver_other": "超過 {{count}} 杯",
+      "upcomingDay": "尚未"
+    },
+    "hydration": {
+      "title": "水分"
+    },
+    "failedToLoadAlcoholWeek": "無法載入每週酒精資料。",
+    "failedToLoadHydrationTrend": "無法載入水分趨勢資料。",
+    "avgVarianceTargetRangeDescription": "每日偏離目標範圍的平均幅度",
+    "daysInTargetRange": "{{total}} 天中有 {{inRange}} 天在範圍內"
   },
   "sleepHealth": {
     "hrvStatus": "HRV 狀態",
@@ -4704,7 +4808,8 @@
       "testLoggingTitle": "排卵與驗孕測試",
       "testLogsHistory": "本週期測試紀錄",
       "testReady": "你已達到 {{dpo}} DPO！現在記錄的驗孕結果非常準確。請使用晨起第一次尿液以獲得最佳濃度.",
-      "twoWeekWaitTitle": "兩週等待（TWW）"
+      "twoWeekWaitTitle": "兩週等待（TWW）",
+      "ovulationEstimateBasis": " 基於· "
     }
   },
   "openFoodFactsContribution": {
@@ -4768,7 +4873,15 @@
     "missingDefaultWarning": "警告：{{count}} 種食物未設定預設變體。請至少將一個變體設為預設（下方以黃色標示）.",
     "missingDefaultValidationError": "每種食物必須至少有一個變體設為預設單位.",
     "filterMissingDefault": "顯示缺少的預設項目（{{count}}）",
-    "showAllRows": "顯示所有列（{{count}}）"
+    "showAllRows": "顯示所有列（{{count}}）",
+    "title": "食物資料匯入",
+    "addRow": "新增行",
+    "uploadCsv": "上載 CSV",
+    "downloadTemplate": "下載範本",
+    "clearData": "清除資料",
+    "pastePlaceholder": "或在此貼上 CSV 內容….",
+    "parseText": "解析文字",
+    "recordsLoaded": "成功載入 {{count}} 筆資料."
   },
   "foods": {
     "providerVerified": "已核實的食物",
@@ -5429,7 +5542,30 @@
     "setPrimary": "設為主要容器",
     "servingsCount_other": "{{count}} 份",
     "deleted": "喝水容器已刪除.",
-    "primaryUpdated": "主要容器已更新."
+    "primaryUpdated": "主要容器已更新.",
+    "modeLinked": "按一下即可將下方食物記錄到日記中，並計入其水分。",
+    "modePlain": "按一下即可計入此容量的純水。",
+    "linkFood": "連結食物項目",
+    "linkedFood": "已連結食物",
+    "unlinkFood": "取消連結",
+    "searchFood": "搜尋要連結的食物",
+    "selectMealType": "餐別",
+    "selectMealTypePlaceholder": "選擇餐別（選填）",
+    "hydrationFactor": "水分係數",
+    "hydrationFactorHelp": "僅調整水分計入比例：水為 1，咖啡或茶約 0.9，完全不應計入水分的飲品為 0。熱量、咖啡因與酒精一律全數計入。",
+    "editContainer": "編輯容器",
+    "saveChanges": "儲存變更",
+    "cancel": "取消",
+    "edit": "編輯",
+    "updated": "水容器已更新。",
+    "quantity": "數量",
+    "tabWater": "水",
+    "tabDrink": "飲品（已連結食物）",
+    "linkFoodRequired": "請先連結食物",
+    "linkFoodRequiredHint": "飲品容器會記錄食物，請選擇這個容器所裝的食物。",
+    "perPress": "每按一下記錄",
+    "changeQuantity": "變更數量／單位",
+    "hydrationFactorExample": "以 {{factor}} 計算，每按一下會從飲品的 {{total}} {{unit}} 中，將 {{credited}} {{unit}} 加入你的水分環。熱量、咖啡因與酒精一律全數計入。"
   },
   "homeFasting": {
     "startNew": "開始新的斷食",
@@ -5475,7 +5611,8 @@
       "low": "粗略"
     },
     "aboutThisFood": "關於此食物",
-    "entryNotes": "此條目的備註（選用）"
+    "entryNotes": "此條目的備註（選用）",
+    "deletedFoodNote": "此食物已不在你的食物庫中。正在顯示此日記記錄中儲存的詳細資料。"
   },
   "release": {
     "whatsNew": "更新內容"
@@ -5524,7 +5661,7 @@
     "activeCaloriesBurned": "活動消耗的熱量",
     "basalBodyTemperature": "基礎體溫",
     "basalMetabolicRate": "基礎代謝率",
-    "bloodAlcoholContent": "血液酒精濃度",
+    "bloodAlcoholContent": "血液酒精含量",
     "bloodGlucose": "血糖",
     "bloodOxygenSaturation": "血氧飽和度",
     "bloodPressure": "血壓",
@@ -5761,5 +5898,91 @@
     "imageBlockedFrom": "外部圖片已被封鎖：{{host}}",
     "imageFromHost": "來自 {{host}} 的圖片",
     "externalImage": "外部圖片"
+  },
+  "layout": {
+    "welcome": "歡迎 {{activeUserName}}"
+  },
+  "chat": {
+    "toolCategories": {
+      "tooltip": "選擇聊天機械人可用工具",
+      "title": "聊天機械人工具",
+      "description": "較少的工具有助小型本地模型穩定回應.",
+      "presetFull": "完整工具組",
+      "presetCore": "核心工具組",
+      "clearAll": "全部清除",
+      "emptyHint": "未選取任何類別 — 聊天機器人將使用其預設工具組。",
+      "food": "飲食及水份",
+      "exercise": "運動訓練",
+      "checkin": "身體狀況及每日打卡",
+      "goals": "目標設定",
+      "reports": "報表與數據分析",
+      "coaching": "訓練指導",
+      "vision": "影像辨識功能",
+      "profile": "個人資料及生活習慣",
+      "medications": "藥物"
+    },
+    "errorClearingHistory": "無法清除聊天記錄.",
+    "errorLoadingHistory": "無法載入聊天記錄.",
+    "errorLoadingPreferences": "無法載入對話偏好設定.",
+    "successClearingHistory": "聊天記錄已成功清除."
+  },
+  "workoutLaps": {
+    "title": "訓練分段間隔與趟次",
+    "lapsCount": "{{count}} 圈次",
+    "lap": "圈",
+    "distance": "距離",
+    "time": "時間",
+    "pace": "步速 (/{{unit}})",
+    "avgMaxHr": "平均 / 最大心率",
+    "resp": "呼吸 (brpm)",
+    "power": "圈數動力",
+    "cadence": "圈速"
+  },
+  "dailyHealthMetrics": {
+    "title": "日常穿戴裝置健康摘要",
+    "bodyBattery": "體能",
+    "peak": "巔峰",
+    "low": "低谷：{{val}}",
+    "avgStress": "平均壓力",
+    "max": "頂峰: {{val}}",
+    "restingHr": "靜息心率",
+    "recovery": "復原：{{val}}",
+    "vo2Max": "最大攝氧量",
+    "fitnessAge": "適合年齡：{{val}}",
+    "readiness": "準備就緒",
+    "recHours": "錄入: {{val}}"
+  },
+  "drink_presets": {
+    "title": "快速新增飲品預設",
+    "description": "常見含咖啡因與酒精飲品的一鍵預設",
+    "addFromCatalog": "從目錄新增",
+    "catalogTitle": "飲品預設目錄",
+    "catalogDescription": "選擇要加入快速新增飲品按鈕的預設。",
+    "presetAdded": "預設已成功新增。",
+    "addFailed": "無法新增飲品預設。",
+    "noPresets": "尚無快速新增飲品預設。請從目錄新增濃縮咖啡、咖啡、茶或啤酒。",
+    "all": "全部",
+    "caffeine": "咖啡因",
+    "alcohol": "酒精",
+    "hydration": "水分",
+    "alreadyAdded": "已新增",
+    "addPreset": "新增預設",
+    "espresso": "濃縮咖啡",
+    "double_espresso": "雙份濃縮咖啡",
+    "drip_coffee": "濾掛咖啡",
+    "instant_coffee": "即溶咖啡",
+    "latte": "拿鐵",
+    "cappuccino": "卡布奇諾",
+    "black_tea": "紅茶",
+    "green_tea": "綠茶",
+    "energy_drink": "能量飲料",
+    "cola": "可樂",
+    "beer_pint": "啤酒（一品脫 4.5%）",
+    "beer_bottle": "啤酒（瓶裝 5%）",
+    "wine_glass": "葡萄酒（175 毫升 12%）",
+    "spirit_single": "烈酒（單份 40%）",
+    "quickAdd": "快速新增飲品",
+    "caffeineBadge": "{{amount}} 毫克咖啡因",
+    "alcoholBadge": "{{abv}}% 酒精濃度"
   }
 }

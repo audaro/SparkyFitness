@@ -4,6 +4,7 @@ import {
   getMealGroupLabel,
   getMealTypeDisplayLabel,
   getMealPercentage,
+  getMealTargetCalories,
   groupFoodEntriesByMealType,
   filterFoodEntriesByMealTypeId,
   calculateEntryNutrition,
@@ -462,6 +463,47 @@ describe('getMealPercentage', () => {
 
   it('returns 0 when there are no goals', () => {
     expect(getMealPercentage('breakfast', undefined)).toBe(0);
+  });
+
+  it("refuses the legacy columns when they are not this meal's to read", () => {
+    const goals: DailyGoals = { breakfast_percentage: 25 } as DailyGoals;
+    expect(
+      getMealPercentage('breakfast', goals, { allowLegacyKeys: false })
+    ).toBe(0);
+    expect(getMealPercentage('breakfast', goals)).toBe(25);
+  });
+});
+
+describe('getMealTargetCalories', () => {
+  const goals: DailyGoals = {
+    breakfast_percentage: 25,
+    custom_meal_percentages: { 'pre-workout': 10 },
+  } as unknown as DailyGoals;
+
+  it('gives a custom meal type the share set for it on the web', () => {
+    expect(getMealTargetCalories('Pre-Workout', false, goals, 2000)).toBe(200);
+  });
+
+  it('still reads the legacy columns for a system meal type', () => {
+    const systemOnly: DailyGoals = { breakfast_percentage: 25 } as DailyGoals;
+    expect(getMealTargetCalories('breakfast', true, systemOnly, 2000)).toBe(
+      500
+    );
+  });
+
+  it("does not let a custom meal inherit a system meal's legacy share", () => {
+    const systemOnly: DailyGoals = { breakfast_percentage: 25 } as DailyGoals;
+    expect(getMealTargetCalories('breakfast', false, systemOnly, 2000)).toBe(0);
+  });
+
+  it('returns 0 without goals or without a calorie goal', () => {
+    expect(getMealTargetCalories('Pre-Workout', false, undefined, 2000)).toBe(
+      0
+    );
+    expect(getMealTargetCalories('Pre-Workout', false, goals, 0)).toBe(0);
+    expect(getMealTargetCalories('Pre-Workout', false, goals, undefined)).toBe(
+      0
+    );
   });
 });
 

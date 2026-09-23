@@ -1,3 +1,4 @@
+import { setMockDataContext } from '../../utils/mockDataContext.js';
 import axios from 'axios';
 import { getSystemClient } from '../../db/poolManager.js';
 import { decrypt, ENCRYPTION_KEY } from '../../security/encryption.js';
@@ -7,13 +8,9 @@ import hevyDataProcessor from './hevyDataProcessor.js';
 import { loadUserTimezone } from '../../utils/timezoneLoader.js';
 import { todayInZone, addDays, dayToUtcRange } from '@workspace/shared';
 import { logRawResponse } from '../../utils/diagnosticLogger.js';
+
 const HEVY_API_BASE_URL = 'https://api.hevyapp.com';
-// Configuration for data mocking/caching
-const HEVY_DATA_SOURCE = process.env.SPARKY_FITNESS_HEVY_DATA_SOURCE || 'hevy';
-log(
-  'info',
-  `[hevyService] Hevy data source configured to: ${HEVY_DATA_SOURCE}`
-);
+
 /**
  * Get the Hevy API key for a specific provider instance.
  * @param {string} userId - The Sparky Fitness user ID.
@@ -42,16 +39,12 @@ async function getHevyApiKey(userId: string, providerId: string) {
     if (!encrypted_app_key) {
       throw new Error('Hevy API key is missing for this provider.');
     }
-    return await decrypt(
-      encrypted_app_key,
-      app_key_iv,
-      app_key_tag,
-      ENCRYPTION_KEY
-    );
+    return decrypt(encrypted_app_key, app_key_iv, app_key_tag, ENCRYPTION_KEY!);
   } finally {
     client.release();
   }
 }
+
 /**
  * Helper to get a hevy provider ID for a user.
  * @param {string} userId
@@ -176,14 +169,18 @@ async function syncHevyData(
   fullSync = false,
   providerId: string,
   startDate = null,
-  endDate = null
+  endDate = null,
+  dataSource: string | null = null,
+  saveMockData = false
 ) {
   const tz = await loadUserTimezone(userId);
+  const hevyDataSource = dataSource || 'hevy';
+  setMockDataContext({ dataSource, saveMockData });
   log(
     'info',
-    `Starting Hevy ${fullSync ? 'FULL' : 'INCREMENTAL'} synchronization for user ${userId}${startDate ? ` from ${startDate}` : ''}${endDate ? ` to ${endDate}` : ''}...`
+    `Starting Hevy ${fullSync ? 'FULL' : 'INCREMENTAL'} synchronization for user ${userId}${startDate ? ` from ${startDate}` : ''}${endDate ? ` to ${endDate}` : ''}... Loading from: ${hevyDataSource}`
   );
-  if (HEVY_DATA_SOURCE === 'local') {
+  if (hevyDataSource === 'local') {
     log(
       'info',
       `[hevyService] Replaying Hevy sync from raw diagnostic bundle for user ${userId}`
@@ -191,8 +188,8 @@ async function syncHevyData(
     const bundle = loadRawBundle('hevy');
     if (!bundle || !bundle.responses) {
       throw new Error(
-        'Raw diagnostic bundle not found. Please run a sync with SPARKY_FITNESS_HEVY_DATA_SOURCE unset (or set to "hevy") ' +
-          'and SPARKY_FITNESS_SAVE_MOCK_DATA=true to capture raw API responses first.'
+        'Raw diagnostic bundle not found. Run a sync with "Sync and save ' +
+          'this sync\'s raw responses" selected first to capture one.'
       );
     }
     const responses = bundle.responses;

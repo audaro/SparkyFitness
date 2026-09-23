@@ -116,5 +116,15 @@
     "vo2Max": "VO2 Max",
     "fitnessAge": "Fitnesszi Korod: {{val}}",
     "readiness": "Elkészültség"
+  },
+  "common": {
+    "save": "Mentés",
+    "back": "Vissza",
+    "next": "Tovább",
+    "close": "Bezár",
+    "cancel": "Megszakít",
+    "error": "Hiba",
+    "delete": "Törlés",
+    "success": "Siker"
   }
 }

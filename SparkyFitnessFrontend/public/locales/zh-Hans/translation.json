@@ -138,7 +138,8 @@
       "cyclic": "周期: 用药{{on}} 天,停药 {{off}} 天",
       "monthly": "每月第 {{day}}天",
       "prn": "按需服用",
-      "taper": "减量 / 滴定"
+      "taper": "减量 / 滴定",
+      "mealRelationSuffix": " ({{meal}})"
     },
     "bodymap": {
       "label": "注射部位身体图"
@@ -276,7 +277,7 @@
       "deduct": "从药笔/药瓶库存扣除药量",
       "dontDeduct": "不扣除库存药量",
       "pkTitle": "血药浓度 (PK) 曲线",
-      "pkEmpty": "录入注射记录后系统才可计算模拟血药浓度。（需要在药品设置内指定正规 GLP-1 药物）。",
+      "pkEmpty": "录入注射记录后系统才可计算模拟血药浓度。（需要在药品设置内指定正规 GLP-1 药物.）",
       "penInventory": "药笔 / 药瓶库存管理",
       "addPen": "添加药笔/药瓶",
       "noPens": "暂无录入的药笔与药瓶数据。",
@@ -304,7 +305,7 @@
       "tablet": "片剂",
       "capsule": "胶囊",
       "liquid": "液体制剂",
-      "injection": "注射剂",
+      "injection": "注射",
       "patch": "贴剂",
       "inhaler": "吸入剂",
       "drops": "滴剂",
@@ -406,7 +407,7 @@
       "type": "计划类型",
       "daily": "每日服用",
       "weekly": "每周指定日期服用",
-      "everyNDays": "间隔N天服用一次",
+      "everyNDays": "每 N 天",
       "cyclic": "周期循环（服药/停药轮换）",
       "monthly": "每月固定日期服用",
       "prn": "按需取用 (PRN)",
@@ -419,7 +420,7 @@
       "prnReason": "取用原因（选填）",
       "prnReasonPlaceholder": "例如：身体疼痛",
       "prnMax": "每日最大取用次数",
-      "doseOverride": "单次固定剂量（选填）",
+      "doseOverride": "剂量（选填）",
       "withMeal": "用餐要求",
       "anyTime": "任意时段",
       "beforeMeal": "餐前服用",
@@ -504,17 +505,17 @@
         "moderate": "中等",
         "weak": "弱"
       },
-      "hydrationBenefit": "<strong>强补水益处：</strong>较高的饮水量与较低的便秘严重程度相关。保持充足水分，以减少肠道副作用.",
-      "hydrationUnexpected": "<strong>意外的正相关：</strong>请主动增加液体摄入，以帮助缓解高纤维或药物反应.",
+      "hydrationBenefit": "<strong>强效补水益处：</strong> 饮水量越高，便秘严重程度越低。保持充足饮水，减轻肠道相关副作用。",
+      "hydrationUnexpected": "<strong>意外的正相关：</strong> 请主动增加液体摄入，以帮助缓解高纤维或药物反应.",
       "hydrationInsufficient": "数据点不足，无法建立关系。请继续记录饮水和症状.",
-      "proteinTolerance": "<strong>蛋白质耐受性：</strong>较高的每日蛋白质摄入与较低的恶心程度相关。请继续食用富含蛋白质的瘦肉餐食.",
-      "reducedIntake": "<strong>摄入减少：</strong>恶心发作对应蛋白质记录较低的日期，可能是食欲受抑制所致.",
+      "proteinTolerance": "<strong>蛋白质耐受性：</strong> 较高的每日蛋白质摄入与较低的恶心程度相关。请继续食用富含蛋白质的瘦肉餐食.",
+      "reducedIntake": "<strong>摄入减少：</strong> 恶心发作对应蛋白质记录较低的日期，可能是食欲受抑制所致.",
       "proteinInsufficient": "数据不足。请记录每日食物和恶心副作用，以建立相关性.",
-      "restBenefit": "<strong>休息益处：</strong>睡眠时长增加与疲劳程度降低相关。请保持规律的作息习惯.",
-      "hypersomnia": "<strong>嗜睡关联：</strong>较高的疲劳程度可能会引发更长的睡眠需求或卧床时间.",
+      "restBenefit": "<strong>休息益处：</strong> 睡眠时长增加与疲劳程度降低相关。请保持规律的作息习惯.",
+      "hypersomnia": "<strong>嗜睡关联：</strong> 较高的疲劳程度可能会引发更长的睡眠需求或卧床时间.",
       "sleepInsufficient": "此范围内睡眠或疲劳记录不足，无法计算相关性.",
-      "doseDependentNausea": "<strong>剂量依赖性恶心：</strong>较高的用药剂量与恶心严重程度增加相关。可考虑与医生讨论逐步调整剂量或拆分服用方案.",
-      "adaptationBenefit": "<strong>适应益处：</strong>没有正相关性。身体已良好适应当前剂量水平，未出现副作用.",
+      "doseDependentNausea": "<strong>剂量依赖性恶心：</strong> 较高的用药剂量与恶心严重程度增加相关。可考虑与医生讨论逐步调整剂量或拆分服用方案.",
+      "adaptationBenefit": "<strong>适应益处：</strong> 没有正相关性。身体已良好适应当前剂量水平，未出现副作用.",
       "doseInsufficient": "需要此日期范围内有 GLP-1 剂量记录和恶心日志."
     },
     "subtype": {
@@ -626,7 +627,11 @@
     "autoCalculateSelect": "纳入批量自动计算",
     "autoCalculateSelectAll": "全选",
     "autoCalculateSelectNone": "全不选",
-    "autoCalculateApplySelected": "自动计算所选（{{count}}）"
+    "autoCalculateApplySelected": "自动计算所选（{{count}}）",
+    "caffeine": "咖啡因",
+    "waterContent": "水分含量",
+    "alcohol": "酒精",
+    "abv": "酒精度（%）"
   },
   "calculationSettings": {
     "showNetCarbs": "显示净碳水数值（总碳水减去纤维素含量）",
@@ -662,7 +667,9 @@
     "saveSuccessDesc": "计算设置已成功保存！",
     "selectBmrAlgorithm": "选择 BMR 算法",
     "selectBodyFatAlgorithm": "选择体脂算法",
-    "selectEnergyUnitPlaceholder": "选择能量单位"
+    "selectEnergyUnitPlaceholder": "选择能量单位",
+    "useExternalBmr": "使用检查和同步设备测得的 BMR",
+    "useExternalBmrHint": "默认关闭——在你开启之前，始终使用你选择的公式。开启后，检查记录中记录的 BMR，或从智能秤／健康服务同步的 BMR，会在当天取代公式（前提是对你来说生理上合理）。有些设备报告的 BMR 是每日累计总量而非速率，因此这项功能需要手动开启。"
   },
   "exercise": {
     "title": "运动管理",
@@ -893,7 +900,21 @@
       "exercises": "运动",
       "name": "名称",
       "deleteConfirmationDescription": "确定要删除此运动吗？此操作无法撤销.",
-      "deleteImpactDescription": "此运动已被其他记录或训练计划使用。删除它可能会影响这些记录."
+      "deleteImpactDescription": "此运动已被其他记录或训练计划使用。删除它可能会影响这些记录.",
+      "bulkDeleteDescription": "从你的动作库、所有训练预设和训练计划中移除这 {{count}} 个动作。已记录的训练会保留在你的日记中。",
+      "cancel": "取消",
+      "delete": "删除",
+      "deleteExerciseConfirmTitle": "删除{{exerciseName}}？",
+      "deleteKeepsDiaryHint": "删除会将该动作从你的动作库、预设和计划中移除。已记录的训练会保留名称、图片、组数和次数。",
+      "deleteWithHistory": "连同历史记录一起删除",
+      "diaryEntriesCount": "{{count}} 次已记录的训练",
+      "exerciseUnused": "这个动作尚未在任何地方使用。",
+      "exerciseUsedByOtherUsersWarning": "该动作正被其他用户使用。你只能隐藏它。隐藏后它将不再出现在搜索结果中，但不会影响他们的历史记录、预设或计划。",
+      "exerciseUsedIn": "该动作用于：",
+      "hide": "隐藏",
+      "warning": "警告！",
+      "workoutPlansCount": "{{count}} 个训练计划",
+      "workoutPresetsCount": "{{count}} 个训练预设"
     },
     "exerciseImportCSV": {
       "importExerciseData": "导入运动数据",
@@ -1082,7 +1103,6 @@
     "editPresetTooltip": "编辑该训练模板",
     "deletePresetTooltip": "删除该训练模板",
     "loading": "加载中…",
-    "loadMore": "加载更多内容",
     "noExercisesInPreset": "该模板内未添加任何运动项目",
     "failedToLoadPresets": "训练模板列表加载失败。",
     "createSuccess": "训练模板创建成功。",
@@ -1100,7 +1120,8 @@
     "name": "名称",
     "presets": "预设",
     "startWorkout": "开始训练",
-    "stats": "统计"
+    "stats": "统计",
+    "emptyPresetError": "无法开始或记录没有动作的训练预设。"
   },
   "workoutPlansManager": {
     "addPlanButton": "添加计划",
@@ -1411,7 +1432,12 @@
       "wednesday": "星期三",
       "thursday": "星期四",
       "friday": "星期五",
-      "saturday": "星期六"
+      "saturday": "星期六",
+      "standardDrinkUnit": "标准饮酒单位",
+      "weeklyAlcoholLimit": "每周酒精上限（标准饮酒量）",
+      "noWeeklyLimit": "未设置上限",
+      "caffeineHalfLife": "咖啡因半衰期（小时）",
+      "targetBedtime": "目标就寝时间"
     },
     "waterTracking": {
       "title": "饮水量记录设置",
@@ -1423,7 +1449,9 @@
       "saveWaterDisplayUnit": "保存饮水量单位配置",
       "addExerciseWater": "运动出汗量计入每日饮水目标",
       "addExerciseWaterHint": "系统会根据运动预估出汗量，自动上调当日饮水目标值。",
-      "liters": "升"
+      "liters": "升",
+      "addFoodWater": "将食物中的水分计入摄入量",
+      "addFoodWaterHint": "会将已记录食物的水分含量并入每日水分总量，除非已由关联的容器计入。"
     },
     "nutrientDisplay": {
       "title": "营养成分展示设置",
@@ -1789,7 +1817,7 @@
         "enterNewApiKey": "填写新 API 密钥完成更新",
         "errorOriginalNotFoundStatus": "修改状态时未查询到对应服务。",
         "errorNoGlobalSetting": "无可用全局配置可供覆盖",
-        "successOverriding": "已成功覆盖全局配置，现在可自由自定义 AI 参数",
+        "successOverriding": "已成功覆盖全局配置，现在可自由自定义 AI 参数.",
         "errorOverriding": "覆盖全局配置操作失败",
         "deleteConfirm": "确认删除这条个人 AI 服务配置吗？",
         "revertConfirm": "确认清空所有个人 AI 配置并切回全局配置吗？",
@@ -1929,7 +1957,7 @@
       "activityModerate": "中度活跃（×1.55）",
       "activityNone": "无（×1.0）",
       "activityNotMuch": "久坐（×1.2）",
-      "adaptiveActivityHint": "在自适应模式下，此设置作为备用，直到你有足够的跟踪数据.",
+      "adaptiveActivityHint": "在自适应模式下，此设置是在你有足够追踪数据之前的备用估算，之后也会继续用于设定合理性上限。你测得的 TDEE 会被限制在 BMR × 此倍数的 ±500 kcal 范围内，因此设得太低可能会压低实际更高的消耗量。",
       "adaptiveGoal": "自适应目标",
       "adaptiveGoalDescription": "你的热量目标由实测消耗推导而来，即将你记录的摄入量与最近 28 天的体重趋势进行对比。一旦你有几周稳定的体重和食物记录，这是最准确的选择.",
       "allowNegativeAdjustment": "允许备用预测值降低目标",
@@ -2068,7 +2096,8 @@
       "unsafeLossText": "每周减重超过体重的 1.5% 被视为过度。这种速率会大幅增加严重肌肉流失、嗜睡、激素失衡和营养缺乏的风险。请选择不那么激进的目标模式.",
       "calibrationDescription": "Sparky 的自适应 TDEE 引擎需要至少 {{required}} 天的持续跟踪才能准确计算你的代谢（当前使用回退估算）。为加快校准：",
       "calibrationWeightTip": "每周至少记录体重 3-4 次.",
-      "calibrationFoodTip": "每天记录食物摄入（>200 千卡/天）."
+      "calibrationFoodTip": "每天记录食物摄入（>200 千卡/天）.",
+      "livePreviewSavedNote": "BMR 与体脂会随你更改设置而更新。消耗量由服务器根据你保存的设置计算，因此消耗量与最终目标只会在你保存后才会变化。"
     },
     "mfa": {
       "confirmPassword": "输入密码以继续",
@@ -2116,8 +2145,8 @@
       "goalMaintain": "维持（0% 变化）",
       "surplus": "盈余",
       "deficit": "赤字",
-      "adaptiveFormula": "公式：平均每日热量 −（每日体重变化（kg）× {{kcalPerKg}} kcal/kg）",
-      "adaptiveFormulaExplainer": "{{kcalPerKg}} kcal/kg 是一公斤体重所代表的能量，因此你的体重趋势可以转换为热量。体重的增减是脂肪（约 9,441 kcal/kg）与瘦组织和水分（约 1,816 kcal/kg）的混合，{{kcalPerKg}} 反映的是典型混合比例。",
+      "adaptiveFormula": "公式：平均每日热量 −（每日体重变化 {{massUnit}} × {{kcalPerUnit}} kcal/{{massUnit}}）",
+      "adaptiveFormulaExplainer": "{{kcalPerUnit}} kcal/{{massUnit}} 代表每 {{unitName}} 体重所含的能量，因此可将你的体重趋势换算成热量。体重的增减是脂肪（约 {{fatPerUnit}} kcal/{{massUnit}}）与瘦组织和水分（约 {{leanPerUnit}} kcal/{{massUnit}}）的混合，{{kcalPerUnit}} 反映的是典型混合比例。",
       "adjustment": "调整",
       "goalAdjustmentLabel": "目标调整："
     },
@@ -2578,7 +2607,7 @@
     "info": "信息",
     "items": "个项目",
     "kJUnit": "kJ",
-    "kcalUnit": "kcal",
+    "kcalUnit": "千卡",
     "loading": "正在加载...",
     "min": "分钟",
     "minutesUnit": "时间",
@@ -2641,7 +2670,7 @@
     "addSuccess": "食物添加成功.",
     "calculateExplanation": {
       "bmrMeasured": "实测",
-      "bmrMeasuredDesc": "使用你实测的 BMR。未应用任何公式.",
+      "bmrMeasuredDesc": "使用当天记录的实测 BMR {{value}} {{unit}}（来自智能秤或健康 App 同步）。不套用你的 {{algorithm}} 公式。",
       "dialogDescription": "逐步分解你的每日能量目标的计算方式.",
       "todayTarget": "今日目标的计算方式",
       "bmrTitle": "1. 基础代谢率（BMR）",
@@ -2707,7 +2736,21 @@
       "fallbackBaselineDetail": "BMR（{{bmr}}）× 活动倍数（{{multiplier}}）= {{result}} {{unit}}（已使用回退：历史不足 [<{{required}} 天]；已绕过 {{raw}} {{unit}} 的原始计算）",
       "adaptiveTdeeExpenditure": "自适应 TDEE（消耗）",
       "adaptiveManualGoal": "自适应手动热量目标",
-      "targetSafeRange": "✓ 目标处于代谢安全下限之上的安全范围内."
+      "targetSafeRange": "✓ 目标处于代谢安全下限之上的安全范围内.",
+      "bmrMeasuredScope": "实测值仅在记录当天有效。没有实测值的日子会回退到公式计算。若要停止使用实测值，请在「计算设置」中关闭「使用检查和同步设备测得的 BMR」。",
+      "weightTrendTerm": "体重趋势：{{start}} → {{end}}（整个区间 {{days}} 天共 {{change}}）= 每天 {{daily}} {{massUnit}}——取你记录体重的 7 天平均值，而非原始读数，缺失的天数会以相邻两侧的值填补",
+      "weightTrendCalories": "该趋势产生的能量：−（{{daily}} {{massUnit}}/天 × {{kcalPerUnit}} kcal/{{massUnit}}）≈ {{value}}",
+      "tdeeSum": "（{{intake}} {{sign}} {{delta}}）",
+      "adaptiveClamped": "原始估算 {{raw}} {{unit}} 已被限制为 {{capped}} {{unit}}，即你基于 BMR 的估算的 ±{{band}} {{unit}} 合理性上限（{{min}}–{{max}} {{unit}}）。",
+      "intakeWindow": "（{{start}} 至 {{end}} 之间 {{logged}} 个已记录日子的平均值；低于 200 kcal 的日子会被排除，不会算作零）",
+      "adaptivePlausibilityBand": "根据你的活动水平（×{{multiplier}}）得出的合理性上限：{{min}}–{{max}} {{unit}}。估算在此范围内，因此按计算结果采用。",
+      "adjustmentMode": "每日热量目标调整：{{mode}}",
+      "deviceProjectionCaveat": "在此模式下，你的日记目标来自设备推算至午夜的总热量，此处无法得知。下方数字为存储目标的推导过程，会与日记显示的内容不同。",
+      "modeAdaptive": "自适应目标",
+      "modeDynamic": "动态目标",
+      "modeFixed": "固定目标",
+      "modePercentage": "百分比赚回",
+      "modeDevice": "设备推算"
     },
     "copyAllError": "复制全天失败.",
     "copyAllFromYesterday": "从昨天复制全部",
@@ -2775,7 +2818,36 @@
     "entryImageRemoveFailedTitle": "移除失败",
     "entryImageRemoveFailed": "无法为此条目移除照片.",
     "inheritedPhotoAlt": "继承的图片 {{number}}",
-    "savingPhotos": "正在保存照片…"
+    "savingPhotos": "正在保存照片…",
+    "caffeine": {
+      "title": "咖啡因动力学",
+      "activeCaffeine": "活性咖啡因",
+      "activeNow": "当前生效中",
+      "halfLifeLabel": "半衰期 {{hours}} 小时",
+      "atBedtime": "就寝时",
+      "bedtimeCutoff": "最后一杯咖啡时间",
+      "cutoffDesc": "以 {{dose}} 毫克剂量计",
+      "anytimeSafe": "任何时间",
+      "estimatedTimes": "预估时间",
+      "contributingDoses": "近期剂量（48 小时内）",
+      "sleepImpactMinimal": "对睡眠影响极小",
+      "sleepImpactLow": "对睡眠影响低",
+      "sleepImpactModerate": "对睡眠影响中等",
+      "sleepImpactHigh": "对睡眠影响高",
+      "failedToLoad": "无法加载咖啡因数据。",
+      "cutoffPassed": "现在喝已经太晚",
+      "cutoffOver": "今晚已经超标",
+      "cutoffOverDesc": "就寝时已超过 {{threshold}} 毫克",
+      "crossingNote": "从 {{time}} 起回到 {{threshold}} 毫克以下",
+      "underThreshold": "今晚保持在 {{threshold}} 毫克以下",
+      "legendCurve": "活性咖啡因",
+      "legendThreshold": "睡眠阈值 {{threshold}} 毫克",
+      "legendBedtime": "就寝时间 {{time}}",
+      "legendNow": "现在",
+      "legendDose": "已记录剂量",
+      "legendEstimated": "推测时间",
+      "legendCutoff": "最后一剂 {{dose}} 毫克，{{time}}"
+    }
   },
   "foodDiary": {
     "title": "饮食日记",
@@ -2810,7 +2882,13 @@
       "deletedSuccess": "饮水记录已删除",
       "deletedError": "饮水记录删除失败",
       "editTime": "点击修改录入时间",
-      "noManualToRemove": "这里只能移除手动记录的饮水"
+      "noManualToRemove": "这里只能移除手动记录的饮水",
+      "fromFood": "包含来自食物的 {{volume}} {{unit}}",
+      "linkedFoodRemovedTitle": "食物记录已移除",
+      "linkedFoodRemoved": "关联的食物记录也已从你的食物日记中移除。",
+      "linkedDrink": "已关联食物记录",
+      "noWaterCredit": "不计水分",
+      "noWaterCreditHint": "这杯饮品设置为不计入水分"
     },
     "copyFoodEntryDialog": {
       "title": "拷贝饮食记录",
@@ -2934,7 +3012,8 @@
       "photos": "照片",
       "sleep": "睡眠"
     },
-    "noRecentActivity": "未找到近期活动."
+    "noRecentActivity": "未找到近期活动.",
+    "failedToLoadPreviousCustom": "无法加载之前的自定义数值。"
   },
   "sleepTimelineEditor": {
     "sleepTimeline": "睡眠阶段分布图",
@@ -3099,7 +3178,11 @@
     "foods": "食物",
     "name": "名称",
     "removeFromFavorites": "从收藏中移除",
-    "notes": "备注"
+    "notes": "备注",
+    "bulkDeleteDescription": "从你的食物库、所有餐点和餐点计划中移除这 {{count}} 项食物。已记录的条目会保留在你的日记中。",
+    "deleteKeepsDiaryHint": "删除会将食物从你的食物库、餐点和餐点计划中移除。你的日记记录会保留名称、品牌和营养信息。",
+    "deleteMealPlanKeepsPastHistoryHint": "该食物用于你的餐点计划。删除它会移除日记中未来安排的餐点，但会保留你过去记录的历史。",
+    "deleteWithHistory": "连同历史记录一起删除"
   },
   "mealManagement": {
     "failedToLoadMeals": "食谱数据加载失败。",
@@ -3179,13 +3262,13 @@
     "mealUpdatedSuccess": "食谱修改保存成功！",
     "mealCreatedSuccess": "食谱创建完成！",
     "saveMealError": "食谱保存失败： {{error}}",
-    "mealName": "食谱名称",
+    "mealName": "餐食名称",
     "mealNamePlaceholder": "示例：高蛋白早餐套餐",
     "mealDescription": "食谱描述（选填）",
     "mealDescriptionPlaceholder": "示例：本人日常常备早餐",
     "shareWithPublic": "公开分享至社区",
     "shareWithPublicNote": "注意：食谱内所有食材会同步被标记为公开状态。",
-    "foodsInMeal": "当前食谱食材列表",
+    "foodsInMeal": "餐食中的食物",
     "noFoodsInMeal": "该食谱还未添加任何食材。",
     "totalNutrition": "合计营养数据：热量 {{calories}} 、蛋白质 {{protein}} g、碳水 {{carbs}} g、脂肪 {{fat}} g",
     "totalNutritionLabel": "整体营养总值：",
@@ -3426,7 +3509,10 @@
       "vitaminA": "维生素A (μg)",
       "vitaminC": "维生素C (mg)",
       "calcium": "钙 (mg)",
-      "iron": "铁 (mg)"
+      "iron": "铁 (mg)",
+      "caffeine": "咖啡因（毫克）",
+      "waterContent": "水分含量（毫升）",
+      "alcohol": "酒精（克）"
     },
     "exerciseEntriesExportHeaders": {
       "date": "日期",
@@ -3687,7 +3773,25 @@
     "hips": "臀围",
     "height": "身高",
     "bodyFatPercentage": "体脂 %",
-    "nutrientBalance": "{{nutrient}} 平衡"
+    "nutrientBalance": "{{nutrient}} 平衡",
+    "alcohol": {
+      "weeklyAlcohol": "每周酒精摄入量",
+      "standardDrinks": "标准杯",
+      "limit": "上限",
+      "overLimit": "超过上限",
+      "onTrack": "低于上限",
+      "noLimit": "未设置每周上限",
+      "drinksRemaining_other": "剩余 {{count}} 杯",
+      "drinksOver_other": "超过 {{count}} 杯",
+      "upcomingDay": "尚未"
+    },
+    "hydration": {
+      "title": "水分"
+    },
+    "failedToLoadAlcoholWeek": "无法加载每周酒精数据。",
+    "failedToLoadHydrationTrend": "无法加载水分趋势数据。",
+    "avgVarianceTargetRangeDescription": "每日偏离目标范围的平均幅度",
+    "daysInTargetRange": "{{total}} 天中有 {{inRange}} 天在范围内"
   },
   "sleepHealth": {
     "hrvStatus": "心率变异性状态",
@@ -4704,7 +4808,8 @@
       "testLoggingTitle": "排卵与验孕测试",
       "testLogsHistory": "本周期测试记录",
       "testReady": "你已达到 {{dpo}} DPO！现在记录的验孕结果非常准确。请使用晨起第一次尿液以获得最佳浓度.",
-      "twoWeekWaitTitle": "两周等待（TWW）"
+      "twoWeekWaitTitle": "两周等待（TWW）",
+      "ovulationEstimateBasis": " 基于 "
     }
   },
   "layout": {
@@ -5490,7 +5595,30 @@
     "setPrimary": "设为主容器",
     "servingsCount_other": "{{count}} 份",
     "deleted": "饮水容器已删除.",
-    "primaryUpdated": "主容器已更新."
+    "primaryUpdated": "主容器已更新.",
+    "modeLinked": "按一下即可将下方食物记录到日记中，并计入其水分。",
+    "modePlain": "按一下即可计入此容量的纯净水。",
+    "linkFood": "关联食物条目",
+    "linkedFood": "已关联食物",
+    "unlinkFood": "取消关联",
+    "searchFood": "搜索要关联的食物",
+    "selectMealType": "餐别",
+    "selectMealTypePlaceholder": "选择餐别（选填）",
+    "hydrationFactor": "水分系数",
+    "hydrationFactorHelp": "仅调整水分计入比例：水为 1，咖啡或茶约 0.9，完全不应计入水分的饮品为 0。热量、咖啡因与酒精一律全额计入。",
+    "editContainer": "编辑容器",
+    "saveChanges": "保存更改",
+    "cancel": "取消",
+    "edit": "编辑",
+    "updated": "水容器已更新。",
+    "quantity": "数量",
+    "tabWater": "水",
+    "tabDrink": "饮品（已关联食物）",
+    "linkFoodRequired": "请先关联食物",
+    "linkFoodRequiredHint": "饮品容器会记录食物，请选择这个容器所装的食物。",
+    "perPress": "每按一下记录",
+    "changeQuantity": "更改数量／单位",
+    "hydrationFactorExample": "以 {{factor}} 计算，每按一下会从饮品的 {{total}} {{unit}} 中，将 {{credited}} {{unit}} 加入你的水分环。热量、咖啡因与酒精一律全额计入。"
   },
   "homeFasting": {
     "startNew": "开始新的禁食",
@@ -5536,7 +5664,8 @@
       "low": "粗略"
     },
     "aboutThisFood": "关于此食物",
-    "entryNotes": "此条目的备注（可选）"
+    "entryNotes": "此条目的备注（可选）",
+    "deletedFoodNote": "该食物已不在你的食物库中。正在显示此日记记录中保存的详细信息。"
   },
   "release": {
     "whatsNew": "更新内容"
@@ -5822,5 +5951,38 @@
     "imageBlockedFrom": "外部图片已被阻止：{{host}}",
     "imageFromHost": "来自 {{host}} 的图片",
     "externalImage": "外部图片"
+  },
+  "drink_presets": {
+    "title": "快速添加饮品预设",
+    "description": "常见含咖啡因与酒精饮品的一键预设",
+    "addFromCatalog": "从目录添加",
+    "catalogTitle": "饮品预设目录",
+    "catalogDescription": "选择要添加到快速添加饮品按钮的预设。",
+    "presetAdded": "预设已成功添加。",
+    "addFailed": "无法添加饮品预设。",
+    "noPresets": "还没有快速添加饮品预设。请从目录添加浓缩咖啡、咖啡、茶或啤酒。",
+    "all": "全部",
+    "caffeine": "咖啡因",
+    "alcohol": "酒精",
+    "hydration": "水分",
+    "alreadyAdded": "已添加",
+    "addPreset": "添加预设",
+    "espresso": "浓缩咖啡",
+    "double_espresso": "双份浓缩咖啡",
+    "drip_coffee": "滴滤咖啡",
+    "instant_coffee": "速溶咖啡",
+    "latte": "拿铁",
+    "cappuccino": "卡布奇诺",
+    "black_tea": "红茶",
+    "green_tea": "绿茶",
+    "energy_drink": "能量饮料",
+    "cola": "可乐",
+    "beer_pint": "啤酒（品脱 4.5%）",
+    "beer_bottle": "啤酒（瓶装 5%）",
+    "wine_glass": "葡萄酒（175 毫升 12%）",
+    "spirit_single": "烈酒（单份 40%）",
+    "quickAdd": "快速添加饮品",
+    "caffeineBadge": "{{amount}} 毫克咖啡因",
+    "alcoholBadge": "{{abv}}% 酒精度"
   }
 }

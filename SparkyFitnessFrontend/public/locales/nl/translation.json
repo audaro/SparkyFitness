@@ -453,7 +453,6 @@
     "editPresetTooltip": "Bewerk dit schema",
     "deletePresetTooltip": "Verwijder dit schema",
     "loading": "Laden...",
-    "loadMore": "Laad meer",
     "noExercisesInPreset": "Geen oefeningen in dit schema",
     "failedToLoadPresets": "Het laden van de trainingsschema's is mislukt.",
     "createSuccess": "Trainingsschema succesvol aangemaakt.",

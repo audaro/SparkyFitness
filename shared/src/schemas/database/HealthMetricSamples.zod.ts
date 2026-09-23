@@ -20,6 +20,7 @@ export const healthMetricSchema = z.enum([
   "spo2",
   "stress",
   "body_battery",
+  "skin_temperature",
 ]);
 export type HealthMetric = z.infer<typeof healthMetricSchema>;
 
@@ -64,6 +65,11 @@ export const stressSampleSchema = baseSampleSchema.extend({
 export const bodyBatterySampleSchema = baseSampleSchema.extend({
   level: z.number(),
 });
+export const skinTemperatureSampleSchema = baseSampleSchema.extend({
+  celsius: z.number().optional(),
+  temperature_celsius: z.number().optional(),
+  deviation_celsius: z.number().optional(),
+});
 
 export type HeartRateSample = z.infer<typeof heartRateSampleSchema>;
 export type HrvSample = z.infer<typeof hrvSampleSchema>;
@@ -71,6 +77,9 @@ export type RespirationSample = z.infer<typeof respirationSampleSchema>;
 export type Spo2Sample = z.infer<typeof spo2SampleSchema>;
 export type StressSample = z.infer<typeof stressSampleSchema>;
 export type BodyBatterySample = z.infer<typeof bodyBatterySampleSchema>;
+export type SkinTemperatureSample = z.infer<
+  typeof skinTemperatureSampleSchema
+>;
 
 const rowBase = {
   id: healthMetricSamplesIdSchema,
@@ -115,6 +124,11 @@ export const healthMetricSamplesSchema = z.discriminatedUnion("metric", [
     ...rowBase,
     metric: z.literal("body_battery"),
     samples: z.array(bodyBatterySampleSchema),
+  }),
+  z.object({
+    ...rowBase,
+    metric: z.literal("skin_temperature"),
+    samples: z.array(skinTemperatureSampleSchema),
   }),
 ]);
 export type HealthMetricSamples = z.infer<typeof healthMetricSamplesSchema>;
@@ -161,6 +175,11 @@ export const healthMetricSamplesInitializerSchema = z.discriminatedUnion(
       ...rowBaseInitializer,
       metric: z.literal("body_battery"),
       samples: z.array(bodyBatterySampleSchema),
+    }),
+    z.object({
+      ...rowBaseInitializer,
+      metric: z.literal("skin_temperature"),
+      samples: z.array(skinTemperatureSampleSchema),
     }),
   ],
 );

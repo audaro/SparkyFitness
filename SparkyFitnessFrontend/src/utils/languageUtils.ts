@@ -1,6 +1,7 @@
 import type { Locale } from 'date-fns';
 import {
   ar,
+  ca,
   cs,
   da,
   de,
@@ -8,7 +9,7 @@ import {
   es,
   fi,
   fr,
-  hr,
+  he,
   hu,
   id,
   it,
@@ -16,8 +17,10 @@ import {
   kk,
   ko,
   lv,
+  nb,
   nl,
   pl,
+  pt,
   ptBR,
   ro,
   ru,
@@ -25,12 +28,17 @@ import {
   sl,
   sv,
   ta,
+  te,
+  tr,
   uk,
   zhCN,
+  zhHK,
+  zhTW,
 } from 'date-fns/locale';
 
 const dateLocales: Record<string, Locale> = {
   ar,
+  ca,
   cs,
   da,
   de,
@@ -38,7 +46,7 @@ const dateLocales: Record<string, Locale> = {
   es,
   fi,
   fr,
-  hr,
+  he,
   hu,
   id,
   it,
@@ -46,8 +54,10 @@ const dateLocales: Record<string, Locale> = {
   kk,
   ko,
   lv,
+  'nb-NO': nb,
   nl,
   pl,
+  pt,
   'pt-BR': ptBR,
   ro,
   ru,
@@ -55,8 +65,12 @@ const dateLocales: Record<string, Locale> = {
   sl,
   sv,
   ta,
+  te,
+  tr,
   uk,
+  'yue-Hant': zhHK,
   'zh-Hans': zhCN,
+  'zh-Hant': zhTW,
 };
 
 export const getDateLocale = (language: string): Locale => {
@@ -68,98 +82,48 @@ export const getDateLocale = (language: string): Locale => {
   );
 };
 
-// In a real-world scenario, this list would be fetched dynamically from a server-side endpoint
-// that reads the contents of the public/locales directory.
-// For this task, we are hardcoding the languages found in the public/locales directory.
-export const getSupportedLanguages = (): string[] => {
-  return [
-    'ar',
-    'cs',
-    'da',
-    'de',
-    'en',
-    'es',
-    'fi',
-    'fr',
-    'hr',
-    'hu',
-    'id',
-    'it',
-    'ja',
-    'kk',
-    'ko',
-    'lv',
-    'nl',
-    'pl',
-    'pt-BR',
-    'ro',
-    'ru',
-    'sk',
-    'sl',
-    'sv',
-    'ta',
-    'uk',
-    'zh-Hans',
-  ];
+const languageDisplayNames: Record<string, string> = {
+  ar: 'العربية',
+  ca: 'Català',
+  cs: 'Čeština',
+  da: 'Dansk',
+  de: 'Deutsch',
+  en: 'English',
+  es: 'Español',
+  fi: 'Suomi',
+  fr: 'Français',
+  he: 'עברית',
+  hu: 'Magyar',
+  id: 'Bahasa Indonesia',
+  it: 'Italiano',
+  ja: '日本語',
+  kk: 'Қазақ тілі',
+  ko: '한국어',
+  lv: 'Latviešu',
+  'nb-NO': 'Norsk bokmål',
+  nl: 'Nederlands',
+  pl: 'Polski',
+  pt: 'Português',
+  'pt-BR': 'Português (Brasil)',
+  ro: 'Română',
+  ru: 'Русский',
+  sk: 'Slovenčina',
+  sl: 'Slovenščina',
+  sv: 'Svenska',
+  ta: 'தமிழ்',
+  te: 'తెలుగు',
+  tr: 'Türkçe',
+  uk: 'Українська',
+  'yue-Hant': '正體粵語',
+  'zh-Hans': '简体中文',
+  'zh-Hant': '正體中文',
 };
 
-export const getLanguageDisplayName = (langCode: string): string => {
-  switch (langCode) {
-    case 'ar':
-      return 'العربية';
-    case 'cs':
-      return 'Čeština';
-    case 'da':
-      return 'Dansk';
-    case 'de':
-      return 'Deutsch';
-    case 'en':
-      return 'English';
-    case 'es':
-      return 'Español';
-    case 'fi':
-      return 'Suomi';
-    case 'fr':
-      return 'Français';
-    case 'hr':
-      return 'Hrvatski';
-    case 'hu':
-      return 'Magyar';
-    case 'id':
-      return 'Bahasa Indonesia';
-    case 'it':
-      return 'Italiano';
-    case 'ja':
-      return '日本語';
-    case 'kk':
-      return 'Қазақ тілі';
-    case 'ko':
-      return '한국어';
-    case 'lv':
-      return 'Latviešu';
-    case 'nl':
-      return 'Nederlands';
-    case 'pl':
-      return 'Polski';
-    case 'pt-BR':
-      return 'Português (Brasil)';
-    case 'ro':
-      return 'Română';
-    case 'ru':
-      return 'Русский';
-    case 'sk':
-      return 'Slovenčina';
-    case 'sl':
-      return 'Slovenščina';
-    case 'sv':
-      return 'Svenska';
-    case 'ta':
-      return 'தமிழ்';
-    case 'uk':
-      return 'Українська';
-    case 'zh-Hans':
-      return '简体中文';
-    default:
-      return langCode;
-  }
-};
+// Mirrors the non-empty locale directories under `public/locales`. A Weblate
+// directory only belongs here once it actually contains translated strings;
+// listing an empty one just offers the user an all-English UI.
+export const getSupportedLanguages = (): string[] =>
+  Object.keys(languageDisplayNames);
+
+export const getLanguageDisplayName = (langCode: string): string =>
+  languageDisplayNames[langCode] ?? langCode;

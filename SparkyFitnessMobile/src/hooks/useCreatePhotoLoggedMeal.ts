@@ -6,7 +6,7 @@ import type {
   FoodPhotoLogResponse,
 } from '@workspace/shared';
 import { createPhotoLoggedMeal } from '../services/api/foodEntryMealsApi';
-import { dailySummaryQueryKey, foodsQueryKey } from './queryKeys';
+import { invalidateFoodCache } from './invalidateFoodCache';
 import { invalidateMealUsageCaches } from './useMeals';
 
 interface UseCreatePhotoLoggedMealOptions {
@@ -39,8 +39,7 @@ export function useCreatePhotoLoggedMeal(
 
   // The default staleTime is Infinity, so nothing refetches unless we say so.
   const invalidateCache = (date: string) => {
-    queryClient.invalidateQueries({ queryKey: dailySummaryQueryKey(date) });
-    queryClient.invalidateQueries({ queryKey: [...foodsQueryKey] });
+    invalidateFoodCache(queryClient, date);
   };
 
   return {

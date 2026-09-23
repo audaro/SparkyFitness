@@ -57,6 +57,25 @@ export function useAppLocale(): string {
   return useSyncExternalStore(subscribeToAppLocale, getAppLocale, getAppLocale);
 }
 
+/**
+ * Bare language code for the active app language (`de`, not `de-DE`).
+ *
+ * Search providers key off ISO 639-1 codes: the server forwards this value to
+ * wger as `language__code`, so it must not carry a region subtag.
+ */
+export function getAppLanguageCode(): string {
+  const language = normalizeLanguage(i18n.resolvedLanguage);
+  return metadataForLanguage(language).languageCode;
+}
+
+export function useAppLanguageCode(): string {
+  return useSyncExternalStore(
+    subscribeToAppLocale,
+    getAppLanguageCode,
+    getAppLanguageCode
+  );
+}
+
 export function formatLocalizedNumber(
   value: number,
   options?: Intl.NumberFormatOptions

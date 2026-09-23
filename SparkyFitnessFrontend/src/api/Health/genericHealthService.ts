@@ -4,7 +4,30 @@ import {
   ExerciseEntryLaps,
   ExerciseEntryGpsPoints,
   ExerciseEntryHrZones,
+  HealthMetric,
+  HealthMetricSamples,
 } from '@workspace/shared';
+
+export const fetchHealthMetricSamples = async (
+  metric: HealthMetric,
+  startDate: string,
+  endDate?: string,
+  userId?: string
+): Promise<HealthMetricSamples[]> => {
+  const params = new URLSearchParams({
+    metric,
+    startDate,
+    endDate: endDate || startDate,
+  });
+  if (userId) params.append('userId', userId);
+  const response = await apiCall<{ data: HealthMetricSamples[] }>(
+    `/generic-health/samples?${params.toString()}`,
+    {
+      method: 'GET',
+    }
+  );
+  return response?.data || [];
+};
 
 export const fetchDailyHealthMetrics = async (
   startDate: string,

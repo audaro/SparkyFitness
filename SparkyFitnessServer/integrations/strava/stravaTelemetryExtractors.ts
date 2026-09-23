@@ -46,6 +46,8 @@ export interface StravaExtractedLap {
   avg_cadence: number | null;
   avg_power_watts: number | null;
   elevation_gain_meters: number | null;
+  moving_time_seconds: number | null;
+  avg_moving_speed_mps: number | null;
 }
 
 /**
@@ -91,13 +93,28 @@ export function extractStravaLaps(
     const durationSeconds = Math.round(
       firstNum(lap, ['elapsed_time', 'moving_time']) ?? 0
     );
+    // `moving_time` was previously read only as a fallback for the lap's
+    // overall duration (above); Strava's Lap object also reports it as its
+    // own field, distinct from `elapsed_time`, so capture it directly.
+    const movingTimeSeconds = firstInt(lap, ['moving_time']);
+    const distanceMeters = firstNum(lap, ['distance']);
+    // Strava's Lap object has no separate "average moving speed" field — only
+    // `average_speed`, whose exact time base (elapsed vs. moving) isn't
+    // documented per-lap. Rather than guess, derive it from two values we
+    // already trust: distance and Strava's own moving_time.
+    const avgMovingSpeedMps =
+      distanceMeters !== null &&
+      movingTimeSeconds !== null &&
+      movingTimeSeconds > 0
+        ? distanceMeters / movingTimeSeconds
+        : null;
     return [
       {
         lap_index: firstInt(lap, ['lap_index']) ?? index + 1,
         start_time: startTime,
         end_time: new Date(startTime.getTime() + durationSeconds * 1000),
         duration_seconds: durationSeconds,
-        distance_meters: firstNum(lap, ['distance']),
+        distance_meters: distanceMeters,
         calories: null,
         avg_heart_rate: firstInt(lap, ['average_heartrate']),
         max_heart_rate: firstInt(lap, ['max_heartrate']),
@@ -106,6 +123,8 @@ export function extractStravaLaps(
         avg_cadence: firstInt(lap, ['average_cadence']),
         avg_power_watts: firstNum(lap, ['average_watts']),
         elevation_gain_meters: firstNum(lap, ['total_elevation_gain']),
+        moving_time_seconds: movingTimeSeconds,
+        avg_moving_speed_mps: avgMovingSpeedMps,
       },
     ];
   });

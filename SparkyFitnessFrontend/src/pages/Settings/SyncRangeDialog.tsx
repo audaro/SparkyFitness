@@ -20,11 +20,23 @@ import { cn } from '@/lib/utils';
 import { format, subDays } from 'date-fns';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useMockDataEnabled } from '@/hooks/Admin/useSettings';
+
+export interface SyncMockOptions {
+  /** Write this sync's raw provider responses to a JSON file on the server. */
+  saveMockData?: boolean;
+  /** 'local' replays the saved file instead of calling the provider. */
+  dataSource?: string;
+}
 
 interface SyncRangeDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSync: (startDate: string, endDate: string) => void;
+  onSync: (
+    startDate: string,
+    endDate: string,
+    mockOptions?: SyncMockOptions
+  ) => void;
   providerType: string;
 }
 
@@ -39,11 +51,34 @@ const SyncRangeDialog = ({
     subDays(new Date(), 7)
   );
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  // Only rendered when an admin has turned the capability on; the server
+  // ignores both options otherwise, so this is presentation only.
+  const { data: mockDataEnabled } = useMockDataEnabled();
+  type SyncMode = 'live' | 'capture' | 'replay';
+  const [syncMode, setSyncMode] = useState<SyncMode>('live');
+  const isReplay = syncMode === 'replay';
+
+  // ProviderCard keeps this dialog mounted and only flips `isOpen`, so state
+  // survives a close. Reset the mode on the way out, otherwise a capture or
+  // replay selection would silently carry into the next sync.
+  const handleClose = () => {
+    setSyncMode('live');
+    onClose();
+  };
 
   const handleSyncClick = () => {
     if (startDate && endDate) {
-      onSync(format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd'));
-      onClose();
+      onSync(
+        format(startDate, 'yyyy-MM-dd'),
+        format(endDate, 'yyyy-MM-dd'),
+        mockDataEnabled
+          ? {
+              saveMockData: syncMode === 'capture',
+              dataSource: isReplay ? 'local' : undefined,
+            }
+          : undefined
+      );
+      handleClose();
     }
   };
 
@@ -66,6 +101,8 @@ const SyncRangeDialog = ({
         return 'Garmin';
       case 'hevy':
         return 'Hevy';
+      case 'liftosaur':
+        return 'Liftosaur';
       case 'withings':
         return 'Withings';
       case 'googlehealth':
@@ -78,7 +115,7 @@ const SyncRangeDialog = ({
   const providerName = getProviderName(providerType);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -123,7 +160,13 @@ const SyncRangeDialog = ({
 
         <div className="grid gap-6 py-4">
           {/* Presets */}
-          <div className="flex flex-wrap gap-2">
+          <div
+            className="flex flex-wrap gap-2"
+            style={
+              isReplay ? { opacity: 0.5, pointerEvents: 'none' } : undefined
+            }
+            aria-disabled={isReplay}
+          >
             <Button
               variant="outline"
               size="sm"
@@ -166,7 +209,13 @@ const SyncRangeDialog = ({
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div
+            className="grid grid-cols-2 gap-4"
+            style={
+              isReplay ? { opacity: 0.5, pointerEvents: 'none' } : undefined
+            }
+            aria-disabled={isReplay}
+          >
             {/* Start Date */}
             <div className="grid gap-2">
               <Label htmlFor="startDate" className="text-xs font-semibold">
@@ -242,8 +291,66 @@ const SyncRangeDialog = ({
           </div>
         </div>
 
+        {mockDataEnabled && (
+          <div className="grid gap-3 rounded-md border border-dashed p-3">
+            <p className="text-xs font-semibold text-muted-foreground">
+              {t('syncRangeDialog.troubleshooting', 'Troubleshooting')}
+            </p>
+            {(
+              [
+                [
+                  'live',
+                  t(
+                    'syncRangeDialog.modeLive',
+                    'Sync normally from {{provider}}',
+                    { provider: providerName }
+                  ),
+                ],
+                [
+                  'capture',
+                  t(
+                    'syncRangeDialog.modeCapture',
+                    "Sync from {{provider}} and save this sync's raw responses to a file on the server",
+                    { provider: providerName }
+                  ),
+                ],
+                [
+                  'replay',
+                  t(
+                    'syncRangeDialog.modeReplay',
+                    'Sync from the previously saved file instead of {{provider}}',
+                    { provider: providerName }
+                  ),
+                ],
+              ] as const
+            ).map(([mode, label]) => (
+              <label
+                key={mode}
+                className="flex items-start gap-2 text-xs cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  name="sync-mode"
+                  className="mt-0.5"
+                  checked={syncMode === mode}
+                  onChange={() => setSyncMode(mode)}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+            {isReplay && (
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  'syncRangeDialog.replayIgnoresDates',
+                  'The date range does not apply here — the saved file is replayed in full, covering whatever period it was captured over.'
+                )}
+              </p>
+            )}
+          </div>
+        )}
+
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={handleClose}>
             {t('common.cancel', 'Cancel')}
           </Button>
           <Button onClick={handleSyncClick} disabled={!startDate || !endDate}>

@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import {
   BarChart,
   Bar,
@@ -15,6 +16,8 @@ import { Activity } from 'lucide-react';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { parseISO } from 'date-fns';
 import { getSpO2Color, getSpO2Status } from '@/utils/reportUtil';
+import { useHealthMetricSamples } from '@/hooks/useGenericHealth';
+import IntradaySamplesChart from '@/components/Health/IntradaySamplesChart';
 
 interface SpO2DataPoint {
   date: string;
@@ -30,6 +33,7 @@ interface SpO2CardProps {
 const SpO2Card = ({ data }: SpO2CardProps) => {
   const { t } = useTranslation();
   const { formatDateInUserTimezone } = usePreferences();
+  const [showIntraday, setShowIntraday] = useState(false);
 
   // Filter out entries without SpO2 data and sort by date
   const validData = useMemo(() => {
@@ -41,6 +45,17 @@ const SpO2Card = ({ data }: SpO2CardProps) => {
   // Get latest day's data
   const latestData =
     validData.length > 0 ? validData[validData.length - 1] : null;
+  const latestDate = latestData?.date;
+
+  const { data: spo2Samples = [] } = useHealthMetricSamples(
+    'spo2',
+    latestDate || '',
+    latestDate
+  );
+
+  const hasIntraday = spo2Samples.some(
+    (row) => Array.isArray(row.samples) && row.samples.length > 0
+  );
 
   // Calculate overall stats
   const stats = useMemo(() => {
@@ -76,13 +91,47 @@ const SpO2Card = ({ data }: SpO2CardProps) => {
   const { statusKey, statusDefault, color } = getSpO2Status(latestValue);
   const status = t(statusKey, statusDefault);
 
+  if (showIntraday && hasIntraday) {
+    return (
+      <div className="space-y-2">
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs font-medium text-muted-foreground hover:text-foreground"
+            onClick={() => setShowIntraday(false)}
+          >
+            {t('sleepHealth.dailyTrend', 'Trend')}
+          </Button>
+        </div>
+        <IntradaySamplesChart
+          metric="spo2"
+          samples={spo2Samples}
+          selectedDate={latestDate}
+        />
+      </div>
+    );
+  }
+
   return (
     <Card className="w-full h-full">
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center text-lg">
-          <Activity className="w-5 h-5 mr-2" />
-          {t('sleepHealth.pulseOx', 'Pulse Ox (SpO2)')}
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center text-lg">
+            <Activity className="w-5 h-5 mr-2" />
+            {t('sleepHealth.pulseOx', 'Pulse Ox (SpO2)')}
+          </CardTitle>
+          {hasIntraday && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs font-medium text-muted-foreground hover:text-foreground"
+              onClick={() => setShowIntraday(true)}
+            >
+              {t('sleepHealth.spotTests', 'Spot Tests')}
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {/* Top: Value and stats */}

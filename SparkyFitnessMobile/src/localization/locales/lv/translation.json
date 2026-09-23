@@ -1,1 +1,40 @@
-{}
+{
+  "medications": {
+    "mealRelation": {
+      "awayFromMeals": "Laiks kopš pēdējās ēdienreizes"
+    }
+  },
+  "healthMetrics": {
+    "basalBodyTemperature": "Bazālā ķermeņa temperatūra",
+    "basalMetabolicRate": "Bāzes vielmaiņas ātrums",
+    "bloodAlcoholContent": "Asins alkohola līmenis",
+    "bloodGlucose": "Asins glikozes līmenis",
+    "bloodOxygenSaturation": "Skābekļa piesātinājums asinīs",
+    "bloodPressure": "Asinsspiediens",
+    "bodyFat": "Ķermeņa tauku saturs",
+    "bodyTemperature": "Ķermeņa temperatūra",
+    "boneMass": "Kaulu masa",
+    "cyclingPedalingCadence": "Riteņbraukšanas pedāļošanas kadence",
+    "distance": "Attālums",
+    "elevationGained": "Uzņemtais augstums",
+    "floorsClimbed": "Pārzāptas stāvu skaitu",
+    "heartRate": "Sirdsdarbības ātrums",
+    "height": "Augstums",
+    "hydration": "Hidratācija",
+    "leanBodyMass": "Muskuļu masa",
+    "nutrition": "Uzturs",
+    "power": "Jauda",
+    "respiratoryRate": "Elpošanas frekvence",
+    "restingHeartRate": "Miera sirdsdarbības ātrums",
+    "sleepSession": "Miega sesija",
+    "speed": "Ātrums",
+    "stepsCadence": "Soli Kadence",
+    "stress": "Stress",
+    "weight": "Svars",
+    "appleExerciseTime": "Apple fizisko aktivitāšu laiks",
+    "appleMoveTime": "Apple aktivitātes laiks",
+    "appleStandTime": "Apple ierīces aktīvā laika periods",
+    "steps": "Soli",
+    "totalCalories": "Kopējās kalorijas"
+  }
+}

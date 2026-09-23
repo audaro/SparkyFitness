@@ -22,6 +22,8 @@ import {
   Cookie, // Used for Snacks
   UtensilsCrossed, // Used for Dinner
   Salad, // Used for Food Log
+  BookOpen, // Used for the docs link
+  Languages, // Used for the translation link
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -33,6 +35,7 @@ import GlobalSyncButton from '@/components/GlobalSyncButton';
 import ProfileSwitcher from '@/components/ProfileSwitcher';
 import GitHubStarCounter from '@/components/GitHubStarCounter';
 import GitHubSponsorButton from '@/components/GitHubSponsorButton';
+import HeaderLinkPill from '@/components/HeaderLinkPill';
 import GlobalNotificationIcon from '@/components/GlobalNotificationIcon';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -473,6 +476,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({
               <>
                 <GitHubStarCounter owner="CodeWithCJ" repo="SparkyFitness" />
                 <GitHubSponsorButton owner="CodeWithCJ" />
+                <HeaderLinkPill
+                  href="https://codewithcj.github.io/SparkyFitness/"
+                  label={t('layout.docs', 'Docs')}
+                  icon={BookOpen}
+                />
+                <HeaderLinkPill
+                  href="https://weblate.sparkyfitness.com/engage/sparkyfitness/"
+                  label={t('layout.translate', 'Translate')}
+                  icon={Languages}
+                />
               </>
             )}
           </div>
@@ -622,9 +635,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       <footer className="text-center text-muted-foreground text-sm py-4">
         {isMobile ? (
           <div className="flex flex-col items-center gap-2 mb-14">
-            <div className="flex justify-center gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <GitHubStarCounter owner="CodeWithCJ" repo="SparkyFitness" />
               <GitHubSponsorButton owner="CodeWithCJ" />
+              <HeaderLinkPill
+                href="https://codewithcj.github.io/SparkyFitness/"
+                label={t('layout.docs', 'Docs')}
+                icon={BookOpen}
+              />
+              <HeaderLinkPill
+                href="https://weblate.sparkyfitness.com/engage/sparkyfitness/"
+                label={t('layout.translate', 'Translate')}
+                icon={Languages}
+              />
             </div>
             <div className="flex items-center gap-2">
               <button

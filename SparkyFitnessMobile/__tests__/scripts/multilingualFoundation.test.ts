@@ -5,8 +5,9 @@
  * for shipped locales and that adding a new language is a data/translation
  * operation, not a code change across multiple files.
  *
- * The fixture locale `de` (and occasionally `fr`) is used to exercise the
- * pipeline without adding a production language.
+ * Synthetic registries written into temp roots exercise the pipeline without
+ * touching production. Assertions about the real registry use `sv` and `ta`,
+ * which have Weblate directories but are deliberately not shipped.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -128,14 +129,13 @@ function cleanup(root: string): void {
 // ---------------------------------------------------------------------------
 
 describe('language picker excludes unshipped Weblate locales', () => {
-  it('SUPPORTED_LANGUAGES contains only shipped locales (en, pl, es) and not unshipped (de, fr)', () => {
-    // The production registry ships en + pl + es. Even if Weblate syncs de/fr
-    // catalogs, those locales must not appear in the runtime language picker.
+  it('SUPPORTED_LANGUAGES is exactly the registry, with no unshipped locale', () => {
+    // Weblate writes a catalog directory long before anyone ships it, so a
+    // directory alone must never put a locale in the runtime language picker.
+    expect(SUPPORTED_LANGUAGES).toEqual(Object.keys(SHIPPED_LOCALES));
     expect(SUPPORTED_LANGUAGES).toContain('en');
-    expect(SUPPORTED_LANGUAGES).toContain('pl');
-    expect(SUPPORTED_LANGUAGES).toContain('es');
-    expect(SUPPORTED_LANGUAGES).not.toContain('de');
-    expect(SUPPORTED_LANGUAGES).not.toContain('fr');
+    expect(SUPPORTED_LANGUAGES).not.toContain('sv');
+    expect(SUPPORTED_LANGUAGES).not.toContain('ta');
   });
 
   it('RESOURCE_MAP keys match SUPPORTED_LANGUAGES exactly (no unshipped locale sneaks in)', () => {
@@ -144,9 +144,9 @@ describe('language picker excludes unshipped Weblate locales', () => {
     );
   });
 
-  it('SHIPPED_LOCALES does not include de or fr', () => {
-    expect(Object.keys(SHIPPED_LOCALES)).not.toContain('de');
-    expect(Object.keys(SHIPPED_LOCALES)).not.toContain('fr');
+  it('SHIPPED_LOCALES does not include sv or ta', () => {
+    expect(Object.keys(SHIPPED_LOCALES)).not.toContain('sv');
+    expect(Object.keys(SHIPPED_LOCALES)).not.toContain('ta');
   });
 });
 
@@ -835,8 +835,8 @@ describe('DE shipped → generated RESOURCE_MAP includes DE', () => {
     cleanup(root);
   });
 
-  it('DE unshipped → production RESOURCE_MAP does NOT include DE', () => {
-    expect(Object.keys(RESOURCE_MAP)).not.toContain('de');
+  it('SV unshipped → production RESOURCE_MAP does NOT include SV', () => {
+    expect(Object.keys(RESOURCE_MAP)).not.toContain('sv');
   });
 });
 

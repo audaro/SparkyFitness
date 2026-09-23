@@ -3948,6 +3948,40 @@ describe('workoutSession', () => {
         });
       });
 
+      it('bumps each working set from its own prior weight when progression overload is active', () => {
+        // Ascending/pyramid sets (50, 55 from last session) must each step up
+        // by the increment, not collapse onto one flattened suggested weight.
+        const result = resolveAssumedSetValues(
+          [makeSet(1), makeSet(2)],
+          [prev(50, 10), prev(55, 12)],
+          undefined,
+          5
+        );
+        expect(result[0]).toEqual({
+          weight: 55,
+          reps: 10,
+          duration: null,
+          distance: null,
+        });
+        expect(result[1]).toEqual({
+          weight: 60,
+          reps: 12,
+          duration: null,
+          distance: null,
+        });
+      });
+
+      it('leaves warmup sets out of the progression bump', () => {
+        const result = resolveAssumedSetValues(
+          [makeSet(1, { set_type: 'warmup' }), makeSet(2)],
+          [prev(20, 10, 'warmup'), prev(50, 8)],
+          undefined,
+          5
+        );
+        expect(result[0].weight).toBe(20);
+        expect(result[1].weight).toBe(55);
+      });
+
       it('mirrors the rows above onto sets with no history of their own', () => {
         // A never-done exercise: typing into set 1 updates every empty row
         // below it at once.

@@ -65,7 +65,7 @@ function getEnvOidcConfig() {
  * or env config is incomplete. Safe to call on every startup.
  * - If config is valid and SPARKY_FITNESS_OIDC_AUTH_ENABLED=true: upserts provider
  * - If config is invalid or OIDC_AUTH_ENABLED=false: removes any oidc provider configured in the env file
- * - Stale providers (slug changed) are cleaned up before the new one is created
+ * - Stale providers (slug changed) are removed in the same transaction as the upsert
  */
 async function upsertEnvOidcProvider() {
   const config = getEnvOidcConfig();
@@ -83,42 +83,25 @@ async function upsertEnvOidcProvider() {
     }
     return;
   }
-  // removes env configured providers if slug doesn't match
-  const client = await getSystemClient();
-  try {
-    const result = await client.query(
-      `SELECT provider_id FROM "sso_provider"
-       WHERE additional_config::jsonb->>'is_env_configured' = 'true'
-       AND provider_id != $1`,
-      [config.provider_id]
-    );
-    for (const row of result.rows) {
-      await oidcProviderRepository.deleteOidcProvider(row.provider_id);
-      log(
-        'info',
-        `[OIDC ENV] Removed stale provider "${row.provider_id}" (slug changed to "${config.provider_id}").`
-      );
-    }
-  } finally {
-    client.release();
-  }
-  // create or update the current env provider
   const existing = await oidcProviderRepository.getOidcProviderById(
     config.provider_id
   );
-  if (existing) {
-    await oidcProviderRepository.updateOidcProvider(config.provider_id, config);
-    log(
-      'info',
-      `[OIDC ENV] Updated provider "${config.provider_id}" from environment.`
-    );
-  } else {
-    await oidcProviderRepository.createOidcProvider(config);
-    log(
-      'info',
-      `[OIDC ENV] Created provider "${config.provider_id}" from environment.`
+  if (existing && existing.provider_id !== config.provider_id) {
+    throw new Error(
+      `Configured OIDC provider "${config.provider_id}" matches "${existing.provider_id}" only through a legacy alias. Use the existing provider ID "${existing.provider_id}" in SPARKY_FITNESS_OIDC_PROVIDER_SLUG.`
     );
   }
+  const removed = await oidcProviderRepository.upsertEnvOidcProvider(config);
+  for (const providerId of removed) {
+    log(
+      'info',
+      `[OIDC ENV] Removed stale provider "${providerId}" (slug changed to "${config.provider_id}").`
+    );
+  }
+  log(
+    'info',
+    `[OIDC ENV] Saved provider "${config.provider_id}" from environment.`
+  );
 }
 export { getEnvOidcConfig };
 export { upsertEnvOidcProvider };

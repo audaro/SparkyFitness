@@ -33,7 +33,9 @@
     "partialTitle": "Photo published; product data unconfirmed"
   },
   "layout": {
-    "welcome": "Welcome {{activeUserName}}"
+    "welcome": "Welcome {{activeUserName}}",
+    "docs": "Docs",
+    "translate": "Translate"
   },
   "chat": {
     "toolCategories": {
@@ -83,7 +85,14 @@
     "vo2Max": "VO2 Max",
     "fitnessAge": "Fit Age: {{val}}",
     "readiness": "Readiness",
-    "recHours": "Rec: {{val}}"
+    "recHours": "Rec: {{val}}",
+    "trainingLoad": "Training Load",
+    "acute": "acute",
+    "ratio": "Ratio: {{val}}",
+    "chronic": "Chronic: {{val}}",
+    "empty": "No wearable data synced for this day.",
+    "skinTemp": "Skin Temperature",
+    "weekly": "weekly"
   },
   "foodCsvImport": {
     "title": "Import Food Data",
@@ -1930,6 +1939,8 @@
         "description": "Global AI service settings are shared across all users. Users can override these with their own settings.",
         "allowUserConfig": "Allow Users to Configure AI Services",
         "allowUserConfigDescription": "When enabled, users can add and manage their own AI service configurations. When disabled, users can only use the global AI service settings.",
+        "allowPrivateNetworkAi": "Allow Private Network Endpoints (e.g. Local Ollama/vLLM)",
+        "allowPrivateNetworkAiDescription": "Permit connecting to AI endpoints hosted on private IP addresses (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, localhost).",
         "syncFromEnv": "Sync from Environment",
         "addNewService": "Add New Global AI Service",
         "addService": "Add Service",
@@ -2512,6 +2523,10 @@
     "authenticationSettings": {
       "title": "Authentication Settings",
       "description": "Manage authentication methods and OIDC providers.",
+      "publicApiDocs": "Public API Documentation",
+      "publicApiDocsDescription": "Allow Swagger API docs (/api/api-docs) to be accessed without requiring user authentication.",
+      "devTools": "Developer Diagnostic Tools",
+      "devToolsDescription": "Enable MCP and diagnostic database inspection tools for admins.",
       "loginManagement": {
         "title": "Login Management",
         "description": "Enable or disable different methods for users to log in.",
@@ -2616,7 +2631,7 @@
       "issuerUrl": "Issuer URL",
       "clientId": "Client ID",
       "clientSecret": "Client Secret",
-      "leaveUnchanged": "Leave unchanged if *****",
+      "leaveUnchanged": "Leave blank to keep the existing secret",
       "scope": "Scope",
       "redirectUri": "Redirect URI",
       "redirectUriPlaceholder": "e.g., {{uri}}",
@@ -2897,7 +2912,9 @@
     "selectAll": "Select all",
     "selectRow": "Select row",
     "unknown": "Unknown",
-    "warning": "Warning"
+    "warning": "Warning",
+    "avg": "Avg",
+    "max": "Max"
   },
   "diary": {
     "nutritionSummary": "Nutrition Summary",
@@ -2930,7 +2947,8 @@
       "legendNow": "Now",
       "legendDose": "Logged dose",
       "legendEstimated": "Assumed time",
-      "legendCutoff": "Last {{dose}}mg dose {{time}}"
+      "legendCutoff": "Last {{dose}}mg dose {{time}}",
+      "empty": "No caffeine logged for this day."
     },
     "exercise": "Exercise",
     "widgets": {
@@ -3978,7 +3996,7 @@
       "lapTableCaloriesHeader": "Calories",
       "heartRateTimeInZonesTitle": "Heart Rate Time in Zones",
       "timeInZoneSLabel": "Time in Zone (s)",
-      "avgMovingSpeed": "Avg Moving Speed",
+      "avgMovingPace": "Avg Moving Pace",
       "caloriesBreakdown": "Active / Resting",
       "elapsedTime": "Elapsed Time",
       "elevationRange": "Min / Max Elev",
@@ -4153,7 +4171,11 @@
     "normalRHR": "Normal adult: 60-100 bpm",
     "normalRange": "Normal: 12-20 brpm",
     "pulseOx": "Pulse Ox (SpO2)",
-    "range": "Range"
+    "range": "Range",
+    "dailyTrend": "Trend",
+    "overnightSeries": "Night Series",
+    "overnightHrvSeriesDesc": "5-minute interval overnight HRV series",
+    "spotTests": "Spot Tests"
   },
   "sleepSummary": {
     "title": "Last Night's Sleep",
@@ -5359,6 +5381,11 @@
     "googleHealthLinkSuccess": "Google Health account successfully linked!",
     "hevySyncError": "Hevy sync failed. Please check your API key in settings.",
     "hevySyncSuccess": "Hevy data synced successfully.",
+    "liftosaurSyncError": "Liftosaur sync failed. Please check your API key in settings.",
+    "liftosaurSyncErrorDesc": "Liftosaur sync failed. Please check your API key in settings.",
+    "liftosaurSyncSuccess": "Liftosaur data synced successfully.",
+    "liftosaurSyncSuccessTitle": "Liftosaur synced successfully",
+    "liftosaurSyncDetails": "Synced: {{workoutsImported}} workouts, {{measurementsImported}} measurements imported.",
     "ouraLinkError": "Failed to link Oura account.",
     "ouraLinkSuccess": "Oura account successfully linked!",
     "polarError": "Failed to link Polar account. Please try again.",
@@ -5596,6 +5623,11 @@
   },
   "success": "Success",
   "syncRangeDialog": {
+    "troubleshooting": "Troubleshooting",
+    "modeLive": "Sync normally from {{provider}}",
+    "modeCapture": "Sync from {{provider}} and save this sync's raw responses to a file on the server",
+    "modeReplay": "Sync from the previously saved file instead of {{provider}}",
+    "replayIgnoresDates": "The date range does not apply here — the saved file is replayed in full, covering whatever period it was captured over.",
     "description": "Choose the date range you would like to synchronize from {{provider}}.",
     "endDate": "End Date",
     "last180Days": "Last 180 Days",

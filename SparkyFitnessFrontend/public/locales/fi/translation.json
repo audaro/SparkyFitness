@@ -257,7 +257,6 @@
     "editPresetTooltip": "Muokkaa tätä harjoitetta",
     "deletePresetTooltip": "Poista tämä harjoite",
     "loading": "Ladataan...",
-    "loadMore": "Lataa lisää",
     "noExercisesInPreset": "Ei harjoituksia tässä harjoitteessa",
     "failedToLoadPresets": "Harjoitteiden lataaminen epäonnistui.",
     "createSuccess": "Harjoite luotiin onnistuneesti.",

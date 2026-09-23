@@ -1,11 +1,11 @@
-import { Alert, Linking, Platform } from 'react-native';
+import { Alert, AppState, Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import Toast from 'react-native-toast-message';
 import { addLog } from './LogService';
 import i18n from '../localization/i18n';
 import { fireSuccessHaptic } from './haptics';
-import { isRestTimerSoundEnabled, playRestCompleteSound } from './sounds';
+import { playRestCompleteSound, willPlayRestCompleteSound } from './sounds';
 import { ExactAlarmBridge } from './ExactAlarmBridge';
 import {
   useAppPreferencesStore,
@@ -14,6 +14,7 @@ import {
 
 const CHANNEL_ID = 'workout-timer';
 const FASTING_CHANNEL_ID = 'fasting';
+const HYDRATION_CHANNEL_ID = 'hydration';
 export const MEDICATION_REMINDER_CHANNEL_ID = 'medication-reminders';
 const EXACT_ALARM_PROMPT_KEY = '@SparkyFitness/exactAlarmPromptShown';
 
@@ -56,6 +57,14 @@ export async function registerLocalizedNotificationPresentation(): Promise<void>
     });
     await Notifications.setNotificationChannelAsync(FASTING_CHANNEL_ID, {
       name: notificationCopy('notifications.channels.fasting', 'Fasting'),
+      importance: Notifications.AndroidImportance.HIGH,
+      enableVibrate: true,
+    });
+    await Notifications.setNotificationChannelAsync(HYDRATION_CHANNEL_ID, {
+      name: notificationCopy(
+        'notifications.channels.hydration',
+        'Hydration reminders'
+      ),
       importance: Notifications.AndroidImportance.HIGH,
       enableVibrate: true,
     });
@@ -170,15 +179,17 @@ export async function initNotifications(): Promise<void> {
       handleNotification: async (notification) => {
         const category = notification.request.content.categoryIdentifier;
         const isMedReminder = category === MEDICATION_REMINDER_CATEGORY;
-        // While the in-app chime owns the foreground rest cue, the rest ping's
-        // notification sound is muted so the two never double up; turning the
-        // chime off restores it.
-        const restPingMuted =
-          category === REST_COMPLETE_CATEGORY && isRestTimerSoundEnabled();
+        const isRestPing = category === REST_COMPLETE_CATEGORY;
+        // iOS also runs this while the app is frontmost-but-inactive (screen
+        // locking, app switcher), where the chime never plays — so there the
+        // ping carries the cue itself instead of being hidden as a duplicate.
+        const restPingOwnsCue =
+          isRestPing && AppState.currentState !== 'active';
         return {
-          shouldShowBanner: isMedReminder,
-          shouldShowList: isMedReminder,
-          shouldPlaySound: !restPingMuted,
+          shouldShowBanner: isMedReminder || restPingOwnsCue,
+          shouldShowList: isMedReminder || restPingOwnsCue,
+          // Muted only while the chime owns the cue, so the two never double up.
+          shouldPlaySound: !(isRestPing && willPlayRestCompleteSound()),
           shouldSetBadge: false,
         };
       },
@@ -360,6 +371,10 @@ export async function scheduleRestNotification(
         sound: true,
         categoryIdentifier: REST_COMPLETE_CATEGORY,
         data: setId != null ? { setId } : undefined,
+        // At the default `active` level a Focus mode delivers the alert
+        // silently, which defeats the point of a rest timer. Needs the
+        // entitlement in app.config.ts; iOS falls back to `active` without it.
+        interruptionLevel: 'timeSensitive',
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
@@ -520,6 +535,59 @@ export async function scheduleFastGoalNotification(
     );
     return null;
   }
+}
+
+/**
+ * Schedules one hydration reminder per future time and returns the ids that
+ * were scheduled. Never prompts for permission: this runs from a background
+ * reconcile, and the settings toggle only turns on once permission is granted.
+ */
+export async function scheduleWaterReminderNotifications(
+  times: Date[]
+): Promise<string[]> {
+  const prefs = useAppPreferencesStore.getState();
+  if (!prefs.notificationsEnabled || !prefs.waterReminderEnabled) return [];
+  if (!(await hasNotificationPermission())) return [];
+
+  const nowMs = Date.now();
+  const ids: string[] = [];
+  for (const time of times) {
+    const timeMs = time.getTime();
+    if (Number.isNaN(timeMs) || timeMs <= nowMs) continue;
+    try {
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: notificationCopy(
+            'notifications.hydration.title',
+            'Time to hydrate 💧'
+          ),
+          body: notificationCopy(
+            'notifications.hydration.body',
+            "You haven't logged any water in a while."
+          ),
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: time,
+          channelId: HYDRATION_CHANNEL_ID,
+        },
+      });
+      ids.push(id);
+    } catch (err) {
+      addLog(
+        `scheduleWaterReminderNotifications failed: ${(err as Error).message}`,
+        'ERROR'
+      );
+      // All or nothing. A half-scheduled chain gets persisted as reconciled,
+      // and the signature guard then blocks a retry for the reminders that
+      // never made it. Returning nothing keeps the caller on its "an empty
+      // result is not persisted" path, so the next reconcile tries again.
+      await Promise.all(ids.map((id) => cancelScheduledNotification(id)));
+      return [];
+    }
+  }
+  return ids;
 }
 
 export async function cancelScheduledNotification(

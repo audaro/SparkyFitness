@@ -45,6 +45,7 @@ import {
   SafeWorkoutPresetDetail,
   SafeFoodSearch,
   SafeFoodEntryAdd,
+  SafeFoodEntryMultiAdd,
   SafeFoodForm,
   SafeEditBarcode,
   SafeExerciseForm,
@@ -512,6 +513,13 @@ function AppContent() {
             options={({ route }) => createStackScreenOptions(route.params.item.name, {
               presentation: 'modal',
               ...(Platform.OS === 'android' ? androidModalAnimation : {}),
+            })}
+          />
+          <Stack.Screen
+            name="FoodEntryMultiAdd"
+            component={SafeFoodEntryMultiAdd}
+            options={createStackScreenOptions(t('foodEntryMultiAdd.title', { defaultValue: 'Review' }), {
+              headerBackButtonDisplayMode: 'minimal',
             })}
           />
           <Stack.Screen

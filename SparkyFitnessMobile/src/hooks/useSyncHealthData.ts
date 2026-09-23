@@ -12,6 +12,12 @@ import { refreshHealthSyncCache } from './refreshHealthSyncCache';
 interface SyncHealthDataParams {
   timeRange: TimeRange;
   healthMetricStates: Record<string, boolean>;
+  /**
+   * Re-send workout routes and sample series for sessions already collected
+   * once, for this run only. Set by the user's explicit choice on the manual
+   * sync; sync-on-open and background runs leave it off so they stay cheap.
+   */
+  forceTelemetry?: boolean;
 }
 
 export function useSyncHealthData(options?: {
@@ -27,12 +33,14 @@ export function useSyncHealthData(options?: {
     mutationFn: async ({
       timeRange,
       healthMetricStates,
+      forceTelemetry = false,
     }: SyncHealthDataParams) => {
       const syncDone = markSyncInFlight();
       try {
         const result = await healthConnectSyncData(
           timeRange,
-          healthMetricStates
+          healthMetricStates,
+          forceTelemetry
         );
         if (result.success) {
           // Only read errors block the cursor; server-rejected records

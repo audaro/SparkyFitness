@@ -327,21 +327,30 @@ const WorkoutPlaybackPage = () => {
               const progression = evaluateProgression(config, lastPerf);
 
               if (progression.goalAchieved) {
-                // Case A: Weight Progression -> Only update working sets (preserve warmups)
+                // Case A: Weight Progression -> bump each working set from its
+                // own prior weight (preserves pyramid/ascending-weight sets
+                // instead of flattening every set to one suggested weight)
                 if (
                   config.incrementType === 'weight' &&
                   baseWeightInDisplayUnit > 0
                 ) {
                   hasChanges = true;
-                  const targetKg = weightToKgLocal(
-                    progression.suggestedWeight,
-                    weightUnit
-                  );
+                  let workingIndex = 0;
                   return {
                     ...exercise,
-                    sets: exercise.sets.map((s) =>
-                      isWarmup(s.set_type) ? s : { ...s, weight: targetKg }
-                    ),
+                    sets: exercise.sets.map((s) => {
+                      if (isWarmup(s.set_type)) return s;
+                      const previousSet = workingPreviousSets[workingIndex];
+                      workingIndex += 1;
+                      const previousWeightInDisplayUnit = previousSet?.weight
+                        ? weightFromKg(Number(previousSet.weight), weightUnit)
+                        : baseWeightInDisplayUnit;
+                      const targetKg = weightToKgLocal(
+                        previousWeightInDisplayUnit + config.incrementValue,
+                        weightUnit
+                      );
+                      return { ...s, weight: targetKg };
+                    }),
                   };
                 }
 

@@ -1,0 +1,17 @@
+"widget.calorie.name" = "千卡";
+"widget.calorie.description" = "今日熱量攝取一覽.";
+"widget.macro.name" = "巨集";
+"widget.macro.description" = "今日蛋白質、碳水化合物與脂肪一覽.";
+"widget.kcal_left" = "剩餘千卡";
+"widget.kcal" = "千卡";
+"widget.food" = "食物";
+"widget.burned" = "已燒脂";
+"widget.goal" = "目標";
+"widget.protein" = "蛋白質";
+"widget.carbs" = "碳水化合物";
+"widget.fat" = "脂肪";
+"widget.grams" = "%@ 克";
+"widget.a11y.kcal_left" = "%@ 剩餘千克";
+"widget.a11y.kcal" = "%@ 千克";
+"widget.search_food" = "搜尋食品";
+"widget.scan_barcode" = "掃瞄二維碼";

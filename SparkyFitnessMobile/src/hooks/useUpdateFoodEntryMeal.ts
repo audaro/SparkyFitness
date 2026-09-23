@@ -8,11 +8,8 @@ import type {
   FoodEntryMealUpdateData,
 } from '../types/foodEntryMeals';
 import { normalizeDate } from '../utils/dateUtils';
-import {
-  dailySummaryQueryKey,
-  foodEntryMealDetailQueryKey,
-  foodsQueryKey,
-} from './queryKeys';
+import { foodEntryMealDetailQueryKey } from './queryKeys';
+import { invalidateFoodCache } from './invalidateFoodCache';
 import { invalidateMealUsageCaches } from './useMeals';
 
 interface UseUpdateFoodEntryMealOptions {
@@ -52,21 +49,14 @@ export function useUpdateFoodEntryMeal({
   });
 
   const invalidateCache = (newDate?: string) => {
-    queryClient.invalidateQueries({
-      queryKey: dailySummaryQueryKey(normalizedDate),
-      refetchType: 'all',
-    });
+    invalidateFoodCache(queryClient, normalizedDate);
     if (newDate && newDate !== normalizedDate) {
-      queryClient.invalidateQueries({
-        queryKey: dailySummaryQueryKey(newDate),
-        refetchType: 'all',
-      });
+      invalidateFoodCache(queryClient, newDate);
     }
     queryClient.invalidateQueries({
       queryKey: foodEntryMealDetailQueryKey(mealId),
     });
     invalidateMealUsageCaches(queryClient);
-    queryClient.invalidateQueries({ queryKey: [...foodsQueryKey] });
   };
 
   return {

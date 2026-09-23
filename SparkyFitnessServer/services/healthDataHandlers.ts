@@ -1533,6 +1533,8 @@ async function persistWorkoutTelemetry(
         avg_power_watts: lap.avg_power_watts,
         elevation_gain_meters: lap.elevation_gain_meters,
         elevation_loss_meters: lap.elevation_loss_meters,
+        moving_time_seconds: lap.moving_time_seconds,
+        avg_moving_speed_mps: lap.avg_moving_speed_mps,
       }))
     );
   }

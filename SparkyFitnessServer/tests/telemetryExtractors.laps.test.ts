@@ -85,6 +85,77 @@ describe('laps without a usable start time are skipped, not stamped with now', (
   });
 });
 
+// Both providers report a lap's moving time; both values used to be dropped on
+// the way into the database (Garmin's was never read, Strava's was consumed
+// only as a fallback for the lap's overall duration), leaving the lap table's
+// "Avg Moving Pace" column permanently N/A.
+describe('per-lap moving telemetry is captured, not discarded', () => {
+  it('reads Garmin movingDuration and averageMovingSpeed', () => {
+    const [result] = extractGarminLaps({
+      laps: [
+        lap({
+          duration: 300,
+          movingDuration: 280,
+          averageSpeed: 3.0,
+          averageMovingSpeed: 3.2,
+        }),
+      ],
+    });
+    expect(result.moving_time_seconds).toBe(280);
+    expect(result.avg_moving_speed_mps).toBe(3.2);
+  });
+
+  it('leaves Garmin moving fields null when the payload omits them', () => {
+    const [result] = extractGarminLaps({ laps: [lap({ distance: 400 })] });
+    expect(result.moving_time_seconds).toBeNull();
+    expect(result.avg_moving_speed_mps).toBeNull();
+  });
+
+  it('captures Strava moving_time separately from elapsed_time', () => {
+    const [result] = extractStravaLaps({
+      laps: [
+        {
+          start_date: '2026-07-29T08:00:00Z',
+          elapsed_time: 300,
+          moving_time: 240,
+          distance: 600,
+        },
+      ],
+    });
+    // duration_seconds still prefers elapsed_time; moving time is its own value.
+    expect(result.duration_seconds).toBe(300);
+    expect(result.moving_time_seconds).toBe(240);
+    // 600 m / 240 s = 2.5 m/s
+    expect(result.avg_moving_speed_mps).toBe(2.5);
+  });
+
+  it('does not divide by a missing or zero Strava moving_time', () => {
+    const [noMoving] = extractStravaLaps({
+      laps: [
+        {
+          start_date: '2026-07-29T08:00:00Z',
+          elapsed_time: 300,
+          distance: 600,
+        },
+      ],
+    });
+    expect(noMoving.moving_time_seconds).toBeNull();
+    expect(noMoving.avg_moving_speed_mps).toBeNull();
+
+    const [zeroMoving] = extractStravaLaps({
+      laps: [
+        {
+          start_date: '2026-07-29T08:00:00Z',
+          elapsed_time: 300,
+          moving_time: 0,
+          distance: 600,
+        },
+      ],
+    });
+    expect(zeroMoving.avg_moving_speed_mps).toBeNull();
+  });
+});
+
 // Same rule as laps, on all three GPS input shapes. A fabricated "now" is
 // indistinguishable from a real reading once stored, and the bulk insert orders
 // the track by timestamp — so those points reorder the route on the map.

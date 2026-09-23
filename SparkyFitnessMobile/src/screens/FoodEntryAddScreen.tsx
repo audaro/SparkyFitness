@@ -566,12 +566,18 @@ const FoodEntryAddScreen: React.FC<FoodEntryAddScreenProps> = ({
     };
   }, [adjustedValues, activeVariant]);
 
+  const labelLookupId = selectedVariantOverride
+    ? selectedVariantOverride.id
+    : selectedVariantId;
+  const matchedLabelOption = variantPickerOptions.find(
+    (option) => option.id === labelLookupId
+  );
   const quantityUnitLabel =
-    variantPickerOptions.find((option) => option.id === selectedVariantId)
-      ?.quantityUnitLabel ?? formatQuantityUnitLabel(displayValues);
+    matchedLabelOption?.quantityUnitLabel ??
+    formatQuantityUnitLabel(displayValues);
   const perServingLabel =
-    variantPickerOptions.find((option) => option.id === selectedVariantId)
-      ?.perServingLabel ?? formatVariantServingLabel(displayValues);
+    matchedLabelOption?.perServingLabel ??
+    formatVariantServingLabel(displayValues);
 
   const pendingVariantToPersist = useMemo<FoodUnitVariant | null>(() => {
     if (!selectedVariantOverride) return null;
@@ -1012,7 +1018,18 @@ const FoodEntryAddScreen: React.FC<FoodEntryAddScreenProps> = ({
         }
       }
       invalidateCache(selectedDate);
-      navigation.dispatch(StackActions.popToTop());
+      // Log-entry adds normally return to the diary root. A returnDepth
+      // param (set when launched with a food-search basket in progress)
+      // pops back that many screens so the basket survives. Read the param
+      // directly — the `returnDepth` local above defaults to 1 for the
+      // picker-mode flows, and using it here would turn every plain add
+      // into a one-screen pop.
+      const logEntryReturnDepth = route.params?.returnDepth;
+      navigation.dispatch(
+        logEntryReturnDepth
+          ? StackActions.pop(logEntryReturnDepth)
+          : StackActions.popToTop()
+      );
     },
   });
 
@@ -1023,7 +1040,12 @@ const FoodEntryAddScreen: React.FC<FoodEntryAddScreenProps> = ({
   } = useAddFoodEntryMeal({
     onSuccess: () => {
       invalidateMealCache(selectedDate);
-      navigation.dispatch(StackActions.popToTop());
+      const mealReturnDepth = route.params?.returnDepth;
+      navigation.dispatch(
+        mealReturnDepth
+          ? StackActions.pop(mealReturnDepth)
+          : StackActions.popToTop()
+      );
     },
   });
 

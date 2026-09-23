@@ -563,8 +563,13 @@ export function readActivityStatsFromRelational(
     return Number.isFinite(n) && n > 0 ? n : null;
   };
   // Some columns (e.g. min_elevation_meters) can legitimately be 0 or negative
-  // (below sea level); `pos` would incorrectly drop those.
+  // (below sea level); `pos` would incorrectly drop those. But `Number(null)`
+  // and `Number('')` both evaluate to 0, which is finite — so a bare
+  // Number.isFinite check can't tell "the device reported 0" from "no data",
+  // and would render a fabricated 0°C / 0m for a NULL column. Reject
+  // null/undefined/empty-string explicitly before the numeric cast.
   const num = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '') return null;
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
   };
@@ -576,12 +581,27 @@ export function readActivityStatsFromRelational(
   const heartRate = pos(e['avg_heart_rate']);
   const cadence = pos(e['avg_cadence']);
   const avgSpeedMs = pos(e['avg_speed_mps']);
+  const elapsedSeconds = pos(e['elapsed_time_seconds']);
+  // Avg Pace is distance over time, the Garmin/Strava convention, so the
+  // number can be checked by hand against the distance and duration shown
+  // beside it. It previously preferred avg_speed_mps, which is the *mean of
+  // the instantaneous GPS sample speeds* — a different quantity that can
+  // disagree sharply with distance/time (17:00 vs 23:08 min/km on a real
+  // walk) and left the tiles looking mutually inconsistent.
+  //
+  // Elapsed time wins over duration_minutes because it is the wall-clock
+  // span; moving time deliberately does NOT appear here, as that is Avg
+  // *Moving* Pace's definition and reusing it would make the two tiles
+  // duplicate each other. The avg_speed_mps branch survives last for entries
+  // with no distance at all (indoor/equipment), where nothing better exists.
   const pace =
-    avgSpeedMs != null && avgSpeedMs > 0
-      ? 1000 / (avgSpeedMs * 60)
+    distance && elapsedSeconds
+      ? elapsedSeconds / 60 / distance
       : distance && duration
         ? duration / distance
-        : null;
+        : avgSpeedMs != null && avgSpeedMs > 0
+          ? 1000 / (avgSpeedMs * 60)
+          : null;
   const ascent = pos(e['elevation_gain_meters']);
   const rawWater = e['water_estimated'] ?? e['water_estimated_ml'];
   const waterEstimated = pos(rawWater);
@@ -781,6 +801,35 @@ export function formatDuration(
   }
   const formatted = `${m}:${ss}`;
   return includeUnit ? `${formatted} m:s` : formatted;
+}
+
+/**
+ * Pace in minutes per unit of distance: distance over time.
+ *
+ * Apple Fitness, Garmin and Strava all compute pace this way; they differ only
+ * in which time span the headline figure divides by:
+ *
+ *   Apple "Avg. Pace"        = distance / total workout time
+ *   Garmin "Avg Pace"        = distance / total time
+ *   Garmin "Avg Moving Pace" = distance / moving time
+ *   Strava "Average Pace"    = distance / moving time  (labels are swapped)
+ *
+ * Verified against Apple Fitness for the Sep 14 2026 walk: 0.64 mi over
+ * 23:49 total time is reported as 37'05"/mi — i.e. total time, not moving
+ * time (moving time would have given ~31'04"/mi).
+ *
+ * `distanceInUnit` must already be in the unit the caller wants the pace in,
+ * so no unit conversion happens here. Returns 0 for missing or nonsensical
+ * input rather than Infinity/NaN, so callers can treat 0 as "no data".
+ */
+export function paceMinPerUnit(
+  distanceInUnit: number,
+  seconds: number
+): number {
+  if (!distanceInUnit || distanceInUnit <= 0) return 0;
+  if (!seconds || seconds <= 0) return 0;
+  const pace = seconds / 60 / distanceInUnit;
+  return Number.isFinite(pace) ? pace : 0;
 }
 
 /**
