@@ -59,12 +59,35 @@ export const syncHevyData = async (
   fullSync: boolean = false,
   providerId?: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  mock?: { saveMockData?: boolean; dataSource?: string }
 ): Promise<void> => {
   return apiCall(`/integrations/hevy/sync${fullSync ? '?fullSync=true' : ''}`, {
     method: 'POST',
-    body: JSON.stringify({ providerId, startDate, endDate }),
+    body: JSON.stringify({ providerId, startDate, endDate, ...mock }),
   });
+};
+
+export interface LiftosaurSyncResult {
+  message?: string;
+  workoutsImported?: number;
+  measurementsImported?: number;
+  processedCount?: number;
+}
+
+export const syncLiftosaurData = async (
+  fullSync: boolean = false,
+  providerId?: string,
+  startDate?: string,
+  endDate?: string
+): Promise<LiftosaurSyncResult> => {
+  return apiCall(
+    `/integrations/liftosaur/sync${fullSync ? '?fullSync=true' : ''}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ providerId, startDate, endDate }),
+    }
+  );
 };
 export interface GarminLoginPayload {
   email: string;

@@ -1,3 +1,4 @@
+import { setMockDataContext } from '../utils/mockDataContext.js';
 import { log } from '../config/logging.js';
 import fitbitIntegrationService from '../integrations/fitbit/fitbitService.js';
 import fitbitDataProcessor from '../integrations/fitbit/fitbitDataProcessor.js';
@@ -5,13 +6,7 @@ import { getSystemClient } from '../db/poolManager.js';
 import { loadRawBundle } from '../utils/diagnosticLogger.js';
 import { loadUserTimezone } from '../utils/timezoneLoader.js';
 import { todayInZone, addDays } from '@workspace/shared';
-// Configuration for data mocking/caching
-const FITBIT_DATA_SOURCE =
-  process.env.SPARKY_FITNESS_FITBIT_DATA_SOURCE || 'fitbit';
-log(
-  'info',
-  `[fitbitService] Fitbit data source configured to: ${FITBIT_DATA_SOURCE}`
-);
+
 /**
  * Orchestrate a full Fitbit data sync for a user
  * @param {number} userId - The ID of the user to sync data for
@@ -23,7 +18,9 @@ async function syncFitbitData(
   userId: string,
   syncType = 'manual',
   customStartDate = null,
-  customEndDate = null
+  customEndDate = null,
+  dataSource: string | null = null,
+  saveMockData = false
 ) {
   let startDate: string, endDate: string;
   const tz = await loadUserTimezone(userId);
@@ -40,11 +37,13 @@ async function syncFitbitData(
   } else {
     throw new Error("Invalid syncType. Must be 'manual' or 'scheduled'.");
   }
+  const fitbitDataSource = dataSource || 'fitbit';
+  setMockDataContext({ dataSource, saveMockData });
   log(
     'info',
-    `[fitbitService] Starting Fitbit sync (${syncType}) for user ${userId} from ${startDate} to ${endDate}.`
+    `[fitbitService] Starting Fitbit sync (${syncType}) for user ${userId} from ${startDate} to ${endDate}. Loading from: ${fitbitDataSource}`
   );
-  if (FITBIT_DATA_SOURCE === 'local') {
+  if (fitbitDataSource === 'local') {
     log(
       'info',
       `[fitbitService] Replaying Fitbit sync from raw diagnostic bundle for user ${userId}`
@@ -52,8 +51,8 @@ async function syncFitbitData(
     const bundle = loadRawBundle('fitbit');
     if (!bundle || !bundle.responses) {
       throw new Error(
-        'Raw diagnostic bundle not found. Please run a sync with SPARKY_FITNESS_FITBIT_DATA_SOURCE unset (or set to "fitbit") ' +
-          'and SPARKY_FITNESS_SAVE_MOCK_DATA=true to capture raw API responses first.'
+        'Raw diagnostic bundle not found. Run a sync with "Sync and save ' +
+          'this sync\'s raw responses" selected first to capture one.'
       );
     }
     const responses = bundle.responses;

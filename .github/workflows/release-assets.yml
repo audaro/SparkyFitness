@@ -60,4 +60,5 @@ jobs:
           files: |
             docker/docker-compose.prod.yml
             docker/.env.example
+            docker/.env.simple.example
             SparkyFitness.tar.gz

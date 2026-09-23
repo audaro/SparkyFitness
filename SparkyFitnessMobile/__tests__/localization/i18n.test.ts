@@ -20,6 +20,7 @@ import {
   getDeviceLanguage,
   SUPPORTED_LANGUAGES,
 } from '../../src/localization/i18n';
+import registry from '../../src/localization/localeRegistry.json';
 
 describe('normalizeLanguage', () => {
   it('maps Polish tags to pl', () => {
@@ -36,7 +37,8 @@ describe('normalizeLanguage', () => {
 
   it('maps everything else to en', () => {
     expect(normalizeLanguage('en')).toBe('en');
-    expect(normalizeLanguage('de')).toBe('en');
+    // `sv` has a Weblate directory but is not in the registry, so it is not shipped.
+    expect(normalizeLanguage('sv')).toBe('en');
     expect(normalizeLanguage(null)).toBe('en');
     expect(normalizeLanguage(undefined)).toBe('en');
   });
@@ -83,12 +85,12 @@ describe('getDeviceLanguage', () => {
     expect(getDeviceLanguage()).toBe('en');
   });
 
-  it('returns en for unsupported device locale (de-DE)', () => {
+  it('returns en for unsupported device locale (sv-SE)', () => {
     (getLocales as jest.Mock).mockReturnValue([
       {
-        languageCode: 'de',
-        languageTag: 'de-DE',
-        regionCode: 'DE',
+        languageCode: 'sv',
+        languageTag: 'sv-SE',
+        regionCode: 'SE',
         textDirection: 'ltr',
       },
     ]);
@@ -109,8 +111,8 @@ describe('getDeviceLanguage', () => {
 });
 
 describe('SUPPORTED_LANGUAGES', () => {
-  it('includes en, pl and es', () => {
-    expect(SUPPORTED_LANGUAGES).toEqual(['en', 'pl', 'es']);
+  it('lists every shipped locale in registry order', () => {
+    expect(SUPPORTED_LANGUAGES).toEqual(Object.keys(registry.locales));
   });
 });
 

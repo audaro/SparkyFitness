@@ -1,0 +1,17 @@
+"widget.calorie.name" = "Calorieën";
+"widget.calorie.description" = "Totaal aantal calorieën van vandaag in een overzicht.";
+"widget.macro.name" = "Macro's";
+"widget.macro.description" = "Eiwitten, koolhydraten en vet van vandaag.";
+"widget.kcal_left" = "kcal over";
+"widget.kcal" = "kcal";
+"widget.food" = "Voeding";
+"widget.burned" = "Verbrand";
+"widget.goal" = "Doel";
+"widget.protein" = "Eiwitten";
+"widget.carbs" = "Koolhydraten";
+"widget.fat" = "Vetten";
+"widget.grams" = "%@ gr";
+"widget.a11y.kcal_left" = "%@ kcal over";
+"widget.a11y.kcal" = "%@ kcal";
+"widget.search_food" = "Zoek voeding";
+"widget.scan_barcode" = "Scan barcode";

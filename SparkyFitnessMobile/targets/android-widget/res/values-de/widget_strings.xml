@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sparky_calorie_widget_name">Kalorien</string>
+    <string name="sparky_widget_description">Tägliche Kalorienübersicht mit Funktion zum Schnellhinzufügen</string>
+    <string name="sparky_macro_widget_name">Makros</string>
+    <string name="sparky_macro_widget_description">Heutige Protein-, Kohlenhydrat- und Fettwerte mit Funktion zum Schnellhinzufügen</string>
+    <string name="widget_kcal_left">Noch %1$s kcal übrig</string>
+    <string name="widget_kcal_left_empty">- kcal übrig</string>
+    <string name="widget_grams">%1$s g</string>
+    <string name="widget_protein">Eiweiß</string>
+    <string name="widget_carbs">Kohlenhydrate</string>
+    <string name="widget_fat">Fett</string>
+    <string name="widget_search_food">Lebensmittel suchen</string>
+    <string name="widget_scan_barcode">Barcode scannen</string>
+    <string name="widget_preview_calories_left">Noch 1.650 kcal übrig</string>
+    <string name="widget_preview_macros_left">1.024 kcal übrig</string>
+    <string name="widget_preview_grams_protein">51 g</string>
+    <string name="widget_preview_grams_carbs">136 g</string>
+    <string name="widget_preview_grams_fat">32 g</string>
+</resources>

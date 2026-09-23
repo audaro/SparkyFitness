@@ -1,1 +1,26 @@
-{}
+{
+  "common": {
+    "save": "Mentés",
+    "saving": "Mentés…",
+    "back": "Vissza",
+    "showLess": "Kevesebbet mutat",
+    "learnMore": "További információk",
+    "next": "Tovább",
+    "later": "Később",
+    "close": "Bezár",
+    "cancel": "Megszakít",
+    "continue": "Folytatás",
+    "retry": "Újra",
+    "details": "Részletek",
+    "error": "Hiba",
+    "delete": "Törlés",
+    "collapseSection": "Szakasz összecsukása",
+    "expandSection": "Szakasz kibontása",
+    "itemCount_one": "{{count}} tétel",
+    "itemCount_other": "{{count}} tétel",
+    "off": "Ki",
+    "openSelectionMenu": "Kiválasztási menü megnyitása",
+    "selectOptionHint": "Dupla koppintás a kiválasztáshoz",
+    "success": "Siker"
+  }
+}

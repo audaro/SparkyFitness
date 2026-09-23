@@ -87,7 +87,8 @@ export interface HealthReadProvider {
    *  whole sync. */
   prepareInteractiveRead?(
     metrics: HealthMetric[],
-    windows: SyncWindows
+    windows: SyncWindows,
+    telemetry?: TelemetryRunContext
   ): Promise<void>;
   /** Clears platform run-scoped state before a run's reads begin. Android uses
    *  it to reset the Health Connect reconnect attempt, so "reconnect once" is
@@ -278,7 +279,7 @@ export const collectHealthData = async (
     : false;
 
   if (telemetry.interactive && provider.prepareInteractiveRead) {
-    await provider.prepareInteractiveRead(metrics, windows);
+    await provider.prepareInteractiveRead(metrics, windows, telemetry);
   }
 
   const results = await runTasksInBatches(
@@ -363,6 +364,13 @@ export interface ForegroundSyncOptions {
   emptyMessage: string;
   /** Timeout label prefix, e.g. 'Health Connect query'. */
   timeoutLabelPrefix: string;
+  /**
+   * Re-collect workout telemetry for sessions the reuse cache already holds,
+   * for this run only. Set by the user's explicit "re-send workout details"
+   * choice on the manual sync; automatic runs leave it off. See
+   * TelemetryRunContext.force for why this is a run flag and not a cache wipe.
+   */
+  forceTelemetry?: boolean;
 }
 
 /**
@@ -393,6 +401,7 @@ export const runForegroundSync = async (
   const telemetry = createTelemetryRunContext({
     budget: FOREGROUND_TELEMETRY_BUDGET,
     interactive: true,
+    force: opts.forceTelemetry ?? false,
   });
 
   const outcomes = await collectHealthData(provider, metricsToSync, windows, {

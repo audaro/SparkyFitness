@@ -148,3 +148,134 @@ describe('deriveWorkoutTelemetry', () => {
     expect(telemetry).toEqual({ avg_heart_rate: 120, max_heart_rate: 130 });
   });
 });
+
+// Summing every positive sample-to-sample altitude delta banks GPS/barometer
+// jitter as climb. On a real Apple Watch walk that produced 34.7 m of "gain"
+// against the 13.1 m Apple Fitness reported for the same track. The series is
+// now smoothed over a time window and accumulated with hysteresis.
+describe('elevation gain rejects sensor noise', () => {
+  it('does not count jitter around a flat altitude as climb', () => {
+    // 1 s apart so the smoothing window covers them, oscillating +/-0.4 m —
+    // well inside the ~0.7 m vertical accuracy these tracks report.
+    const points: TelemetryGpsPoint[] = [];
+    for (let i = 0; i < 60; i += 1) {
+      points.push({
+        t: at(i),
+        lat: 0,
+        lon: 0,
+        alt: 100 + (i % 2 === 0 ? 0.4 : -0.4),
+      });
+    }
+    const telemetry = deriveWorkoutTelemetry(points, []);
+    // Raw summing would report ~24 m of ascent across this flat stretch.
+    expect(telemetry.elevation_gain_meters ?? 0).toBe(0);
+    expect(telemetry.elevation_loss_meters ?? 0).toBe(0);
+  });
+
+  it('still counts a genuine sustained climb', () => {
+    // 1 m per sample for 30 samples = a real 30 m ascent.
+    const points: TelemetryGpsPoint[] = [];
+    for (let i = 0; i < 30; i += 1) {
+      points.push({ t: at(i * 10), lat: 0, lon: 0, alt: 100 + i });
+    }
+    const telemetry = deriveWorkoutTelemetry(points, []);
+    expect(telemetry.elevation_gain_meters).toBeGreaterThan(25);
+    expect(telemetry.elevation_gain_meters).toBeLessThanOrEqual(29);
+    expect(telemetry.elevation_loss_meters ?? 0).toBe(0);
+  });
+
+  it('does not let one noisy sample define the minimum elevation', () => {
+    // A steady 100 m with a single 90 m dropout spike partway through.
+    const points: TelemetryGpsPoint[] = [];
+    for (let i = 0; i < 40; i += 1) {
+      points.push({ t: at(i), lat: 0, lon: 0, alt: i === 20 ? 90 : 100 });
+    }
+    const telemetry = deriveWorkoutTelemetry(points, []);
+    // Raw min would be exactly 90; the smoothed series barely dips.
+    expect(telemetry.min_elevation_meters).toBeGreaterThan(98);
+  });
+
+  it('leaves a sparsely sampled track alone — nothing to average', () => {
+    // 60 s between samples is wider than the smoothing window, so each point
+    // is its own mean and only the threshold applies.
+    const points: TelemetryGpsPoint[] = [
+      { t: at(0), lat: 0, lon: 0, alt: 100 },
+      { t: at(60), lat: 0, lon: 0, alt: 120 },
+      { t: at(120), lat: 0, lon: 0, alt: 110 },
+    ];
+    const telemetry = deriveWorkoutTelemetry(points, []);
+    expect(telemetry.elevation_gain_meters).toBe(20);
+    expect(telemetry.elevation_loss_meters).toBe(10);
+  });
+});
+
+describe('moving time and moving speed', () => {
+  // 10s stopped, 10s moving at 2 m/s, 10s stopped, 10s moving at 4 m/s.
+  const MIXED: TelemetryGpsPoint[] = [
+    { t: at(0), lat: 0, lon: 0, speed: 0 },
+    { t: at(10), lat: 0, lon: 0, speed: 0 },
+    { t: at(20), lat: 0, lon: 0, speed: 2 },
+    { t: at(30), lat: 0, lon: 0, speed: 0 },
+    { t: at(40), lat: 0, lon: 0, speed: 4 },
+  ];
+
+  it('counts only the intervals above the stop threshold', () => {
+    // Two 10s intervals end on a moving sample (t=20 and t=40).
+    const telemetry = deriveWorkoutTelemetry(MIXED, []);
+    expect(telemetry.moving_time_seconds).toBe(20);
+  });
+
+  it('averages only the moving samples, not the stopped ones', () => {
+    // (2 + 4) / 2 = 3, where a plain mean over all five would give 1.2.
+    const telemetry = deriveWorkoutTelemetry(MIXED, []);
+    expect(telemetry.avg_moving_speed_mps).toBe(3);
+    expect(telemetry.avg_speed_mps).toBe(1.2);
+  });
+
+  it('integrates over uneven sample gaps rather than assuming a fixed rate', () => {
+    const uneven: TelemetryGpsPoint[] = [
+      { t: at(0), lat: 0, lon: 0, speed: 1 },
+      { t: at(30), lat: 0, lon: 0, speed: 1 },
+      { t: at(35), lat: 0, lon: 0, speed: 1 },
+    ];
+    // 30s + 5s, not 2 samples x some assumed interval.
+    expect(deriveWorkoutTelemetry(uneven, []).moving_time_seconds).toBe(35);
+  });
+
+  it('treats GPS jitter below the threshold as stopped', () => {
+    const jitter: TelemetryGpsPoint[] = [
+      { t: at(0), lat: 0, lon: 0, speed: 0.05 },
+      { t: at(10), lat: 0, lon: 0, speed: 0.08 },
+    ];
+    const telemetry = deriveWorkoutTelemetry(jitter, []);
+    expect(telemetry.moving_time_seconds).toBeUndefined();
+    expect(telemetry.avg_moving_speed_mps).toBeUndefined();
+  });
+
+  it('derives per-lap moving telemetry from that lap window only', () => {
+    const points: TelemetryGpsPoint[] = [
+      { t: at(0), lat: 0, lon: 0, speed: 2 },
+      { t: at(30), lat: 0, lon: 0, speed: 2 },
+      // Lap 2 is entirely stopped.
+      { t: at(60), lat: 0, lon: 0, speed: 0 },
+      { t: at(90), lat: 0, lon: 0, speed: 0 },
+    ];
+    const laps = deriveLaps(LAPS, points, []);
+    expect(laps[0].moving_time_seconds).toBe(30);
+    expect(laps[0].avg_moving_speed_mps).toBe(2);
+    expect(laps[1].moving_time_seconds).toBeNull();
+    expect(laps[1].avg_moving_speed_mps).toBeNull();
+  });
+
+  it('never reports more moving time than the lap lasted', () => {
+    const points: TelemetryGpsPoint[] = [
+      { t: at(0), lat: 0, lon: 0, speed: 3 },
+      { t: at(30), lat: 0, lon: 0, speed: 3 },
+      { t: at(59), lat: 0, lon: 0, speed: 3 },
+    ];
+    const laps = deriveLaps(LAPS, points, []);
+    expect(laps[0].moving_time_seconds).toBeLessThanOrEqual(
+      laps[0].duration_seconds
+    );
+  });
+});

@@ -28,7 +28,7 @@ interface ActivityStatsGridProps {
   movingTime?: string | null;
   elapsedTime?: string | null;
   caloriesBreakdown?: string | null;
-  avgMovingSpeed?: string | null;
+  avgMovingPace?: string | null;
   elevationRange?: string | null;
   weather?: string | null;
   gear?: string | null;
@@ -46,7 +46,7 @@ export const ActivityStatsGrid = ({
   movingTime = null,
   elapsedTime = null,
   caloriesBreakdown = null,
-  avgMovingSpeed = null,
+  avgMovingPace = null,
   elevationRange = null,
   weather = null,
   gear = null,
@@ -201,16 +201,16 @@ export const ActivityStatsGrid = ({
           </CardContent>
         </Card>
       )}
-      {avgMovingSpeed !== null && (
+      {avgMovingPace !== null && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
             <CardTitle className="text-sm font-medium">
-              {t('reports.activityReport.avgMovingSpeed', 'Avg Moving Speed')}
+              {t('reports.activityReport.avgMovingPace', 'Avg Moving Pace')}
             </CardTitle>
             <FaTachometerAlt className="h-5 w-5 text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{avgMovingSpeed}</div>
+            <div className="text-2xl font-bold">{avgMovingPace}</div>
           </CardContent>
         </Card>
       )}

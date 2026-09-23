@@ -191,18 +191,47 @@ const getWorkoutPresetsSchema = z
   })
   .strict();
 
-const logWorkoutPresetSchema = z
+// workout_presets.id is a numeric (SERIAL) primary key, unlike most other
+// entities in this tool file which use UUIDs.
+const presetIdSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .describe('Numeric ID of the workout preset');
+
+const PRESET_NAME_LOOKUP =
+  'Name of a preset you own or that is family-shared (alternative to ID). Public presets outside those scopes must use preset_id.';
+
+const confirmedSchema = z
+  .boolean()
+  .optional()
+  .describe(
+    'Must be true to apply the mutation. If omitted or false, the tool returns a confirmation prompt and does not change anything.'
+  );
+
+const getWorkoutPresetSchema = z
   .object({
-    action: z.literal('log_workout_preset'),
-    preset_id: numericIdSchema
-      .optional()
-      .describe('Numeric ID of the workout preset'),
+    action: z.literal('get_workout_preset'),
+    preset_id: presetIdSchema.optional(),
     preset_name: z
       .string()
       .min(1)
       .max(200)
       .optional()
-      .describe('Name of the preset (alternative to ID)'),
+      .describe(PRESET_NAME_LOOKUP),
+  })
+  .strict();
+
+const logWorkoutPresetSchema = z
+  .object({
+    action: z.literal('log_workout_preset'),
+    preset_id: presetIdSchema.optional(),
+    preset_name: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe(PRESET_NAME_LOOKUP),
     entry_date: dateSchema,
   })
   .strict();
@@ -349,6 +378,10 @@ const createWorkoutPresetSchema = z
       .describe(
         'List of exercise UUIDs to include in the preset (simple form, no programming)'
       ),
+    is_public: z
+      .boolean()
+      .optional()
+      .describe('Whether the preset is shared publicly'),
     exercises: z
       .array(presetExerciseSchema)
       .min(1)
@@ -382,6 +415,10 @@ const updateWorkoutPresetSchema = z
       .max(1000)
       .optional()
       .describe('New description for the preset'),
+    is_public: z
+      .boolean()
+      .optional()
+      .describe('Whether the preset is shared publicly'),
     exercises: z
       .array(presetExerciseSchema)
       .min(1)
@@ -522,6 +559,14 @@ const updateWorkoutPlanSchema = z
   })
   .strict();
 
+const deleteWorkoutPresetSchema = z
+  .object({
+    action: z.literal('delete_workout_preset'),
+    preset_id: presetIdSchema.describe('ID of the workout preset to delete'),
+    confirmed: confirmedSchema,
+  })
+  .strict();
+
 const getExerciseProgressSchema = z
   .object({
     action: z.literal('get_exercise_progress'),
@@ -630,12 +675,14 @@ export const manageExerciseSchema = z.discriminatedUnion('action', [
   logExerciseSchema,
   listExerciseDiarySchema,
   getWorkoutPresetsSchema,
+  getWorkoutPresetSchema,
   logWorkoutPresetSchema,
   updateExerciseEntrySchema,
   deleteExerciseEntrySchema,
   getExerciseDetailsSchema,
   createWorkoutPresetSchema,
   updateWorkoutPresetSchema,
+  deleteWorkoutPresetSchema,
   getExerciseProgressSchema,
   getFrequentSetsSchema,
   getWorkoutPlansSchema,
@@ -658,12 +705,14 @@ export const manageExerciseInput = z.object({
       'log_exercise',
       'list_exercise_diary',
       'get_workout_presets',
+      'get_workout_preset',
       'log_workout_preset',
       'update_exercise_entry',
       'delete_exercise_entry',
       'get_exercise_details',
       'create_workout_preset',
       'update_workout_preset',
+      'delete_workout_preset',
       'get_exercise_progress',
       'get_frequent_sets',
       'get_workout_plans',
@@ -853,15 +902,25 @@ export const manageExerciseInput = z.object({
   preset_id: numericIdSchema
     .optional()
     .describe(
-      'Workout preset numeric ID — for log_workout_preset / update_workout_preset'
+      'Workout preset numeric ID — for log_workout_preset / update_workout_preset / delete_workout_preset'
     ),
   preset_name: z
     .string()
     .min(1)
     .max(200)
     .optional()
+    .describe(PRESET_NAME_LOOKUP),
+  is_public: z
+    .boolean()
+    .optional()
     .describe(
-      'Workout preset name — for log_workout_preset / update_workout_preset (alternative to preset_id)'
+      'Whether the workout preset is shared publicly — for create_workout_preset / update_workout_preset'
+    ),
+  confirmed: z
+    .boolean()
+    .optional()
+    .describe(
+      'Must be true to apply update_workout_preset or delete_workout_preset. If omitted or false, the tool returns a confirmation prompt and does not change anything.'
     ),
   // entry management
   entry_id: uuidSchema

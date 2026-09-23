@@ -32,5 +32,6 @@ export function useCaffeineKinetics(date: string, enabled: boolean = true) {
     nowMs,
     isLoading: query.isLoading,
     isError: query.isError,
+    refetch: query.refetch,
   };
 }

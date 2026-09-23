@@ -7,7 +7,7 @@ import {
 } from '../services/api/foodEntriesApi';
 import { hasApiStatus } from '../services/api/errors';
 import { normalizeDate } from '../utils/dateUtils';
-import { dailySummaryQueryKey } from './queryKeys';
+import { invalidateFoodCache } from './invalidateFoodCache';
 import type { FoodEntry } from '../types/foodEntries';
 
 interface UseUpdateFoodEntryOptions {
@@ -47,15 +47,9 @@ export function useUpdateFoodEntry({
   });
 
   const invalidateCache = (newDate?: string) => {
-    queryClient.invalidateQueries({
-      queryKey: dailySummaryQueryKey(normalizedDate),
-      refetchType: 'all',
-    });
+    invalidateFoodCache(queryClient, normalizedDate);
     if (newDate && newDate !== normalizedDate) {
-      queryClient.invalidateQueries({
-        queryKey: dailySummaryQueryKey(newDate),
-        refetchType: 'all',
-      });
+      invalidateFoodCache(queryClient, newDate);
     }
   };
 

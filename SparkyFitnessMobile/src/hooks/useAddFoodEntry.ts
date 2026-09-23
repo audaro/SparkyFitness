@@ -13,7 +13,7 @@ import {
   type CreateFoodEntryPayload,
 } from '../services/api/foodEntriesApi';
 import type { ImageUploadArgs } from '../utils/pickerImages';
-import { dailySummaryQueryKey, foodsQueryKey } from './queryKeys';
+import { invalidateFoodCache } from './invalidateFoodCache';
 import { invalidateMealUsageCaches } from './useMeals';
 import type { FoodEntry } from '../types/foodEntries';
 import type { ExternalFoodVariant } from '../types/externalFoods';
@@ -174,6 +174,7 @@ export function useAddFoodEntry(options?: UseAddFoodEntryOptions) {
       return createFoodEntry(input.createEntryPayload);
     },
     onSuccess: (entry) => {
+      invalidateCache(entry.entry_date);
       if (entry.meal_id) {
         invalidateMealUsageCaches(queryClient);
       }
@@ -200,8 +201,7 @@ export function useAddFoodEntry(options?: UseAddFoodEntryOptions) {
   });
 
   const invalidateCache = (date: string) => {
-    queryClient.invalidateQueries({ queryKey: dailySummaryQueryKey(date) });
-    queryClient.invalidateQueries({ queryKey: [...foodsQueryKey] });
+    invalidateFoodCache(queryClient, date);
   };
 
   return {

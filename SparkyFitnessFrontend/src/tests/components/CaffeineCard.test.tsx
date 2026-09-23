@@ -99,14 +99,21 @@ describe('CaffeineCard Component', () => {
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
-  it('renders nothing when no data or doses', () => {
+  it('reports an empty day rather than collapsing the tile', () => {
+    // The Diary grid is user-arranged and persistent, so the card stays put and
+    // says nothing was logged rather than vanishing and reflowing the layout.
+    // Users who never drink caffeine remove it in the layout editor instead.
     mockUseActiveCaffeineQuery.mockReturnValue({
       data: { ...baseData, doses: [] },
       isLoading: false,
     } as never);
 
-    const { container } = render(<CaffeineCard date="2026-09-05" />);
-    expect(container).toBeEmptyDOMElement();
+    render(<CaffeineCard date="2026-09-05" />);
+
+    expect(
+      screen.getByText('No caffeine logged for this day.')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Caffeine Kinetics')).toBeInTheDocument();
   });
 
   it('renders active caffeine, bedtime residual, and cutoff time', () => {

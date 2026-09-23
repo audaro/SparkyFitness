@@ -1,4 +1,5 @@
 import path from 'path';
+import { emailLoginGuard } from './middleware/emailLoginGuard.js';
 
 import fs from 'fs';
 import type { ServerResponse } from 'http';
@@ -73,6 +74,7 @@ import googleHealthRoutes from './routes/googleHealthRoutes.js';
 import polarRoutes from './routes/polarRoutes.js';
 import stravaRoutes from './routes/stravaRoutes.js';
 import hevyRoutes from './routes/hevyRoutes.js';
+import liftosaurRoutes from './routes/liftosaurRoutes.js';
 import moodRoutes from './routes/moodRoutes.js';
 import fastingRoutes from './routes/fastingRoutes.js';
 import adaptiveTdeeRoutes from './routes/adaptiveTdeeRoutes.js';
@@ -107,6 +109,7 @@ import googleHealthService from './services/googleHealthService.js';
 import polarService from './services/polarService.js';
 import stravaService from './services/stravaService.js';
 import hevyService from './integrations/hevy/hevyService.js';
+import liftosaurService from './integrations/liftosaur/liftosaurService.js';
 // @ts-expect-error TS1192
 import dailySummaryRoutes from './routes/dailySummaryRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
@@ -278,6 +281,7 @@ const mountBetterAuth = () => {
     throw error; // Propagate to block startup if auth fails
   }
 };
+app.use(emailLoginGuard);
 // Catch ALL requests starting with /api/auth early.
 app.use(async (req, res, next) => {
   if (req.originalUrl.startsWith('/api/auth') && betterAuthHandlerInstance) {
@@ -289,22 +293,6 @@ app.use(async (req, res, next) => {
       req.path.startsWith('/api/auth/web-login');
     if (isDiscovery) {
       return next();
-    }
-
-    // In demo mode the credential backend stays loaded so the one-click demo
-    // login (an in-process auth.api.signInEmail call) keeps working, so the
-    // public password routes have to be closed here instead. The body matches
-    // Better Auth's own EMAIL_PASSWORD_DISABLED response byte for byte, so a
-    // client cannot tell which layer refused it.
-    if (
-      process.env.SPARKY_FITNESS_DISABLE_EMAIL_LOGIN === 'true' &&
-      (req.path.startsWith('/api/auth/sign-in/email') ||
-        req.path.startsWith('/api/auth/sign-up/email'))
-    ) {
-      return res.status(400).json({
-        message: 'Email and password is not enabled',
-        code: 'EMAIL_PASSWORD_DISABLED',
-      });
     }
 
     if (isDemoMode()) {
@@ -658,9 +646,8 @@ app.get(
     }
   }
 );
-// Computed once at startup — these are static for the lifetime of the process
-const isPublicApiDocsEnabled =
-  process.env.SPARKY_FITNESS_PUBLIC_API_DOCS === 'true';
+import { isPublicApiDocsAllowed } from './models/globalSettingsRepository.js';
+
 const publicRoutes = [
   '/api/auth/settings',
   '/api/auth/mfa-factors',
@@ -673,26 +660,33 @@ const publicRoutes = [
   '/uploads',
   '/api/ping',
 ];
-if (isPublicApiDocsEnabled) {
-  publicRoutes.push('/api/api-docs');
-}
 
 // Apply authentication middleware to all protected routes
-app.use((req: Request<RouteParams>, res: Response, next: NextFunction) => {
-  const isPublic = publicRoutes.some((route) => {
-    // Exact match or subpath match with trailing slash to prevent partial matches
-    // e.g. "/api/health" matches "/api/health" and "/api/health/" but NOT "/api/health-data"
-    // e.g. "/api/onboarding" matches "/api/onboarding" and "/api/onboarding/step1"
-    if (req.path === route || req.path.startsWith(route + '/')) {
-      return true;
+app.use(
+  async (req: Request<RouteParams>, res: Response, next: NextFunction) => {
+    if (req.path === '/api/api-docs' || req.path.startsWith('/api/api-docs/')) {
+      const isPublicDocs =
+        (await isPublicApiDocsAllowed()) ||
+        process.env.SPARKY_FITNESS_PUBLIC_API_DOCS === 'true';
+      if (isPublicDocs) {
+        return next();
+      }
     }
-    return false;
-  });
-  if (isPublic) {
-    return next();
+    const isPublic = publicRoutes.some((route) => {
+      // Exact match or subpath match with trailing slash to prevent partial matches
+      // e.g. "/api/health" matches "/api/health" and "/api/health/" but NOT "/api/health-data"
+      // e.g. "/api/onboarding" matches "/api/onboarding" and "/api/onboarding/step1"
+      if (req.path === route || req.path.startsWith(route + '/')) {
+        return true;
+      }
+      return false;
+    });
+    if (isPublic) {
+      return next();
+    }
+    authenticate(req, res, next);
   }
-  authenticate(req, res, next);
-});
+);
 // Demo restrictions run once, here, ahead of the whole route table. Per-route
 // demoGuard calls remain as defense in depth, but this is what guarantees a
 // newly added route family is covered without anyone remembering to opt in.
@@ -758,6 +752,7 @@ app.use('/api/integrations/googlehealth', googleHealthRoutes);
 app.use('/api/integrations/polar', polarRoutes);
 app.use('/api/integrations/strava', stravaRoutes);
 app.use('/api/integrations/hevy', hevyRoutes);
+app.use('/api/integrations/liftosaur', liftosaurRoutes);
 app.use('/api/mood', moodRoutes);
 app.use('/api/fasting', fastingRoutes);
 app.use('/api/admin', adminRoutes);
@@ -1052,6 +1047,33 @@ const scheduleHevySyncs = async () => {
     }
   });
 };
+const scheduleLiftosaurSyncs = async () => {
+  cron.schedule('0 * * * *', async () => {
+    try {
+      const liftosaurProviders =
+        await externalProviderRepository.getProvidersByType('liftosaur');
+      for (const provider of liftosaurProviders) {
+        if (provider.is_active && provider.sync_frequency !== 'manual') {
+          try {
+            await liftosaurService.syncLiftosaurData(
+              provider.user_id,
+              provider.user_id,
+              false,
+              provider.id
+            );
+          } catch (error) {
+            console.error(
+              `[CRON] Liftosaur sync failed for user ${provider.user_id}:`,
+              error
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[CRON] scheduleLiftosaurSyncs task failed:', error);
+    }
+  });
+};
 // Migrations and RLS policies are applied by index.ts before this module is
 // imported, so that Better Auth's eager schema validation (run at auth.ts
 // module scope) sees the migrated schema. Do not move them back in here.
@@ -1080,6 +1102,7 @@ const scheduleHevySyncs = async () => {
   scheduleStravaSyncs();
   scheduleGoogleHealthSyncs();
   scheduleHevySyncs();
+  scheduleLiftosaurSyncs();
   if (process.env.SPARKY_FITNESS_ADMIN_EMAIL) {
     // A demo account promoted to admin would hand every anonymous visitor the
     // admin panel. Refuse the promotion rather than start up compromised.

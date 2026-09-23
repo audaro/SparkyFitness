@@ -38,7 +38,7 @@ describe('useCopyFoodEntries', () => {
     queryClient.clear();
   });
 
-  test('invalidates the target day summary after a successful copy', async () => {
+  test('invalidates the target day summary and caffeine kinetics after a successful copy', async () => {
     const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
     mockCopyFoodEntries.mockResolvedValue(undefined);
 
@@ -53,6 +53,11 @@ describe('useCopyFoodEntries', () => {
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: ['dailySummary', '2026-05-16'],
+        refetchType: 'all',
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['caffeineActive', '2026-05-16'],
+        refetchType: 'all',
       });
     });
 

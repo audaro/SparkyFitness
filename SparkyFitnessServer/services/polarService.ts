@@ -1,15 +1,10 @@
+import { setMockDataContext } from '../utils/mockDataContext.js';
 import { log } from '../config/logging.js';
 import polarIntegrationService from '../integrations/polar/polarService.js';
 import polarDataProcessor from '../integrations/polar/polarDataProcessor.js';
 import { getSystemClient } from '../db/poolManager.js';
 import { loadRawBundle } from '../utils/diagnosticLogger.js';
-// Configuration for data mocking/caching
-const POLAR_DATA_SOURCE =
-  process.env.SPARKY_FITNESS_POLAR_DATA_SOURCE || 'polar';
-log(
-  'info',
-  `[polarService] Polar data source configured to: ${POLAR_DATA_SOURCE}`
-);
+
 /**
  * Orchestrate a full Polar data sync for a user
  * @param {number} userId - The ID of the user to sync data for
@@ -17,19 +12,25 @@ log(
  * @param {string} providerId - Optional provider ID
  * @param {string} [startDate] - Optional custom start date (YYYY-MM-DD)
  * @param {string} [endDate] - Optional custom end date (YYYY-MM-DD)
+ * @param {string} [dataSource] - Optional data source ('local' vs 'polar')
+ * @param {boolean} [saveMockData] - Optional flag to capture raw API responses
  */
 async function syncPolarData(
   userId: string,
   syncType = 'manual',
   providerId: string | undefined,
   startDate = null,
-  endDate = null
+  endDate = null,
+  dataSource: string | null = null,
+  saveMockData = false
 ) {
+  const polarDataSource = dataSource || 'polar';
+  setMockDataContext({ dataSource, saveMockData });
   log(
     'info',
-    `[polarService] Starting Polar sync (${syncType}) for user ${userId}${providerId ? ` (Provider ID: ${providerId})` : ''}${startDate ? ` from ${startDate}` : ''}${endDate ? ` to ${endDate}` : ''}. ENV_SAVE_MOCK_DATA=${process.env.SPARKY_FITNESS_SAVE_MOCK_DATA}`
+    `[polarService] Starting Polar sync (${syncType}) for user ${userId}${providerId ? ` (Provider ID: ${providerId})` : ''}${startDate ? ` from ${startDate}` : ''}${endDate ? ` to ${endDate}` : ''}. Loading from: ${polarDataSource}`
   );
-  if (POLAR_DATA_SOURCE === 'local') {
+  if (polarDataSource === 'local') {
     log(
       'info',
       `[polarService] Replaying Polar sync from raw diagnostic bundle for user ${userId}`
@@ -37,8 +38,8 @@ async function syncPolarData(
     const bundle = loadRawBundle('polar');
     if (!bundle || !bundle.responses) {
       throw new Error(
-        'Raw diagnostic bundle not found. Please run a sync with SPARKY_FITNESS_POLAR_DATA_SOURCE unset (or set to "polar") ' +
-          'and SPARKY_FITNESS_SAVE_MOCK_DATA=true to capture raw API responses first.'
+        'Raw diagnostic bundle not found. Run a sync with "Sync and save ' +
+          'this sync\'s raw responses" selected first to capture one.'
       );
     }
     const responses = bundle.responses;
@@ -146,6 +147,41 @@ async function syncPolarData(
           userId,
           userId,
           responses['raw_nightly_recharge'].data
+        );
+      }
+      if (responses['raw_cardio_load']) {
+        await polarDataProcessor.processPolarCardioLoad(
+          userId,
+          userId,
+          responses['raw_cardio_load'].data
+        );
+      }
+      if (responses['raw_continuous_heart_rate']) {
+        await polarDataProcessor.processPolarContinuousHeartRate(
+          userId,
+          userId,
+          responses['raw_continuous_heart_rate'].data
+        );
+      }
+      if (responses['raw_spo2']) {
+        await polarDataProcessor.processPolarSpO2(
+          userId,
+          userId,
+          responses['raw_spo2'].data
+        );
+      }
+      if (responses['raw_body_temperature']) {
+        await polarDataProcessor.processPolarBodyTemperature(
+          userId,
+          userId,
+          responses['raw_body_temperature'].data
+        );
+      }
+      if (responses['raw_skin_temperature']) {
+        await polarDataProcessor.processPolarSkinTemperature(
+          userId,
+          userId,
+          responses['raw_skin_temperature'].data
         );
       }
       // Update last_sync_at
@@ -258,15 +294,50 @@ async function syncPolarData(
     const newRecharge = await safeFetch('nightly_recharge', () =>
       polarIntegrationService.fetchRecentNightlyRecharge(userId, accessToken)
     );
+    const newCardioLoad =
+      (await safeFetch('cardio_load', () =>
+        polarIntegrationService.fetchRecentCardioLoad(userId, accessToken)
+      )) || [];
+    const newContinuousHr = await safeFetch('continuous_heart_rate', () =>
+      polarIntegrationService.fetchRecentContinuousHeartRate(
+        userId,
+        accessToken
+      )
+    );
+    const newSpO2 = await safeFetch('spo2', () =>
+      polarIntegrationService.fetchRecentSpO2(userId, accessToken)
+    );
+    const newBodyTemp = await safeFetch('body_temperature', () =>
+      polarIntegrationService.fetchRecentBodyTemperature(userId, accessToken)
+    );
+    const newSkinTemp = await safeFetch('skin_temperature', () =>
+      polarIntegrationService.fetchRecentSkinTemperature(userId, accessToken)
+    );
+
     // 2. Process EVERYTHING second (The Action Phase)
     log('debug', '[polarService] Phase 2: Processing captured data...');
     // Remove duplicates before processing
     allExercises = Array.from(
       new Map(allExercises.map((ex) => [ex.id, ex])).values()
     );
-    allActivities = Array.from(
-      new Map(allActivities.map((act) => [act.date, act])).values()
-    );
+    // Polar's /users/activities items carry start_time/end_time and no `date`,
+    // so keying this Map on act.date collapsed the whole window into one record
+    // (issue #2471). Key on the resolved calendar day instead, keeping the
+    // record with the highest step count when a day reports several periods --
+    // which matches upsertStepData's max-wins semantics downstream.
+    const activitiesByDate = new Map<string, (typeof allActivities)[number]>();
+    for (const act of allActivities) {
+      const date = polarDataProcessor.resolvePolarActivityDate(act);
+      if (!date) continue;
+      const existing = activitiesByDate.get(date);
+      const steps = polarDataProcessor.resolvePolarActivitySteps(act) ?? -1;
+      const existingSteps =
+        polarDataProcessor.resolvePolarActivitySteps(existing) ?? -1;
+      if (!existing || steps > existingSteps) {
+        activitiesByDate.set(date, act);
+      }
+    }
+    allActivities = Array.from(activitiesByDate.values());
     // Process data
     if (physicalInfo && physicalInfo.length > 0) {
       await polarDataProcessor.processPolarPhysicalInfo(
@@ -304,6 +375,37 @@ async function syncPolarData(
         userId,
         userId,
         newRecharge
+      );
+    }
+    if (newCardioLoad && newCardioLoad.length > 0) {
+      await polarDataProcessor.processPolarCardioLoad(
+        userId,
+        userId,
+        newCardioLoad
+      );
+    }
+    if (newContinuousHr) {
+      await polarDataProcessor.processPolarContinuousHeartRate(
+        userId,
+        userId,
+        newContinuousHr
+      );
+    }
+    if (newSpO2) {
+      await polarDataProcessor.processPolarSpO2(userId, userId, newSpO2);
+    }
+    if (newBodyTemp) {
+      await polarDataProcessor.processPolarBodyTemperature(
+        userId,
+        userId,
+        newBodyTemp
+      );
+    }
+    if (newSkinTemp) {
+      await polarDataProcessor.processPolarSkinTemperature(
+        userId,
+        userId,
+        newSkinTemp
       );
     }
     // Update last_sync_at

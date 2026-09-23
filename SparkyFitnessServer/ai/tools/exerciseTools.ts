@@ -65,12 +65,14 @@ export const VALID_ACTIONS = [
   'log_exercise',
   'list_exercise_diary',
   'get_workout_presets',
+  'get_workout_preset',
   'log_workout_preset',
   'update_exercise_entry',
   'delete_exercise_entry',
   'get_exercise_details',
   'create_workout_preset',
   'update_workout_preset',
+  'delete_workout_preset',
   'get_exercise_progress',
   'get_frequent_sets',
   'get_workout_plans',
@@ -356,6 +358,23 @@ function distanceToKm<T extends number | null | undefined>(
   if (value === null || value === undefined) return value;
   return unit === 'km' ? value : value * MILES_TO_KM;
 }
+
+type WorkoutPresetSetRow = {
+  reps?: number | null;
+  weight?: number | null;
+  duration?: number | null;
+  distance?: number | null;
+  rest_time?: number | null;
+  notes?: string | null;
+  set_type?: string | null;
+};
+
+type WorkoutPresetExerciseRow = {
+  exercise_name?: string;
+  exercise_id?: string;
+  superset_group?: number | null;
+  sets?: WorkoutPresetSetRow[] | null;
+};
 
 // Optional inputs and nullable DB columns are treated alike: absent.
 function isSet<T>(value: T | null | undefined): value is T {
@@ -647,6 +666,21 @@ function toRepoSets(
     rpe: s.rpe ?? null,
     notes: s.notes ?? null,
   }));
+}
+
+// Trusted gate for update/delete. The tool description is not enough — without
+// this, one call mutates. confirmed must be boolean true; otherwise return a
+// prompt and do not call the service.
+function presetMutationConfirmPrompt(
+  confirmed: boolean | undefined,
+  action: 'update' | 'delete',
+  presetId: number
+): string | null {
+  if (confirmed === true) return null;
+  if (action === 'delete') {
+    return `Deleting workout preset ${presetId} is permanent. Confirm with the user first. If they agree, call delete_workout_preset again with preset_id=${presetId} and confirmed=true. Nothing was deleted.`;
+  }
+  return `Updating workout preset ${presetId} can overwrite its exercise list. Confirm with the user first. If they agree, call update_workout_preset again with the same fields and confirmed=true. Nothing was changed.`;
 }
 
 // MCP's date-range defaults: a single `date` overrides start/end; otherwise
@@ -1022,12 +1056,14 @@ Actions:
 - log_exercise(entry_date, exercise_id?|exercise_name?, duration_minutes?, calories_burned?, notes?, distance?, avg_heart_rate?, steps?, sets?:JSON string or array of [{reps,weight,duration,distance,rest_time,set_type,rpe,notes}]) — distance/avg_heart_rate/steps are for cardio
 - list_exercise_diary(entry_date)
 - get_workout_presets()
-- log_workout_preset(entry_date, preset_id?|preset_name?)
+- get_workout_preset(preset_id?|preset_name?) — full detail for one preset: every exercise's ID, its sets, and its superset_group. Call this BEFORE update_workout_preset so you know the current exercise list. preset_name resolves own or family-shared presets only; public presets must use preset_id.
+- log_workout_preset(entry_date, preset_id?|preset_name?) — preset_name is own or family-shared only; public presets must use preset_id.
 - update_exercise_entry(entry_id, entry_date?, duration_minutes?, calories_burned?, notes?, distance?, avg_heart_rate?, steps?, sets?) — only the provided fields change; sets, when provided, replace all existing sets
 - delete_exercise_entry(entry_id)
 - get_exercise_details(exercise_id?|exercise_name?)
-- create_workout_preset(name, description?, exercise_ids? OR exercises?) — ONE call creates the WHOLE routine: pass every exercise in a single exercises array, never one call per exercise. exercises is the programmed form: [{exercise_id OR exercise_name, sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]; prefer real ids from search_exercises, but when an exercise is not in the database just pass exercise_name — it resolves to the closest existing exercise or creates a custom one, so never give up because ids are missing
-- update_workout_preset(preset_id?|preset_name?, name?, description?, exercises?) — exercises REPLACES the entire list, so send the complete desired routine
+- create_workout_preset(name, description?, is_public?, exercise_ids? OR exercises?) — ONE call creates the WHOLE routine: pass every exercise in a single exercises array, never one call per exercise. exercises is the programmed form: [{exercise_id OR exercise_name, sort_order?, superset_group?, sets?:[{set_number, set_type?, reps?, weight?(kg), duration?(seconds), distance?(km), rest_time?(seconds), notes?}]}]; prefer real ids from search_exercises, but when an exercise is not in the database just pass exercise_name — it resolves to the closest existing exercise or creates a custom one, so never give up because ids are missing
+- update_workout_preset(preset_id?|preset_name?, name?, description?, is_public?, exercises?) — exercises REPLACES the entire list, so send the complete desired routine
+- delete_workout_preset(preset_id, confirmed) — permanently deletes the preset. confirmed=true is required; without it the tool returns a prompt and does not delete. Confirm with the user first.
 - get_exercise_progress(exercise_id?|exercise_name?, start_date?, end_date?, limit?, offset?) — returns paginated performance history
 - get_frequent_sets(weeks?(default 4)) — the user's usual routine mined from history: per weekday, exercises trained 2+ times with their typical sets/reps/weight; use it to build "a routine from what I usually do"
 - get_workout_plans() — lists the user's weekly workout plans with their day schedules
@@ -1070,6 +1106,12 @@ Actions:
               LOG_SIGNAL_KEYS.every((key) => args[key] === undefined)
             ) {
               return 'generate_workout';
+            }
+            if (args.exercises && (args.preset_id || args.preset_name)) {
+              return 'update_workout_preset';
+            }
+            if (args.exercises) {
+              return 'create_workout_preset';
             }
             if (args.sets || args.duration_minutes || args.calories_burned) {
               return 'log_exercise';
@@ -1298,6 +1340,76 @@ Actions:
               );
             }
 
+            case 'get_workout_preset': {
+              if (!args.preset_id && !args.preset_name) {
+                return ERRORS.VALIDATION(
+                  'Either preset_id or preset_name must be provided'
+                );
+              }
+              let presetId = args.preset_id;
+              if (!presetId && args.preset_name) {
+                const found =
+                  await workoutPresetRepository.getWorkoutPresetByName(
+                    userId,
+                    args.preset_name
+                  );
+                if (!found) {
+                  return ERRORS.NOT_FOUND('Resource', 'unknown');
+                }
+                presetId = found.id;
+              }
+              if (presetId === undefined) {
+                return ERRORS.VALIDATION(
+                  'Either preset_id or preset_name must be provided'
+                );
+              }
+              let preset;
+              try {
+                preset = await workoutPresetService.getWorkoutPresetById(
+                  userId,
+                  presetId
+                );
+              } catch (error) {
+                if (
+                  error instanceof Error &&
+                  error.message.includes('not found')
+                ) {
+                  return ERRORS.NOT_FOUND('Workout preset', String(presetId));
+                }
+                throw error;
+              }
+              let text = `### ${preset.name} (ID: ${preset.id})\n\n`;
+              if (preset.description) text += `${preset.description}\n\n`;
+              text += `Public: ${preset.is_public ? 'yes' : 'no'}\n\n`;
+              if (!preset.exercises || preset.exercises.length === 0) {
+                return `${text}_No exercises in this preset._`;
+              }
+              preset.exercises.forEach(
+                (ex: WorkoutPresetExerciseRow, i: number) => {
+                  const superset = ex.superset_group
+                    ? ` [superset group ${ex.superset_group}]`
+                    : '';
+                  text += `${i + 1}. **${ex.exercise_name}**${superset}\n   exercise_id: ${ex.exercise_id}\n`;
+                  if (ex.sets && ex.sets.length > 0) {
+                    ex.sets.forEach((s: WorkoutPresetSetRow, si: number) => {
+                      const details: string[] = [];
+                      if (isSet(s.reps)) details.push(`${s.reps} reps`);
+                      if (isSet(s.weight)) details.push(`${s.weight}kg`);
+                      if (isSet(s.duration)) details.push(`${s.duration}s`);
+                      if (isSet(s.distance)) details.push(`${s.distance}km`);
+                      if (isSet(s.rest_time))
+                        details.push(`rest ${s.rest_time}s`);
+                      if (s.notes) details.push(s.notes);
+                      text += `   Set ${si + 1} (${s.set_type || 'Working Set'}): ${details.join(', ') || 'no detail'}\n`;
+                    });
+                  } else {
+                    text += '   No sets recorded\n';
+                  }
+                }
+              );
+              return text;
+            }
+
             case 'log_workout_preset': {
               if (!args.preset_id && !args.preset_name) {
                 return ERRORS.VALIDATION(
@@ -1454,7 +1566,7 @@ Actions:
                     user_id: userId,
                     name: args.name,
                     description: args.description ?? null,
-                    is_public: false,
+                    is_public: args.is_public ?? false,
                     exercises: toPresetExercises(resolved),
                   }
                 );
@@ -1472,7 +1584,7 @@ Actions:
                   user_id: userId,
                   name: args.name,
                   description: args.description ?? null,
-                  is_public: false,
+                  is_public: args.is_public ?? false,
                   exercises: (args.exercise_ids as string[]).map(
                     (exerciseId, i) => ({
                       exercise_id: exerciseId,
@@ -1495,6 +1607,7 @@ Actions:
               if (
                 args.name === undefined &&
                 args.description === undefined &&
+                args.is_public === undefined &&
                 !args.exercises?.length
               ) {
                 return ERRORS.VALIDATION(
@@ -1538,12 +1651,43 @@ Actions:
                   ...(args.description !== undefined && {
                     description: args.description,
                   }),
+                  ...(args.is_public !== undefined && {
+                    is_public: args.is_public,
+                  }),
                   ...(updatedExercises && { exercises: updatedExercises }),
                 }
               );
               return formatConfirmation(
                 `Workout preset "${updated.name}" updated.`
               );
+            }
+
+            case 'delete_workout_preset': {
+              const blocked = presetMutationConfirmPrompt(
+                args.confirmed,
+                'delete',
+                args.preset_id
+              );
+              if (blocked) return blocked;
+              try {
+                await workoutPresetService.deleteWorkoutPreset(
+                  userId,
+                  args.preset_id
+                );
+              } catch (error) {
+                if (
+                  error instanceof Error &&
+                  (error.message.includes('Forbidden') ||
+                    error.message.includes('not found'))
+                ) {
+                  return ERRORS.NOT_FOUND(
+                    'Workout preset',
+                    String(args.preset_id)
+                  );
+                }
+                throw error;
+              }
+              return formatConfirmation('Workout preset deleted.');
             }
 
             case 'get_exercise_progress': {

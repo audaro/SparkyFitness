@@ -22,9 +22,11 @@ import {
   assertOutboundUrlShapeAndLiteralAllowed,
   createGuardedFetch,
   deriveAiNetworkPolicy,
+  resolveAiNetworkPolicy,
   OutboundUrlBlockedError,
   requiresUserSuppliedAiUrl,
 } from '../utils/outboundUrlPolicy.js';
+import type { AiNetworkPolicy } from '../utils/outboundUrlPolicy.js';
 import {
   todayInZone,
   DatabaseCustomCategories,
@@ -1050,7 +1052,7 @@ interface ChatAiServiceConfig {
 function createChatModelInstance(
   aiService: ChatAiServiceConfig,
   modelName: string,
-  networkPolicy: ReturnType<typeof deriveAiNetworkPolicy>
+  networkPolicy: AiNetworkPolicy
 ): Parameters<typeof generateText>[0]['model'] {
   const apiKey = aiService.api_key ?? undefined;
 
@@ -1791,7 +1793,7 @@ async function processChatMessage(
 
     const modelName =
       aiService.model_name || getDefaultModel(aiService.service_type);
-    const networkPolicy = deriveAiNetworkPolicy(aiService, actorIsAdmin);
+    const networkPolicy = await resolveAiNetworkPolicy(aiService, actorIsAdmin);
 
     const modelInstance = createChatModelInstance(
       aiService,
@@ -2096,7 +2098,7 @@ async function processFoodOptionsRequest(
 
   const result = await dispatchAiRequest({
     provider,
-    networkPolicy: deriveAiNetworkPolicy(aiService, actorIsAdmin),
+    networkPolicy: await resolveAiNetworkPolicy(aiService, actorIsAdmin),
     prompt,
     parseJson: true,
     temperature: FOOD_OPTIONS_TEMPERATURE,
@@ -2189,10 +2191,14 @@ async function testAiServiceConnection(
   // Gate #4 (SSRF): a test fires an outbound POST to the effective custom URL, so
   // a non-admin must not aim it at a private/internal address (localhost, RFC1918,
   // link-local, cloud metadata). The URL is validated post-fallback so a stored
-  // value is checked too. Admins (trusted operator) and the ALLOW_PRIVATE_NETWORK_AI
-  // opt-in bypass this, keeping self-hosted setups like local Ollama working.
+  // value is checked too. Admins (trusted operator) and the private-network opt-in
+  // (admin toggle or ALLOW_PRIVATE_NETWORK_AI) bypass this, keeping self-hosted
+  // setups like local Ollama working.
   if (customUrl) {
-    const networkPolicy = deriveAiNetworkPolicy({ source: 'user' }, isAdmin);
+    const networkPolicy = await resolveAiNetworkPolicy(
+      { source: 'user' },
+      isAdmin
+    );
     try {
       assertOutboundUrlShapeAndLiteralAllowed(customUrl, networkPolicy);
     } catch (error) {
@@ -2222,7 +2228,7 @@ async function testAiServiceConnection(
 
   const result = await dispatchAiRequest({
     provider,
-    networkPolicy: deriveAiNetworkPolicy(
+    networkPolicy: await resolveAiNetworkPolicy(
       { is_public: false, source: 'user' },
       isAdmin
     ),
@@ -2508,7 +2514,7 @@ async function processChatMessageStream(
 
     const modelName =
       aiService.model_name || getDefaultModel(aiService.service_type);
-    const networkPolicy = deriveAiNetworkPolicy(aiService, actorIsAdmin);
+    const networkPolicy = await resolveAiNetworkPolicy(aiService, actorIsAdmin);
 
     log(
       'info',

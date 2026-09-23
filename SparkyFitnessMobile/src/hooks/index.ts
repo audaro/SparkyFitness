@@ -6,6 +6,7 @@ export {
   chatHistoryQueryKey,
   medicationsRootQueryKey,
   activeAiServiceSettingQueryKey,
+  caffeineActiveRootQueryKey,
 } from './queryKeys';
 export { useServerConnection } from './useServerConnection';
 export { useServerConfigs } from './useServerConfigs';

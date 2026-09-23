@@ -23,6 +23,7 @@ import {
   getActivityIcon,
   getEventTypeLabel,
   readActivityStats,
+  readActivityStatsFromRelational,
   formatDuration,
   formatPace,
 } from '@/utils/activityReportUtil';
@@ -577,6 +578,118 @@ describe('readActivityStats – waterEstimated', () => {
 
     const stats = readActivityStats(activityData);
     expect(stats.waterEstimated).toBeNull();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 9b. readActivityStatsFromRelational – NULL columns must stay null, not 0
+//
+// `Number(null)` and `Number('')` both evaluate to 0, which is finite. A bare
+// Number.isFinite check on that cast can't distinguish "the device reported
+// 0" from "no data was ever collected", so a NULL weather_temp_celsius or
+// min/max_elevation_meters column was rendering as a fabricated 0°C / 0m.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('readActivityStatsFromRelational – NULL vs. 0 for nullable numeric columns', () => {
+  it('keeps weatherTempCelsius null when the column is null (not fabricated 0)', () => {
+    const entry = {
+      distance: 1.03,
+      duration_minutes: 23.8,
+      weather_temp_celsius: null,
+      min_elevation_meters: null,
+      max_elevation_meters: null,
+    };
+
+    const stats = readActivityStatsFromRelational(entry);
+    expect(stats.weatherTempCelsius).toBeNull();
+    expect(stats.minElevation).toBeNull();
+    expect(stats.maxElevation).toBeNull();
+  });
+
+  it('keeps a genuine 0°C or sea-level 0m reading intact', () => {
+    const entry = {
+      distance: 1.03,
+      duration_minutes: 23.8,
+      weather_temp_celsius: 0,
+      min_elevation_meters: 0,
+      max_elevation_meters: 0,
+    };
+
+    const stats = readActivityStatsFromRelational(entry);
+    expect(stats.weatherTempCelsius).toBe(0);
+    expect(stats.minElevation).toBe(0);
+    expect(stats.maxElevation).toBe(0);
+  });
+
+  it('treats an empty-string numeric column (as Postgres NUMERIC can arrive) as null', () => {
+    const entry = {
+      distance: 1.03,
+      duration_minutes: 23.8,
+      weather_temp_celsius: '',
+      min_elevation_meters: '',
+      max_elevation_meters: '',
+    };
+
+    const stats = readActivityStatsFromRelational(entry);
+    expect(stats.weatherTempCelsius).toBeNull();
+    expect(stats.minElevation).toBeNull();
+    expect(stats.maxElevation).toBeNull();
+  });
+
+  it('derives Avg Pace from distance and elapsed time, not the mean sample speed', () => {
+    // Real values from a synced Apple Health walk: mean-of-samples gave
+    // 17:00 min/km while distance/elapsed is 23:08, and only the latter can
+    // be reconciled with the distance and duration shown beside it.
+    const entry = {
+      distance: 1.03,
+      duration_minutes: 23.827,
+      elapsed_time_seconds: 1430,
+      avg_speed_mps: 0.98,
+    };
+
+    const stats = readActivityStatsFromRelational(entry);
+    // 1430s / 60 / 1.03km = 23.14 min/km
+    expect(stats.pace).toBeCloseTo(23.14, 1);
+  });
+
+  it('falls back to duration_minutes when elapsed time is absent', () => {
+    const entry = {
+      distance: 2,
+      duration_minutes: 30,
+      avg_speed_mps: 0.98,
+    };
+
+    const stats = readActivityStatsFromRelational(entry);
+    expect(stats.pace).toBeCloseTo(15, 5);
+  });
+
+  it('falls back to avg_speed_mps when there is no distance (indoor entries)', () => {
+    const entry = {
+      duration_minutes: 30,
+      avg_speed_mps: 2,
+    };
+
+    const stats = readActivityStatsFromRelational(entry);
+    // 1000 / (2 * 60) = 8.333 min/km
+    expect(stats.pace).toBeCloseTo(8.333, 2);
+  });
+
+  it('returns null pace when neither distance nor speed is available', () => {
+    const stats = readActivityStatsFromRelational({ duration_minutes: 30 });
+    expect(stats.pace).toBeNull();
+  });
+
+  it('preserves a real negative elevation (below sea level)', () => {
+    const entry = {
+      distance: 1.03,
+      duration_minutes: 23.8,
+      min_elevation_meters: -5.5,
+      max_elevation_meters: 3.2,
+    };
+
+    const stats = readActivityStatsFromRelational(entry);
+    expect(stats.minElevation).toBe(-5.5);
+    expect(stats.maxElevation).toBe(3.2);
   });
 });
 

@@ -246,7 +246,7 @@ for component; the server half is `SparkyFitnessServer/AGENTS.md`.
 
 ## Translations (i18n)
 
-- Only ever edit `public/locales/en/translation.json`. The other 27 locales are machine-synced through the `sync-translations.yml` workflow and a separate SparkyFitnessTranslations repo; hand-editing them creates conflicts with that pipeline.
+- Only ever edit `public/locales/en/translation.json`. The other 35 locales are machine-synced through the `sync-translations.yml` workflow and a separate SparkyFitnessTranslations repo; hand-editing them creates conflicts with that pipeline.
 - UI strings go through `useTranslation()` / `t('...')` keys, not hardcoded literals.
 - `en/translation.json` is ~237 KB - grep for the key or section you need instead of reading the whole file.
 - Developer docs: `../docs/content/8.developer/9.translations.md`.

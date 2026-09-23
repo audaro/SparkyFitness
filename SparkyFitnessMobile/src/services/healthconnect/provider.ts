@@ -105,7 +105,8 @@ export const postProcessRaw = async (
  */
 export const prepareInteractiveRead = async (
   metrics: Pick<HealthMetric, 'recordType'>[],
-  windows: SyncWindows
+  windows: SyncWindows,
+  telemetry?: TelemetryRunContext
 ): Promise<void> => {
   if (
     !metrics.some(
@@ -121,7 +122,8 @@ export const prepareInteractiveRead = async (
   await prefetchSessionRoutes(
     windows.sessionStart,
     windows.end,
-    FOREGROUND_TELEMETRY_BUDGET
+    FOREGROUND_TELEMETRY_BUDGET,
+    telemetry?.force ?? false
   );
 };
 

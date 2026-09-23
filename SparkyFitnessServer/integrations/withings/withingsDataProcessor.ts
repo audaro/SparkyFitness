@@ -5,6 +5,10 @@ import exerciseEntryRepository from '../../models/exerciseEntry.js';
 import sleepRepository from '../../models/sleepRepository.js';
 import { instantToDay, isValidTimeZone } from '@workspace/shared';
 import activityDetailsRepository from '../../models/activityDetailsRepository.js';
+import type {
+  WithingsCustomMeasurement,
+  WithingsMeasureGroup,
+} from '../../types/withings.js';
 // Define a mapping for Withings metric types to SparkyFitness measurement types
 // This can be extended as more Withings metrics are integrated
 const WITHINGS_METRIC_MAPPING = {
@@ -305,8 +309,7 @@ const WITHINGS_METRIC_MAPPING = {
 async function processWithingsMeasures(
   userId: string,
   createdByUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  measuregrps: any,
+  measuregrps: WithingsMeasureGroup[],
   timezone = 'UTC'
 ) {
   if (!Array.isArray(measuregrps) || measuregrps.length === 0) {
@@ -321,6 +324,13 @@ async function processWithingsMeasures(
       log(
         'warn',
         `Invalid date/timestamp in Withings measure group: ${JSON.stringify(group)}`
+      );
+      continue;
+    }
+    if (!Array.isArray(group.measures)) {
+      log(
+        'warn',
+        `Missing or malformed measures in Withings measure group: ${JSON.stringify(group)}`
       );
       continue;
     }
@@ -395,7 +405,7 @@ async function processWithingsMeasures(
 async function processWithingsHeartData(
   userId: string,
   createdByUserId: string,
-  heartSeries = [],
+  heartSeries: unknown[] = [],
   timezone = 'UTC'
 ) {
   if (!Array.isArray(heartSeries) || heartSeries.length === 0) {
@@ -516,8 +526,8 @@ async function processWithingsHeartData(
 async function processWithingsSleepData(
   userId: string,
   createdByUserId: string,
-  sleepSeries = [],
-  sleepSummary = [],
+  sleepSeries: unknown[] = [],
+  sleepSummary: unknown[] = [],
   timezone = 'UTC'
 ) {
   // Normalize inputs to always be arrays (Withings sometimes returns a single object)
@@ -753,8 +763,7 @@ async function processWithingsSleepData(
 async function upsertCustomMeasurementLogic(
   userId: string,
   createdByUserId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  customMeasurement: any,
+  customMeasurement: WithingsCustomMeasurement,
   source = 'manual'
 ) {
   const {
@@ -805,7 +814,7 @@ async function upsertCustomMeasurementLogic(
 async function processWithingsActivity(
   userId: string,
   createdByUserId: string,
-  activities = []
+  activities: unknown[] = []
 ) {
   if (!Array.isArray(activities) || activities.length === 0) {
     log('info', `No Withings activity data to process for user ${userId}.`);
@@ -874,7 +883,7 @@ async function processWithingsActivity(
 async function processWithingsWorkouts(
   userId: string,
   createdByUserId: string,
-  workouts = []
+  workouts: unknown[] = []
 ) {
   if (!Array.isArray(workouts) || workouts.length === 0) {
     log('info', `No Withings workout data to process for user ${userId}.`);

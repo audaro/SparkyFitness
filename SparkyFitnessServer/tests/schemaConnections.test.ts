@@ -4,13 +4,26 @@ import { applyMigrations } from '../utils/dbMigrations.js';
 import { applyRlsPolicies } from '../utils/applyRlsPolicies.js';
 import { grantPermissions } from '../db/grantPermissions.js';
 
-const { borrowed, supplied, connect } = vi.hoisted(() => ({
+const { borrowed, supplied, connect, probeConnect } = vi.hoisted(() => ({
   borrowed: { query: vi.fn(), release: vi.fn() },
   supplied: { query: vi.fn(), release: vi.fn() },
   connect: vi.fn(),
+  probeConnect: vi.fn(),
 }));
 
 vi.mock('../db/poolManager.js', () => ({ getSystemClient: connect }));
+// applyMigrations opens a short-lived client of its own to check whether the
+// application role's password still authenticates. These tests are about which
+// pooled client the migration borrows, so the probe is stubbed out; without
+// this it would attempt a real connection and fail where no database is
+// reachable. tests/appRolePasswordSync.test.ts covers the probe itself.
+vi.mock('pg', () => {
+  class Client {
+    connect = probeConnect;
+    end = vi.fn().mockResolvedValue(undefined);
+  }
+  return { default: { Client }, Client };
+});
 vi.mock('../config/logging.js', () => ({ log: vi.fn() }));
 vi.mock('fs', () => ({
   default: {
@@ -21,6 +34,9 @@ vi.mock('fs', () => ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // Probe succeeds: the application role's password still authenticates, so
+  // applyMigrations leaves the role alone and never issues ALTER ROLE.
+  probeConnect.mockResolvedValue(undefined);
   connect.mockResolvedValue(borrowed);
   borrowed.query.mockResolvedValue({ rows: [], rowCount: 1 });
   supplied.query.mockResolvedValue({ rows: [], rowCount: 1 });

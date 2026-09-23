@@ -35,7 +35,7 @@ For `docs/`, `SparkyFitnessGarmin/` and `SparkyFitnessVision/`, there is no pack
 - `SparkyFitnessServer/` - Express 5 + PostgreSQL backend API.
 - `SparkyFitnessMobile/` - Expo SDK 57 / React Native 0.86 app.
 - `shared/` - source-first TypeScript workspace package for `@workspace/shared` schemas, constants, and timezone/day helpers.
-- `docs/` - Nuxt / Docus docs site.
+- `docs/` - VitePress documentation site.
 - `SparkyFitnessGarmin/` - standalone Python integration service outside the current `pnpm` workspace.
 - `SparkyFitnessVision/` - standalone Python service that measures a progress photo (pose landmarks, person mask, scale-free body ratios, pair alignment). Outside the `pnpm` workspace, stateless, and optional: with `VISION_MICROSERVICE_URL` unset the app behaves exactly as it did before it existed.
 - `docker/`, `helm/`, `.github/` - infra and deployment assets.
@@ -59,7 +59,7 @@ Do not read or search these paths; they burn context for nothing:
 - `pnpm-lock.yaml` (~1.3 MB) - never read; check `package.json` files instead.
 - `db_schema_backup.sql` (~330 KB) - never read whole; grep for the one `CREATE TABLE` you need.
 - `SparkyFitnessFrontend/dist/` - build output.
-- `SparkyFitnessFrontend/public/locales/` except `en/` - 32 machine-synced translations. Only `en/translation.json` is ever hand-edited, and even that (~237 KB) should be grepped, not read whole.
+- `SparkyFitnessFrontend/public/locales/` except `en/` - 35 machine-synced translations. Only `en/translation.json` is ever hand-edited, and even that (~120 KB) should be grepped, not read whole.
 
 Cheap ways to learn things:
 

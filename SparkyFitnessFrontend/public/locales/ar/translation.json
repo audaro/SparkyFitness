@@ -327,7 +327,6 @@
     "editPresetTooltip": "تعديل القالب",
     "deletePresetTooltip": "حذف القالب",
     "loading": "جارٍ تحميل القوالب…",
-    "loadMore": "عرض المزيد",
     "noExercisesInPreset": "ما فيه تمارين داخل هالقالب.",
     "failedToLoadPresets": "تعذر تحميل قوالب التمرين.",
     "createSuccess": "تم إنشاء قالب التمرين.",

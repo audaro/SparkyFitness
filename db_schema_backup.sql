@@ -2153,7 +2153,9 @@ CREATE TABLE public.exercise_entry_laps (
     elevation_gain_meters numeric(7,2),
     elevation_loss_meters numeric(7,2),
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    moving_time_seconds integer,
+    avg_moving_speed_mps numeric(6,2)
 );
 
 
@@ -2694,6 +2696,11 @@ CREATE TABLE public.global_settings (
     allow_user_ai_config boolean DEFAULT true NOT NULL,
     default_vision_ai_service_id uuid,
     allow_openfoodfacts_contributions boolean DEFAULT false NOT NULL,
+    allow_private_network_ai boolean DEFAULT false NOT NULL,
+    allow_private_network_food_providers boolean DEFAULT false NOT NULL,
+    public_api_docs boolean DEFAULT false NOT NULL,
+    dev_tools_enabled boolean DEFAULT false NOT NULL,
+    mock_data_enabled boolean DEFAULT false NOT NULL,
     CONSTRAINT single_row_check CHECK ((id = 1))
 );
 
@@ -2801,7 +2808,7 @@ CREATE TABLE public.health_metric_samples (
     samples jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT chk_health_metric_samples_metric CHECK ((metric = ANY (ARRAY['heart_rate'::text, 'hrv'::text, 'respiration'::text, 'spo2'::text, 'stress'::text, 'body_battery'::text])))
+    CONSTRAINT chk_health_metric_samples_metric CHECK ((metric = ANY (ARRAY['heart_rate'::text, 'hrv'::text, 'respiration'::text, 'spo2'::text, 'stress'::text, 'body_battery'::text, 'skin_temperature'::text])))
 );
 
 

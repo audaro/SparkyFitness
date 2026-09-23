@@ -173,7 +173,6 @@
     "hydration": "Hidratación",
     "ofVolume": "de {{value}} {{unit}}",
     "perBottle": "{{value}} {{unit}} por botella",
-    "configureWaterContainer": "Configura un recipiente de agua en el servidor para\nactivar los botones de añadir/quitar rápido",
     "exercise": "Ejercicio",
     "minutes": "Minutos",
     "calories": "Calorías",
@@ -181,7 +180,8 @@
     "removeWater": "Quitar agua",
     "addWater": "Añadir agua",
     "selectContainer": "Seleccionar {{container}}",
-    "perContainer": "{{value}} {{unit}} por recipiente"
+    "perContainer": "{{value}} {{unit}} por recipiente",
+    "chooseWaterContainer": "Elige un recipiente de agua para habilitar \"añadir/eliminar\" rápido"
   },
   "addSheet": {
     "food": "Comida",
@@ -198,7 +198,8 @@
     "askSparky": "Pregunta a Sparky",
     "syncHealth": "Sincronizar datos de salud",
     "logPregnancyEntry": "Registrar entrada de embarazo",
-    "logCycle": "Registrar ciclo"
+    "logCycle": "Registrar ciclo",
+    "progressPhotos": "Fotos del progreso"
   },
   "addSheetActions": {
     "noServerTitle": "Sin servidor conectado",
@@ -601,8 +602,17 @@
       "loadingRecentItems": "Cargando elementos recientes...",
       "failedRecentItems": "No se pudieron cargar los elementos recientes.",
       "noRecentItems": "Aún no hay elementos recientes",
-      "recentItemsHint": "Los alimentos, comidas y ejercicios que registres aparecerán aquí para un acceso rápido."
-    }
+      "recentItemsHint": "Los alimentos, comidas y ejercicios que registres aparecerán aquí para un acceso rápido.",
+      "mealPlans": "Planes de comidas",
+      "mealPlansSubtitle": "Repetir comidas en los días seleccionados",
+      "waterContainers": "Recipientes de agua",
+      "waterContainersSubtitle": "Botellas, vasos, y bebidas asociadas a comidas"
+    },
+    "sleep": "Sueño",
+    "healthTrendsSettings": "Tendencias de salud",
+    "progressPhotos": "Fotos del progreso",
+    "progressPhotoCompare": "Comparar",
+    "progressPhotoTimelapse": "Lapso de tiempo"
   },
   "nutrients": {
     "calories": "Calorías",

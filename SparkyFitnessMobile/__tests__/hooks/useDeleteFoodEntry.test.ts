@@ -94,7 +94,7 @@ describe('useDeleteFoodEntry', () => {
     });
   });
 
-  test('invalidateCache invalidates dailySummaryQueryKey with normalized date', async () => {
+  test('invalidateCache invalidates dailySummary and caffeine keys with normalized date', async () => {
     const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
     const { result } = renderHook(
@@ -112,6 +112,11 @@ describe('useDeleteFoodEntry', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: dailySummaryQueryKey('2026-02-26'),
+      refetchType: 'all',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['caffeineActive', '2026-02-26'],
+      refetchType: 'all',
     });
 
     invalidateSpy.mockRestore();
@@ -212,6 +217,11 @@ describe('useDeleteFoodEntry', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: dailySummaryQueryKey('2026-03-15'),
+      refetchType: 'all',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['caffeineActive', '2026-03-15'],
+      refetchType: 'all',
     });
 
     invalidateSpy.mockRestore();

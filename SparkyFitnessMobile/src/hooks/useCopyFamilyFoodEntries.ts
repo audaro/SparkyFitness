@@ -10,11 +10,8 @@ import type {
   CopySelectedFoodEntriesFromUserPayload,
 } from '@workspace/shared';
 import { ApiError } from '../services/api/errors';
-import {
-  dailySummaryQueryKey,
-  familyDailySummaryQueryKey,
-  familyUsersQueryKey,
-} from './queryKeys';
+import { familyDailySummaryQueryKey, familyUsersQueryKey } from './queryKeys';
+import { invalidateFoodCache } from './invalidateFoodCache';
 
 export type FamilyCopyRequest =
   | { kind: 'whole'; payload: CopyReviewedFoodEntriesFromUserPayload }
@@ -37,9 +34,7 @@ export function useCopyFamilyFoodEntries(
         ? copyReviewedFoodEntriesFromUser(request.payload)
         : copySelectedFoodEntriesFromUser(request.payload),
     onSuccess: (_data, request) => {
-      queryClient.invalidateQueries({
-        queryKey: dailySummaryQueryKey(request.payload.targetDate),
-      });
+      invalidateFoodCache(queryClient, request.payload.targetDate);
       Toast.show({
         type: 'success',
         text1: t('familyDiary.copySuccess', {

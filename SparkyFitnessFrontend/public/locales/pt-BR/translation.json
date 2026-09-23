@@ -1248,7 +1248,6 @@
     "sharePresetTooltip": "Compartilhar esse treino com a comunidade",
     "editPresetTooltip": "Editar esse treino predefinido",
     "deletePresetTooltip": "Excluir este treino predefinido",
-    "loadMore": "Mais",
     "noExercisesInPreset": "Sem exercícios nesse treino predefinido",
     "failedToLoadPresets": "Falha ao carregar treinos predefinidos.",
     "createSuccess": "Treino predefinido carregado com sucesso.",

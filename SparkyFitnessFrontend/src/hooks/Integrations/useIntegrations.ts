@@ -6,11 +6,14 @@ import {
   linkWithingsAccount,
   linkStravaAccount,
   syncHevyData,
+  syncLiftosaurData,
+  LiftosaurSyncResult,
   loginGarmin,
   GarminLoginPayload,
 } from '@/api/Integrations/integrations';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '@/hooks/use-toast';
 
 import {
   handleConnectWithings,
@@ -33,6 +36,7 @@ import {
   handleConnectStrava,
   handleDisconnectStrava,
   handleManualSyncStrava,
+  handleDisconnectLiftosaur,
   fetchGarminStatus,
   GarminMfaPayload,
   resumeGarminLogin,
@@ -161,6 +165,8 @@ export const usePolarFlowMutation = () => {
 };
 
 interface SyncHevyVariables {
+  saveMockData?: boolean;
+  dataSource?: string;
   fullSync?: boolean;
   providerId?: string;
   startDate?: string;
@@ -176,8 +182,9 @@ export const useSyncHevyMutation = () => {
       providerId,
       startDate,
       endDate,
+      ...mock
     }: SyncHevyVariables) =>
-      syncHevyData(fullSync, providerId, startDate, endDate),
+      syncHevyData(fullSync, providerId, startDate, endDate, mock),
     meta: {
       successMessage: t(
         'integrations.hevySyncSuccess',
@@ -187,6 +194,73 @@ export const useSyncHevyMutation = () => {
         'integrations.hevySyncError',
         'Hevy sync failed. Please check your API key in settings.'
       ),
+    },
+  });
+};
+
+interface SyncLiftosaurVariables {
+  fullSync?: boolean;
+  providerId?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export const useSyncLiftosaurMutation = () => {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const invalidateDiary = useDiaryInvalidation();
+
+  return useMutation({
+    mutationFn: ({
+      fullSync = false,
+      providerId,
+      startDate,
+      endDate,
+    }: SyncLiftosaurVariables) =>
+      syncLiftosaurData(fullSync, providerId, startDate, endDate),
+    onSuccess: (data: LiftosaurSyncResult) => {
+      queryClient.invalidateQueries({
+        queryKey: externalProviderKeys.lists(),
+      });
+      invalidateDiary();
+
+      const workoutsImp = data?.workoutsImported ?? data?.processedCount ?? 0;
+      const measImp = data?.measurementsImported ?? 0;
+
+      toast({
+        title: t(
+          'integrations.liftosaurSyncSuccessTitle',
+          'Liftosaur synced successfully'
+        ),
+        description: t(
+          'integrations.liftosaurSyncDetails',
+          'Synced: {{workoutsImported}} workouts, {{measurementsImported}} measurements imported.',
+          {
+            workoutsImported: workoutsImp,
+            measurementsImported: measImp,
+          }
+        ),
+      });
+    },
+    meta: {
+      errorMessage: t(
+        'integrations.liftosaurSyncError',
+        'Liftosaur sync failed. Please check your API key in settings.'
+      ),
+    },
+  });
+};
+
+export const useDisconnectLiftosaurMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (providerId?: string) => handleDisconnectLiftosaur(providerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: externalProviderKeys.lists(),
+      });
     },
   });
 };
@@ -229,14 +303,17 @@ export const useDisconnectWithingsMutation = () => {
 interface SyncVariables {
   startDate?: string;
   endDate?: string;
+  // Troubleshooting options, only present when an admin enabled them.
+  saveMockData?: boolean;
+  dataSource?: string;
 }
 
 export const useManualSyncWithingsMutation = () => {
   const invalidateSyncData = useDiaryInvalidation();
 
   return useMutation({
-    mutationFn: ({ startDate, endDate }: SyncVariables) =>
-      handleManualSync(startDate, endDate),
+    mutationFn: ({ startDate, endDate, ...mock }: SyncVariables) =>
+      handleManualSync(startDate, endDate, mock),
     onSuccess: () => {
       invalidateSyncData();
     },
@@ -253,8 +330,8 @@ export const useManualSyncGarminMutation = () => {
   const invalidateSyncData = useDiaryInvalidation();
 
   return useMutation({
-    mutationFn: ({ startDate, endDate }: SyncVariables) =>
-      handleManualSyncGarmin(startDate, endDate),
+    mutationFn: ({ startDate, endDate, ...mock }: SyncVariables) =>
+      handleManualSyncGarmin(startDate, endDate, mock),
     onSuccess: () => {
       invalidateSyncData();
     },
@@ -277,8 +354,8 @@ export const useManualSyncFitbitMutation = () => {
   const invalidateSyncData = useDiaryInvalidation();
 
   return useMutation({
-    mutationFn: ({ startDate, endDate }: SyncVariables) =>
-      handleManualSyncFitbit(startDate, endDate),
+    mutationFn: ({ startDate, endDate, ...mock }: SyncVariables) =>
+      handleManualSyncFitbit(startDate, endDate, mock),
     onSuccess: () => {
       invalidateSyncData();
     },
@@ -301,8 +378,8 @@ export const useManualSyncOuraMutation = () => {
   const invalidateSyncData = useDiaryInvalidation();
 
   return useMutation({
-    mutationFn: ({ startDate, endDate }: SyncVariables) =>
-      handleManualSyncOura(startDate, endDate),
+    mutationFn: ({ startDate, endDate, ...mock }: SyncVariables) =>
+      handleManualSyncOura(startDate, endDate, mock),
     onSuccess: () => {
       invalidateSyncData();
     },
@@ -329,8 +406,13 @@ export const useManualSyncPolarMutation = () => {
   const invalidateSyncData = useDiaryInvalidation();
 
   return useMutation({
-    mutationFn: ({ providerId, startDate, endDate }: SyncPolarVariables) =>
-      handleManualSyncPolar(providerId, startDate, endDate),
+    mutationFn: ({
+      providerId,
+      startDate,
+      endDate,
+      ...mock
+    }: SyncPolarVariables) =>
+      handleManualSyncPolar(providerId, startDate, endDate, mock),
     onSuccess: () => {
       invalidateSyncData();
     },
@@ -353,8 +435,8 @@ export const useManualSyncStravaMutation = () => {
   const invalidateSyncData = useDiaryInvalidation();
 
   return useMutation({
-    mutationFn: ({ startDate, endDate }: SyncVariables) =>
-      handleManualSyncStrava(startDate, endDate),
+    mutationFn: ({ startDate, endDate, ...mock }: SyncVariables) =>
+      handleManualSyncStrava(startDate, endDate, mock),
     onSuccess: () => {
       invalidateSyncData();
     },
@@ -377,8 +459,8 @@ export const useManualSyncGoogleHealthMutation = () => {
   const invalidateSyncData = useDiaryInvalidation();
 
   return useMutation({
-    mutationFn: ({ startDate, endDate }: SyncVariables) =>
-      handleManualSyncGoogleHealth(startDate, endDate),
+    mutationFn: ({ startDate, endDate, ...mock }: SyncVariables) =>
+      handleManualSyncGoogleHealth(startDate, endDate, mock),
     onSuccess: () => {
       invalidateSyncData();
     },

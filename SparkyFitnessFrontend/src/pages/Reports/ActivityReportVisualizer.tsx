@@ -92,6 +92,11 @@ const ActivityReportVisualizer = ({
         averageRunCadence: l.avg_cadence ?? 0,
         elevationGain: l.elevation_gain_meters ?? 0,
         elevationLoss: l.elevation_loss_meters ?? 0,
+        // 0 rather than null: the lap table treats 0 as "no data" and renders
+        // N/A. Rows written before the moving-telemetry columns existed stay
+        // null until a re-sync or the Garmin backfill repopulates them.
+        averageMovingSpeed: l.avg_moving_speed_mps ?? 0,
+        movingDuration: l.moving_time_seconds ?? 0,
       }));
     }
     return activityData?.activity?.splits?.lapDTOs || [];
@@ -305,18 +310,33 @@ const ActivityReportVisualizer = ({
       : null;
 
   // Stored values are kcal; convert before labelling with the selected unit.
+  // HealthKit reports active energy only, so `restingCalories` is routinely
+  // NULL — render that side as "—" rather than `?? 0`, which would print a
+  // fabricated zero (e.g. "57 / 0 kcal") that reads as "burned zero resting
+  // calories" instead of "resting calories weren't reported".
   const caloriesBreakdownFormatted =
     stats.activeCalories != null || stats.restingCalories != null
-      ? `${Math.round(convertEnergy(stats.activeCalories ?? 0, 'kcal', energyUnit))} / ${Math.round(convertEnergy(stats.restingCalories ?? 0, 'kcal', energyUnit))} ${getEnergyUnitString(energyUnit)}`
+      ? `${stats.activeCalories != null ? Math.round(convertEnergy(stats.activeCalories, 'kcal', energyUnit)) : '—'} / ${stats.restingCalories != null ? Math.round(convertEnergy(stats.restingCalories, 'kcal', energyUnit)) : '—'} ${getEnergyUnitString(energyUnit)}`
       : null;
 
   // formatPace only formats — the caller converts, as the average-pace block
   // above does. Without this the value stayed min/km under a "/mi" label.
-  const avgMovingSpeedFormatted = (() => {
-    if (stats.avgMovingSpeedMps == null || stats.avgMovingSpeedMps <= 0) {
+  //
+  // Distance over moving time, mirroring the distance-over-elapsed-time
+  // definition Avg Pace uses, so the two tiles differ only by which time span
+  // they divide by and both stay hand-checkable. avg_moving_speed_mps (the
+  // mean of the moving GPS samples) is the fallback for entries that have a
+  // moving speed but no moving duration.
+  const avgMovingPaceFormatted = (() => {
+    const minPerKm =
+      stats.distance && stats.movingTimeSeconds
+        ? stats.movingTimeSeconds / 60 / stats.distance
+        : stats.avgMovingSpeedMps != null && stats.avgMovingSpeedMps > 0
+          ? 1000 / (stats.avgMovingSpeedMps * 60)
+          : null;
+    if (minPerKm == null || !Number.isFinite(minPerKm) || minPerKm <= 0) {
       return null;
     }
-    const minPerKm = 1000 / (stats.avgMovingSpeedMps * 60);
     const paceForUnit =
       distanceUnit === 'miles' ? minPerKm * 1.60934 : minPerKm;
     return formatPace(paceForUnit, distanceUnit);
@@ -485,7 +505,7 @@ const ActivityReportVisualizer = ({
           movingTime={movingTimeFormatted}
           elapsedTime={elapsedTimeFormatted}
           caloriesBreakdown={caloriesBreakdownFormatted}
-          avgMovingSpeed={avgMovingSpeedFormatted}
+          avgMovingPace={avgMovingPaceFormatted}
           elevationRange={elevationRangeFormatted}
           weather={weatherFormatted}
           gear={gearFormatted}

@@ -112,7 +112,14 @@ export const ProviderDialog: React.FC<{
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSave({ ...editedProvider, redirect_uris: [fullUri] }, logoFile);
+            const providerToSave = {
+              ...editedProvider,
+              redirect_uris: [fullUri],
+            };
+            if (providerToSave.id && !providerToSave.client_secret) {
+              delete providerToSave.client_secret;
+            }
+            onSave(providerToSave, logoFile);
           }}
         >
           <DialogHeader>
@@ -278,7 +285,7 @@ export const ProviderDialog: React.FC<{
                         )
                       : t(
                           'admin.oidcSettings.leaveUnchanged',
-                          'Leave unchanged if *****'
+                          'Leave blank to keep the existing secret'
                         )
                   }
                   autoComplete="new-password"

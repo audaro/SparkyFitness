@@ -8,17 +8,89 @@
       "displayNameKey": "settings.language.english",
       "defaultDisplayName": "English"
     },
-    "pl": {
-      "languageCode": "pl",
-      "intlLocale": "pl-PL",
-      "displayNameKey": "settings.language.polish",
-      "defaultDisplayName": "Polski"
+    "de": {
+      "languageCode": "de",
+      "intlLocale": "de-DE",
+      "displayNameKey": "settings.language.german",
+      "defaultDisplayName": "Deutsch"
     },
     "es": {
       "languageCode": "es",
       "intlLocale": "es-ES",
       "displayNameKey": "settings.language.spanish",
       "defaultDisplayName": "Español"
+    },
+    "fr": {
+      "languageCode": "fr",
+      "intlLocale": "fr-FR",
+      "displayNameKey": "settings.language.french",
+      "defaultDisplayName": "Français"
+    },
+    "hu": {
+      "languageCode": "hu",
+      "intlLocale": "hu-HU",
+      "displayNameKey": "settings.language.hungarian",
+      "defaultDisplayName": "Magyar"
+    },
+    "it": {
+      "languageCode": "it",
+      "intlLocale": "it-IT",
+      "displayNameKey": "settings.language.italian",
+      "defaultDisplayName": "Italiano"
+    },
+    "lv": {
+      "languageCode": "lv",
+      "intlLocale": "lv-LV",
+      "displayNameKey": "settings.language.latvian",
+      "defaultDisplayName": "Latviešu"
+    },
+    "nb-NO": {
+      "languageCode": "nb-NO",
+      "intlLocale": "nb-NO",
+      "displayNameKey": "settings.language.norwegianBokmal",
+      "defaultDisplayName": "Norsk bokmål"
+    },
+    "nl": {
+      "languageCode": "nl",
+      "intlLocale": "nl-NL",
+      "displayNameKey": "settings.language.dutch",
+      "defaultDisplayName": "Nederlands"
+    },
+    "pl": {
+      "languageCode": "pl",
+      "intlLocale": "pl-PL",
+      "displayNameKey": "settings.language.polish",
+      "defaultDisplayName": "Polski"
+    },
+    "pt-BR": {
+      "languageCode": "pt-BR",
+      "intlLocale": "pt-BR",
+      "displayNameKey": "settings.language.brazilianPortuguese",
+      "defaultDisplayName": "Português (Brasil)"
+    },
+    "ru": {
+      "languageCode": "ru",
+      "intlLocale": "ru-RU",
+      "displayNameKey": "settings.language.russian",
+      "defaultDisplayName": "Русский"
+    },
+    "yue-Hant": {
+      "languageCode": "yue-Hant",
+      "intlLocale": "yue-Hant-HK",
+      "displayNameKey": "settings.language.cantoneseTraditional",
+      "defaultDisplayName": "正體粵語"
+    },
+    "zh-Hans": {
+      "languageCode": "zh-Hans",
+      "intlLocale": "zh-Hans-CN",
+      "displayNameKey": "settings.language.simplifiedChinese",
+      "defaultDisplayName": "简体中文"
+    },
+    "zh-Hant": {
+      "languageCode": "zh-Hant",
+      "intlLocale": "zh-Hant-TW",
+      "displayNameKey": "settings.language.traditionalChinese",
+      "defaultDisplayName": "正體中文"
     }
   }
 }

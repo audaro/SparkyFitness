@@ -1,0 +1,17 @@
+"widget.calorie.name" = "Calories";
+"widget.calorie.description" = "Aperçu de votre apport calorique du jour en un coup d’œil.";
+"widget.macro.name" = "Macronutriments";
+"widget.macro.description" = "Vos protéines, glucides et lipides du jour en un coup d'œil.";
+"widget.kcal_left" = "kcal restantes";
+"widget.kcal" = "kcal";
+"widget.food" = "Alimentation";
+"widget.burned" = "Brûlé";
+"widget.goal" = "Objectif";
+"widget.protein" = "Protéines";
+"widget.carbs" = "Glucides";
+"widget.fat" = "Lipides";
+"widget.grams" = "%@ g";
+"widget.a11y.kcal_left" = "%@ kcal restantes";
+"widget.a11y.kcal" = "%@ kcal";
+"widget.search_food" = "Rechercher un aliment";
+"widget.scan_barcode" = "Code barre";

@@ -734,6 +734,178 @@ async function fetchRecentNightlyRecharge(userId: string, accessToken: any) {
   }
 }
 /**
+ * Fetch recent Cardio Load data (last 28 days).
+ */
+async function fetchRecentCardioLoad(
+  userId: string,
+  accessToken: string | null | undefined
+): Promise<Record<string, unknown>[]> {
+  if (!accessToken) return [];
+  try {
+    log('info', `Fetching recent Polar cardio load data for user ${userId}...`);
+    const response = await axios.get(
+      `${POLAR_API_BASE_URL}/users/cardio-load`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      }
+    );
+    logRawResponse('polar', 'raw_cardio_load', response.data);
+    const data = response.data;
+    const cardioLoadData = Array.isArray(data)
+      ? data
+      : data?.['cardio-loads'] || data?.cardio_loads || [];
+    log(
+      'info',
+      `Fetched ${cardioLoadData.length} records of recent cardio load data for user ${userId}.`
+    );
+    return cardioLoadData;
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+    log(
+      'error',
+      `Error fetching recent Polar cardio load data for user ${userId}: ${errMessage}`
+    );
+    return [];
+  }
+}
+
+/**
+ * Fetch recent Continuous Heart Rate data.
+ */
+async function fetchRecentContinuousHeartRate(
+  userId: string,
+  accessToken: string | null | undefined
+): Promise<unknown> {
+  if (!accessToken) return null;
+  try {
+    log(
+      'info',
+      `Fetching recent Polar continuous heart rate data for user ${userId}...`
+    );
+    const response = await axios.get(
+      `${POLAR_API_BASE_URL}/users/continuous-heart-rate`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      }
+    );
+    logRawResponse('polar', 'raw_continuous_heart_rate', response.data);
+    return response.data;
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+    log(
+      'error',
+      `Error fetching recent Polar continuous heart rate data for user ${userId}: ${errMessage}`
+    );
+    return null;
+  }
+}
+
+/**
+ * Fetch recent SpO2 biosensing data.
+ */
+async function fetchRecentSpO2(
+  userId: string,
+  accessToken: string | null | undefined
+): Promise<unknown> {
+  if (!accessToken) return null;
+  try {
+    log('info', `Fetching recent Polar SpO2 data for user ${userId}...`);
+    const response = await axios.get(
+      `${POLAR_API_BASE_URL}/users/biosensing/spo2`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      }
+    );
+    logRawResponse('polar', 'raw_spo2', response.data);
+    return response.data;
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+    log(
+      'error',
+      `Error fetching recent Polar SpO2 data for user ${userId}: ${errMessage}`
+    );
+    return null;
+  }
+}
+
+/**
+ * Fetch recent Body Temperature biosensing data.
+ */
+async function fetchRecentBodyTemperature(
+  userId: string,
+  accessToken: string | null | undefined
+): Promise<unknown> {
+  if (!accessToken) return null;
+  try {
+    log(
+      'info',
+      `Fetching recent Polar body temperature data for user ${userId}...`
+    );
+    const response = await axios.get(
+      `${POLAR_API_BASE_URL}/users/biosensing/bodytemperature`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      }
+    );
+    logRawResponse('polar', 'raw_body_temperature', response.data);
+    return response.data;
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+    log(
+      'error',
+      `Error fetching recent Polar body temperature data for user ${userId}: ${errMessage}`
+    );
+    return null;
+  }
+}
+
+/**
+ * Fetch recent Skin Temperature biosensing data.
+ */
+async function fetchRecentSkinTemperature(
+  userId: string,
+  accessToken: string | null | undefined
+): Promise<unknown> {
+  if (!accessToken) return null;
+  try {
+    log(
+      'info',
+      `Fetching recent Polar skin temperature data for user ${userId}...`
+    );
+    const response = await axios.get(
+      `${POLAR_API_BASE_URL}/users/biosensing/skintemperature`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      }
+    );
+    logRawResponse('polar', 'raw_skin_temperature', response.data);
+    return response.data;
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+    log(
+      'error',
+      `Error fetching recent Polar skin temperature data for user ${userId}: ${errMessage}`
+    );
+    return null;
+  }
+}
+
+/**
  * Fetch and process Polar data.
  * @deprecated Use services/polarService.js for orchestration and mock data support.
  */
@@ -846,6 +1018,11 @@ export { fetchDailyActivity };
 export { fetchRecentDailyActivity };
 export { fetchRecentSleepData };
 export { fetchRecentNightlyRecharge };
+export { fetchRecentCardioLoad };
+export { fetchRecentContinuousHeartRate };
+export { fetchRecentSpO2 };
+export { fetchRecentBodyTemperature };
+export { fetchRecentSkinTemperature };
 export { fetchUserProfile };
 export { checkNotifications };
 export { fetchAndProcessPolarData };
@@ -865,6 +1042,11 @@ export default {
   fetchRecentDailyActivity,
   fetchRecentSleepData,
   fetchRecentNightlyRecharge,
+  fetchRecentCardioLoad,
+  fetchRecentContinuousHeartRate,
+  fetchRecentSpO2,
+  fetchRecentBodyTemperature,
+  fetchRecentSkinTemperature,
   fetchUserProfile,
   checkNotifications,
   fetchAndProcessPolarData,

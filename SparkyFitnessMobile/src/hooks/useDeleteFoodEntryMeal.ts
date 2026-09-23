@@ -4,11 +4,8 @@ import Toast from 'react-native-toast-message';
 import i18n from '../localization/i18n';
 import { deleteFoodEntryMeal } from '../services/api/foodEntryMealsApi';
 import { normalizeDate } from '../utils/dateUtils';
-import {
-  dailySummaryQueryKey,
-  foodEntryMealDetailQueryKey,
-  foodsQueryKey,
-} from './queryKeys';
+import { foodEntryMealDetailQueryKey } from './queryKeys';
+import { invalidateFoodCache } from './invalidateFoodCache';
 import { invalidateMealUsageCaches } from './useMeals';
 
 interface UseDeleteFoodEntryMealOptions {
@@ -66,14 +63,11 @@ export function useDeleteFoodEntryMeal({
   const deleteEntry = () => mutation.mutate();
 
   const invalidateCache = () => {
-    queryClient.invalidateQueries({
-      queryKey: dailySummaryQueryKey(normalizedDate),
-    });
+    invalidateFoodCache(queryClient, normalizedDate);
     queryClient.invalidateQueries({
       queryKey: foodEntryMealDetailQueryKey(mealId),
     });
     invalidateMealUsageCaches(queryClient);
-    queryClient.invalidateQueries({ queryKey: [...foodsQueryKey] });
   };
 
   return {

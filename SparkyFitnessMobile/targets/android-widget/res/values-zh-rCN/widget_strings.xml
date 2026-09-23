@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sparky_calorie_widget_name">热量</string>
+    <string name="sparky_widget_description">每日热量汇总，支持快速添加</string>
+    <string name="sparky_macro_widget_name">营养素</string>
+    <string name="sparky_macro_widget_description">今日碳水、蛋白质、脂肪汇总，支持快速添加</string>
+    <string name="widget_kcal_left">剩余%1$s千卡</string>
+    <string name="widget_kcal_left_empty">剩余 - 千卡</string>
+    <string name="widget_grams">%1$s 克</string>
+    <string name="widget_protein">蛋白质</string>
+    <string name="widget_carbs">碳水</string>
+    <string name="widget_fat">脂肪</string>
+    <string name="widget_search_food">搜索食物</string>
+    <string name="widget_scan_barcode">扫描条形码</string>
+    <string name="widget_preview_calories_left">剩余 1650 千卡</string>
+    <string name="widget_preview_macros_left">剩余 1024 千卡</string>
+    <string name="widget_preview_grams_protein">51 克</string>
+    <string name="widget_preview_grams_carbs">136 克</string>
+    <string name="widget_preview_grams_fat">32 克</string>
+</resources>

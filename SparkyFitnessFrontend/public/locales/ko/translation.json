@@ -257,7 +257,6 @@
     "editPresetTooltip": "이 프리셋 수정",
     "deletePresetTooltip": "이 프리셋 삭제",
     "loading": "불러오는 중...",
-    "loadMore": "더 보기",
     "noExercisesInPreset": "이 프리셋에 운동이 없습니다",
     "failedToLoadPresets": "운동 프리셋을 불러오지 못했습니다.",
     "createSuccess": "운동 프리셋이 생성되었습니다.",

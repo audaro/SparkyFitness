@@ -90,6 +90,11 @@ async function createWorkoutPreset(presetData: any) {
 async function getWorkoutPresetByName(userId: string, name: any) {
   const client = await getClient(userId);
   try {
+    // Owner first, then family-shared via can_view_exercise_library. Do not
+    // rely on RLS alone: has_library_access_with_public also allows every
+    // is_public preset, so a name like "Push Day" would resolve to the oldest
+    // public row in the database (and Garmin/Hevy/CSV find-or-create would
+    // attach to it). Public presets are still readable by ID.
     const result = await client.query(
       `SELECT
         wp.id, wp.user_id, wp.name, wp.description, wp.is_public, wp.created_at, wp.updated_at,
@@ -128,8 +133,14 @@ async function getWorkoutPresetByName(userId: string, name: any) {
           ), '[]'::json
         ) AS exercises
       FROM workout_presets wp
-      WHERE wp.user_id = $1 AND wp.name ILIKE $2
-      GROUP BY wp.id`,
+      WHERE wp.name ILIKE $2
+        AND (
+          wp.user_id = $1
+          OR public.has_family_access(wp.user_id, 'can_view_exercise_library')
+        )
+      GROUP BY wp.id
+      ORDER BY (wp.user_id = $1) DESC, wp.id ASC
+      LIMIT 1`,
       [userId, name]
     );
     return result.rows[0] ? { ...result.rows[0], isNew: false } : null; // Add isNew: false for existing presets

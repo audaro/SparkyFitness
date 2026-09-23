@@ -23,6 +23,8 @@ export const exerciseEntryLapsSchema = z.object({
   avg_power_watts: z.number().nullable(),
   elevation_gain_meters: z.number().nullable(),
   elevation_loss_meters: z.number().nullable(),
+  moving_time_seconds: z.number().nullable(),
+  avg_moving_speed_mps: z.number().nullable(),
   created_at: z.coerce.date().nullable(),
   updated_at: z.coerce.date().nullable(),
 });
@@ -48,6 +50,8 @@ export const exerciseEntryLapsInitializerSchema = z.object({
   avg_power_watts: z.number().optional().nullable(),
   elevation_gain_meters: z.number().optional().nullable(),
   elevation_loss_meters: z.number().optional().nullable(),
+  moving_time_seconds: z.number().optional().nullable(),
+  avg_moving_speed_mps: z.number().optional().nullable(),
   created_at: z.coerce.date().optional().nullable(),
   updated_at: z.coerce.date().optional().nullable(),
 });

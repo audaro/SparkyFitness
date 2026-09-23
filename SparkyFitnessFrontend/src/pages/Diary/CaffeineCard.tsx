@@ -145,8 +145,24 @@ export const CaffeineCard = ({ date, userId }: CaffeineCardProps) => {
     );
   }
 
+  // Always render once placed: see the note in DailyHealthMetricsCard. The
+  // Diary layout is user-arranged, so an empty day is reported rather than
+  // silently collapsing the tile and reflowing the grid.
   if (!data || data.doses.length === 0) {
-    return null;
+    return (
+      <Card className="w-full">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-bold">
+            {t('diary.caffeine.title', 'Caffeine Kinetics')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <p className="text-sm text-muted-foreground">
+            {t('diary.caffeine.empty', 'No caffeine logged for this day.')}
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const {

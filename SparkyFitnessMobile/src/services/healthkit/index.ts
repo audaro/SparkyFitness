@@ -41,6 +41,7 @@ import {
   type TelemetryRunContext,
 } from '../shared/telemetryBudget';
 import {
+  enrichedSessionOrder,
   hasEnrichedSession,
   sessionTelemetryKey,
 } from '../shared/enrichedSessionCache';
@@ -1142,11 +1143,29 @@ const handleWorkout: RecordHandler = async (
   const telemetryAllowed = new Set<unknown>();
   const startedAtMs = Date.now();
   let skippedAlreadyCollected = 0;
-  for (const w of filteredWorkouts) {
+  // A forced run re-reads cached sessions, so the cache no longer thins the
+  // candidates and the budget alone decides. Taken newest-first that would
+  // pick the same few every run and never reach the rest of the range, so
+  // order by how long ago each was collected: never-collected first, then
+  // least recently collected. Re-read sessions are re-committed to the back
+  // of the cache, so the next forced run continues where this one stopped.
+  const selectionOrder = ctx.force ? await enrichedSessionOrder() : null;
+  const collectionRank = (workout: unknown): number => {
+    const key = workoutCacheKey(workout);
+    if (!key || !selectionOrder) return -1;
+    return selectionOrder.get(key) ?? -1;
+  };
+  const candidates = selectionOrder
+    ? [...filteredWorkouts].sort(
+        (a, b) => collectionRank(a) - collectionRank(b)
+      )
+    : filteredWorkouts;
+  for (const w of candidates) {
     // Already-collected workouts neither consume a slot nor get re-read, so a
     // bounded budget works through the backlog across syncs instead of
-    // re-picking the same newest few every run (#2191).
-    if (await hasEnrichedSession(workoutCacheKey(w))) {
+    // re-picking the same newest few every run (#2191). A forced run re-reads
+    // them anyway — that is the user asking for exactly this window again.
+    if (!ctx.force && (await hasEnrichedSession(workoutCacheKey(w)))) {
       skippedAlreadyCollected++;
       continue;
     }
@@ -1179,6 +1198,7 @@ const handleWorkout: RecordHandler = async (
           ? (workoutAny.totalDistance?.quantity ?? 0)
           : (workoutAny.totalDistance ?? 0);
       let totalSteps: number | undefined;
+      let basalEnergyBurned: number | undefined;
 
       // Pin units explicitly on each getStatistic call. getAllStatistics returns
       // values in the user's HealthKit-preferred unit (often miles / kJ), but the
@@ -1191,6 +1211,37 @@ const handleWorkout: RecordHandler = async (
         );
         if (energyStats?.sumQuantity?.quantity) {
           totalEnergyBurned = energyStats.sumQuantity.quantity;
+        }
+
+        // Resting/basal burn during the workout. Apple Fitness shows both
+        // ("Active 57 CAL / Total 94 CAL"), and Total - Active is this value;
+        // without it the app's Active/Resting tile can only render "57 / —".
+        // Read through the same statistics(for:) path as active energy, so it
+        // stays limited to samples HealthKit associates with this workout —
+        // see the note on step count below for why a general clock-window
+        // query is not substituted here.
+        //
+        // Isolated in its own try: basal energy is a separate HealthKit read
+        // permission from active energy, so this call rejects outright on a
+        // device where only active was granted. Inside the shared try that
+        // would abandon the distance and step reads below it on every
+        // workout, silently falling back to the coarser totals on the sample
+        // — and distance feeds pace. Resting is optional; distance is not.
+        try {
+          const basalStats = await w.getStatistic(
+            'HKQuantityTypeIdentifierBasalEnergyBurned',
+            'kcal'
+          );
+          const basal = basalStats?.sumQuantity?.quantity;
+          if (
+            typeof basal === 'number' &&
+            Number.isFinite(basal) &&
+            basal > 0
+          ) {
+            basalEnergyBurned = basal;
+          }
+        } catch {
+          // Not readable on this device; resting stays unreported.
         }
 
         const distanceTypes = [
@@ -1278,6 +1329,9 @@ const handleWorkout: RecordHandler = async (
         telemetry.elapsed_time_seconds = Math.round(durationSeconds);
       }
       if (totalEnergyBurned) telemetry.active_calories = totalEnergyBurned;
+      if (basalEnergyBurned !== undefined) {
+        telemetry.resting_calories = basalEnergyBurned;
+      }
 
       // Telemetry must be collected here, inside the closure that owns the live
       // proxy: the per-workout sample predicate takes the proxy object itself,
@@ -1305,6 +1359,15 @@ const handleWorkout: RecordHandler = async (
         // reads that established that are exactly what must not repeat. A bundle
         // that came back `incomplete` is a failed read, not an empty one, and is
         // left uncached so the next sync retries it.
+        //
+        // No grace window here, unlike Health Connect. The #2300 case is heart
+        // rate written by another app and joined to the session by time overlap,
+        // which HealthKit cannot express: collectWorkoutSeries queries
+        // `filter: { workout }`, so a sample not associated with this workout is
+        // invisible however often it is re-read. The two cases that do arrive
+        // late are already covered — a workout still being written moves its
+        // endDate and so its cache key, and a failed or locked read comes back
+        // `incomplete`. Retrying here would cost every sync and buy nothing.
         if (!bundle.incomplete) ctx.stageCollected(workoutCacheKey(w));
       }
 

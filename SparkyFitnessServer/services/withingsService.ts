@@ -1,3 +1,4 @@
+import { setMockDataContext } from '../utils/mockDataContext.js';
 import { log } from '../config/logging.js';
 import withingsIntegrationService from '../integrations/withings/withingsService.js';
 import withingsDataProcessor from '../integrations/withings/withingsDataProcessor.js';
@@ -5,25 +6,23 @@ import { getSystemClient } from '../db/poolManager.js';
 import { loadRawBundle } from '../utils/diagnosticLogger.js';
 import { loadUserTimezone } from '../utils/timezoneLoader.js';
 import { todayInZone, addDays, dayRangeToUtcRange } from '@workspace/shared';
-// Configuration for data mocking/caching
-const WITHINGS_DATA_SOURCE =
-  process.env.SPARKY_FITNESS_WITHINGS_DATA_SOURCE || 'withings';
-log(
-  'info',
-  `[withingsService] Withings data source configured to: ${WITHINGS_DATA_SOURCE}`
-);
+
 /**
  * Orchestrate a full Withings data sync for a user
  * @param {number} userId - The ID of the user to sync data for
  * @param {string} syncType - 'manual' or 'scheduled'
  * @param {string} [customStartDate] - Optional start date (YYYY-MM-DD)
  * @param {string} [customEndDate] - Optional end date (YYYY-MM-DD)
+ * @param {string} [dataSource] - Optional data source ('local' vs 'withings')
+ * @param {boolean} [saveMockData] - Optional flag to capture raw API responses
  */
 async function syncWithingsData(
   userId: string,
   syncType = 'manual',
   customStartDate: string | null = null,
-  customEndDate: string | null = null
+  customEndDate: string | null = null,
+  dataSource: string | null = null,
+  saveMockData = false
 ) {
   let startDate: string, endDate: string;
   const tz = await loadUserTimezone(userId);
@@ -54,11 +53,13 @@ async function syncWithingsData(
     Math.floor(endDateUtc.getTime() / 1000),
     nowUnix
   );
+  const withingsDataSource = dataSource || 'withings';
+  setMockDataContext({ dataSource, saveMockData });
   log(
     'info',
-    `[withingsService] Starting Withings sync (${syncType}) for user ${userId}. Loading from: ${WITHINGS_DATA_SOURCE}`
+    `[withingsService] Starting Withings sync (${syncType}) for user ${userId}. Loading from: ${withingsDataSource}`
   );
-  if (WITHINGS_DATA_SOURCE === 'local') {
+  if (withingsDataSource === 'local') {
     log(
       'info',
       `[withingsService] Replaying Withings sync from raw diagnostic bundle for user ${userId}`
@@ -66,8 +67,8 @@ async function syncWithingsData(
     const bundle = loadRawBundle('withings');
     if (!bundle || !bundle.responses) {
       throw new Error(
-        'Raw diagnostic bundle not found. Please run a sync with SPARKY_FITNESS_WITHINGS_DATA_SOURCE unset (or set to "withings") ' +
-          'and SPARKY_FITNESS_SAVE_MOCK_DATA=true to capture raw API responses first.'
+        'Raw diagnostic bundle not found. Run a sync with "Sync and save ' +
+          'this sync\'s raw responses" selected first to capture one.'
       );
     }
     const responses = bundle.responses;

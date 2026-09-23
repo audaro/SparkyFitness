@@ -194,9 +194,12 @@ describe('Android widget localization contract', () => {
         const strings = new Map(
           readWidgetStringResources(locale).map((r) => [r.name, r.value])
         );
-        expect(strings.get('sparky_calorie_widget_name')).not.toBe(
-          strings.get('sparky_macro_widget_name')
-        );
+        const calorie = strings.get('sparky_calorie_widget_name');
+        const macro = strings.get('sparky_macro_widget_name');
+        // An absent key is a non-blocking coverage gap that falls back to the
+        // distinct English names; only a present pair can collapse the two.
+        if (calorie === undefined || macro === undefined) continue;
+        expect(calorie).not.toBe(macro);
       }
     });
 

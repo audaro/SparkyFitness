@@ -2,7 +2,218 @@
   "medications": {
     "mealRelation": {
       "awayFromMeals": "远离进餐时间"
-    }
+    },
+    "title": "药物",
+    "medication": "药物",
+    "addMedication": "添加药物",
+    "addMedicationTitle": "添加药物",
+    "viewAll": "查看全部",
+    "viewAllMedications": "查看所有药物",
+    "loading": "正在加载药物...",
+    "loadFailed": "加载药物失败。",
+    "noMedications": "暂无药物",
+    "emptyDescription": "添加你的第一种药物以开始追踪。",
+    "retry": "重试",
+    "inactive": "已停用",
+    "form": {
+      "newTitle": "新药物",
+      "editTitle": "编辑药物",
+      "name": "名称 *",
+      "namePlaceholder": "Ipsumol",
+      "type": "类型",
+      "typeTitle": "药物类型",
+      "strength": "规格",
+      "dose": "剂量",
+      "unit": "单位",
+      "strengthUnitPlaceholder": "毫克",
+      "doseUnitPlaceholder": "片",
+      "details": "详情",
+      "reason": "用途",
+      "reasonPlaceholder": "血压",
+      "prescriber": "开药医生",
+      "prescriberPlaceholder": "Ipsum 医生",
+      "pharmacy": "药房",
+      "pharmacyPlaceholder": "阳光药房",
+      "notes": "备注",
+      "active": "启用中",
+      "required": "必填",
+      "nameRequired": "请输入药物名称。",
+      "invalidNumber": "无效数字",
+      "invalidNumberMessage": "请为规格和剂量输入有效的数值。",
+      "updateFailed": "更新药物失败：{{error}}",
+      "createFailed": "创建药物失败：{{error}}"
+    },
+    "detail": {
+      "deleteTitle": "删除药物",
+      "deleteMessage": "确定要删除「{{name}}」吗？这也会移除所有计划安排和已记录条目。",
+      "removeDoseTitle": "移除剂量",
+      "removeDoseMessage": "移除 {{time}} 的这条已记录剂量？",
+      "deleteFailed": "删除药物失败",
+      "removeFailed": "移除剂量失败",
+      "edit": "编辑",
+      "loading": "正在加载...",
+      "inactive": "已停用",
+      "noDoses": "这一天没有安排剂量。",
+      "asNeeded": "按需",
+      "removeDose": "移除剂量",
+      "schedules": "计划安排",
+      "addSchedule": "添加计划",
+      "add": "添加",
+      "noSchedule": "没有计划。剂量按需记录。",
+      "details": "详情",
+      "prescriber": "开药医生",
+      "pharmacy": "药房",
+      "rxNumber": "处方号",
+      "notes": "备注",
+      "delete": "删除药物",
+      "logged": "已记录",
+      "today": "今天"
+    },
+    "schedule": {
+      "newTitle": "新计划",
+      "editTitle": "编辑计划",
+      "required": "必填",
+      "daysRequired": "请至少选择一周中的一天。",
+      "invalidInterval": "无效间隔",
+      "intervalMessage": "间隔必须至少为 1 天。",
+      "everyNStart": "每 N 天计划需要开始日期。",
+      "invalidCycle": "无效周期",
+      "cycleMessage": "用药天数必须至少为 1，停药天数至少为 0。",
+      "cycleStart": "周期计划需要开始日期。",
+      "invalidDay": "无效日期",
+      "dayMessage": "每月日期必须在 1 到 31 之间。",
+      "invalidDose": "无效剂量",
+      "doseMessage": "请输入有效的剂量数值。",
+      "invalidLimit": "无效上限",
+      "limitMessage": "每日最大次数必须至少为 1。",
+      "invalidDates": "无效日期",
+      "datesMessage": "结束日期必须不早于开始日期。",
+      "updateFailed": "更新计划失败：{{error}}",
+      "createFailed": "创建计划失败：{{error}}",
+      "deleteTitle": "删除计划",
+      "deleteMessage": "删除此计划？已记录的剂量会保留。",
+      "deleteFailed": "删除计划失败",
+      "none": "无",
+      "time": "时间",
+      "setTime": "设置时间",
+      "clearTime": "清除时间",
+      "clear": "清除",
+      "scheduleType": "计划类型",
+      "frequency": "频率",
+      "daysOfWeek": "星期几",
+      "selectDays": "选择星期几",
+      "everyNDays": "每 N 天",
+      "dayOfMonth": "每月日期",
+      "daysOn": "用药天数",
+      "daysOff": "停药天数",
+      "reason": "用途",
+      "reasonPlaceholder": "头痛",
+      "maxPerDay": "每日最大次数",
+      "noLimit": "无限制",
+      "noTimeReminder": "没有时间的计划不会收到提醒。",
+      "default": "默认",
+      "doseOverride": "剂量覆盖（{{unit}}）",
+      "doseOverridePlain": "剂量覆盖",
+      "withMealTitle": "随餐",
+      "withMeal": "随餐服用",
+      "startDate": "开始日期",
+      "startDateRequired": "开始日期 *",
+      "setStartDate": "设置开始日期",
+      "clearStartDate": "清除开始日期",
+      "endDate": "结束日期",
+      "setEndDate": "设置结束日期",
+      "clearEndDate": "清除结束日期",
+      "active": "启用中",
+      "delete": "删除计划",
+      "loading": "正在加载...",
+      "notFound": "找不到计划",
+      "daysTitle": "星期几",
+      "everyDay": "每天"
+    },
+    "dose": {
+      "log": "记录",
+      "skip": "跳过",
+      "taken": "已服用",
+      "skipped": "已跳过",
+      "logTaken": "将 {{title}} 记录为已服用",
+      "skipTitle": "跳过 {{title}}",
+      "markTaken": "将 {{title}} 标记为已服用",
+      "unmark": "取消标记 {{title}}",
+      "logTitle": "记录 {{title}}",
+      "logged": "已记录 {{name}}",
+      "takenToast": "{{name}} 已服用",
+      "skippedToast": "{{name}} 已跳过",
+      "unmarked": "已取消标记 {{name}}",
+      "unskipped": "已取消跳过 {{name}}",
+      "removed": "已移除 {{name}} 剂量",
+      "tapUndo": "点按以撤销",
+      "failedRemoveDose": "移除 {{name}} 剂量失败",
+      "failedUnmark": "取消标记 {{name}} 失败",
+      "failedUpdate": "更新 {{name}} 失败",
+      "failedLog": "记录 {{name}} 失败"
+    },
+    "card": {
+      "title": "药物",
+      "viewAll": "查看全部",
+      "viewAllA11y": "查看所有药物",
+      "medicationA11y": "{{name}}{{summary}}"
+    },
+    "types": {
+      "daily": "每天",
+      "weekly": "特定日期",
+      "every_n_days": "每 N 天",
+      "monthly": "每月",
+      "cyclic": "周期（用药/停药）",
+      "prn": "按需",
+      "pill": "药丸",
+      "tablet": "片剂",
+      "capsule": "胶囊",
+      "liquid": "液体",
+      "injection": "注射",
+      "patch": "贴片",
+      "inhaler": "吸入器",
+      "drops": "滴剂",
+      "nasal_spray": "鼻喷雾",
+      "cream": "乳膏",
+      "suppository": "栓剂",
+      "other": "其他",
+      "beforeMeal": "餐前",
+      "withMeal": "随餐",
+      "afterMeal": "餐后",
+      "awayFromMeals": "远离餐食"
+    },
+    "weekdays": {
+      "title": "星期几",
+      "sun": "星期日",
+      "mon": "星期一",
+      "tue": "星期二",
+      "wed": "星期三",
+      "thu": "星期四",
+      "fri": "星期五",
+      "sat": "星期六",
+      "itemA11y": "{{day}}，{{state}}",
+      "selected": "已选择",
+      "notSelected": "未选择"
+    },
+    "notificationTitle": "药物提醒",
+    "scheduleSummary": {
+      "daily": "每天",
+      "weekly": "每周",
+      "monthlyOnDay": "每月第 {{day}} 天",
+      "monthly": "每月",
+      "cycle": "{{on}}，{{off}}",
+      "asNeeded": "按需",
+      "taper": "逐渐减量",
+      "at": "{{frequency}}，{{time}}",
+      "unknown": "计划",
+      "cycleOn_other": "用药 {{count}} 天",
+      "cycleOff_other": "停药 {{count}} 天",
+      "everyNDays_other": "每 {{count}} 天"
+    },
+    "notificationScheduledDose": "你有一个计划剂量",
+    "notificationScheduledDoseNamed": "计划剂量：{{name}}{{dose}}",
+    "inactiveA11y_other": "已停用药物（{{count}}）",
+    "inactiveCount_other": "已停用（{{count}}）"
   },
   "common": {
     "back": "返回",
@@ -14,12 +225,354 @@
     "loading": "正在加载...",
     "next": "下一步",
     "save": "保存",
-    "success": "成功"
+    "success": "成功",
+    "saving": "保存中…",
+    "showLess": "显示更少",
+    "learnMore": "了解更多",
+    "later": "稍后",
+    "cancel": "取消",
+    "continue": "继续",
+    "retry": "重试",
+    "details": "详情",
+    "collapseSection": "收起此部分",
+    "expandSection": "展开此部分",
+    "itemCount_other": "{{count}} 个项目",
+    "off": "关闭",
+    "openSelectionMenu": "打开选择菜单",
+    "selectOptionHint": "双击选择此选项",
+    "clear": "清除",
+    "discardChanges": "放弃更改",
+    "loadMore": "加载更多",
+    "connectionRetry": "请检查你的连接，然后重试。",
+    "deleteItemTitle": "删除 {{title}}？",
+    "tryAgain": "请重试。",
+    "yes": "是",
+    "no": "否",
+    "and": "和",
+    "listFinalSeparator": "，以及 ",
+    "add": "添加",
+    "pleaseTryAgain": "请重试。",
+    "ok": "确定",
+    "collapse": "收起",
+    "expand": "展开",
+    "removeFromFavorites": "从收藏中移除",
+    "addToFavorites": "添加到收藏",
+    "goToSettings": "前往设置",
+    "notSet": "未设置",
+    "deleting": "删除中...",
+    "done": "完成",
+    "none": "无",
+    "food": "食物",
+    "dismiss": "关闭",
+    "remove": "移除",
+    "overwrite": "覆盖",
+    "previousDay": "：前一天",
+    "nextDay": "：后一天",
+    "dismissMenu": "关闭菜单",
+    "units": {
+      "cm": "厘米"
+    },
+    "unknownDate": "未知日期",
+    "selectOption": "选择一个选项",
+    "requestTimedOut": "请求超时。请检查你的服务器连接。",
+    "nextStep": "下一步",
+    "notNow": "暂不"
   },
   "workout": {
     "calories": "卡路里",
     "distance": "距离",
-    "reps": "次数"
+    "reps": "次数",
+    "couldNotSave": "无法保存你的训练",
+    "sets": "组",
+    "editActivity": "编辑活动",
+    "durationTitle": "训练时长",
+    "durationDescription": "此训练计入的分钟数，最多为其 {{span}} 跨度。",
+    "date": "日期",
+    "useToday": "使用今天",
+    "useYesterday": "使用昨天",
+    "namePlaceholder": "训练",
+    "workoutNamePlaceholder": "训练名称",
+    "notes": "备注",
+    "addExercise": "添加动作",
+    "reorderExercises": "重新排序动作",
+    "addExerciseBeforeSave": "保存前请至少添加一个含组的动作。",
+    "clearLoggedSets": "清除已记录组",
+    "removeExercise": "移除动作",
+    "removeFromSuperset": "从超级组移除",
+    "replaceExercise": "替换动作",
+    "supersetWith": "与…组成超级组",
+    "viewExercise": "查看动作",
+    "deleteSet": "删除组",
+    "removeExerciseTitle": "移除动作？",
+    "removeExerciseMessage": "{{name}} 将从此次训练中移除。",
+    "deleteOnlySetMessage": "删除唯一的组会将 {{name}} 从此训练中移除。",
+    "clearAllSetsTitle": "清除所有已记录组？",
+    "clearAllSetsMessage": "取消勾选此训练中所有已记录的组。你的组重量和次数会保留。",
+    "discardWorkoutTitle": "放弃训练？",
+    "discardWorkoutMessage": "这将从你的日记中删除此训练。",
+    "discardChangesTitle": "放弃未保存的更改？",
+    "discardChangesMessage": "尚未同步到服务器的组和编辑将丢失。已保存的更改会保留。",
+    "clearWorkoutMessage": "清除此设备上的进度并丢弃未保存的更改。已保存到服务器的编辑会保留。",
+    "endWorkoutTitle": "结束训练？",
+    "endWorkoutMessage": "此训练跨越 {{span}}，包括一段长时间休息。改为记录 {{active}} 的活跃时间？",
+    "adjustDurationTitle": "调整训练时长？",
+    "noActiveWorkout": "没有进行中的训练",
+    "renameWorkout": "重命名训练",
+    "renamePlaceholder": "训练名称",
+    "dismissRename": "关闭重命名",
+    "nextSet": "下一组",
+    "log": "记录",
+    "keepGoing": "继续",
+    "keep": "保留 {{name}}",
+    "logWorkout": "记录 {{name}}",
+    "endWorkout": "结束训练",
+    "retry": "重试",
+    "couldntDelete": "无法删除训练",
+    "remainsInDiary": "它仍保留在你的日记中。",
+    "saveError": "无法保存你的训练",
+    "failedChangesMessage": "部分更改尚未同步到服务器。",
+    "metricRpe": "RPE",
+    "metricVolume": "训练量",
+    "metricE1rm": "估算 1RM",
+    "metricTenrm": "估算 10RM",
+    "reorderDone": "完成重新排序",
+    "reorderDoneText": "完成",
+    "dragToReorder": "拖拽以重新排序",
+    "reorderTitle": "重新排序动作",
+    "set": "组",
+    "activity": "活动",
+    "activityName": "活动名称",
+    "selectActivity": "选择活动",
+    "duration": "时长（分钟）",
+    "custom": "自定义…",
+    "autoCalculated": "自动计算",
+    "avgHeartRate": "平均心率（bpm）",
+    "optionalNotes": "可选备注...",
+    "addNotes": "添加备注...",
+    "failedSaveActivity": "保存活动失败",
+    "exerciseDetails": "动作详情",
+    "description": "描述",
+    "instructions": "动作说明",
+    "category": "类别",
+    "equipment": "器械",
+    "level": "难度",
+    "force": "发力方式",
+    "mechanic": "动作机制",
+    "primaryMuscles": "主要肌群",
+    "secondaryMuscles": "次要肌群",
+    "source": "来源",
+    "history": "历史",
+    "summary": "摘要",
+    "howTo": "动作方法",
+    "logExercise": "记录动作",
+    "addExerciseLabel": "添加动作",
+    "editExercise": "编辑动作",
+    "exerciseDeleted": "动作已删除",
+    "failedAddExercise": "添加动作失败",
+    "makePublicTitle": "设为公共？",
+    "makePublicMessage": "此动作将对此服务器上的所有用户可见。",
+    "makePublic": "设为公共",
+    "exerciseNamePlaceholder": "例如：保加利亚分腿蹲",
+    "exerciseNameRequired": "请输入动作名称。",
+    "missingName": "缺少名称",
+    "invalidNumber": "请输入有效数字。",
+    "exerciseCreated": "动作已创建",
+    "exerciseUpdated": "动作已更新",
+    "advanced": "高级",
+    "nameRequired": "名称 *",
+    "commaSeparated": "逗号分隔",
+    "commaSeparatedEquipment": "逗号分隔（例如哑铃、长凳）",
+    "commaSeparatedMuscles": "逗号分隔（例如股四头肌、臀肌）",
+    "oneStepPerLine": "每行一个步骤",
+    "optionalExerciseNotes": "关于此动作的可选备注",
+    "select": "选择 {{label}}",
+    "all": "全部",
+    "mine": "我的",
+    "family": "家庭",
+    "public": "公共",
+    "online": "在线",
+    "popular": "热门",
+    "recent": "最近",
+    "exercises": "动作",
+    "presets": "预设",
+    "searchExercises": "搜索动作...",
+    "searchPresets": "搜索预设...",
+    "search": "搜索",
+    "noMatchingExercises": "未找到匹配的动作",
+    "noMatchingPresets": "未找到匹配的预设",
+    "noPresets": "暂无预设",
+    "emptyWorkout": "空训练",
+    "pickFirstExercise": "选择你的第一个动作",
+    "startWorkout": "开始训练",
+    "searchExerciseToStart": "搜索动作以开始",
+    "connectToSearch": "连接服务器以搜索在线动作",
+    "connectToView": "连接服务器以查看动作",
+    "noProviders": "未配置在线动作提供方",
+    "failedLoadExercises": "加载动作失败",
+    "failedLoadProviders": "加载提供方失败",
+    "failedSearchExercises": "搜索动作失败",
+    "failedAdd": "添加动作失败",
+    "viewExerciseDetails": "查看动作详情",
+    "failedSearchPresets": "搜索预设失败",
+    "startEmptyOrSave": "开始一个空训练，或将训练保存为预设以在此处查看",
+    "changeOwnership": "尝试更改你的归属筛选条件",
+    "viewPresetDetails": "查看预设详情",
+    "presetNamePlaceholder": "例如：推举日",
+    "optionalPresetNotes": "关于此例程的可选备注",
+    "presetDescription": "描述",
+    "presetCreated": "训练预设已创建",
+    "presetUpdated": "训练预设已更新",
+    "presetDeleted": "训练预设已删除",
+    "presetAddBeforeSave": "保存前请至少添加一个含组的动作。",
+    "presetMissingName": "缺少名称",
+    "presetNameRequired": "请为此预设输入名称。",
+    "draftInProgress": "草稿进行中",
+    "resumeDraft": "继续草稿",
+    "discardContinue": "放弃并继续",
+    "editPreset": "编辑训练预设",
+    "makePresetPublicTitle": "设为公共？",
+    "makePresetPublicMessage": "此训练预设将对此服务器上的所有用户可见。",
+    "makePresetPublic": "设为公共",
+    "presetDraftMessage": "你有一个未保存的 {{name}} 草稿。你想怎么做？",
+    "workoutComplete": "训练完成",
+    "averageRpe": "平均 RPE",
+    "calculating": "计算中",
+    "volume": "训练量",
+    "viewWorkout": "查看训练",
+    "saveAsPreset": "保存为预设",
+    "keepPreset": "保留预设",
+    "updatePresetTitle": "更新预设？",
+    "updatePreset": "更新",
+    "presetUpdatedToast": "预设已更新",
+    "todayDiffers": "今日的训练与「{{name}}」不同。更新预设以匹配？",
+    "of": "/",
+    "setsLabel": "组数",
+    "caloriesLabel": "卡路里",
+    "distanceLabel": "距离",
+    "durationLabel": "时长",
+    "details": "详情",
+    "name": "名称",
+    "saveAsPresetLabel": "保存为预设",
+    "startHere": "在此开始训练",
+    "workoutNeedsExercise": "训练需要一个动作",
+    "presetsTitle": "训练预设",
+    "noServer": "未配置服务器",
+    "configureServer": "请在设置中配置你的服务器连接以查看你的训练预设。",
+    "loadingPresets": "正在加载训练预设...",
+    "tryConnection": "请检查你的连接，然后重试。",
+    "tryOwnership": "尝试更改你的归属筛选条件。",
+    "defaultRest": "默认休息时间",
+    "defaultRestAccessibility": "默认休息时间，{{value}}",
+    "defaultRestSubtitle": "新添加动作的组间休息时间。",
+    "restTimerSound": "休息计时器声音",
+    "restTimerSoundSubtitle": "应用打开时，休息计时器结束播放声音。",
+    "keepAwake": "保持屏幕唤醒",
+    "keepAwakeSubtitle": "训练进行时防止屏幕休眠。",
+    "durationSpan": "此训练计入的分钟数，最多为其 {{span}} 跨度。",
+    "selectActivityPlaceholder": "活动",
+    "categoryGeneral": "一般",
+    "categoryStrength": "力量",
+    "categoryCardio": "有氧",
+    "categoryYoga": "瑜伽",
+    "categoryPowerlifting": "力量举",
+    "categoryOlympicWeightlifting": "奥运举重",
+    "categoryStrongman": "大力士",
+    "categoryPlyometrics": "增强式训练",
+    "categoryStretching": "拉伸",
+    "categoryIsometric": "等长训练",
+    "trackingType": "追踪类型",
+    "modalityWeightReps": "重量与次数",
+    "modalityReps": "次数",
+    "modalityDuration": "时长",
+    "modalityDurationDistance": "时长与距离",
+    "levelBeginner": "初级",
+    "levelIntermediate": "中级",
+    "levelExpert": "高级",
+    "forcePull": "拉",
+    "forcePush": "推",
+    "forceStatic": "静态",
+    "mechanicCompound": "复合",
+    "mechanicIsolation": "孤立",
+    "caloriesPerHour": "每小时卡路里",
+    "muscles": "肌群",
+    "classification": "分类",
+    "selectValue": "选择…",
+    "next": "下一步",
+    "exerciseCount_other": "{{formattedCount}} 个动作",
+    "failedToSaveActivity": "保存活动失败",
+    "pleaseTryAgain": "请重试。",
+    "avgHeartRateLabel": "平均心率",
+    "steps": "步数",
+    "pace": "配速",
+    "sec": "秒",
+    "weight": "重量",
+    "repsLabel": "次数",
+    "setLabel": "组",
+    "startWorkoutHere": "在此开始训练",
+    "failedLoadPresets": "加载训练预设失败",
+    "deleteActivity": "删除活动",
+    "deleting": "删除中...",
+    "addNotesPlaceholder": "添加备注...",
+    "exercise": "动作",
+    "selectedMetric": "✓ {{label}}",
+    "setTypeNormal": "常规",
+    "setTypeWarmup": "热身",
+    "setTypeDropSet": "递减组",
+    "setTypeFailure": "力竭",
+    "thisExercise": "此动作",
+    "discard": "放弃",
+    "setsRemaining": "已记录 {{done}}/{{total}} 组。还剩 {{remaining}} 组。",
+    "allSetsLogged": "全部 {{total}} 组已记录。做得好！",
+    "setNumber": "第 {{number}} 组",
+    "exerciseShared": "动作已公开共享",
+    "exercisePrivate": "动作已设为私有",
+    "makePrivate": "设为私有",
+    "sharePublic": "公开共享",
+    "best": "最佳（{{unit}}）",
+    "last": "上次（{{unit}}）",
+    "calPerHour": "卡/小时",
+    "starting": "开始中...",
+    "invalidCalories": "每小时卡路里无效",
+    "failedLoadMore": "加载更多失败。点按重试",
+    "loadMore": "加载更多",
+    "failedSearchProvider": "搜索 {{provider}} 失败",
+    "searchProviderExercises": "在 {{provider}} 中搜索动作",
+    "failedLoadPresetsShort": "加载预设失败",
+    "rpeEasy": "轻松",
+    "rpeModerate": "中等",
+    "rpeHard": "困难",
+    "rpeMax": "最大努力",
+    "addExerciseOrDelete": "请至少添加一个含组的动作，或删除此训练。",
+    "failedToSaveWorkout": "保存训练失败",
+    "editWorkout": "编辑训练",
+    "presetShared": "训练预设已公开共享",
+    "presetPrivate": "训练预设已设为私有",
+    "workout": "训练",
+    "startWorkoutLower": "开始训练",
+    "logPastWorkout": "记录过去的训练",
+    "deletePreset": "删除预设",
+    "noWorkoutPresets": "暂无训练预设",
+    "tryDifferentPresetSearch": "尝试不同的搜索词以找到训练预设。",
+    "presetsAppearHere": "你创建的训练预设会显示在这里。",
+    "failedLoadPresetsFull": "加载训练预设失败",
+    "failedMorePresets": "加载更多预设失败。",
+    "searchWorkoutPresets": "搜索训练预设...",
+    "workoutPresetCount_other": "{{formattedCount}} 个动作",
+    "metricVolumeShort": "训练量",
+    "metricE1rmShort": "1RM",
+    "metricTenrmShort": "10RM",
+    "kg": "千克",
+    "lbs": "磅",
+    "prev": "上一次",
+    "mi": "英里",
+    "km": "公里",
+    "setCount_other": "{{formattedCount}} 组",
+    "caloriesShort": "千卡",
+    "caloriesUnit": "卡",
+    "unknownExercise": "未知动作",
+    "addNotePlaceholder": "添加备注…",
+    "setOf_other": "第 {{number}} 组，共 {{count}} 组",
+    "repCount_other": "{{formattedCount}} 次"
   },
   "healthMetrics": {
     "basalBodyTemperature": "基础体温",
@@ -52,6 +605,4439 @@
     "appleMoveTime": "Apple 活动时间",
     "appleStandTime": "Apple 站立时间",
     "steps": "步数",
-    "totalCalories": "总热量"
+    "totalCalories": "总热量",
+    "calories": "活动卡路里",
+    "exerciseSession": "运动时段",
+    "heartRateVariability": "心率变异性",
+    "vo2Max": "最大摄氧量",
+    "wheelchairPushes": "轮椅推动次数",
+    "cervicalMucus": "宫颈黏液",
+    "intermenstrualBleeding": "经间期出血",
+    "menstruationPeriod": "月经期",
+    "ovulationTest": "排卵测试",
+    "menstruationFlow": "月经流量",
+    "nutritionDietaryFatTotal": "膳食脂肪总量",
+    "nutritionDietaryProtein": "膳食蛋白质",
+    "nutritionDietarySodium": "膳食钠",
+    "walkingSpeed": "步行速度",
+    "walkingStepLength": "步行步长",
+    "walkingAsymmetryPercentage": "步行不对称性 %",
+    "walkingDoubleSupportPercentage": "步行双支撑 %",
+    "runningGroundContactTime": "跑步触地时间",
+    "runningStrideLength": "跑步步幅",
+    "runningPower": "跑步功率",
+    "runningVerticalOscillation": "跑步垂直振幅",
+    "runningSpeed": "跑步速度",
+    "cyclingSpeed": "骑行速度",
+    "cyclingPower": "骑行功率",
+    "cyclingCadence": "骑行踏频",
+    "cyclingFunctionalThresholdPower": "骑行功能阈值功率",
+    "environmentalAudioExposure": "环境音频暴露",
+    "headphoneAudioExposure": "耳机音频暴露",
+    "unknown": "健康指标"
+  },
+  "settings": {
+    "app": "应用设置",
+    "language": {
+      "title": "语言",
+      "system": "系统",
+      "english": "英语",
+      "polish": "波兰语",
+      "spanish": "西班牙语",
+      "pickerHint": "打开语言选择菜单",
+      "changeFailed": "无法更改语言",
+      "managedByIOS": "由 iOS 管理",
+      "iosSettingsHint": "在 iOS 设置中更改此应用的语言",
+      "openSettingsFailed": "无法打开 iOS 设置",
+      "iosSubtitle": "{{language}} · {{managedBy}}"
+    },
+    "lastSynced": "上次同步于 {{time}}",
+    "addServer": "点按以添加服务器",
+    "title": "设置",
+    "shareReportFailed": "共享诊断报告失败：{{error}}",
+    "serverConnected": "服务器设置。已连接。",
+    "serverConnectionFailed": "服务器设置。连接失败。",
+    "serverNotConfigured": "服务器设置。未配置服务器。",
+    "shareReportDescription": "导出本地诊断报告（应用版本、同步状态、日志）。不包含任何个人健康或食物数据。不会向任何外部服务发送任何内容。",
+    "rows": {
+      "server": "服务器",
+      "healthSync": "健康数据同步",
+      "app": "应用设置",
+      "calories": "卡路里与 BMR",
+      "food": "食物",
+      "dashboard": "仪表板",
+      "diary": "日记",
+      "wellness": "健康",
+      "cyclePregnancy": "周期与孕期",
+      "workout": "训练",
+      "whatsNew": "新内容",
+      "logs": "查看日志",
+      "about": "关于",
+      "shareReport": "共享诊断报告"
+    },
+    "theme": {
+      "title": "主题",
+      "light": "浅色",
+      "dark": "深色",
+      "amoled": "AMOLED",
+      "system": "系统"
+    },
+    "liquidGlass": {
+      "title": "液态玻璃导航",
+      "subtitle": "使用 iOS 26 玻璃标签栏和屏幕标题。"
+    },
+    "notifications": {
+      "title": "通知",
+      "subtitle": "休息计时器、禁食目标和药物提醒。"
+    },
+    "haptics": {
+      "title": "触觉反馈",
+      "subtitle": "计时器和确认时的轻微振动。"
+    },
+    "cameraShutter": {
+      "title": "相机快门",
+      "subtitle": "拍照时播放声音。"
+    }
+  },
+  "languageSettings": {
+    "subtitle": "使用你的设备语言，或为 SparkyFitness 选择一种语言。"
+  },
+  "navigation": {
+    "settings": "设置",
+    "library": "资料库",
+    "presets": "预设",
+    "foods": "食物",
+    "meals": "餐食",
+    "exercises": "运动",
+    "diary": "日记",
+    "details": "详情",
+    "dashboard": "仪表板",
+    "add": "添加",
+    "mealTypes": "餐次类型"
+  },
+  "familyDiary": {
+    "title": "家庭日记",
+    "openFamilyDiaries": "打开家庭日记",
+    "loadingMembers": "正在加载家庭成员…",
+    "loadMembersFailed": "无法加载家庭成员",
+    "noMembers": "没有家庭成员",
+    "manageOnWeb": "家庭日记的访问权限在 Web 应用中管理。",
+    "canCopy": "可以复制",
+    "viewOnly": "仅查看",
+    "diary": "家庭日记",
+    "loadingDiary": "正在加载家庭日记…",
+    "loadDiaryFailed": "家庭日记访问不可用",
+    "back": "返回",
+    "emptyForDate": "此日期没有食物记录",
+    "diaryForDate": "家庭日记 · {{date}}",
+    "openMeal": "打开 {{meal}} 餐",
+    "mealCalories": "{{calories}} 千卡",
+    "unnamedFood": "未命名食物",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "viewingOnly": "仅查看",
+    "selectFood": "选择 {{food}}",
+    "deselectFood": "取消选择 {{food}}",
+    "continue": "继续",
+    "nutritionSummary": "{{calories}} 千卡 · P {{protein}} 克 · C {{carbs}} 克 · F {{fat}} 克",
+    "selectedNutrition": "已选择：{{calories}} 千卡 · P {{protein}} 克 · C {{carbs}} 克 · F {{fat}} 克",
+    "copyReview": "查看复制",
+    "copyFrom": "正在从 {{name}} 复制",
+    "copyMealTitle": "{{meal}} 餐",
+    "quantityForFood": "{{food}} 的数量",
+    "quantityMustBePositive": "请输入大于零的数量。",
+    "copyNutrition": "复制营养",
+    "copyCalories": "{{calories}} 千卡",
+    "copyProtein": "{{protein}} 克蛋白质",
+    "copyCarbs": "{{carbs}} 克碳水",
+    "copyFat": "{{fat}} 克脂肪",
+    "copyTargetDate": "复制日期",
+    "copyTargetDateHint": "打开日期选择器",
+    "copyTargetMeal": "复制到餐次",
+    "copyTargetMealRequired": "复制前请先选择餐次。",
+    "copyToMyDiary": "复制到我的日记",
+    "copyInvalidSelection": "所选食物不再可用。",
+    "copyTargetDateLabel": "复制日期：{{date}}",
+    "copySuccess": "已复制到你的日记",
+    "copyFailed": "无法复制食物",
+    "copyFailedGuidance": "你的预览仍然保留。请重试。",
+    "copyPermissionRevoked": "复制权限已被移除",
+    "copyPermissionRevokedGuidance": "刷新家庭日记以查看你当前的访问权限。",
+    "copyStale": "家庭日记已更改",
+    "copyStaleGuidance": "最新的家庭日记正在打开以供查看。",
+    "unnamedMember": "家庭成员",
+    "previousDay": "前一天",
+    "previousDayHint": "显示前一天",
+    "nextDay": "后一天",
+    "nextDayHint": "显示后一天",
+    "chooseDate": "选择日期",
+    "chooseDateHint": "打开日期选择器",
+    "goToToday": "前往今天",
+    "goToTodayHint": "返回今天"
+  },
+  "notifications": {
+    "title": "通知",
+    "channels": {
+      "medicationReminders": "药物提醒",
+      "workoutTimer": "训练计时器",
+      "fasting": "禁食"
+    },
+    "actions": {
+      "completeSet": "完成该组",
+      "logAsTaken": "记录为已服用",
+      "skip": "跳过"
+    },
+    "permission": {
+      "notificationsOff": "通知已关闭",
+      "timerInApp": "计时器仍会在应用内提醒。"
+    },
+    "exactAlarm": {
+      "title": "准时提醒",
+      "message": "Android 会延迟定时提醒，除非允许 SparkyFitness 设置精确闹钟。请启用「闹钟和提醒」，以便休息计时器等准时触发。",
+      "notNow": "暂不",
+      "openSettings": "打开设置"
+    },
+    "rest": {
+      "title": "休息完成",
+      "nextSetTitle": "休息完成：下一组开始",
+      "bodySetProgress": "{{name}} · 第 {{setNumber}} 组，共 {{setCount}} 组",
+      "bodySetProgressReps_other": "{{setProgress}} · 目标 {{formattedCount}} 次",
+      "bodySetProgressDuration": "{{setProgress}} · 目标 {{duration}}"
+    },
+    "fasting": {
+      "title": "禁食目标已达成",
+      "body": "你已达成禁食目标。做得好！"
+    }
+  },
+  "activeWorkout": {
+    "liveActivity": {
+      "rest": "休息",
+      "paused": "已暂停",
+      "elapsed": "已用时间",
+      "workoutComplete": "训练完成",
+      "complete": "完成",
+      "addFifteenSeconds": "添加 15 秒",
+      "addFifteenSecondsShort": "「+15 秒」",
+      "skipRest": "跳过休息",
+      "workout": "训练",
+      "exercise": "动作",
+      "set": "组",
+      "setOf": "/"
+    },
+    "bar": {
+      "clearWorkout": "清除训练",
+      "clear": "清除",
+      "clearWorkoutTitle": "清除训练？",
+      "saveFailed": "无法保存你的训练",
+      "unsavedChanges": "部分更改尚未同步到服务器。",
+      "discardAnyway": "仍然放弃",
+      "endWithoutSaving": "这将结束当前训练且不保存进度。",
+      "doneStartNextSet": "完成，开始下一组",
+      "finishWorkout": "结束训练",
+      "open": "打开进行中的训练",
+      "pause": "暂停",
+      "resume": "继续",
+      "skipRest": "跳过休息",
+      "resting": "休息中",
+      "paused": "已暂停",
+      "workoutComplete": "训练完成",
+      "workoutActive": "训练进行中",
+      "nextSet": "{{prefix}}：{{exercise}} — {{set}}",
+      "nextUpSet": "下一项：{{exerciseName}} — 第 {{setNumber}}/{{setCount}} 组",
+      "next": "下一个",
+      "nextUp": "下一项",
+      "doneNext": "完成，开始下一组"
+    },
+    "header": {
+      "addExercise": "添加动作",
+      "back": "返回",
+      "clearAllSets": "清除所有已记录组",
+      "discardWorkout": "放弃训练",
+      "elapsedTime": "已用时间 {{time}}",
+      "endWorkout": "结束训练",
+      "exerciseProgress_other": "{{completed}} / {{count}} 个动作",
+      "renameWorkout": "重命名训练",
+      "reorderExercises": "重新排序动作",
+      "menu": "训练菜单",
+      "settings": "训练设置"
+    },
+    "exerciseCard": {
+      "addNote": "为此动作添加备注…",
+      "addSetFallback": "向动作添加组",
+      "addSetTo": "向 {{exerciseName}} 添加组",
+      "addSet": "添加组",
+      "best": "最佳 {{value}}",
+      "caloriesBurnedFallback": "动作消耗的卡路里",
+      "caloriesBurnedFor": "{{exerciseName}} 消耗的卡路里",
+      "changeMetricColumn": "更改指标列",
+      "collapseFallback": "收起动作",
+      "collapse": "收起 {{exerciseName}}",
+      "editCaloriesFallback": "编辑动作消耗的卡路里",
+      "expand": "展开 {{exerciseName}}",
+      "expandFallback": "展开动作",
+      "viewDetailsFor": "查看 {{exerciseName}} 详情",
+      "viewDetailsFallback": "查看动作详情",
+      "editCaloriesFor": "编辑 {{exerciseName}} 消耗的卡路里",
+      "moreOptionsFor": "{{exerciseName}} 的更多选项",
+      "moreOptionsFallback": "动作的更多选项",
+      "notesFor": "{{exerciseName}} 的备注",
+      "notesFallback": "动作备注",
+      "setSummary_other": "{{count}} 组{{detail}}",
+      "notesForSet": "第 {{setNumber}} 组的备注"
+    },
+    "rail": {
+      "add": "添加",
+      "addExercise": "添加动作"
+    },
+    "rest": {
+      "addSecondsShort": "「+{{seconds}} 秒」",
+      "subtractSecondsShort": "「−{{seconds}} 秒」",
+      "completeSet": "完成该组",
+      "completeSetTitle": "完成该组",
+      "extendBySeconds": "休息时间延长 {{seconds}} 秒",
+      "shortenBySeconds": "休息时间缩短 {{seconds}} 秒",
+      "skip": "跳过休息",
+      "pause": "暂停休息",
+      "resume": "继续休息",
+      "targetValue": "目标 {{value}}",
+      "shorten": "休息时间缩短 15 秒",
+      "extend": "休息时间延长 15 秒"
+    },
+    "setDetail": {
+      "addNote": "为此组添加备注…",
+      "notesForSet": "第 {{setNumber}} 组的备注",
+      "notes": "组备注"
+    },
+    "setRow": {
+      "changeType": "更改第 {{setNumber}} 组的类型",
+      "delete": "删除第 {{setNumber}} 组",
+      "duration": "时长",
+      "log": "记录第 {{setNumber}} 组",
+      "reps": "次数",
+      "complete": "将第 {{setNumber}} 组标记为完成",
+      "incomplete": "取消完成第 {{setNumber}} 组",
+      "weight": "重量",
+      "rpe": "RPE",
+      "fillFromPrevious": "从上一组填充第 {{setNumber}} 组"
+    },
+    "columns": {
+      "set": "组",
+      "previous": "上一次",
+      "seconds": "秒"
+    },
+    "exercise": {
+      "expand": "展开 {{name}}",
+      "viewDetails": "查看 {{name}} 详情",
+      "collapse": "收起 {{name}}",
+      "moreOptions": "{{name}} 的更多选项",
+      "notePlaceholder": "为此动作添加备注…",
+      "notesFor": "{{name}} 的备注",
+      "caloriesFor": "{{name}} 消耗的卡路里",
+      "editCaloriesFor": "编辑 {{name}} 消耗的卡路里",
+      "best": "最佳 {{value}}",
+      "changeMetric": "更改指标列",
+      "notesForSet": "第 {{number}} 组的备注",
+      "addSet": "向 {{name}} 添加组",
+      "caloriesUnit": "千卡",
+      "addSetLabel": "添加组"
+    },
+    "nextSet": "下一组"
+  },
+  "addSheet": {
+    "food": "食物",
+    "exercise": "运动",
+    "measurements": "测量值",
+    "scanFood": "扫描食物",
+    "workout": "训练",
+    "liveSets": "实时组数与次数",
+    "activity": "活动",
+    "durationDistance": "时长与距离",
+    "logWorkout": "记录训练",
+    "pastSets": "过去的组数与次数",
+    "wellness": "健康",
+    "progressPhotos": "进度照片",
+    "askSparky": "询问 Sparky",
+    "syncHealth": "同步健康数据",
+    "logPregnancyEntry": "记录孕期条目",
+    "logCycle": "记录周期"
+  },
+  "screens": {
+    "foods": "食物",
+    "meals": "餐食",
+    "exercises": "运动",
+    "workoutPresets": "训练预设",
+    "addFood": "添加食物",
+    "newFood": "新食物",
+    "editFood": "编辑食物",
+    "adjustNutrition": "调整营养",
+    "barcodes": "条形码",
+    "editExercise": "编辑运动",
+    "newExercise": "新运动",
+    "editPreset": "编辑预设",
+    "newPreset": "新预设",
+    "scanFood": "扫描食物",
+    "photoFood": "拍照识别食物",
+    "sparky": "Sparky",
+    "editMeal": "编辑餐食",
+    "createMeal": "创建餐食",
+    "foodEntry": "食物记录",
+    "meal": "餐食",
+    "nutritionDetails": "营养详情",
+    "trends": "趋势",
+    "selectExercise": "选择运动",
+    "startWorkout": "开始训练",
+    "editWorkout": "编辑训练",
+    "newWorkout": "新训练",
+    "editActivity": "编辑活动",
+    "newActivity": "新活动",
+    "workout": "训练",
+    "activity": "活动",
+    "logs": "日志",
+    "healthSync": "健康同步",
+    "importHistory": "导入历史",
+    "measurements": "测量值",
+    "calorieSettings": "卡路里设置",
+    "foodSettings": "食物设置",
+    "mealTypes": "餐次类型",
+    "dashboardSettings": "仪表板设置",
+    "diarySettings": "日记设置",
+    "workoutSettings": "训练设置",
+    "serverSettings": "服务器设置",
+    "passkeys": "密钥",
+    "about": "关于",
+    "whatsNew": "新内容",
+    "cyclePregnancy": "周期与孕期",
+    "cycleSetup": "周期设置",
+    "wellnessHub": "健康中心",
+    "logDailyEntry": "记录每日条目",
+    "pregnancySetup": "孕期设置",
+    "medications": "药物",
+    "medication": "药物",
+    "library": {
+      "noServerConfigured": "未配置服务器",
+      "configureServer": "请在设置中配置你的服务器连接以查看你的资料库。",
+      "goToSettings": "前往设置",
+      "loading": "正在加载资料库...",
+      "title": "资料库",
+      "create": "创建",
+      "food": "食物",
+      "manualEntry": "手动录入",
+      "meal": "餐食",
+      "groupFoods": "组合食物",
+      "exercise": "运动",
+      "workoutPreset": "训练预设",
+      "exerciseRoutine": "运动例程",
+      "browse": "浏览",
+      "foods": "食物",
+      "meals": "餐食",
+      "mealPlans": "餐食计划",
+      "mealPlansSubtitle": "在选定日期重复餐食",
+      "exercises": "运动",
+      "workoutPresets": "训练预设",
+      "medications": "药物",
+      "recentlyLogged": "最近记录",
+      "loadingRecentItems": "正在加载最近项目...",
+      "failedRecentItems": "无法加载最近项目。",
+      "noRecentItems": "暂无最近项目",
+      "recentItemsHint": "你记录的食物、餐食和运动会显示在这里，方便快速访问。",
+      "waterContainers": "水容器",
+      "waterContainersSubtitle": "水瓶、水杯，以及关联食物的饮品"
+    },
+    "sleep": "睡眠",
+    "healthTrendsSettings": "健康趋势",
+    "progressPhotos": "进度照片",
+    "progressPhotoCompare": "对比",
+    "progressPhotoTimelapse": "延时摄影"
+  },
+  "healthCategories": {
+    "Common": "常用",
+    "Activity": "活动",
+    "Vitals": "生命体征",
+    "Body Measurements": "身体测量",
+    "Nutrition": "营养",
+    "Reproductive": "生殖健康",
+    "Mobility": "行动能力",
+    "Running": "跑步",
+    "Cycling": "骑行",
+    "Environment": "环境",
+    "Apple": "Apple",
+    "unknown": "其他"
+  },
+  "healthSync": {
+    "appleHealth": "Apple 健康",
+    "healthConnect": "Health Connect",
+    "appleSummary": "从 Apple 健康读取所选数据，并同步到你自托管的服务器。",
+    "connectSummary": "从 Health Connect 读取所选数据，并同步到你自托管的服务器。",
+    "connectDetail": "SparkyFitness 使用 Health Connect 读取你在下方选择的健康数据。如果启用了同步，数据只会同步到你自己的服务器。所有同步都只使用你选择的类别。",
+    "title": "要同步的健康数据",
+    "notMedicalAdvice": "非医疗建议。",
+    "consultProfessional": "有关医疗建议、诊断或治疗，请咨询医疗专业人士。",
+    "enableAll": "启用所有健康指标",
+    "batteryNote": "启用较多健康指标可能增加电池消耗。每个已启用的指标都允许应用在后台唤醒以读取新数据。",
+    "writeTitle": "写入 {{store}}",
+    "writeSummary": "将你在 SparkyFitness 记录的数据同步到 {{store}}，让两边保持一致。",
+    "removeFrom": "从 {{store}} 移除",
+    "allTime": "全部时间",
+    "pickDateRange": "选择日期范围…",
+    "removeData": "从 {{store}} 移除 SparkyFitness 数据",
+    "source": "来源：",
+    "syncMetricLabel": "同步 {{metric}}",
+    "syncMetricHint": "切换此健康指标的同步。",
+    "enableAllHint": "切换所有健康指标的同步。",
+    "writeMetricLabel": "将 {{metric}} 写入 {{store}}",
+    "writeMetricHint": "切换是否将此指标写入健康存储。",
+    "noData": "无数据",
+    "loading": "正在加载健康数据",
+    "alerts": {
+      "healthAppUnavailableTitle": "健康应用不可用",
+      "healthAppUnavailableMessage": "请安装 Apple 健康应用以同步你的健康数据。",
+      "permissionErrorTitle": "权限错误",
+      "permissionErrorMessage": "请求健康权限时发生意外错误：{{error}}"
+    },
+    "appleDetail": "SparkyFitness将通过苹果健康（HealthKit）读取你在下方选择的健康数据。若已开启同步，数据仅在你的设备与自建的SparkyFitness服务器之间同步（手动或后台同步）。\n\n前往设置 → 健康 → 数据访问与设备 → SparkyFitnessMobile，管理或移除访问权限"
+  },
+  "auth": {
+    "frontendUrl": "前端 URL",
+    "email": "邮箱",
+    "password": "密码",
+    "apiKey": "API 密钥",
+    "signIn": "登录",
+    "sso": "SSO",
+    "passkey": "密钥",
+    "connect": "连接",
+    "connectTitle": "连接到 SparkyFitness",
+    "signInWithPasskey": "使用密钥登录",
+    "orSignInWith": "或使用以下方式登录",
+    "noMethods": "此服务器当前未启用标准登录方式。请使用 API 密钥或联系管理员。",
+    "pasteUrl": "从剪贴板粘贴 URL",
+    "twoFactorTitle": "双因素认证",
+    "errors": {
+      "emailRequired": "请输入你的邮箱。",
+      "passwordRequired": "请输入你的密码。",
+      "connectionFailed": "无法连接到服务器。请检查 URL 并重试。",
+      "apiKeyRequired": "请输入 API 密钥。",
+      "invalidApiKey": "API 密钥无效。请检查并重试。",
+      "unknown": "未知错误",
+      "connectionStatus": "连接失败（{{status}}）：{{message}}",
+      "connectionWithMessage": "无法连接到服务器：{{message}}",
+      "verificationCodeRequired": "请输入验证码。",
+      "tooManyAttempts": "尝试次数过多。请稍等片刻再重试。",
+      "invalidVerificationCode": "验证码无效。请重试。",
+      "sessionExpired": "你的会话已过期。请重新登录。",
+      "verificationFailed": "验证失败。请重试。",
+      "sendEmailCodeFailed": "发送邮箱验证码失败。请重试。",
+      "noServerSelected": "未选择服务器。",
+      "httpsRequired": "服务器连接需要 HTTPS。",
+      "frontendUrlRequired": "请先输入你的前端 URL。",
+      "saveFailed": "保存失败：{{message}}",
+      "generic": "身份验证失败。请重试。",
+      "connectionRetry": "无法连接到服务器。请重试。",
+      "httpsRequiredEdit": "服务器连接需要 HTTPS。请编辑此配置以使用 HTTPS。",
+      "httpsRequiredServer": "服务器连接需要 HTTPS。"
+    },
+    "authenticatorApp": "身份验证器应用",
+    "emailCode": "邮箱验证码",
+    "enterAuthenticatorCode": "输入身份验证器应用中的验证码。",
+    "enterEmailCode": "输入发送到你邮箱的验证码。",
+    "requestEmailCode": "点按下方按钮以通过邮箱接收验证码。",
+    "sendCode": "发送验证码",
+    "verify": "验证",
+    "resendCode": "重新发送验证码",
+    "useApiKeyInstead": "改用 API 密钥",
+    "sessionExpiredTitle": "会话已过期",
+    "pasteApiKey": "从剪贴板粘贴 API 密钥",
+    "editServer": "编辑服务器",
+    "addServer": "添加服务器",
+    "advancedOptions": "高级选项",
+    "proxyHeaders": "代理头",
+    "addHeader": "添加标头",
+    "proxyHeadersHelp": "用于在特定反向代理后面运行时",
+    "reservedHeader": "保留标头",
+    "reservedHeaderMessage": "「{{name}}」可能与应用设置的标头冲突。仍然继续吗？",
+    "signInWithProvider": "使用 {{provider}} 登录",
+    "passwordPlaceholder": "密码",
+    "hidePassword": "隐藏密码",
+    "showPassword": "显示密码",
+    "hideApiKey": "隐藏 API 密钥",
+    "showApiKey": "显示 API 密钥",
+    "headerNamePlaceholder": "名称（例如 X-Access-Token）",
+    "headerValuePlaceholder": "值",
+    "removeHeader": "移除标头 {{number}}",
+    "hideHeaderValue": "隐藏标头值",
+    "showHeaderValue": "显示标头值",
+    "noStandardMethods": "此服务器当前未启用标准登录方式。请使用 API 密钥或联系管理员。"
+  },
+  "onboarding": {
+    "subtitle": "你的自托管健身追踪器",
+    "learnMoreTitle": "了解关于 SparkyFitness 的更多信息",
+    "learnMoreBody": "SparkyFitness 帮助你在一处追踪食物、训练和健康数据。",
+    "learnMorePrivacy": "它运行在你自己的服务器上，因此你的数据保持私密。",
+    "errors": {
+      "validFrontendUrl": "请输入有效的前端 URL",
+      "serverUnreachable": "无法访问服务器。请检查 URL 并重试。"
+    }
+  },
+  "dashboard": {
+    "chooseDate": "选择仪表板日期",
+    "noServerConfigured": "未配置服务器",
+    "configureServer": "请在设置中配置你的服务器连接以查看每日摘要。",
+    "goToSettings": "前往设置",
+    "loadingSummary": "正在加载摘要...",
+    "loadFailed": "加载摘要失败",
+    "checkConnection": "请检查你的连接，然后重试。",
+    "askSparky": "询问 Sparky…",
+    "nutrients": "营养素",
+    "food": "食物",
+    "tapToAddFood": "点按以添加食物",
+    "healthTrends": "健康趋势",
+    "consumed": "已摄入",
+    "remaining": "剩余",
+    "ofCalories": "（共 {{value}} 千卡）",
+    "burned": "已消耗",
+    "hydration": "饮水",
+    "ofVolume": "（共 {{value}} {{unit}}）",
+    "perBottle": "每瓶 {{value}} {{unit}}",
+    "exercise": "运动",
+    "minutes": "分钟",
+    "calories": "卡路里",
+    "noExerciseEntries": "暂无运动记录",
+    "removeWater": "移除水",
+    "addWater": "添加水",
+    "selectContainer": "选择 {{container}}",
+    "perContainer": "每个容器 {{value}} {{unit}}",
+    "waterFromFood": "包含来自食物的 {{value}} {{unit}}",
+    "chooseWaterContainer": "选择水容器以启用快速添加／移除",
+    "quickAddDrinks": "快速添加",
+    "logDrink": "记录{{drink}}",
+    "perPress": "{{value}} {{unit}}",
+    "logDrinkFailed": "无法记录该饮品"
+  },
+  "syncScreen": {
+    "healthConnectSettings": "Health Connect 设置",
+    "healthAppSettings": "健康应用设置",
+    "title": "健康数据同步",
+    "syncNow": "立即同步",
+    "syncing": "同步中…",
+    "sendToServer": "将你的健康数据发送到你的服务器",
+    "lastSynced": "上次同步：",
+    "commonError": "错误",
+    "timeRanges": {
+      "today": "今天",
+      "last24Hours": "最近 24 小时",
+      "last3Days": "最近 3 天",
+      "last7Days": "最近 7 天",
+      "last30Days": "最近 30 天",
+      "last90Days": "最近 90 天",
+      "last6Months": "最近 6 个月",
+      "lastYear": "最近一年"
+    },
+    "permissionRequired": {
+      "title": "需要权限",
+      "backgroundAccess": "后台同步需要后台访问权限。请在 Health Connect 设置中授予权限。",
+      "allTitle": "需要权限",
+      "allMessage": "部分权限未被授予。请在 {{settings}} 中启用所有必需的健康权限以同步所有数据。"
+    },
+    "permissionError": {
+      "title": "权限错误",
+      "backgroundAccess": "请求后台访问权限失败：{{error}}",
+      "metricRead": "请求 {{metric}} 权限失败：{{error}}",
+      "metricWrite": "请求 {{metric}} 写入权限失败：{{error}}",
+      "allMetrics": "请求健康权限时发生错误：{{error}}"
+    },
+    "permissionDenied": {
+      "title": "权限被拒绝",
+      "read": "请在 {{settings}} 中授予 {{metric}} 权限。",
+      "write": "请在 {{settings}} 中授予 {{metric}} 写入权限。"
+    },
+    "removal": {
+      "removed": "已移除",
+      "deleted": "已从 {{store}} 删除 SparkyFitness 数据。",
+      "partial": "部分移除",
+      "partialMessage": "部分记录无法从 {{store}} 删除。",
+      "errorMessage": "无法从 {{store}} 移除数据。",
+      "confirmTitle": "移除所有 {{store}} 数据",
+      "confirmMessage": "删除 SparkyFitness 写入 {{store}} 的所有营养和饮水记录，并关闭写回功能？你在此应用中手动记录的数据不会受影响。"
+    },
+    "range": {
+      "title": "同步范围",
+      "selectTitle": "选择同步范围",
+      "description": "控制下一次同步将包含多少数据",
+      "largeWarning": "较大的时间范围可能需要一些时间。"
+    },
+    "unavailable": {
+      "healthConnect": "Health Connect 不可用。请确保已安装并启用。",
+      "healthKit": "健康数据（HealthKit）不可用。请在 iOS 健康应用中启用健康访问权限。"
+    },
+    "import": {
+      "title": "导入完整历史",
+      "subtitle": "一次性导入所有过去的健康数据"
+    },
+    "report": {
+      "generating": "正在生成…",
+      "title": "健康数据报告",
+      "subtitle": "导出匿名化健康数据以用于错误报告",
+      "privacy": "读取 Health Connect 最近 4 小时的数据以用于故障排查。\n数值会四舍五入以保护隐私。不会向服务器发送任何内容。",
+      "error": "生成健康数据报告失败：{{error}}"
+    }
+  },
+  "syncFrequency": {
+    "title": "后台同步",
+    "enable": "启用后台同步",
+    "iosNote": "启用后，应用会在手机允许时于后台更新。手动同步始终会立即更新数据。",
+    "toggleLabel": "后台同步",
+    "toggleHint": "切换后台健康数据同步。"
+  },
+  "syncOnOpen": {
+    "title": "打开时同步",
+    "enable": "打开应用时同步",
+    "description": "启用后，打开应用时会自动同步健康数据。",
+    "toggleLabel": "打开应用时同步",
+    "toggleHint": "切换打开应用时的自动同步。"
+  },
+  "date": {
+    "neverSynced": "从未同步",
+    "justNow": "刚刚",
+    "minutesAgo_other": "{{count}} 分钟前",
+    "hoursAgo_other": "{{count}} 小时前",
+    "yesterdayAt": "昨天 {{time}}",
+    "onDateAt": "{{date}} {{time}}",
+    "today": "今天",
+    "yesterday": "昨天"
+  },
+  "calorieSettings": {
+    "restingEnergy": "静息能量",
+    "bmr": "BMR",
+    "title": "卡路里与 BMR 设置",
+    "modeLabel": "卡路里模式",
+    "adjustmentMode": "调整模式",
+    "modeDescription": "控制你的每日卡路里目标如何根据活动进行调整。",
+    "deviceProjectionDescription": "当天的 Health Connect 总卡路里会推算到午夜；已完成的日期使用记录的总量。目标模式直接应用于该 TDEE。",
+    "deviceProjectionFallback": "仅在设备总量不可用时用于 BMR + 活动卡路里回退。",
+    "exerciseCaloriesApplied": "应用的运动卡路里",
+    "exerciseCaloriesDescription": "你的运动卡路里中有多少被加回每日目标。",
+    "activityLevel": "活动水平",
+    "activityBaseline": "用作 TDEE 的基线。",
+    "adaptiveFallback": "在你积累足够追踪数据之前的备用估算，之后也会继续用于设定合理性上限。你测得的 TDEE 会被限制在 BMR × 此倍数的 ±500 kcal 范围内。",
+    "allowNegative": "允许较低的回退预测",
+    "negativeDescription": "当设备总量不可用时，允许 BMR + 活动卡路里回退降低你的目标。",
+    "includeResting": "包含静息卡路里",
+    "includeRestingDescription": "在净能量计算中纳入你的基础能量（BMR）。",
+    "howThisWorks": "这是如何运作的",
+    "burnedCalories": "消耗的卡路里",
+    "netEnergy": "净能量",
+    "remainingCalories": "剩余卡路里",
+    "useExternal": "使用来自 {{source}} 的 {{metric}}",
+    "externalDescription": "可用时使用 {{source}} {{metric}}。否则，使用所选的 {{formula}} 公式",
+    "iosNote": "同步值已包含轻度日常活动，因此你可能希望将",
+    "iosNoteContinuation": "你的活动水平设置为「无（×1.0）」，以避免重复计算。",
+    "updateFailed": "更新设置失败。",
+    "modes": {
+      "adaptive": "自适应目标",
+      "dynamic": "动态目标",
+      "fixed": "固定目标",
+      "percentage": "百分比回馈",
+      "tdee": "设备预测"
+    },
+    "activity": {
+      "none": "无（×1.0）",
+      "sedentary": "久坐（×1.2）",
+      "light": "轻度活动（×1.375）",
+      "moderate": "中度活动（×1.55）",
+      "heavy": "非常活跃（×1.725）"
+    },
+    "formulas": {
+      "activityWithBmr": "活动 + BMR",
+      "activityOnly": "仅活动（运动 + 步数）",
+      "eatenBurned": "摄入 − 消耗",
+      "projectedTotal": "Health Connect 总卡路里（BMR + 活动卡路里回退）",
+      "dynamic": "目标 − 净能量",
+      "percentageWithBmr": "目标 − 摄入 + BMR + 运动消耗的 {{percentage}}%",
+      "percentage": "目标 − 摄入 + 运动消耗的 {{percentage}}%",
+      "tdee": "预计 TDEE × 目标模式 − 摄入",
+      "adaptive": "目标 − 摄入",
+      "fixed": "目标 − 摄入"
+    },
+    "notes": {
+      "dynamic": "目标随你的活动增长",
+      "tdee": "预测值会在午夜与设备总量趋同",
+      "adaptive": "目标 = 自适应 TDEE",
+      "fixed": "活动不会改变你的预算"
+    },
+    "externalFormula": "公式",
+    "goalMode": {
+      "title": "目标模式",
+      "description": "调整你的卡路里目标以实现维持、赤字或盈余。",
+      "deviceProjectionDescription": "此百分比直接应用于预测的设备 TDEE。",
+      "maintain": "维持（0%）",
+      "recomp": "身体重组（-10%）",
+      "cut": "减脂（-15%）",
+      "highCut": "强减脂（-20%）",
+      "leanBulk": "干净增肌（+10%）",
+      "bulk": "增肌（+20%）",
+      "manual": "手动（自定义 %）",
+      "customPercentage": "自定义百分比",
+      "customPercentageDescription": "正数增加卡路里（盈余）；负数产生赤字。限制在 ±40%。",
+      "calculationMethod": "计算方法",
+      "methodAdaptive": "自适应",
+      "methodManual": "手动"
+    },
+    "safetyFloor": {
+      "title": "安全下限",
+      "standard": "标准",
+      "custom": "自定义",
+      "disabled": "已停用",
+      "customMinimum": "自定义下限（{{unit}}）",
+      "standardDescription": "使用你的估算 RMR 与临床下限中较高者。",
+      "customDescription": "用你选择的下限替代标准下限。健康建议仍然可见。",
+      "disabledDescription": "停止自动目标钳制。健康警告仍然可见。"
+    },
+    "useExternalBmr": "使用检查和同步设备测得的 BMR",
+    "useExternalBmrHint": "默认关闭——在你开启之前，始终使用你选择的公式。开启后，检查记录中记录的 BMR，或从智能秤／健康服务同步的 BMR，会在当天取代公式（前提是对你来说生理上合理）。",
+    "useExternalBmrIosNote": "Apple 健康中的静息能量已包含轻度日常活动，因此建议将活动量设为「无」（×1.0），避免重复计算。"
+  },
+  "dashboardSettings": {
+    "updateFailed": "更新设置失败。",
+    "noCustomNutrients": "没有自定义营养素",
+    "customNutrientsDescription": "自定义营养素在 SparkyFitness Web 应用中创建。添加后它们会显示在这里，你可以选择在仪表板上显示哪些。",
+    "title": "仪表板设置",
+    "askSparky": "询问 Sparky",
+    "askSparkySubtitle": "在仪表板上显示「询问 Sparky」聊天启动器",
+    "hydration": "饮水",
+    "hydrationSubtitle": "在仪表板上显示饮水卡片",
+    "fasting": "禁食",
+    "fastingSubtitle": "在仪表板上显示禁食卡片",
+    "cyclePregnancy": "周期与孕期",
+    "cyclePregnancySubtitle": "在仪表板上显示健康卡片",
+    "medications": "药物",
+    "medicationsSubtitle": "在仪表板上显示药物卡片",
+    "healthTrends": "健康趋势",
+    "healthTrendsSubtitle": "选择哪些图表显示在仪表板上及其顺序",
+    "progressPhotos": "进度照片",
+    "progressPhotosSubtitle": "在仪表板上显示进度照片卡片",
+    "customNutrientDisplay": "自定义营养素显示",
+    "caffeine": "咖啡因",
+    "caffeineSubtitle": "在仪表板上显示活性咖啡因卡片"
+  },
+  "diarySettings": {
+    "updateFailed": "更新设置失败。",
+    "limitReached": "已达到限制",
+    "noCustomNutrients": "没有自定义营养素",
+    "customNutrientsDescription": "自定义营养素在 SparkyFitness Web 应用中创建。添加后它们会显示在这里，你可以选择在日记中显示哪些。",
+    "title": "日记设置",
+    "summary": "日记摘要",
+    "summarySubtitle": "显示卡路里和宏量营养素",
+    "customNutrientDisplay": "自定义营养素显示",
+    "limitDescription_other": "此处最多可显示 {{count}} 种自定义营养素。"
+  },
+  "about": {
+    "title": "关于",
+    "version": "版本 {{version}}（{{build}}）",
+    "descriptionTitle": "关于此应用",
+    "description": "SparkyFitness 是一款开源营养、运动和健康数据追踪器，可同步到你自己的服务器。此应用是 SparkyFitness 生态系统的移动客户端。",
+    "github": "GitHub 上的项目",
+    "documentation": "文档",
+    "privacyPolicy": "隐私政策",
+    "openExternalLink": "在你的浏览器中打开"
+  },
+  "errorBoundary": {
+    "somethingWentWrong": "出现问题",
+    "serverMayNeedUpdate": "发生意外错误。你的服务器可能需要更新。",
+    "tryAgain": "重试",
+    "goBack": "返回",
+    "sectionFailed": "此部分加载失败。"
+  },
+  "notificationSettings": {
+    "title": "通知",
+    "allow": "允许通知",
+    "allowSubtitle": "SparkyFitness 所有提醒的总开关。",
+    "alerts": "提醒",
+    "restTimer": "休息计时器",
+    "restTimerSubtitle": "休息结束时提醒，即使应用在后台。",
+    "fastingGoals": "禁食目标",
+    "fastingGoalsSubtitle": "达成禁食目标时提醒。",
+    "medications": "药物",
+    "medicationReminders": "药物提醒",
+    "medicationRemindersSubtitle": "定时药物的提醒。",
+    "repeatReminders": "重复提醒",
+    "repeatRemindersSubtitle": "每条提醒每 10 分钟重复一次，最多 3 次，直到剂量被记录。",
+    "hideMedicationNames": "隐藏药物名称",
+    "hideMedicationNamesSubtitle": "显示通用提醒，而不是药物名称和剂量。",
+    "enableNotifications": "启用通知",
+    "openSettings": "打开设置",
+    "permissionTitle": "授予权限",
+    "permissionBody": "SparkyFitness 提醒（休息计时器、禁食目标、药物提醒）将不会触发。",
+    "permissionWarningAccessibility": "{{title}}。{{body}} {{action}}。"
+  },
+  "workoutSettings": {
+    "title": "训练设置",
+    "defaultRest": "默认休息时间",
+    "defaultRestSubtitle": "新添加动作的组间休息时间。",
+    "defaultRestAccessibility": "默认休息时间，{{duration}}",
+    "restSound": "休息计时器声音",
+    "restSoundSubtitle": "应用打开时，休息计时器结束播放声音。",
+    "keepAwake": "保持屏幕唤醒",
+    "keepAwakeSubtitle": "训练进行时防止屏幕休眠。",
+    "restSoundAccessibility": "休息计时器声音",
+    "keepAwakeAccessibility": "保持屏幕唤醒"
+  },
+  "restPeriod": {
+    "title": "休息时间",
+    "rest": "休息 {{duration}}",
+    "off": "关闭",
+    "custom": "自定义",
+    "accessibilityLabel": "休息 {{duration}}",
+    "buttonLabel": "休息 {{duration}}",
+    "buttonHint": "打开休息时间选择"
+  },
+  "diary": {
+    "chooseDate": "选择日记日期",
+    "noServer": "未配置服务器",
+    "configureServer": "请在设置中配置你的服务器连接以查看你的日记。",
+    "goToSettings": "前往设置",
+    "loading": "正在加载日记...",
+    "loadFailed": "加载日记失败",
+    "checkConnection": "请检查你的连接，然后重试。",
+    "retry": "重试",
+    "title": "日记",
+    "addFood": "添加食物",
+    "emptyDay": "这一天没有记录任何条目"
+  },
+  "scheduleSummary": {
+    "daily": "每天",
+    "weekly": "每周",
+    "everyNDays": "每 {{count}} 天",
+    "monthlyOnDay": "每月第 {{day}} 天",
+    "monthly": "每月",
+    "cycle": "{{on}}，{{off}}",
+    "asNeeded": "按需",
+    "taper": "逐渐减量",
+    "at": "{{frequency}}，{{time}}",
+    "cycleOn_other": "用药 {{count}} 天",
+    "cycleOff_other": "停药 {{count}} 天"
+  },
+  "devTools": {
+    "title": "开发工具",
+    "description": "这些工具仅在开发版本中可见。",
+    "seed": {
+      "title": "填充健康数据",
+      "description": "插入示例健康数据以用于测试。",
+      "sevenDays": "7 天",
+      "fourteenDays": "14 天",
+      "thirtyDays": "30 天",
+      "oneYear": "1 年",
+      "steps": "（步数）",
+      "oldData": "旧数据",
+      "oldRange": "（1-3 年前）",
+      "richWorkout": "丰富训练",
+      "richWorkoutDetail": "（路线+心率+圈数）",
+      "richWorkoutIosDetail": "（路线+心率）",
+      "richStrength": "丰富力量训练",
+      "richStrengthDetail": "（尖峰心率）"
+    },
+    "healthConnect": {
+      "title": "Health Connect",
+      "data": "Health Connect 数据",
+      "backgroundPermission": {
+        "title": "后台访问权限",
+        "granted": "已授予后台访问权限。",
+        "notGranted": "未授予后台访问权限。"
+      }
+    },
+    "sync": {
+      "title": "后台同步",
+      "description": "手动触发后台同步流程。",
+      "trigger": "触发同步",
+      "checkPermission": "检查后台权限"
+    },
+    "auth": {
+      "title": "身份验证",
+      "description": "触发身份验证弹窗以用于测试。",
+      "reauth": "显示重新认证弹窗"
+    },
+    "whatsNew": {
+      "title": "新内容横幅",
+      "description": "清除上次看到的版本，使横幅重新出现在标签栏上方。",
+      "reset": "重置横幅"
+    },
+    "announcement": {
+      "title": "系统公告",
+      "description": "清除已关闭的公告标记，使活跃的系统公告重新出现。",
+      "reset": "重置公告"
+    },
+    "popovers": {
+      "title": "食物搜索弹出提示",
+      "description": "清除已查看标记，使教练弹出提示在下次食物搜索时重新出现。",
+      "sources": "来源介绍",
+      "provider": "来源切换器"
+    },
+    "toast": {
+      "syncCompleted": "后台同步完成。查看日志以了解详情。",
+      "syncFailed": "同步失败：{{message}}",
+      "healthSeeded_other": "已为过去 {{days}} 天填充 {{count}} 条健康记录。",
+      "healthSeedFailed": "填充健康数据失败。",
+      "healthSeedFailedWithMessage": "填充健康数据失败：{{message}}",
+      "historicalSeeded_other": "已为过去一年填充 {{count}} 条历史步数记录。",
+      "historicalSeedFailed": "填充历史步数数据失败。",
+      "historicalSeedFailedWithMessage": "填充历史步数数据失败：{{message}}",
+      "reset": "已重置",
+      "whatsNewReset": "新内容横幅将重新出现。",
+      "announcementReset": "系统公告弹窗将重新出现。",
+      "announcementResetFailed": "无法重置公告。",
+      "popoverReset": "{{label}} 弹出提示将重新出现。",
+      "popoverResetFailed": "无法重置弹出提示。",
+      "seedOldSeeded_other": "已在 1-3 年前填充 {{count}} 条成簇记录。",
+      "seedOldFailedWithMessage": "填充旧健康数据失败：{{message}}",
+      "seedOldFailed": "填充旧健康数据失败。",
+      "richWorkoutSeeded": "已填充一段 12 分钟的步行，包含路线、心率、速度和圈数。运行一次前台同步以将其拉入。",
+      "richWorkoutIosSeeded": "已填充一段 12 分钟的步行，包含路线和心率。运行一次前台同步以将其拉入。",
+      "richStrengthSeeded": "已填充一段 35 分钟的力量训练，带尖峰心率（无路线/次数 — 设备从不报告这些）。运行一次前台同步以将其拉入。",
+      "richStrengthIosSeeded": "已填充一段 35 分钟的力量训练，带尖峰心率（无路线/圈数/次数 — 设备从不报告这些）。运行一次前台同步以将其拉入。",
+      "richWorkoutFailed": "填充丰富训练失败。",
+      "richWorkoutFailedWithMessage": "填充丰富训练失败：{{message}}",
+      "richStrengthFailed": "填充丰富力量训练失败。",
+      "richStrengthFailedWithMessage": "填充丰富力量训练失败：{{message}}"
+    },
+    "gallery": {
+      "title": "周期卡片画廊",
+      "description": "仪表板周期卡片在每个阶段的假数据预览。孕期和谨慎布局跟随真实数据：切换布局以查看。",
+      "cycleTracking": "周期追踪",
+      "state": {
+        "menstrual": "月经期 — 第 2 天",
+        "follicular": "卵泡期 — 第 8 天",
+        "fertile": "易孕期 — 第 12 天",
+        "ovulation": "排卵日 — 第 14 天",
+        "luteal": "黄体期 — 第 21 天",
+        "late": "经期延迟 — 第 31 天",
+        "unknown": "周期阶段"
+      }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "手表配套连接的状态。即使关闭「可连接」，手表上捕获的检查记录仍会排队并送达，因此这里的灰点不代表数据丢失。",
+      "paired": "手表已配对",
+      "notPaired": "未配对手表",
+      "unsupported": "此平台不支持",
+      "reachable": "手表 App 当前可连接",
+      "notReachable": "手表 App 不在前台"
+    }
+  },
+  "cycleCard": {
+    "mode": {
+      "wellness": "健康",
+      "pregnancy": "孕期追踪",
+      "fertility": "生育追踪",
+      "postpartum": "产后恢复",
+      "menopause": "绝经追踪",
+      "cycle": "周期追踪",
+      "cyclePregnancy": "周期与孕期"
+    },
+    "setupA11y": "设置周期与孕期追踪",
+    "setUp": "设置",
+    "weekDay": "第 {{week}} 周，第 {{day}} 天",
+    "sizeOf": "相当于 {{comparison}} 的大小",
+    "cm": "{{value}} 厘米",
+    "grams": "{{value}} 克",
+    "dueNow": "即将到期",
+    "pregnancyActive": "孕期追踪已激活",
+    "gestationalProgress": "点按查看孕程进展。",
+    "wellnessActive": "健康追踪已激活",
+    "modeValue": "{{mode}} 模式",
+    "hubProgress": "点按查看周期追踪中心。",
+    "hubA11y": "打开周期与孕期追踪中心",
+    "hub": "中心",
+    "phase": {
+      "period": "经期",
+      "follicular": "卵泡期",
+      "fertile": "预估易孕期",
+      "ovulation": "预估排卵日",
+      "luteal": "黄体期",
+      "active": "周期活跃中"
+    },
+    "discreetDescription": "追踪你的健康参数和预测。",
+    "description": "追踪周期阶段、预测、症状和孕期里程碑。",
+    "nextPeriod": "下次经期预计 {{date}}",
+    "day": "第 {{day}} 天",
+    "active": "活跃中",
+    "periodLate_other": "经期延迟 {{count}} 天",
+    "daysToDue_other": "距预产期 {{count}} 天"
+  },
+  "syncHealth": {
+    "unknownError": "未知同步错误",
+    "syncing": "正在同步健康数据…",
+    "incomplete": "同步不完整",
+    "complete": "同步完成",
+    "success": "健康数据同步成功。",
+    "error": "同步错误",
+    "errorDetails": "健康数据同步失败：{{message}}",
+    "loading": "正在加载健康数据",
+    "readErrors_other": "{{count}} 个指标无法读取。它们将在下次同步时重试。",
+    "uploadErrors_other": "{{count}} 条记录被服务器拒绝。请查看日志。"
+  },
+  "fastingCard": {
+    "title": "禁食",
+    "openDetails": "打开禁食详情",
+    "viewHistory": "查看禁食历史",
+    "history": "历史",
+    "viewDetails": "查看详情",
+    "goalProgress": "距离 {{goal}} 小时目标还差 {{remaining}}",
+    "goalReached": "已达成目标 · {{goal}} 小时",
+    "elapsed": "已禁食 {{elapsed}}",
+    "startFast": "开始禁食",
+    "readyToStart": "准备开始",
+    "startFastAction": "开始禁食",
+    "duration": {
+      "minutes": "{{minutes}} 分钟",
+      "hours": "{{hours}} 小时 {{minutes}} 分钟",
+      "hoursMinutes": "{{hours}} 小时 {{minutes}} 分钟"
+    },
+    "lastFast": "上次禁食 {{duration}}",
+    "lastFastWithDate": "上次禁食 {{duration}} · {{date}}",
+    "today": "今天",
+    "yesterday": "昨天"
+  },
+  "fastingProtocol": {
+    "fastStarted": "禁食已开始",
+    "failedStart": "开始禁食失败",
+    "startTitle": "开始禁食",
+    "hourFast": "小时禁食",
+    "startTime": "开始时间",
+    "starting": "开始中...",
+    "startAction": "开始禁食",
+    "accessibility": {
+      "startTime": "开始时间：{{time}}",
+      "decreaseHours": "减少禁食时长",
+      "durationHours": "禁食时长（小时）",
+      "increaseHours": "增加禁食时长"
+    },
+    "presets": {
+      "leangains": {
+        "name": "16:8 精益增肌",
+        "description": "跳过早餐，在 8 小时窗口内进食。"
+      },
+      "warrior18": {
+        "name": "18:6 战士",
+        "description": "更激进的禁食，配 6 小时进食窗口。"
+      },
+      "warrior20": {
+        "name": "20:4 战士",
+        "description": "吃一顿大餐，或在 4 小时内分配热量。"
+      },
+      "circadian": {
+        "name": "昼夜节律",
+        "description": "从日落到早晨禁食。"
+      },
+      "custom": {
+        "name": "自定义禁食",
+        "description": "设定你自己的禁食时长。"
+      }
+    }
+  },
+  "fastingHistory": {
+    "deleteTitle": "删除禁食？",
+    "deleteMessage": "此操作无法撤销。",
+    "deleted": "禁食已删除",
+    "failedDelete": "删除禁食失败",
+    "title": "禁食历史",
+    "hint": "点按编辑 · 向左滑动删除",
+    "empty": "暂无过去的禁食记录。"
+  },
+  "fastingEdit": {
+    "fastEnded": "禁食已结束",
+    "failedEnd": "结束禁食失败",
+    "endTitle": "结束禁食",
+    "time": "时间",
+    "fasted": "已禁食 {{duration}}",
+    "started": "开始于",
+    "ended": "结束于",
+    "beforeEnd": "开始时间必须早于结束时间。",
+    "ending": "结束中...",
+    "endAction": "结束禁食",
+    "updated": "禁食已更新",
+    "failedUpdate": "更新禁食失败",
+    "deleted": "禁食已删除",
+    "failedDelete": "删除禁食失败",
+    "deleteTitle": "删除禁食？",
+    "deleteMessage": "此操作无法撤销。",
+    "editTitle": "编辑禁食",
+    "saving": "保存中...",
+    "saveChanges": "保存更改",
+    "deleting": "删除中...",
+    "deleteAction": "删除禁食"
+  },
+  "privacyPolicy": {
+    "title": "隐私政策",
+    "noData": "此应用不收集、存储或出售你的个人数据。",
+    "healthData": "所有 HealthKit 数据都保留在你的设备上，并且只传输到你自己的服务器。",
+    "learnMore": "在我们的隐私政策中了解更多。"
+  },
+  "cycleCalendar": {
+    "previousMonth": "上个月",
+    "nextMonth": "下个月",
+    "previousYear": "上一年",
+    "nextYear": "下一年",
+    "selectMonth": "选择月份",
+    "selectYear": "选择年份",
+    "weekdays": {
+      "sunday": "日",
+      "monday": "一",
+      "tuesday": "二",
+      "wednesday": "三",
+      "thursday": "四",
+      "friday": "五",
+      "saturday": "六"
+    },
+    "legend": {
+      "period": "经期",
+      "predictedPeriod": "预测经期",
+      "fertileWindow": "易孕期",
+      "estimatedOvulation": "预估排卵日",
+      "logged": "已记录"
+    }
+  },
+  "mealBuilder": {
+    "linkedMeal": "关联餐食",
+    "linkedMealWebEdit": "在 Web 应用中编辑此子餐食食材。",
+    "editTitle": "编辑餐食",
+    "createTitle": "创建餐食",
+    "loading": "正在加载餐食...",
+    "loadErrorTitle": "加载餐食失败",
+    "mealName": "餐食名称",
+    "mealNamePlaceholder": "例如：鸡肉饭碗",
+    "descriptionOptional": "描述（可选）",
+    "descriptionPlaceholder": "关于此餐食的备注",
+    "totalServings": "总份数",
+    "totalAmount": "总用量（{{unit}}）*",
+    "unit": "单位",
+    "selectUnit": "选择单位",
+    "servingSize": "每份大小（{{unit}}）*",
+    "servingUnit": "份",
+    "foodsInMeal": "餐食中的食物",
+    "ingredient": "食材",
+    "removeIngredient": "移除 {{name}}",
+    "editIngredient": "编辑 {{name}}",
+    "addFood": "添加食物",
+    "mealTotal": "餐食总计",
+    "perServing": "每份",
+    "errors": {
+      "missingNameTitle": "缺少餐食名称",
+      "missingNameMessage": "请为你的餐食输入名称。",
+      "invalidServingSizeTitle": "无效的每份大小",
+      "invalidServingSizeMessage": "默认每份大小必须大于零。",
+      "invalidTotalServingsTitle": "无效的总份数",
+      "invalidTotalServingsMessage": "总份数必须大于零。",
+      "invalidTotalAmountTitle": "无效的总用量",
+      "invalidTotalAmountMessage": "总用量必须大于零。",
+      "noIngredientsTitle": "暂无食材",
+      "noIngredientsMessage": "保存此餐食前请至少添加一种食物。",
+      "missingIngredientTitle": "缺少食材数据",
+      "missingIngredientMessage": "所选食物之一缺少份量变体。请重新添加。"
+    },
+    "units": {
+      "serving": "份",
+      "g": "克",
+      "ml": "毫升",
+      "oz": "盎司",
+      "cup": "杯",
+      "tbsp": "汤匙",
+      "tsp": "茶匙",
+      "piece": "件"
+    },
+    "unitPickerLabel": "单位，{{unit}}",
+    "notes": "备注（可选）",
+    "notesPlaceholder": "例如：食谱，或你的做法"
+  },
+  "nutrition": {
+    "protein": "蛋白质",
+    "carbs": "碳水",
+    "fat": "脂肪",
+    "caloriesShort": "千卡",
+    "caloriesUnit": "卡",
+    "proteinAmount": "蛋白质",
+    "carbsAmount": "碳水",
+    "fatAmount": "脂肪",
+    "left": "剩余",
+    "calories": "卡路里",
+    "remaining": "剩余 {{value}} 克",
+    "over": "超出 {{value}} 克",
+    "met": "已达成",
+    "goalSeparator": " / {{value}}"
+  },
+  "foodSummary": {
+    "tapToAddFood": "点按以添加食物",
+    "caloriesShort": "千卡",
+    "caloriesUnit": "卡",
+    "nutritionBreakdown": "{{label}} 营养明细"
+  },
+  "exerciseSummary": {
+    "tapToAdd": "点按以添加训练",
+    "addExercise": "添加训练",
+    "title": "训练"
+  },
+  "foodRow": {
+    "unknownFood": "未知食物",
+    "adjustServing": "调整份量",
+    "caloriesShort": "千卡",
+    "caloriesUnit": "卡",
+    "deleteFood": "删除食物"
+  },
+  "exerciseRow": {
+    "deleteExercise": "删除训练"
+  },
+  "cycleSettings": {
+    "updateFailed": "更新失败",
+    "saveFailed": "无法保存周期设置。请重试。",
+    "mode": {
+      "standard": "标准周期",
+      "ttc": "备孕中",
+      "pregnant": "孕期追踪",
+      "postpartum": "产后",
+      "menopause": "绝经感知"
+    },
+    "birthControl": {
+      "none": "无",
+      "pill": "药丸",
+      "iudHormonal": "激素节育环",
+      "iudCopper": "铜质节育环",
+      "implant": "皮下埋植",
+      "ring": "节育环",
+      "patch": "贴片",
+      "shot": "注射",
+      "condoms": "避孕套 / 屏障法",
+      "other": "其他"
+    },
+    "condition": {
+      "pcos": "多囊卵巢综合征",
+      "endometriosis": "子宫内膜异位症",
+      "fibroids": "子宫肌瘤",
+      "thyroid": "甲状腺疾病",
+      "other": "其他"
+    },
+    "terminology": {
+      "default": "默认",
+      "neutral": "性别中立"
+    },
+    "reset": {
+      "title": "重置引导流程",
+      "message": "确定要重置你的周期引导流程吗？这将清除你的设置进度，但已记录的周期天数会保留。",
+      "action": "重置",
+      "success": "引导流程重置完成。"
+    },
+    "export": {
+      "preparing": "正在准备导出",
+      "generating": "正在生成 JSON 导出文件...",
+      "failed": "导出失败",
+      "failedMessage": "无法导出周期数据。"
+    },
+    "title": {
+      "wellness": "健康设置",
+      "cyclePregnancy": "周期与孕期"
+    },
+    "enable": {
+      "title": "启用周期与孕期追踪",
+      "subtitle": "开启记录、预测和历史"
+    },
+    "groups": {
+      "features": "功能配置",
+      "calculations": "周期计算覆盖项",
+      "conditions": "健康状况",
+      "conditionsSubtitle": "选择适用的健康状况以个性化你的追踪。",
+      "display": "显示选项",
+      "actions": "操作"
+    },
+    "fields": {
+      "trackingMode": "追踪模式",
+      "birthControl": "避孕方式",
+      "averageCycleLength": "平均周期长度",
+      "averagePeriodLength": "平均经期长度",
+      "lutealLength": "黄体期长度",
+      "showFertileWindow": "显示易孕期",
+      "discreetMode": "谨慎模式",
+      "terminology": "术语",
+      "export": "导出周期与孕期数据",
+      "reset": "重置引导向导"
+    },
+    "pickers": {
+      "mode": "选择模式",
+      "method": "选择方法",
+      "terminology": "选择术语"
+    },
+    "values": {
+      "custom": "自定义覆盖",
+      "defaultHistory": "默认/历史",
+      "lutealSubtitle": "排卵后天数（默认 14）",
+      "fertileSubtitle": "在日历上高亮易孕期",
+      "discreetSubtitle": "在界面中隐藏「周期」或「孕期」标签",
+      "exportSubtitle": "下载 JSON 数据导出",
+      "resetSubtitle": "重新开始设置引导"
+    }
+  },
+  "measurements": {
+    "fields": {
+      "weight": "体重",
+      "bodyFatPercentage": "体脂率",
+      "height": "身高",
+      "neck": "颈围",
+      "waist": "腰围",
+      "hips": "臀围",
+      "steps": "步数",
+      "muscleMass": "肌肉量",
+      "boneMass": "骨量",
+      "bodyWaterPercentage": "体水率",
+      "bmr": "BMR",
+      "heightWithUnit": "身高（{{unit}}）",
+      "neckWithUnit": "颈围（{{unit}}）",
+      "waistWithUnit": "腰围（{{unit}}）",
+      "hipsWithUnit": "臀围（{{unit}}）",
+      "weightWithUnit": "体重（{{unit}}）",
+      "muscleMassWithUnit": "肌肉量（{{unit}}）",
+      "boneMassWithUnit": "骨量（{{unit}}）",
+      "bmrWithUnit": "BMR（千卡）",
+      "weightStones": "以英石计的体重",
+      "weightPounds": "以磅计的体重",
+      "heightFeet": "以英尺计的身高",
+      "heightInches": "以英寸计的身高"
+    },
+    "validation": {
+      "invalid": "无效的{{label}}",
+      "enterNumber": "请输入数字。",
+      "wholeNumber": "{{label}}必须是整数。",
+      "min": "必须为 {{min}} 或更大。",
+      "max": "必须为 {{max}} 或更小。",
+      "invalidWeight": "无效的体重",
+      "stonesLbsNumber": "请为英石和磅输入数字。",
+      "nonNegative": "数值必须为 0 或更大。",
+      "invalidHeight": "无效的身高",
+      "feetInchesNumber": "请为英尺和英寸输入数字。",
+      "bodyFatRange": "体脂率必须在 0 到 100 之间。",
+      "bodyWaterRange": "体水率必须在 0 到 100 之间。",
+      "bmrRange": "BMR 必须在 3600 到 6000 千卡之间。"
+    },
+    "nothingToSave": "没有可保存的内容",
+    "enterValue": "请至少输入或清除一个数值。",
+    "saved": "已保存",
+    "partialSave": "部分更改可能尚未保存。",
+    "date": "日期",
+    "willBeCleared": "将被清除",
+    "custom": {
+      "title": "自定义测量",
+      "loadError": "无法加载自定义测量。",
+      "deleteEntry": "删除 {{label}} 条目",
+      "moreCategories": "更多类别 ▾",
+      "hideCategories": "隐藏类别 ▴",
+      "hideCategoriesToggle": "隐藏类别 ▴",
+      "moreCategoriesToggle": "更多类别 ▾",
+      "lastValue": "上次：{{value}}"
+    },
+    "confirm": {
+      "measurement": "项测量",
+      "measurements": "项测量",
+      "message": "{{labels}} 将被清除。",
+      "title_other": "清除 {{count}} 项测量？"
+    },
+    "units": {
+      "st": "英石",
+      "lb": "磅",
+      "ft": "英尺",
+      "in": "英寸"
+    },
+    "title": "测量",
+    "edit": "编辑测量",
+    "useLast": "使用上次",
+    "useLastFor": "使用上次的{{label}}数值",
+    "previousUnavailable": "无法加载之前的数值。你的服务器可能需要更新。",
+    "bodyFat": {
+      "calculate": "计算",
+      "useRecent": "使用最近",
+      "calculateFailedTitle": "无法计算体脂",
+      "calculatedTitle": "体脂已计算",
+      "calculatedMessage": "检查数值后，保存即可保留。",
+      "profileRequired": "请在个人资料中设置性别，以使用此计算。",
+      "bmiRequiredFields": "BMI 法需要体重、身高、年龄和性别。",
+      "navyRequiredFields": "美国海军法需要性别、身高、腰围、颈围，以及（女性）臀围测量值。",
+      "uncomputable": "这些测量值无法得出有效的体脂百分比。请检查腰围、颈围、身高和臀围数值。"
+    }
+  },
+  "foodScan": {
+    "segment": {
+      "barcode": "条形码",
+      "label": "标签",
+      "photo": "照片"
+    },
+    "errors": {
+      "capturePhoto": "拍照失败。",
+      "processPhoto": "处理照片失败。",
+      "noPhoto": "选择器未返回照片。",
+      "analyzeLabel": "分析营养标签失败。请重试。",
+      "loadPhoto": "加载照片失败。",
+      "lookupBarcode": "无法查询此条形码。请重试。",
+      "timeout": "请求超时。请检查你的服务器连接。"
+    },
+    "permission": {
+      "camera": "我们需要你的权限才能显示相机",
+      "grant": "授予权限"
+    },
+    "label": {
+      "analyzing": "正在分析标签...",
+      "retake": "重拍",
+      "usePhoto": "使用照片"
+    },
+    "lookup": {
+      "failed": "查询失败",
+      "noMatch": "条形码无匹配结果",
+      "nextSteps": "你可以扫描营养标签或手动输入。",
+      "scanLabel": "扫描营养标签",
+      "addManually": "手动添加食物"
+    },
+    "photo": {
+      "frameMeal": "框住整餐饭",
+      "notSetUp": "AI 照片估算尚未设置",
+      "setupHelp": "在浏览器中打开 SparkyFitness，前往「设置 → AI」添加 AI 提供方，然后返回此处。",
+      "logManually": "手动记录"
+    },
+    "barcode": {
+      "typeInstead": "改为输入条形码"
+    },
+    "manual": {
+      "title": "输入条形码",
+      "placeholder": "条形码编号",
+      "useBarcode": "使用条形码",
+      "lookup": "查询"
+    },
+    "accessibility": {
+      "chooseLabelPhoto": "从图库选择标签照片",
+      "choosePhoto": "从图库选择照片",
+      "howItWorks": "照片估算的工作原理",
+      "back": "返回",
+      "flashlightOn": "打开手电筒",
+      "flashlightOff": "关闭手电筒",
+      "retakePhoto": "重拍照片",
+      "takeLabelPhoto": "拍摄营养标签照片",
+      "takeMealPhoto": "拍摄餐食照片"
+    }
+  },
+  "cycleToday": {
+    "menstrualFlow": "月经量",
+    "flow": {
+      "none": "无",
+      "spot": "点滴",
+      "light": "少量",
+      "medium": "中量",
+      "heavy": "大量"
+    },
+    "weight": "体重（{{unit}}）",
+    "weightExampleLbs": "例如 143",
+    "weightExampleKg": "例如 65",
+    "cervicalMucus": "宫颈黏液",
+    "selectCervicalMucus": "选择宫颈黏液",
+    "tapToSelect": "点按选择...",
+    "mucus": {
+      "none": "无",
+      "dry": "干燥",
+      "sticky": "黏稠",
+      "creamy": "乳状",
+      "watery": "水样",
+      "eggWhite": "蛋清样"
+    },
+    "intercourse": "同房",
+    "intercourseOption": {
+      "none": "无",
+      "yes": "有",
+      "no": "无"
+    },
+    "protection": "防护措施",
+    "protectionOption": {
+      "protected": "有防护",
+      "unprotected": "无防护"
+    },
+    "cervicalPosition": "宫颈位置",
+    "selectCervicalPosition": "选择宫颈位置",
+    "position": {
+      "none": "无",
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    },
+    "basalTemperature": "基础体温",
+    "basalTemperatureHint": "追踪你的醒来体温（°C），以识别排卵后的双相变化。",
+    "temperatureExample": "例如 36.5",
+    "notes": "备注",
+    "notesPlaceholder": "记录你的感受、精力水平等详情...",
+    "saving": "保存中...",
+    "save": "保存记录条目",
+    "invalidTemperature": "无效的体温输入",
+    "invalidWeight": "无效的体重输入"
+  },
+  "cycleSymptoms": {
+    "title": "症状",
+    "showAll": "显示全部",
+    "showLess": "显示更少",
+    "items": {
+      "cramps": "痛经",
+      "headache": "头痛",
+      "migraine": "偏头痛",
+      "backache": "背痛",
+      "ovulation_pain": "排卵痛",
+      "tender_breasts": "乳房胀痛",
+      "nausea": "恶心",
+      "bloating": "腹胀",
+      "diarrhea": "腹泻",
+      "constipation": "便秘",
+      "cravings": "渴望食物",
+      "acne": "痤疮",
+      "oily_skin": "皮肤出油",
+      "fatigue": "疲劳",
+      "insomnia": "失眠",
+      "dizziness": "头晕",
+      "mood_swings": "情绪波动",
+      "anxiety": "焦虑",
+      "hot_flashes": "潮热",
+      "spotting": "点滴出血",
+      "body_aches": "身体酸痛",
+      "joint_pain": "关节疼痛",
+      "muscle_soreness": "肌肉酸痛",
+      "pelvic_pain": "盆腔疼痛",
+      "cervical_pain": "宫颈疼痛",
+      "stiff_neck": "颈部僵硬",
+      "digestive_cramps": "消化痉挛",
+      "acid_reflux": "胃酸反流",
+      "indigestion": "消化不良",
+      "increased_appetite": "食欲增加",
+      "decreased_appetite": "食欲减退",
+      "fatigue_morning": "晨间疲劳",
+      "brain_fog": "脑雾",
+      "irritability": "易怒",
+      "sadness": "情绪低落",
+      "oversleeping": "睡眠过多",
+      "restless_sleep": "睡眠不安",
+      "dry_skin": "皮肤干燥",
+      "skin_breakouts": "皮肤爆发",
+      "chills": "发冷",
+      "night_sweats": "盗汗",
+      "swollen_feet": "脚部肿胀",
+      "breast_swelling": "乳房肿胀"
+    }
+  },
+  "cycleInsights": {
+    "cycleSummary": "周期摘要",
+    "avgCycle": "平均周期",
+    "avgPeriod": "平均经期",
+    "regularity": "规律性",
+    "set": "已设置",
+    "regular": "规律",
+    "nextPredictions": "下次预测",
+    "upcomingCycle": "即将到来的周期",
+    "followingCycle": "后续周期",
+    "nextPeriod": "下次经期",
+    "estimatedOvulation": "预估排卵日",
+    "patternsToWatch": "值得关注的模式",
+    "symptomForecast": "症状预测",
+    "forecastHint": "记录几个周期的症状以预测未来的日子。",
+    "personalCorrelations": "个人相关性",
+    "days_other": "{{count}} 天",
+    "anomaly": {
+      "irregular_cycles": "你的周期长度最近变化超过几天。如果这对你来说是新情况，或许值得向医生提及。",
+      "short_cycle_other": "你有一个 {{count}} 天的短周期。短于 21 天的周期值得关注。",
+      "long_cycle_other": "你有一个 {{count}} 天的长周期。长于 45 天的周期值得关注。",
+      "heavy_bleeding": "你最近的记录显示经量比平时多，或经期超过 7 天。如果持续如此，建议向医生提及。",
+      "unusual_discharge": "你记录了异常的分泌物。建议留意颜色、气味或质地的变化。",
+      "short_cycle_generic": "记录到一个短周期。短于 21 天的周期值得关注。",
+      "long_cycle_generic": "记录到一个长周期。长于 45 天的周期值得关注。"
+    },
+    "alert": {
+      "late_period_other": "你的经期已延迟 {{count}} 天。",
+      "upcoming_period_other": "预计 {{count}} 天后到来经期。",
+      "ovulation_today": "预测排卵发生在今天。",
+      "upcoming_period_today": "预计今天到来经期。"
+    }
+  },
+  "cycleCorrelations": {
+    "metrics": {
+      "weight": "体重",
+      "mood": "情绪",
+      "sleep": "睡眠",
+      "energy": "精力"
+    },
+    "phases": {
+      "menstrual": "月经期",
+      "follicular": "卵泡期",
+      "fertile": "易孕期",
+      "ovulation": "排卵日",
+      "luteal": "黄体期"
+    },
+    "byPhase": "按周期阶段划分的 {{metric}}",
+    "higher": "更高",
+    "lower": "更低",
+    "peak": "{{phase}}：{{metric}} 往往{{direction}}（与你的平均值相比{{delta}}{{unit}}）。",
+    "noDataTitle": "更多数据解锁相关性",
+    "noDataHint": "持续记录几个周期的体重、情绪、睡眠和精力，看看它们如何随你的阶段变化。",
+    "conditions": {
+      "longCycles": "你的周期平均超过 35 天。如果这对你来说是新情况，或许值得与医生讨论。",
+      "irregularCycles": "你的周期变化较大。再多记录几个会使画面更清晰；可考虑向医生提及。",
+      "shortCycles": "你的周期比典型情况短。如果是新情况，或许值得听取医生的意见。"
+    },
+    "phasesSentence": {
+      "menstrual": "月经期",
+      "follicular": "卵泡期",
+      "fertile": "易孕期",
+      "ovulation": "排卵日",
+      "luteal": "黄体期"
+    }
+  },
+  "cycleHistory": {
+    "title": "周期历史",
+    "logManual": "手动记录周期",
+    "startDate": "开始日期",
+    "selectDate": "选择日期",
+    "periodDays": "经期天数",
+    "cycleDays": "周期天数",
+    "excludeFromPredictions": "排除在预测之外",
+    "saveManual": "保存手动周期",
+    "empty": "暂无已记录的周期。",
+    "startedAccessibility": "周期开始于 {{date}}",
+    "started": "开始于 {{date}}",
+    "currentCycle": "当前周期",
+    "toast": {
+      "success": "成功",
+      "error": "错误",
+      "manualAdded": "手动周期添加成功。",
+      "manualAddFailed": "无法添加手动周期条目。",
+      "updated": "周期条目更新成功。",
+      "updateFailed": "无法更新周期条目。",
+      "deleted": "周期条目删除成功。",
+      "deleteFailed": "无法删除周期条目。"
+    },
+    "dayPeriod_other": "{{count}} 天经期",
+    "dayCycle_other": "{{count}} 天周期"
+  },
+  "nutrients": {
+    "calories": "卡路里",
+    "protein": "蛋白质",
+    "carbs": "碳水",
+    "fat": "脂肪",
+    "fiber": "膳食纤维",
+    "saturatedFatShort": "饱和脂肪",
+    "saturatedFatLabel": "饱和脂肪",
+    "polyunsaturatedFatShort": "多不饱和脂肪",
+    "monounsaturatedFatShort": "单不饱和脂肪",
+    "transFat": "反式脂肪",
+    "cholesterol": "胆固醇",
+    "sodium": "钠",
+    "potassium": "钾",
+    "sugars": "糖",
+    "vitaminA": "维生素 A",
+    "vitaminC": "维生素 C",
+    "calcium": "钙",
+    "iron": "铁",
+    "glycemicIndex": "升糖指数",
+    "totalCarbs": "总碳水",
+    "netCarbs": "净碳水",
+    "glycemicIndexNone": "无",
+    "glycemicIndexVeryLow": "极低",
+    "glycemicIndexLow": "低",
+    "glycemicIndexMedium": "中",
+    "glycemicIndexHigh": "高",
+    "glycemicIndexVeryHigh": "极高",
+    "saturatedFatCompact": "饱和脂肪",
+    "caffeine": "咖啡因",
+    "waterContent": "水分含量",
+    "alcohol": "酒精"
+  },
+  "foodNutrition": {
+    "hideExtra": "隐藏更多营养素 ▴",
+    "showMore": "显示更多营养素 ▾"
+  },
+  "diarySummary": {
+    "remaining": "剩余",
+    "over": "超出",
+    "title": "摘要",
+    "projectedTdee": "预计 TDEE：{{value}} 千卡",
+    "goalModeTarget": "目标模式目标：{{value}} 千卡",
+    "healthConnectProjectionSource": "Health Connect 总卡路里",
+    "fallbackProjectionSource": "BMR + 活动卡路里回退",
+    "legacyProjectionSource": "设备预测",
+    "collapse": "收起此部分",
+    "expand": "展开此部分"
+  },
+  "dateRange": {
+    "removeTitle": "选择要移除的日期范围",
+    "removeAction": "移除所选范围"
+  },
+  "duration": {
+    "minutes": "分钟",
+    "seconds": "秒"
+  },
+  "entryImage": {
+    "photo": "照片",
+    "addHelp": "添加照片以为此条目设置一张。",
+    "entryOnly": "此照片仅适用于此条目。",
+    "saveFailed": "保存照片失败",
+    "removeFailed": "移除照片失败"
+  },
+  "foodForm": {
+    "equivalentSizes": "等量规格",
+    "selectUnit": "选择单位",
+    "unit": "单位",
+    "removeEquivalent": "移除等量规格",
+    "addEquivalent": "+ 添加等量规格",
+    "foodName": "食物名称",
+    "foodNamePlaceholder": "例如：鸡胸肉",
+    "brand": "品牌",
+    "optional": "可选",
+    "servingSize": "每份大小",
+    "servingUnit": "每份单位",
+    "autoScaleNutrition": "自动缩放营养",
+    "caloriesRequired": "卡路里（千卡）*",
+    "ai": {
+      "couldNotEstimate": "无法估算",
+      "noTrustedDefault": "该食物没有可信的默认值可缩放。",
+      "servingSizeRequired": "请先设置每份大小",
+      "estimating": "估算中…",
+      "convertWithAI": "用 AI 转换",
+      "estimateFailed": "AI 估算失败。",
+      "estimateQuality": {
+        "high": "良好估算",
+        "medium": "一般估算",
+        "low": "粗略估算"
+      }
+    },
+    "manualUpdate": {
+      "title": "手动营养更新",
+      "message": "无法在单位之间转换。请在保存前手动更新营养值。",
+      "saveAnyway": "仍要保存",
+      "banner": "无法在单位之间转换。请手动更新营养值。"
+    },
+    "loadingDetails": "食物详情仍在加载。请稍后再试。",
+    "saveNewUnitFailed": "无法保存新单位",
+    "equivalentUnitsFailed": "部分等量单位无法保存",
+    "saveNewVariantFailed": "无法保存新变体",
+    "saveNutritionFailed": "无法保存营养供日后使用",
+    "savedNewVariant": "已保存为新变体",
+    "pastEntriesUpdated": "过去的条目已更新",
+    "pastEntriesFailed": "无法更新过去的条目",
+    "foodSaved": "你的食物已保存。",
+    "updateFailed": "无法更新食物",
+    "editTitle": "编辑食物",
+    "addFood": "添加食物",
+    "saved": "已保存",
+    "equivalentUnitsUpdated_other": "已保存 · 更新了 {{formattedCount}} 个等量单位",
+    "notes": "备注",
+    "notesPlaceholder": "例如：白米饭、双份鸡肉、不加豆子（支持 markdown）"
+  },
+  "exerciseHistory": {
+    "noSetData": "无组数据",
+    "loadError": "无法加载历史。",
+    "empty": "暂无已记录的训练。"
+  },
+  "foodFormPersistence": {
+    "discardTitle": "放弃未保存的等量规格？",
+    "discardMessage": "你有未保存的等量规格。放弃它们以继续？",
+    "discard": "放弃",
+    "updateTitle": "更新过去的条目？",
+    "updateMessage": "你的食物库食物已保存。是否也要用新营养更新此食物过去的日记条目？条目……",
+    "dontUpdate": "不更新",
+    "update": "更新",
+    "updatePhotosMessage": "你的食物库食物已保存。此食物过去的日记条目应使用什么？",
+    "updateNutrition": "仅更新营养",
+    "updateNutritionPhotos": "更新营养与照片",
+    "saveNutritionTitle": "保存营养",
+    "overwriteMessage": "「{{unitLabel}}」已是已保存的变体。你想用这些数值更新它，还是另存为新变体？",
+    "saveAsNew": "另存为新",
+    "updateExisting": "更新现有",
+    "missingName": "缺少名称",
+    "nameRequired": "请输入食物名称。",
+    "invalidServingSize": "无效的每份大小",
+    "servingSizeRequired": "每份大小必须大于零。",
+    "loadingDetails": "食物详情仍在加载。请稍后再试。",
+    "savedNewVariant": "已保存为新变体",
+    "pastUpdated": "过去的条目已更新",
+    "pastUpdateFailed": "无法更新过去的条目",
+    "foodSaved": "你的食物已保存。",
+    "updateFoodFailed": "无法更新食物",
+    "saveUnitFailed": "无法保存新单位",
+    "equivalentsFailed": "部分等量单位无法保存",
+    "saveVariantFailed": "无法保存新变体",
+    "saveNutritionFailed": "无法保存营养供日后使用",
+    "editFoodTitle": "编辑食物",
+    "adjustNutritionTitle": "调整营养",
+    "saveNutritionFuture": "保存营养供日后使用"
+  },
+  "foodPhotoImprove": {
+    "grams": "克",
+    "ounces": "盎司",
+    "readingPhoto": "正在读取你的照片…",
+    "readingPhotos": "正在读取你的照片…",
+    "identifyingIngredients": "正在识别食材…",
+    "estimatingPortions": "正在估算份量…",
+    "calculatingNutrition": "正在计算营养…",
+    "almostThere": "快好了…",
+    "cameraPermissionNeeded": "需要相机权限",
+    "cameraPermissionMessage": "启用相机访问以添加照片。",
+    "takePhotoFailed": "无法拍摄照片",
+    "loadPhotoFailed": "无法加载照片",
+    "invalidWeight": "无效的体重",
+    "invalidWeightMessage": "总重量必须为正数。",
+    "descriptionTooLong": "描述过长",
+    "descriptionTooLongMessage": "请保持在 {{max}} 个字符以内。",
+    "noImages": "无图片",
+    "noImagesMessage": "请至少添加一张照片以生成估算。",
+    "readPhotoFailed": "无法读取照片",
+    "readPhotoFailedMessage": "请重拍照片后再试。",
+    "cancel": "取消",
+    "title": "改进估算",
+    "removeImage": "移除图片 {{number}}",
+    "addAnotherImage": "添加另一张图片",
+    "descriptionHint": "添加 {{subject}} 可能不明显的内容。",
+    "subjectLabel_other": "照片",
+    "totalWeightOptional": "总重量（可选）",
+    "weightPlaceholder": "例如 350",
+    "descriptionOptional": "描述（可选）",
+    "descriptionExamples": "包含油、黄油、奶油、酱汁、配料、配菜或餐厅名称。",
+    "descriptionPlaceholder": "例如：三文鱼配柠檬莳萝奶油酱",
+    "generateEstimate": "生成估算",
+    "takePhoto": "拍照",
+    "chooseFromLibrary": "从图库选择",
+    "aiNotConfiguredTitle": "AI 未配置",
+    "aiNotConfiguredMessage": "在 Web 应用中配置 AI 提供方以使用照片估算。",
+    "photoTooLargeTitle": "照片过大",
+    "photoTooLargeMessage": "以较低质量重拍照片。",
+    "unexpectedImageFormatTitle": "意外的图片格式",
+    "unexpectedImageFormatMessage": "请重拍照片。",
+    "couldNotProcessPhotoTitle": "无法处理照片",
+    "couldNotProcessPhotoMessage": "提供方屏蔽了此图片。请换一张再试。",
+    "providerTimedOutTitle": "AI 提供方超时",
+    "providerTimedOutMessage": "估算耗时过长。请重试，或手动记录此食物。",
+    "providerNotAllowedTitle": "AI 提供方不允许",
+    "providerNotAllowedMessage": "此 AI 提供方指向私有网络地址。请管理员进行全局配置。",
+    "providerUnreachableTitle": "无法连接 AI 提供方",
+    "providerUnreachableMessage": "请重试，或手动记录此食物。"
+  },
+  "serverSettingsUi": {
+    "activeServerChanged": "已更改活跃服务器",
+    "setActiveFailed": "设置活跃服务器配置失败：{{error}}",
+    "configurationDeleted": "服务器配置已删除。",
+    "configurationDeletedToast": "服务器配置已删除",
+    "deleteFailed": "删除服务器配置失败：{{error}}",
+    "noServerConfiguredTitle": "未配置服务器",
+    "noServerConfiguredMessage": "请先添加服务器。",
+    "openDashboardFailed": "无法打开 Web 仪表板：{{error}}",
+    "connected": "已连接",
+    "connectionFailed": "连接失败",
+    "selectAction": "选择操作",
+    "setActive": "设为活跃",
+    "configure": "配置",
+    "activeConfiguration": "活跃配置",
+    "activeServer": "活跃服务器",
+    "optionsFor": "{{url}} 的选项",
+    "openWeb": "打开 Web",
+    "testConnection": "测试连接",
+    "otherServers": "其他服务器",
+    "noServersConfigured": "尚未配置服务器。",
+    "addConfiguration": "添加新配置"
+  },
+  "passkeySettings": {
+    "loadFailed": "加载通行密钥失败：{{error}}",
+    "registered": "通行密钥注册成功！",
+    "cancelledTitle": "已取消",
+    "cancelledMessage": "通行密钥注册已取消。",
+    "registrationFailedTitle": "注册失败",
+    "requiredTitle": "必填",
+    "nameRequired": "请为此通行密钥输入名称。",
+    "nameAlreadyUsedTitle": "名称已被使用",
+    "nameAlreadyUsedMessage": "你已有一个名为「{{name}}」的通行密钥。请选择其他名称。",
+    "noActiveSession": "没有活跃会话。请重新登录。",
+    "deleteTitle": "删除通行密钥",
+    "deleteMessage": "确定要删除「{{name}}」吗？",
+    "unnamed": "未命名通行密钥",
+    "deletedTitle": "已删除",
+    "deletedMessage": "通行密钥已移除。",
+    "deleteFailed": "删除通行密钥失败：{{error}}",
+    "sessionOnly": "通行密钥仅在使用基于会话的身份验证的服务器上受支持。",
+    "apiKeyUnsupported": "如果你通过 API 密钥连接，则无法使用通行密钥。",
+    "noneRegistered": "未注册通行密钥",
+    "noneHint": "添加此设备或生物识别凭据，以便下次快速登录。",
+    "registeredOn": "注册于 {{date}}",
+    "deleteAccessibility": "删除通行密钥",
+    "add": "添加通行密钥",
+    "securityHint": "通行密钥让你无需输入密码，即可使用 {{methods}} 安全登录。",
+    "registerTitle": "注册通行密钥",
+    "nameHint": "为此通行密钥起一个易记的名称，以便日后识别（例如 {{example}}）。",
+    "namePlaceholder": "例如 {{example}}",
+    "iosAuthMethods": "面容 ID、触控 ID 或设备 PIN 码",
+    "androidAuthMethods": "你的指纹、面容解锁或设备 PIN 码",
+    "iosNameExample": "我的 iPhone",
+    "androidNameExample": "我的安卓手机"
+  },
+  "whatsNewPage": {
+    "title": "新内容",
+    "mockup": {
+      "today": "今天",
+      "kcalLeft": "剩余千卡",
+      "in": "摄入",
+      "out": "消耗",
+      "chatQuestion": "还剩 500 卡路里，晚餐吃什么好？",
+      "chatAnswer": "烤三文鱼配一份沙拉，大约正好 480 千卡。",
+      "estimatedCalories": "约 412 千卡",
+      "lutealPhase": "黄体期",
+      "day18": "第 18 天",
+      "symptomFlowLog": "症状与经量记录",
+      "mildNormal": "轻微 • 正常",
+      "benchPress": "卧推",
+      "threeSets": "3 组",
+      "setOneReps": "第 1 组：10 次",
+      "doneWeight": "80 千克 • 已完成",
+      "fauxprofen": "Fauxprofen",
+      "dailyDose": "200 毫克 • 每日",
+      "taken": "已服用",
+      "caloriesLeftValue": "1,515",
+      "caloriesInValue": "1,540",
+      "caloriesOutValue": "255",
+      "eightAm": "上午 8:00",
+      "eyebrow": "iOS 26"
+    },
+    "features": {
+      "medications": {
+        "eyebrow": "药物",
+        "headline": "追踪你的药物",
+        "body": "添加药物、设置剂量计划，并从仪表板记录每次剂量，可选提醒。",
+        "cta": "设置药物"
+      },
+      "cycle": {
+        "eyebrow": "周期与孕期",
+        "headline": "追踪你的周期与孕期",
+        "body": "全面的周期阶段、症状、经量和孕期进展追踪，配有个性化洞察与目标调整。"
+      },
+      "workout": {
+        "eyebrow": "训练与动作",
+        "headline": "焕新的训练工作流",
+        "body": "简化的动作记录、更新的动作库管理，以及改进的多组表现追踪。"
+      },
+      "ios": {
+        "eyebrow": "iOS 26",
+        "headline": "液态玻璃外观",
+        "body": "开启液态玻璃导航，获得会吸收背后色彩的半透明标签栏和页头。随时可在设置中切换。",
+        "cta": "打开设置"
+      },
+      "chat": {
+        "eyebrow": "询问 Sparky",
+        "headline": "与你的 AI 教练聊天",
+        "body": "让 Sparky 记录餐食、规划吃什么，并通过聊天回答关于你一天的问题。",
+        "cta": "开始聊天"
+      },
+      "widget": {
+        "eyebrow": "主屏幕小组件",
+        "headline": "主屏幕上的卡路里",
+        "body": "一眼看清你一天的进度。从主屏幕的小组件图库添加 SparkyFitness。"
+      },
+      "photo": {
+        "eyebrow": "AI 照片扫描",
+        "headline": "拍张餐食照，记录宏量营养素",
+        "body": "时间紧张时，从照片估算营养。",
+        "cta": "试试看"
+      }
+    }
+  },
+  "cycleOnboarding": {
+    "checkDates": "检查日期",
+    "setupComplete": "设置完成！",
+    "profileInitialized": "你的健康档案已初始化。",
+    "setupFailed": "设置失败",
+    "setupFailedMessage": "无法完成引导。请重试。",
+    "stepTitle": "设置：第 {{step}} 步，共 4 步",
+    "goalTitle": "你的追踪目标是什么？",
+    "goalDescription": "选择最适合你当前健康重点的模式。你随时可以在设置中更改。",
+    "datesTitle": "日期与平均值",
+    "dueDateDescription": "告诉我们如何估算你的预产期。你稍后可以在设置中更改。",
+    "noConfiguration": "无需配置",
+    "recoveryDescription": "我们将根据激素恢复或绝经过渡症状定制你的洞察。让我们进入下一步。",
+    "predictionsDescription": "帮助我们为你的周期建立预测。",
+    "lastPeriodStart": "上次经期开始日期",
+    "averageCycleLength": "平均周期长度",
+    "averagePeriodLength": "平均经期长度",
+    "profileTitle": "档案与健康状况",
+    "profileDescription": "选择任何相关的健康状况或避孕方法以个性化你的追踪。",
+    "birthControlMethod": "避孕方式",
+    "selectMethod": "选择方法",
+    "conditions": "健康状况",
+    "disclaimerTitle": "免责声明与完成",
+    "medicalDisclaimer": "医疗免责声明",
+    "disclaimerBody": "SparkyFitness 健康与生殖健康追踪器旨在帮助你追踪预测、症状和身体……",
+    "consultProfessional": "如有健康问题，请始终咨询合格的医疗专业人士。",
+    "acceptInitialize": "接受并初始化档案",
+    "mode": {
+      "standard": "标准月经周期",
+      "ttc": "备孕中（TTC）",
+      "pregnant": "孕期追踪",
+      "postpartum": "产后 / 恢复",
+      "menopause": "绝经过渡"
+    },
+    "birthControl": {
+      "none": "无",
+      "pill": "药丸",
+      "iud": "节育环",
+      "implant": "皮下埋植",
+      "patch": "贴片",
+      "ring": "节育环",
+      "injection": "注射",
+      "other": "其他",
+      "iudHormonal": "激素节育环",
+      "iudCopper": "铜质节育环",
+      "condoms": "避孕套 / 屏障法",
+      "shot": "注射"
+    },
+    "condition": {
+      "pcos": "多囊卵巢综合征",
+      "endometriosis": "子宫内膜异位症",
+      "fibroids": "子宫肌瘤",
+      "thyroid": "甲状腺疾病",
+      "other": "其他"
+    }
+  },
+  "importHistory": {
+    "paused": {
+      "quota": "{{source}} 的每日历史读取上限已达。你的进度已保存。明天恢复以从上次位置继续。",
+      "deviceLocked": "导入期间你的设备锁屏了，健康数据变得不可读取。请解锁设备并恢复。",
+      "appInactive": "导入期间应用进入后台。请保持应用打开并解锁，然后恢复。",
+      "serverChanged": "导入期间活跃服务器发生了更改。切回该服务器以恢复，或重新开始以导入到当前服务器。",
+      "uploadFailed": "上传到你的服务器失败{{details}}。请检查连接并恢复以重试。",
+      "windowFailed": "读取健康数据失败{{details}}。恢复以从中断处重试。",
+      "alreadyRunningResume": "另一个同步正在运行。请稍等它完成，然后恢复。"
+    },
+    "idle": {
+      "noHistory": "在 {{source}} 中未找到你已启用指标的过去数据。",
+      "noMetrics": "未启用任何指标。请先在健康同步下开启你想要的指标。",
+      "noServer": "未配置活跃服务器。",
+      "serverChanged": "导入期间活跃服务器发生了更改，因此已停止。重新开始以导入到当前服务器。",
+      "alreadyRunning": "另一个同步正在运行。请稍等它完成，然后开始导入。",
+      "title": "导入你的健康历史",
+      "description": "将你过往的 {{source}} 数据一次性回填到 SparkyFitness，涵盖每一个已启用的指标，从最早的记录开始。",
+      "source": "来源",
+      "dataTypes": "已启用的数据类型",
+      "timing": "需要几分钟。你可以随时暂停并在中断处继续。"
+    },
+    "time": {
+      "underMinute": "不到一分钟",
+      "hoursMinutes": "{{formattedHours}} 小时 {{formattedMinutes}} 分钟",
+      "hours": "{{formattedHours}} 小时",
+      "minutes_other": "{{formattedCount}} 分钟"
+    },
+    "progress": {
+      "recordsWritten": "已写入记录",
+      "timeRemaining": "剩余时间",
+      "around": "约 {{date}}",
+      "ofDays_other": "共 {{formattedCount}} 天"
+    },
+    "actions": {
+      "start": "开始导入",
+      "pausing": "暂停中…",
+      "pause": "暂停导入",
+      "resume": "恢复",
+      "startOver": "重新开始"
+    },
+    "syncFinishing": "同步仍在收尾。稍后即可启用。",
+    "syncFinishingPlural": "同步仍在收尾。稍后即可启用。",
+    "healthConnectUnavailable": "Health Connect 不可用。请确保已安装并启用。",
+    "healthKitUnavailable": "健康数据（HealthKit）不可用。请在 iOS 健康应用中启用健康访问权限。",
+    "androidLimit": "Health Connect 限制应用每天可读取的历史数据量。如果达到该上限，导入会自动……",
+    "running": {
+      "scanning": "正在扫描你的历史…",
+      "finding": "正在查找你最早记录的数据",
+      "limitedAccess": "未授予全部过往数据的访问权限，因此导入只能回溯约 30 天。请在 Health Connect 设置中授予……",
+      "keepOpen": "导入运行期间请保持应用打开、设备解锁。",
+      "finishingPause": "正在收尾，随后暂停。"
+    },
+    "interrupted": {
+      "selectionChanged": "自导入开始以来，你的指标选择已更改。恢复会使用原始选择继续，重新开始则会……",
+      "savedDays": "已导入的天数会保留。重新开始会丢弃它们并从第 1 天重新导入。"
+    },
+    "done": {
+      "complete": "导入完成",
+      "completed": "已完成",
+      "nextSync": "新数据将由常规同步自动获取。只有当你启用额外的健康数据指标时，才需要再次运行导入。",
+      "daysImported_other": "已导入 {{formattedCount}} 天"
+    }
+  },
+  "fastingDetail": {
+    "title": "禁食",
+    "metabolicStages": "代谢阶段",
+    "now": "现在",
+    "remaining": "{{percent}}% · 还剩 {{time}}",
+    "goalReached": "已达成目标",
+    "elapsed": "已禁食 {{time}}",
+    "avgFast": "平均禁食时长",
+    "fasts": "禁食次数",
+    "total": "总计",
+    "protocol": "方案",
+    "started": "开始于",
+    "endFast": "结束禁食",
+    "protocolWithGoal": "{{protocol}} · {{hours}} 小时禁食",
+    "noActiveFast": "无进行中的禁食",
+    "startDescription": "开始禁食以追踪你的禁食窗口和代谢阶段。",
+    "startFast": "开始禁食",
+    "range": "{{start}}–{{end}} {{unit}}",
+    "rangeOpen": "{{start}} {{unit}}+",
+    "stages": {
+      "anabolic": {
+        "name": "合成代谢",
+        "description": "进食状态 · 胰岛素升高"
+      },
+      "catabolic": {
+        "name": "分解代谢",
+        "description": "糖原消耗 · 脂肪供能增加"
+      },
+      "fatBurning": {
+        "name": "燃脂",
+        "description": "脂肪燃烧开始加速"
+      },
+      "ketosis": {
+        "name": "生酮",
+        "description": "酮体产生上升"
+      },
+      "deepKetosis": {
+        "name": "深度生酮",
+        "description": "常与自噬增强相关的一个阶段"
+      }
+    }
+  },
+  "exerciseDetail": {
+    "sharedPublicly": "动作已公开共享",
+    "madePrivate": "动作已设为私有",
+    "makePublicTitle": "设为公共？",
+    "makePublicMessage": "此动作将对此服务器上的所有用户可见。",
+    "makePublic": "设为公共",
+    "deleted": "动作已删除",
+    "addFailed": "添加动作失败",
+    "summary": "摘要",
+    "history": "历史",
+    "howTo": "动作方法",
+    "editExercise": "编辑动作",
+    "addExercise": "添加动作",
+    "instructions": "动作说明",
+    "description": "描述",
+    "showMore": "显示更多",
+    "best": "最佳（{{unit}}）",
+    "last": "上次（{{unit}}）",
+    "caloriesPerHour": "卡/小时",
+    "equipment": "器械",
+    "primaryMuscles": "主要肌群",
+    "secondaryMuscles": "次要肌群",
+    "details": "动作详情",
+    "category": "类别",
+    "level": "难度",
+    "force": "发力方式",
+    "mechanic": "动作机制",
+    "source": "来源",
+    "starting": "开始中…",
+    "startWorkout": "开始训练",
+    "logExercise": "记录动作",
+    "deleting": "删除中...",
+    "deleteExercise": "删除动作",
+    "makePrivate": "设为私有",
+    "shareWithPublic": "公开共享",
+    "deleteSheetTitle": "删除动作"
+  },
+  "mealTypeSettings": {
+    "reorder": "重新排序 {{name}}",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "edit": "编辑 {{name}}",
+    "visible": "可见 {{name}}",
+    "failedUpdate": "更新失败",
+    "deleted": "餐食类型已删除",
+    "failedDelete": "删除失败",
+    "failedReorder": "重新排序餐食类型失败",
+    "capacity": "{{gap}} 处无法再放置餐食类型。",
+    "add": "添加餐食类型",
+    "createdPartial": "已创建，但部分设置保存失败。",
+    "created": "餐食类型已创建",
+    "failedCreate": "创建餐食类型失败",
+    "deleteTitle": "删除餐食类型",
+    "deleteMessage": "删除「{{name}}」？",
+    "loading": "正在加载餐食类型...",
+    "loadFailed": "加载餐食类型失败。",
+    "empty": "未找到餐食类型",
+    "defaultTime": "{{name}} 的默认时间{{time}}",
+    "notSet": "未设置"
+  },
+  "mealPlans": {
+    "title": "餐食计划",
+    "create": "创建餐食计划",
+    "createTitle": "创建餐食计划",
+    "editTitle": "编辑餐食计划",
+    "active": "启用中",
+    "inactive": "已停用",
+    "dateRange": "{{start}} – {{end}}",
+    "starting": "从 {{date}} 开始",
+    "moreAssignments_other": "+{{count}} 更多",
+    "duplicateNamed": "复制 {{name}}",
+    "deleteNamed": "删除 {{name}}",
+    "duplicateSuccess": "餐食计划已复制",
+    "duplicateInactive": "副本处于停用状态，以便你先审阅。",
+    "duplicateFailed": "复制餐食计划失败",
+    "deleteTitle": "删除餐食计划",
+    "deleteMessage": "删除 {{name}}？由此计划生成的未来日记条目将被移除。",
+    "deleteFailed": "删除餐食计划失败",
+    "deleteSuccess": "餐食计划已删除",
+    "noServer": "未配置服务器",
+    "noServerSubtitle": "配置你的服务器连接以管理餐食计划。",
+    "goToSettings": "前往设置",
+    "loading": "正在加载餐食计划...",
+    "loadFailed": "加载餐食计划失败",
+    "loadFailedSubtitle": "请检查你的连接，然后重试。",
+    "futureNotice": "启用中的计划会向未来的日记日期添加条目。编辑或删除计划会更新未来生成的条目。",
+    "emptyTitle": "暂无餐食计划",
+    "emptySubtitle": "在选定的星期几安排可复用餐食，让备餐更轻松。",
+    "assignmentUnavailable": "需要可复用餐食和餐食类型",
+    "loadingPlanningOptions": "正在加载规划选项...",
+    "planningOptionsFailed": "加载规划选项失败",
+    "planningOptionsFailedSubtitle": "请检查你的连接，然后重试。",
+    "planningSetupNeeded": "需要餐食规划设置",
+    "noReusableMeals": "请先创建可复用餐食，再创建计划。",
+    "noMealTypes": "请先添加可见的餐食类型，再创建计划。",
+    "updateSuccess": "餐食计划已更新",
+    "createSuccess": "餐食计划已创建",
+    "updateFailed": "更新餐食计划失败",
+    "createFailed": "创建餐食计划失败",
+    "foodAssignment": "食物分配",
+    "managedOnWeb": "在网页端管理",
+    "foodPreserved": "保存时会保留此食物分配。请在 Web 应用中编辑。",
+    "mealAssignment": "餐食分配",
+    "removeAssignment": "移除餐食分配",
+    "weekday": "星期几",
+    "selectWeekday": "选择星期几",
+    "mealType": "餐食类型",
+    "selectMealType": "选择餐食类型",
+    "reusableMeal": "可复用餐食",
+    "selectMeal": "选择餐食",
+    "quantity": "数量",
+    "quantityFor": "{{name}} 的数量",
+    "quantityHint": "使用餐食的每份单位。对于称重备餐，请输入放入一个容器中的量。",
+    "name": "计划名称",
+    "namePlaceholder": "餐食计划名称",
+    "nameRequired": "计划名称必填。",
+    "description": "描述",
+    "descriptionPlaceholder": "关于此计划的可选备注",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
+    "noEndDate": "无结束日期",
+    "clearEndDate": "清除结束日期",
+    "endBeforeStart": "结束日期不能早于开始日期。",
+    "activePlan": "启用计划",
+    "activePlanHint": "启用中的计划会填充匹配的未来日记日期。",
+    "assignments": "每周分配",
+    "assignmentsHint": "选择每天应出现的可复用餐食数量。",
+    "addMeal": "添加餐食",
+    "weeklyPlan": "每周计划",
+    "oneDayHint": "选择一天，然后向每种餐食类型添加食物或可复用餐食。",
+    "mealBadge": "餐食",
+    "foodBadge": "食物",
+    "replaceAssignmentFor": "替换 {{name}}",
+    "removeAssignmentFor": "移除 {{name}}",
+    "addToMealType": "向 {{mealType}} 添加食物或餐食",
+    "addFoodOrMeal": "添加食物或餐食",
+    "caloriesLabel": "卡路里",
+    "proteinLabel": "蛋白质",
+    "carbsLabel": "碳水",
+    "fatLabel": "脂肪",
+    "nutritionLine": "{{calories}} 千卡 · {{protein}} 克蛋白质 · {{carbs}} 克碳水 · {{fat}} 克脂肪",
+    "dailyNutritionAccessibility": "每日 {{nutrient}} {{value}} {{unit}}",
+    "mealTypeNutritionAccessibility": "{{mealType}} 总计 {{calories}} 千卡、{{protein}} 克蛋白质、{{carbs}} 克碳水、{{fat}} 克脂肪",
+    "mealTypeMacros": "{{protein}} 克蛋白质 · {{carbs}} 克碳水 · {{fat}} 克脂肪",
+    "caloriesValue": "{{value}} 千卡",
+    "nutritionLoading": "正在加载缺失的营养详情。总计可能不完整。",
+    "nutritionLoadFailed": "部分营养详情无法加载。总计可能不完整。",
+    "assignmentRequired": "请至少添加一个完整的餐食分配。",
+    "familyNotice": "你可以安排自己的餐食，以及餐食库中已可见的家庭或公共餐食。计划保持私有……",
+    "weekdays": {
+      "sunday": "星期日",
+      "monday": "星期一",
+      "tuesday": "星期二",
+      "wednesday": "星期三",
+      "thursday": "星期四",
+      "friday": "星期五",
+      "saturday": "星期六"
+    },
+    "weekdaysShort": {
+      "sunday": "周日",
+      "monday": "周一",
+      "tuesday": "周二",
+      "wednesday": "周三",
+      "thursday": "周四",
+      "friday": "周五",
+      "saturday": "周六"
+    }
+  },
+  "mealDetail": {
+    "sharedPublicly": "餐食已公开共享",
+    "madePrivate": "餐食已设为私有",
+    "makePublicTitle": "设为公共？",
+    "makePublicMessage": "此餐食及其所有食材食物将对此服务器上的所有用户可见。",
+    "makePublic": "设为公共",
+    "removeFavorite": "从收藏中移除",
+    "addFavorite": "添加到收藏",
+    "makePrivate": "设为私有",
+    "shareWithPublic": "公开共享",
+    "editMeal": "编辑餐食",
+    "noServer": "未配置服务器",
+    "configureServer": "请在设置中配置你的服务器连接以查看餐食详情。",
+    "loading": "正在加载餐食...",
+    "loadFailed": "加载餐食失败",
+    "perServing": "每份",
+    "total": "总计",
+    "servingsLabel_other": "份",
+    "ingredientsLabel_other": "种食材",
+    "foodsInMeal": "餐食中的食物",
+    "linkedMeal": "关联餐食",
+    "protein": "蛋白质",
+    "carbs": "碳水",
+    "fat": "脂肪",
+    "calories": "卡",
+    "viewLinkedMeal": "查看关联餐食 {{name}}",
+    "logMeal": "记录餐食",
+    "planMeal": "计划餐食",
+    "deleting": "删除中...",
+    "deleteMeal": "删除餐食",
+    "makesSummary_other": "可做 {{servings}} {{servingLabel}} · {{count}} {{ingredientLabel}}",
+    "items_other": "{{formattedCount}} 项",
+    "notes": "备注"
+  },
+  "dailyNutritionDetails": {
+    "title": "营养详情",
+    "loadFailed": "加载营养详情失败",
+    "tryAgain": "请检查你的连接，然后重试。",
+    "left": "剩余 {{value}}{{unit}}",
+    "over": "超出 {{value}}{{unit}}",
+    "met": "已达成",
+    "percentRemaining": "{{percent}}% · 剩余 {{remaining}}",
+    "nutrientBreakdown": "营养素明细",
+    "customTracked": "自定义追踪营养素"
+  },
+  "mealTypes": {
+    "breakfast": "早餐",
+    "lunch": "午餐",
+    "snacks": "零食",
+    "dinner": "晚餐",
+    "other": "其他"
+  },
+  "foodEntryAdd": {
+    "errors": {
+      "equivalentsNotSaved": "部分等量单位无法保存",
+      "invalidAmount": "无效数量",
+      "amountGreaterThanZero": "数量必须大于零。",
+      "failedToAddFood": "添加食物失败",
+      "tryAgain": "请重试。",
+      "mealsNotSupported": "此处不支持餐食",
+      "selectFoodInstead": "请选择食物，而不是另一份餐食。",
+      "savedFoodUnitFailed": "食物已保存，但新单位未保存",
+      "savedFoodUnitFailedDetails": "你仍可添加该食物，之后再尝试保存该单位。",
+      "chooseDifferentServing": "请选择不同的份量。"
+    },
+    "actions": {
+      "adjustNutrition": "调整营养",
+      "saveFood": "保存食物",
+      "useYesterday": "使用昨天",
+      "useToday": "使用今天",
+      "now": "现在",
+      "clear": "清除",
+      "addFood": "添加食物",
+      "addMeal": "添加餐食",
+      "removeFavorite": "从收藏中移除",
+      "addFavorite": "添加到收藏"
+    },
+    "labels": {
+      "perServing": "每份",
+      "time": "时间",
+      "none": "无",
+      "meal": "餐食",
+      "serving_other": "份",
+      "mealMakes_other": "此餐食可做 {{formattedCount}} 份",
+      "aboutThisFood": "关于此食物",
+      "entryNotes": "此条目的备注",
+      "entryNotesPlaceholder": "关于你这次进食的任何特殊情况"
+    },
+    "pickers": {
+      "selectServing": "选择份量",
+      "selectMeal": "选择餐食"
+    }
+  },
+  "exerciseSearch": {
+    "title": "动作",
+    "tabs": {
+      "search": "搜索",
+      "online": "在线"
+    },
+    "sections": {
+      "recent": "最近",
+      "popular": "热门"
+    },
+    "search": {
+      "placeholder": "搜索动作..."
+    },
+    "errors": {
+      "failedToAddExercise": "添加动作失败"
+    },
+    "actions": {
+      "viewDetails": "查看动作详情",
+      "loadMoreFailed": "加载更多失败。点按重试",
+      "loadMore": "加载更多",
+      "clearSearch": "清除搜索"
+    },
+    "states": {
+      "failedToSearch": "搜索动作失败",
+      "noMatches": "未找到匹配的动作",
+      "connectToView": "连接服务器以查看动作",
+      "failedToLoad": "加载动作失败",
+      "searchToStart": "搜索动作以开始",
+      "failedToSearchProvider": "搜索 {{provider}} 失败",
+      "connectToSearchOnline": "连接服务器以搜索在线动作",
+      "failedToLoadProviders": "加载提供方失败",
+      "noProviders": "未配置在线动作提供方",
+      "searchProvider": "在 {{provider}} 中搜索动作"
+    },
+    "filter": {
+      "noun": "个动作",
+      "all": "全部",
+      "mine": "我的",
+      "family": "家庭",
+      "public": "公共",
+      "show": "显示",
+      "accessibility": "筛选 {{noun}}，当前为 {{filter}}",
+      "emptyTitle": "{{filter}} 中没有 {{noun}}",
+      "emptySubtitle": "更改筛选条件以查看你的其他 {{noun}}。",
+      "showAll": "显示全部"
+    },
+    "accessibility": {
+      "provider": "动作提供方 {{provider}}",
+      "loadingMore": "正在加载更多动作"
+    }
+  },
+  "foodSearch": {
+    "menu": {
+      "newFood": "新食物",
+      "newMeal": "新餐食",
+      "show": "显示",
+      "allProviders": "所有提供方"
+    },
+    "accessibility": {
+      "moreFiltered": "更多选项，当前筛选为 {{filter}}",
+      "moreOptions": "更多选项",
+      "clearSearch": "清除搜索",
+      "scanFood": "扫描食物",
+      "searchingFoods": "正在搜索已保存的食物",
+      "searchingFoodsMeals": "正在搜索已保存的食物和餐食",
+      "providerError": "{{provider}}，无法加载，点按重试",
+      "providerNoResults": "{{provider}}，无结果",
+      "favorite": "收藏",
+      "viewPhoto": "查看照片",
+      "verifiedFood": "已验证食物",
+      "providerExpand_other": "{{provider}}，{{count}} 条结果，点按{{action}}",
+      "providerChange": "提供方 {{provider}}，点按更改"
+    },
+    "errors": {
+      "detailsUnavailable": "详情不可用",
+      "loadNutritionDetails": "无法加载完整的营养详情。"
+    },
+    "sections": {
+      "favorites": "收藏",
+      "recentlyLogged": "最近记录",
+      "top": "热门",
+      "yourFoods": "你的食物",
+      "yourMeals": "你的餐食",
+      "topMatches": "最佳匹配",
+      "onlineResults": "在线结果",
+      "byProvider": "按提供方"
+    },
+    "search": {
+      "placeholder": "搜索食物..."
+    },
+    "states": {
+      "connectToSearch": "连接服务器以搜索食物",
+      "failedToLoad": "加载食物失败",
+      "noFilteredFoods": "{{filter}} 中没有食物",
+      "searchToLog": "搜索食物或餐食以记录",
+      "noSavedFoods": "未找到已保存的食物",
+      "noSavedFoodsMeals": "未找到已保存的食物或餐食",
+      "noFilteredSaved": "{{filter}} 中没有{{message}}",
+      "couldNotLoad": "无法加载",
+      "noResults": "无结果",
+      "noOnlineResultsFrom": "{{provider}} 没有在线结果"
+    },
+    "filter": {
+      "all": "全部",
+      "mine": "我的",
+      "family": "家庭",
+      "public": "公共",
+      "showAll": "显示全部"
+    },
+    "actions": {
+      "loadMoreFailed": "加载更多失败。点按重试",
+      "loadMore": "加载更多",
+      "showAllProviderResults_other": "显示全部 {{count}} 条 {{provider}} 结果",
+      "showAllLocalResults_other": "显示全部 {{count}} 个{{itemType}}"
+    },
+    "pickers": {
+      "onlineProvider": "在线提供方"
+    },
+    "labels": {
+      "caloriesShort": "千卡",
+      "caloriesUnit": "卡",
+      "foods": "个食物",
+      "meals": "份餐食",
+      "meal": "餐食",
+      "itemCount_other": "{{count}} 个项目"
+    }
+  },
+  "editBarcode": {
+    "title": "条形码",
+    "errors": {
+      "invalid": "无效的条形码",
+      "invalidFormat": "条形码必须为 8-14 位数字。",
+      "saveFailed": "无法保存条形码",
+      "removeFailed": "无法移除条形码"
+    },
+    "confirm": {
+      "inUseTitle": "条形码已被使用",
+      "inUseMessage": "此条形码已附加到「{{otherName}}」。仍要附加到「{{foodName}}」吗？",
+      "removeTitle": "移除条形码",
+      "removeMessage": "从「{{foodName}}」移除条形码？"
+    },
+    "actions": {
+      "attach": "附加",
+      "remove": "移除",
+      "scanWithCamera": "用相机扫描",
+      "removeBarcode": "移除条形码"
+    },
+    "success": {
+      "saved": "条形码已保存",
+      "removed": "条形码已移除"
+    },
+    "accessibility": {
+      "save": "保存条形码"
+    },
+    "labels": {
+      "forFood": "用于 {{foodName}}"
+    },
+    "help": {
+      "standardFormat": "标准条形码为 8 到 14 位数字。"
+    }
+  },
+  "workoutDetail": {
+    "summary": {
+      "exercise_other": "动作",
+      "sets": "组数",
+      "volume": "训练量",
+      "calories": "卡路里"
+    },
+    "errors": {
+      "needsExercise": "训练需要一个动作",
+      "addExerciseOrDelete": "请至少添加一个含组的动作，或删除此训练。",
+      "saveFailed": "保存训练失败"
+    },
+    "labels": {
+      "details": "详情",
+      "name": "名称",
+      "notes": "备注"
+    },
+    "placeholders": {
+      "workoutName": "训练名称",
+      "notes": "添加备注..."
+    },
+    "accessibility": {
+      "save": "保存",
+      "reorder": "重新排序动作",
+      "saveAsPreset": "保存为预设",
+      "editWorkout": "编辑训练"
+    },
+    "title": {
+      "edit": "编辑训练"
+    },
+    "actions": {
+      "startHere": "在此开始训练",
+      "deleteWorkout": "删除训练"
+    }
+  },
+  "activityDetail": {
+    "errors": {
+      "saveFailed": "保存活动失败"
+    },
+    "stats": {
+      "duration": "时长",
+      "calories": "卡路里",
+      "distance": "距离",
+      "avgHeartRate": "平均心率",
+      "steps": "步数",
+      "pace": "配速"
+    },
+    "labels": {
+      "sets": "组数",
+      "set": "组",
+      "secondsShort": "秒",
+      "weight": "重量",
+      "reps": "次数",
+      "notes": "备注"
+    },
+    "placeholders": {
+      "activityName": "活动名称",
+      "notes": "添加备注..."
+    },
+    "accessibility": {
+      "save": "保存",
+      "edit": "编辑活动"
+    }
+  },
+  "foodSettings": {
+    "title": "食物设置",
+    "errors": {
+      "error": "错误",
+      "updateFailed": "更新设置失败。"
+    },
+    "mealTypes": {
+      "title": "餐食类型",
+      "subtitle": "添加、编辑、重新排序或删除自定义餐食类别"
+    },
+    "netCarbs": {
+      "title": "显示净碳水",
+      "description": "启用后，碳水摘要会显示净碳水（总碳水 − 膳食纤维），并在营养明细中增加一行总碳水。"
+    },
+    "foodSource": {
+      "title": "默认食物提供方",
+      "pickerTitle": "搜索提供方",
+      "firstAvailable": "首个可用",
+      "description": "用于按名称搜索食物时。"
+    },
+    "openFacts": {
+      "title": "调整 Open Food Facts 数值",
+      "description": "Open Food Facts 使用每 100 克的数值。此选项将它们转换为产品的每份大小。"
+    },
+    "barcode": {
+      "title": "条形码扫描",
+      "provider": "提供方",
+      "pickerTitle": "条形码提供方",
+      "default": "默认",
+      "retryTitle": "用 Open Food Facts 重试",
+      "retryDescription": "若未找到结果，自动尝试 Open Food Facts。"
+    }
+  },
+  "workoutComplete": {
+    "title": "训练完成",
+    "stats": {
+      "duration": "时长",
+      "volume": "训练量",
+      "sets": "组数",
+      "calories": "卡路里",
+      "distance": "距离",
+      "averageRpe": "平均 RPE"
+    },
+    "labels": {
+      "skipped": "已跳过",
+      "all": "全部",
+      "of": "/",
+      "top": "最佳",
+      "logged": "已记录",
+      "partialSets": "已完成 {{completed}}/{{total}} 组",
+      "allSetsOne": "1 组",
+      "allSets_other": "{{count}} 组",
+      "sets_other": "{{count}} 组",
+      "personalRecordCount_other": "{{formattedCount}} 项个人纪录",
+      "todayAt": " · 今日 · "
+    },
+    "accessibility": {
+      "calculating": "计算中"
+    },
+    "actions": {
+      "saveAsPreset": "保存为预设",
+      "viewWorkout": "查看训练",
+      "done": "完成",
+      "keepPreset": "保留预设",
+      "update": "更新"
+    },
+    "success": {
+      "presetUpdated": "预设已更新"
+    },
+    "confirm": {
+      "updatePresetTitle": "更新预设？",
+      "updatePresetMessage": "今日的训练与「{{preset}}」不同。更新预设以匹配？"
+    },
+    "rpe": {
+      "easy": "轻松",
+      "moderate": "中等",
+      "hard": "困难",
+      "max": "最大努力"
+    },
+    "sections": {
+      "exercises": "动作",
+      "volume": "训练量"
+    }
+  },
+  "createFood": {
+    "title": "新食物",
+    "meal": "餐食",
+    "selectMeal": "选择餐食",
+    "perServing": "每份",
+    "saveToDatabase": "保存到数据库",
+    "actions": {
+      "addFood": "添加食物"
+    },
+    "success": {
+      "foodSaved": "食物已保存"
+    },
+    "errors": {
+      "missingName": "缺少名称",
+      "nameRequired": "请输入食物名称。",
+      "invalidServingSize": "无效的每份大小",
+      "servingSizeRequired": "每份大小必须大于零。",
+      "invalidBarcode": "无效的条形码",
+      "barcodeRequired": "条形码必须为 8-14 位数字。",
+      "equivalentsSaveFailed": "部分等量单位无法保存",
+      "foodSaveFailed": "保存食物失败",
+      "invalidAmount": "无效数量",
+      "amountRequired": "数量必须大于零。",
+      "noMealType": "无餐食类型",
+      "noMealTypesAvailable": "没有可用的餐食类型。请检查你的账户设置。"
+    }
+  },
+  "foodDetail": {
+    "sharedPublicly": "食物已公开共享",
+    "madePrivate": "食物已设为私有",
+    "shareFailed": "更新共享状态失败",
+    "makePublicTitle": "设为公共？",
+    "makePublicMessage": "此食物将对此服务器上的所有用户可见。",
+    "makePublic": "设为公共",
+    "makePrivate": "设为私有",
+    "sharePublic": "公开共享",
+    "editFood": "编辑食物",
+    "noServer": "未配置服务器",
+    "configureServer": "请在设置中配置你的服务器连接以查看食物详情。",
+    "serving": "每份",
+    "selectServing": "选择份量",
+    "servingOptions": "份量选项",
+    "loadingServingOptions": "正在加载份量选项...",
+    "servingOptionsError": "部分份量选项目前无法加载。",
+    "barcode": "条形码",
+    "logFood": "记录食物",
+    "deleteFood": "删除食物",
+    "notes": "备注",
+    "deleteSheetTitle": "删除食物"
+  },
+  "foodEntryView": {
+    "saveChanges": "保存食物条目更改",
+    "editEntry": "编辑食物条目",
+    "selectServing": "选择份量",
+    "tapToEditNutrition": "点按编辑营养",
+    "meal": "餐食",
+    "selectMeal": "选择餐食",
+    "time": "时间",
+    "unknownFood": "未知食物",
+    "deleteEntry": "删除条目",
+    "servingOptionsHint": "打开份量选项",
+    "mealSelectorHint": "打开餐食选择",
+    "dateSelectorHint": "打开日期选择",
+    "timeSelectorHint": "打开时间选择",
+    "clearTime": "清除时间",
+    "nutritionEditHint": "打开营养编辑",
+    "servingOptionsLabel": "份量选项：{{serving}}",
+    "timeSelectorLabel": "选择时间：{{time}}",
+    "clearTimeLabel": "清除条目时间",
+    "errors": {
+      "permission": "你没有权限编辑此条目。",
+      "saveFailed": "保存更改失败",
+      "deleteFailed": "删除失败"
+    },
+    "deleteConfirm": "确定要删除此食物条目吗？",
+    "entryNotes": "此条目的备注"
+  },
+  "presetSearch": {
+    "title": "开始训练",
+    "noun": "个预设",
+    "viewDetails": "查看预设详情",
+    "searchFailed": "搜索预设失败",
+    "noMatches": "未找到匹配的预设",
+    "loadFailed": "加载预设失败",
+    "noPresetsYet": "暂无预设",
+    "noPresetsYetMessage": "开始一个空训练，或将训练保存为预设以在此处查看",
+    "searchPlaceholder": "搜索预设...",
+    "emptyWorkout": "空训练",
+    "pickFirstExercise": "选择你的第一个动作",
+    "noPresetsIn": "{{filter}} 中没有{{noun}}",
+    "changeFilter": "更改筛选条件以查看你的其他预设。"
+  },
+  "ownership": {
+    "all": "全部",
+    "mine": "我的",
+    "family": "家庭",
+    "public": "公共",
+    "show": "显示",
+    "filter": "筛选 {{noun}}，当前为 {{filter}}",
+    "showAll": "显示全部",
+    "emptyTitle": "{{filter}} 中没有{{noun}}",
+    "emptySubtitle": "更改筛选条件以查看你的其他{{noun}}。"
+  },
+  "workoutPresetCount_other": "{{formattedCount}} 个动作",
+  "workoutPresetForm": {
+    "nameRequired": "名称 *",
+    "namePlaceholder": "例如：推举日",
+    "description": "描述",
+    "descriptionPlaceholder": "关于此例程的可选备注",
+    "reorderExercises": "重新排序动作",
+    "newTitle": "新建预设",
+    "editTitle": "编辑预设",
+    "created": "训练预设已创建",
+    "updated": "训练预设已更新",
+    "errors": {
+      "missingName": "缺少名称",
+      "nameRequired": "请为此预设输入名称。",
+      "addExercise": "添加动作",
+      "addExerciseSet": "保存前请至少添加一个含组的动作。"
+    }
+  },
+  "logScreen": {
+    "title": "日志",
+    "all": "全部",
+    "clearLogs": "清除日志",
+    "filterSaveFailed": "保存日志筛选失败。",
+    "clearTitle": "清除日志",
+    "clearMessage": "确定要清除所有日志吗？",
+    "copied": "已复制",
+    "copiedMessage": "日志条目已复制到剪贴板",
+    "noLogs": "暂无日志。",
+    "noMatchingLogs": "没有日志匹配当前筛选。",
+    "showingLogs_other": "显示 {{count}} 条日志",
+    "status": {
+      "error": "错误",
+      "warning": "警告",
+      "info": "信息",
+      "debug": "调试"
+    },
+    "clipboard": {
+      "status": "状态",
+      "message": "消息",
+      "details": "详情",
+      "timestamp": "时间戳"
+    }
+  },
+  "testQuickLog": {
+    "title": "记录测试",
+    "ovulation": "排卵（OPK）",
+    "pregnancy": "验孕（HPT）",
+    "recent": "最近记录的测试",
+    "testLogged": "测试已记录",
+    "logFailed": "无法记录测试",
+    "removeFailed": "无法移除测试",
+    "results": {
+      "negative": "阴性",
+      "low": "低",
+      "high": "高",
+      "peak": "峰值",
+      "faint": "弱阳性",
+      "positive": "阳性"
+    },
+    "ovulationShort": "排卵",
+    "pregnancyShort": "验孕",
+    "entryTitle": "{{type}} · {{result}}"
+  },
+  "bumpPhotos": {
+    "title": "孕肚照片",
+    "add": "添加照片",
+    "empty": "拍摄你的第一张孕肚照，开始每周记录。",
+    "week": "第 {{week}} 周",
+    "remove": "移除",
+    "taken": "拍摄于 {{date}}",
+    "addTitle": "添加孕肚照片",
+    "takePhoto": "拍照",
+    "chooseLibrary": "从图库选择",
+    "cameraPermission": "需要相机权限",
+    "noPhoto": "选择器未返回照片。",
+    "photoAdded": "照片已添加",
+    "uploadFailed": "无法上传照片",
+    "removeFailed": "无法移除照片"
+  },
+  "chat": {
+    "title": "Sparky",
+    "error": "聊天错误",
+    "errorRetry": "出问题了。点按重试以再次尝试。",
+    "retry": "重试",
+    "placeholder": "给 Sparky 发消息…",
+    "emptyPrompt": "询问 Sparky 关于你的营养、训练或目标的任何问题。",
+    "clearTitle": "清除聊天",
+    "clearMessage": "这将永久删除你的 Sparky 聊天记录。此操作无法撤销。",
+    "clearFailed": "无法清除聊天",
+    "clearAccessibility": "清除聊天",
+    "noServer": "没有活跃的服务器配置。请先在设置中配置。",
+    "noProvider": "没有活跃的 AI 提供方。请先在 Web 应用中配置。",
+    "copied": "已复制",
+    "copy": "复制",
+    "suggestions": {
+      "breakfast": "记录早餐吃了两个鸡蛋和一根香蕉",
+      "run": "记录今天跑了 30 分钟",
+      "calories": "我今天还剩多少卡路里？",
+      "snack": "推荐一个高蛋白零食"
+    },
+    "tools": {
+      "food": "食物",
+      "exercise": "训练",
+      "checkin": "打卡",
+      "goals": "目标",
+      "lookedUp": "已查询 {{name}}"
+    },
+    "typing": "Sparky 正在输入"
+  },
+  "foodImagePicker": {
+    "photos": "照片",
+    "errors": {
+      "addFailed": "无法添加照片",
+      "cameraPermission": "需要相机权限",
+      "cameraPermissionBody": "启用相机访问以添加照片。"
+    },
+    "actions": {
+      "addPhoto": "添加照片",
+      "takePhoto": "拍照",
+      "chooseFromLibrary": "从图库选择",
+      "setAsMain": "设为主图",
+      "remove": "移除",
+      "photo": "照片"
+    },
+    "labels": {
+      "main": "主图"
+    },
+    "accessibility": {
+      "mainPhotoEdit": "主图，编辑",
+      "photoEdit": "照片 {{number}}，编辑",
+      "addPhoto": "添加照片"
+    }
+  },
+  "editLoggedMeal": {
+    "fields": {
+      "mealName": "餐食名称",
+      "servings": "份数",
+      "meal": "餐食",
+      "selectMeal": "选择餐食",
+      "time": "时间",
+      "foodsInMeal": "此餐食中的食物",
+      "notes": "此条目的备注",
+      "aboutThisMeal": "关于此餐食"
+    },
+    "states": {
+      "noFoods": "此餐食中还没有食物。"
+    },
+    "actions": {
+      "addFood": "添加食物",
+      "deleteMeal": "删除餐食"
+    },
+    "accessibility": {
+      "saveMeal": "保存餐食",
+      "mealName": "餐食名称",
+      "date": "选择日期：{{date}}",
+      "meal": "选择餐食：{{meal}}",
+      "time": "选择时间：{{time}}",
+      "clearTime": "清除条目时间"
+    },
+    "errors": {
+      "saveFailed": "保存餐食失败",
+      "permission": "你没有权限编辑此餐食。",
+      "deleteFailed": "删除餐食失败"
+    },
+    "deleteConfirm": "删除此餐食？"
+  },
+  "exerciseMutations": {
+    "errors": {
+      "deleteFailed": "删除失败",
+      "saveWorkout": "保存训练失败",
+      "updateWorkout": "更新训练失败",
+      "saveActivity": "保存活动失败",
+      "updateActivity": "更新活动失败",
+      "createExercise": "无法创建动作",
+      "updateExercise": "更新动作失败",
+      "deleteExercise": "删除动作失败",
+      "editPermission": "你没有权限编辑此动作。",
+      "deletePermission": "你没有权限删除此动作。"
+    },
+    "confirm": {
+      "deleteWorkoutTitle": "删除训练？",
+      "deleteWorkoutMessage": "此训练及其所有动作将被永久移除。",
+      "deleteActivityTitle": "删除活动？",
+      "deleteActivityMessage": "此活动将被永久移除。",
+      "deleteExerciseTitle": "删除动作？",
+      "deleteExerciseMessage": "此动作将从你的动作库中移除。过去的记录训练会保留。",
+      "deleteWithHistoryTitle": "也要删除训练吗？",
+      "deleteWithHistoryMessage": "这也会永久删除你为该动作记录的训练。此操作无法撤销。"
+    },
+    "hidden": {
+      "title": "动作已隐藏",
+      "usedByOthers": "该动作被其他人使用，因此改为隐藏而非删除。他们的历史记录不受影响。"
+    },
+    "options": {
+      "hide": "从搜索中隐藏",
+      "hideDescription": "保留一切原状。该动作只是不再出现在搜索结果中。",
+      "delete": "删除",
+      "deleteDescription": "会从你的动作库、预设和计划中移除。已记录的训练会保留。",
+      "deleteWithHistory": "连同历史记录一起删除",
+      "deleteWithHistoryDescription": "也会永久删除你为该动作记录的训练。"
+    }
+  },
+  "foodPhotoEstimate": {
+    "title": "审阅估算",
+    "confidence": {
+      "good": "良好",
+      "fair": "一般",
+      "rough": "粗略",
+      "likely": "很可能",
+      "possible": "可能",
+      "uncertain": "不确定"
+    },
+    "labels": {
+      "overallEstimate": "{{confidence}} 估算",
+      "totalEstimatedWeight": "总估算重量：{{weight}}"
+    },
+    "actions": {
+      "hideIngredients": "隐藏检测到的食材 ▴",
+      "showIngredients": "显示检测到的食材 ▾"
+    },
+    "errors": {
+      "nameRequired": "需要名称",
+      "nameRequiredMessage": "为此食物命名。",
+      "invalidNutrition": "无效的营养",
+      "invalidRequiredNutrition": "卡路里、蛋白质、碳水和脂肪必须为非负数。",
+      "invalidOptionalNutrition": "所有营养值必须为非负数。",
+      "invalidServingSize": "无效的每份大小",
+      "invalidServingSizeMessage": "每份大小必须为正数。",
+      "noIngredients": "请至少保留一种食材，或切换到单份食物。",
+      "invalidServings": "无效的份数",
+      "positiveServings": "菜品总量、每份大小和食用量都必须大于零。"
+    },
+    "ingredients": {
+      "editRow": "编辑 {{name}}",
+      "remove": "移除 {{name}}",
+      "name": "名称",
+      "grams": "重量（克）",
+      "calories": "卡路里",
+      "protein": "蛋白质（克）",
+      "carbs": "碳水（克）",
+      "fat": "脂肪（克）",
+      "fiber": "膳食纤维（克）",
+      "sugar": "糖（克）",
+      "recalcFromGrams": "营养已手动编辑，因此不再随重量变化。点按以从重量重新计算。",
+      "heading": "检测到的食材",
+      "empty": "所有食材均已被移除。请添加一个，或切换到单份食物。",
+      "count_other": "{{count}} 种食材",
+      "totals": "总计",
+      "rowSummary": "{{grams}} 克 · {{calories}} 千卡",
+      "macroSummary": "{{calories}} 千卡 · {{protein}} 蛋白质 · {{carbs}} 碳水 · {{fat}} 脂肪",
+      "addFood": "添加食物",
+      "addedFood": "食物",
+      "pickedRowSummary": "{{quantity}} {{unit}} · {{calories}} 千卡",
+      "pickedFoodNote": "从你的食物中添加。移除并重新添加以更改数量。"
+    },
+    "match": {
+      "useYourFood": "来自你的食物：{{name}} · 点按使用",
+      "usingYourFood": "正在使用你的食物：{{name}} · 点按改用 AI 估算",
+      "matchedCount_other": "{{count}} 种食材与你的食物匹配"
+    },
+    "mode": {
+      "ingredients": "分项食材",
+      "combined": "单份食物",
+      "explainerIngredients": "记录为一餐，可展开查看每种食材。",
+      "explainerCombined": "将整盘食物记录为单个食物。",
+      "label": "保存为",
+      "ingredientsAndMeal": "分项食材 + 可复用餐食",
+      "ingredientsOnly": "仅分项食材",
+      "oneFood": "单份食物",
+      "mealName": "餐食名称",
+      "hintIngredientsAndMeal": "每种食材成为独立的食物，餐食会被保存，这样无需照片也能再次记录。",
+      "hintIngredientsOnly": "每种食材成为独立的食物。不保存可复用餐食。",
+      "hintOneFood": "将整盘食物保存为单个食物，无明细。"
+    },
+    "servings": {
+      "unit": "单位",
+      "total": "总份数",
+      "totalAmount": "总用量（{{unit}}）",
+      "servingSize": "每份为（{{unit}}）",
+      "eatenServings": "食用份数",
+      "eatenAmount": "你吃了（{{unit}}）",
+      "hint": "上面的食材是整道菜——请说明如何分配，只有你吃掉的才会进入日记。",
+      "derivedYield_other": "大约可做 {{count}} 份",
+      "perServing": "每份",
+      "logging": "记录"
+    }
+  },
+  "mealTypeForm": {
+    "createTitle": "添加餐食类型",
+    "editTitle": "编辑餐食类型",
+    "name": "名称",
+    "namePlaceholder": "例如：午餐 2.0",
+    "quickLog": "快速记录",
+    "defaultTime": "默认时间",
+    "notSet": "未设置",
+    "create": "创建",
+    "delete": "删除餐食类型",
+    "accessibility": {
+      "name": "餐食类型名称",
+      "quickLog": "快速记录 {{name}}",
+      "defaultTime": "{{name}} 的默认时间{{time}}",
+      "cancelCreate": "取消创建餐食类型",
+      "create": "创建餐食类型",
+      "save": "保存餐食类型",
+      "delete": "删除餐食类型"
+    }
+  },
+  "activityAdd": {
+    "fields": {
+      "activity": "活动",
+      "duration": "时长（分钟）",
+      "distance": "距离（{{unit}}）",
+      "calories": "卡路里",
+      "avgHeartRate": "平均心率（bpm）",
+      "notes": "备注",
+      "notesPlaceholder": "可选备注..."
+    },
+    "actions": {
+      "useYesterday": "使用昨天",
+      "useToday": "使用今天",
+      "selectActivity": "选择活动"
+    },
+    "labels": {
+      "custom": "自定义",
+      "autoCalculated": "自动计算"
+    },
+    "accessibility": {
+      "activityName": "活动名称",
+      "useYesterday": "使用昨天",
+      "useToday": "使用今天",
+      "editActivityName": "编辑活动名称",
+      "selectExercise": "选择动作",
+      "duration": "以分钟为单位的时长",
+      "distance": "以{{unit}}为单位的距离",
+      "calories": "卡路里",
+      "avgHeartRate": "以每分钟心跳为单位的平均心率",
+      "notes": "活动备注"
+    },
+    "errors": {
+      "saveFailed": "保存活动失败"
+    }
+  },
+  "mealTypeDetail": {
+    "states": {
+      "noServer": "未配置服务器",
+      "noServerHint": "请在设置中配置你的服务器连接以查看餐食营养。",
+      "loading": "正在加载餐食…",
+      "loadFailed": "加载餐食失败",
+      "noFoods": "无 {{meal}} 食物",
+      "noFoodsHint": "{{date}} 此餐食未记录食物。"
+    },
+    "labels": {
+      "foods": "食物"
+    },
+    "accessibility": {
+      "addFood": "添加食物",
+      "copyMeal": "将餐食复制到另一天"
+    },
+    "targetCalories": "目标：{{calories}} 千卡"
+  },
+  "nutrientTrends": {
+    "title": "{{nutrient}} 趋势",
+    "states": {
+      "loadFailed": "加载趋势数据失败"
+    },
+    "labels": {
+      "summary": "统计摘要",
+      "dailyAverage": "每日平均",
+      "highestDay": "摄入最高日",
+      "targetGoal": "每日目标",
+      "averageVsTarget": "平均值 vs 目标",
+      "percentOfGoal": "目标的 {{percent}}%"
+    }
+  },
+  "workoutPresetDetail": {
+    "toast": {
+      "shared": "训练预设已公开共享",
+      "private": "训练预设已设为私有",
+      "deleted": "训练预设已删除",
+      "duplicated": "训练预设已复制"
+    },
+    "share": {
+      "title": "设为公共？",
+      "message": "此训练预设将对此服务器上的所有用户可见。",
+      "confirm": "设为公共"
+    },
+    "draft": {
+      "title": "草稿进行中",
+      "message": "你有一个未保存的{{type}}草稿。你想怎么做？",
+      "workout": "训练",
+      "activity": "活动",
+      "resume": "继续草稿",
+      "discard": "放弃并继续"
+    },
+    "accessibility": {
+      "makePrivate": "设为私有",
+      "sharePublic": "公开共享",
+      "edit": "编辑训练预设",
+      "duplicate": "复制训练预设"
+    },
+    "duplicateName": "{{name}}（副本）",
+    "exerciseCount_other": "{{count}} 个动作",
+    "actions": {
+      "starting": "开始中…",
+      "start": "开始训练",
+      "logPast": "记录过去的训练",
+      "delete": "删除预设",
+      "deleting": "删除中…",
+      "duplicating": "复制中…",
+      "duplicate": "复制预设"
+    }
+  },
+  "workoutPresetMutations": {
+    "errors": {
+      "create": "无法创建训练预设",
+      "update": "更新预设失败",
+      "delete": "删除预设失败",
+      "editPermission": "你没有权限编辑此预设。",
+      "deletePermission": "你没有权限删除此预设。"
+    },
+    "confirm": {
+      "title": "删除训练预设？",
+      "message": "此预设将从你的库中永久移除。"
+    }
+  },
+  "babyGrowth": {
+    "weeklyMilestone": "每周里程碑",
+    "weekActive": "第 {{week}} 周活跃追踪。",
+    "title": "本周宝宝",
+    "sizeOf": "相当于 {{comparison}} 的大小",
+    "length": "身长",
+    "weight": "体重",
+    "forYou": "给你的建议",
+    "noData": "逐周的宝宝发育大约从第 4 周开始。敬请期待！"
+  },
+  "addSheetActions": {
+    "noServerTitle": "未连接服务器",
+    "configureForExercise": "请在设置中配置你的服务器连接以添加动作。",
+    "configureForWorkout": "请在设置中配置你的服务器连接以开始训练。",
+    "draft": {
+      "title": "草稿进行中",
+      "message": "你有一个未保存的{{type}}草稿。你想怎么做？",
+      "workout": "训练",
+      "activity": "活动",
+      "resume": "继续草稿",
+      "discard": "放弃并继续"
+    },
+    "healthUnavailable": {
+      "title": "健康数据不可用",
+      "message": "无法初始化健康数据访问。请在设置中检查你的权限。"
+    }
+  },
+  "announcementModal": {
+    "title": "公告",
+    "close": "关闭公告",
+    "dismiss": "知道了，不再显示"
+  },
+  "pregnancySafety": {
+    "title": "食物与药物安全",
+    "food": "食物",
+    "medications": "药物",
+    "safe": "安全",
+    "caution": "谨慎",
+    "avoid": "避免",
+    "searchHint": "搜索以查看食物或药物在孕期通常如何分类。",
+    "noMatch": "未找到匹配项。此列表并非详尽无遗，如有疑问请咨询你的医生。",
+    "disclaimer": "仅为一般性指导，不构成医疗建议。请务必与你的医生确认。",
+    "foodExample": "寿司",
+    "medicationExample": "布洛芬"
+  },
+  "foodPhotoLogEntry": {
+    "estimateSaved": "估算已保存",
+    "selectMealType": "选择餐食类型",
+    "invalidServings": "无效的份数",
+    "positiveServings": "份数必须为正数。",
+    "back": "返回",
+    "title": "记录条目",
+    "meal": "餐食",
+    "selectMeal": "选择餐食",
+    "date": "日期",
+    "servings": "份数",
+    "groupedSummary_other": "{{count}} 种食材将记录为一餐。",
+    "failed": "记录估算失败"
+  },
+  "workoutAdd": {
+    "addExercise": "添加动作",
+    "addExerciseMessage": "保存前请至少添加一个含组的动作。",
+    "cancel": "取消",
+    "save": "保存",
+    "saveChangesTitle": "保存更改？",
+    "saveWorkoutTitle": "保存训练？",
+    "saveMessage": "以 {{count}} 个动作保存「{{name}}」？",
+    "saveFailed": "保存训练失败",
+    "tryAgain": "请重试。",
+    "reorderExercises": "重新排序动作",
+    "workoutPlaceholder": "训练",
+    "useYesterday": "使用昨天",
+    "useToday": "使用今天"
+  },
+  "mealMutations": {
+    "createFailed": "创建餐食失败",
+    "updateFailed": "更新餐食失败",
+    "deleteFailed": "删除餐食失败",
+    "deleteTitle": "删除餐食",
+    "deleteWithUsage": "从你的库中删除此餐食？已记录的日记条目保持不变，但相关的餐食计划可能受影响。",
+    "deleteWithoutUsage": "从你的库中删除此餐食？已记录的日记条目保持不变。",
+    "deleteVerificationFailedTitle": "无法验证删除",
+    "deleteVerificationFailedMessage": "我们无法确认此餐食是否在其他地方被使用。删除前请重试。"
+  },
+  "liveWorkout": {
+    "inProgressTitle": "训练进行中",
+    "inProgressMessage": "你已有一个进行中的训练。开始另一个会清除当前这个。已保存的组仍保留在你的日记中。",
+    "goToWorkout": "前往训练",
+    "clearAndStart": "清除并开始",
+    "nothingToStart": "没有可开始的内容",
+    "noExercises": "此预设没有动作。",
+    "noServerTitle": "未连接服务器",
+    "noServerMessage": "请在设置中配置你的服务器连接以开始训练。"
+  },
+  "foodUnit": {
+    "updateFailed": "无法更新该单位",
+    "savedCustomUnits": "已保存自定义单位",
+    "aiEstimate": "AI 估算",
+    "aiEstimateWithConfidence": "AI 估算（{{confidence}} 置信度）",
+    "groups": {
+      "weight": "重量",
+      "volume": "体积",
+      "quantity": "数量"
+    },
+    "units": {
+      "g": "克",
+      "kg": "千克",
+      "mg": "毫克",
+      "oz": "盎司",
+      "lb": "磅",
+      "lbs": "磅",
+      "ml": "毫升",
+      "l": "升",
+      "liter": "升",
+      "liters": "升",
+      "cup": "杯",
+      "cups": "杯",
+      "tbsp": "汤匙",
+      "tsp": "茶匙",
+      "piece": "件",
+      "slice": "片",
+      "serving": "份",
+      "portion": "份",
+      "can": "罐",
+      "bottle": "瓶",
+      "packet": "包",
+      "bag": "袋",
+      "bowl": "碗",
+      "plate": "盘",
+      "handful": "把",
+      "scoop": "勺",
+      "bar": "条",
+      "stick": "根",
+      "whole": "整份",
+      "flOz": "液量盎司（fl oz）"
+    },
+    "confidence": {
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    },
+    "unitPlurals": {
+      "cup_other": "杯",
+      "cups_other": "杯",
+      "tbsp_other": "汤匙",
+      "tsp_other": "茶匙",
+      "piece_other": "件",
+      "slice_other": "片",
+      "serving_other": "份",
+      "portion_other": "份",
+      "can_other": "罐",
+      "bottle_other": "瓶",
+      "packet_other": "包",
+      "bag_other": "袋",
+      "bowl_other": "碗",
+      "plate_other": "盘",
+      "handful_other": "把",
+      "scoop_other": "勺",
+      "bar_other": "条",
+      "stick_other": "根",
+      "whole_other": "整份"
+    }
+  },
+  "charts": {
+    "weight": {
+      "title": "体重",
+      "loadFailed": "加载体重数据失败",
+      "empty": "此期间没有体重数据"
+    },
+    "steps": {
+      "title": "步数",
+      "loadFailed": "加载步数数据失败",
+      "empty": "此期间没有步数数据",
+      "tooltip_other": "{{formattedCount}} 步"
+    },
+    "sleep": {
+      "title": "睡眠",
+      "loadFailed": "加载睡眠数据失败",
+      "empty": "此期间没有睡眠数据",
+      "avgTimeInBed": "平均卧床时间",
+      "avgTimeAsleep": "平均入睡时间",
+      "rangeLabel": "{{startDate}} – {{endDate}}"
+    },
+    "loading": "正在加载图表...",
+    "weightLoadFailed": "加载体重数据失败",
+    "stepsLoadFailed": "加载步数数据失败",
+    "noStepData": "此期间没有步数数据",
+    "trendLoadFailed": "加载趋势数据失败",
+    "noLoggedIntake": "此期间没有记录的摄入",
+    "consumed": "已消耗",
+    "tooltip": "已消耗 {{value}}{{unit}} · {{date}}",
+    "nutrients": {
+      "loadFailed": "加载趋势数据失败",
+      "empty": "此期间没有记录的摄入"
+    },
+    "bbt": {
+      "tooltip": "按下线条查看详情",
+      "empty": "记录每日体温记录以查看你的 BBT 图表。"
+    },
+    "allTrendsHidden": "所有图表均已隐藏。请在仪表板设置中选择要显示哪些。",
+    "hydration": {
+      "title": "水分",
+      "loadFailed": "无法加载水分数据",
+      "empty": "此期间没有水分数据",
+      "tooltip": "{{formattedVolume}} {{unit}} · {{date}}"
+    }
+  },
+  "exerciseLibrary": {
+    "title": "动作",
+    "search": "搜索动作...",
+    "noServer": "未配置服务器",
+    "configure": "请在设置中配置你的服务器连接以查看你的动作库。",
+    "go": "前往设置",
+    "loading": "正在加载动作...",
+    "failed": "加载动作失败",
+    "retry": "重试",
+    "check": "请检查你的连接，然后重试。",
+    "noMatch": "未找到匹配的动作",
+    "noItems": "未找到动作",
+    "trySearch": "尝试不同的搜索词以找到已保存的动作。",
+    "empty": "你保存或记录的动作会显示在这里。",
+    "moreFailed": "加载更多动作失败。",
+    "view": "查看动作",
+    "noun": "个动作"
+  },
+  "foodLibrary": {
+    "title": "食物",
+    "search": "搜索食物...",
+    "noServer": "未配置服务器",
+    "configure": "请在设置中配置你的服务器连接以查看你的食物库。",
+    "go": "前往设置",
+    "loading": "正在加载食物...",
+    "failed": "加载食物失败",
+    "retry": "重试",
+    "check": "请检查你的连接，然后重试。",
+    "noMatch": "未找到匹配的食物",
+    "noItems": "未找到食物",
+    "trySearch": "尝试不同的搜索词以找到已保存的食物。",
+    "empty": "你保存或记录的食物会显示在这里。",
+    "moreFailed": "加载更多食物失败。",
+    "noun": "个食物"
+  },
+  "mealLibrary": {
+    "title": "餐食",
+    "search": "搜索餐食...",
+    "noServer": "未配置服务器",
+    "configure": "请在设置中配置你的服务器连接以查看你的餐食库。",
+    "go": "前往设置",
+    "loading": "正在加载餐食...",
+    "failed": "加载餐食失败",
+    "searchFailed": "搜索餐食失败",
+    "retry": "重试",
+    "check": "请检查你的连接，然后重试。",
+    "noMatch": "未找到匹配的餐食",
+    "noItems": "未找到餐食",
+    "trySearch": "尝试不同的搜索词以找到已保存的餐食。",
+    "empty": "你创建的餐食会显示在这里。",
+    "noun": "份餐食"
+  },
+  "presetLibrary": {
+    "title": "训练预设",
+    "search": "搜索训练预设...",
+    "noServer": "未配置服务器",
+    "configure": "请在设置中配置你的服务器连接以查看你的训练预设。",
+    "go": "前往设置",
+    "loading": "正在加载训练预设...",
+    "failed": "加载训练预设失败",
+    "retry": "重试",
+    "check": "请检查你的连接，然后重试。",
+    "noMatch": "未找到匹配的预设",
+    "noItems": "暂无训练预设",
+    "trySearch": "尝试不同的搜索词以找到训练预设。",
+    "empty": "你创建的训练预设会显示在这里。",
+    "moreFailed": "加载更多预设失败。",
+    "exercise": "个动作",
+    "exercises": "个动作",
+    "exerciseCount_other": "{{count}} 个动作",
+    "noun": "个训练预设"
+  },
+  "workoutForm": {
+    "viewExercise": "查看动作",
+    "notes": "备注",
+    "supersetWith": "与…组成超级组",
+    "removeFromSuperset": "从超级组移除",
+    "replaceExercise": "替换动作",
+    "clearLoggedSets": "清除已记录组",
+    "removeExercise": "移除动作",
+    "addExercise": "添加动作",
+    "exercise": "动作",
+    "duplicateExercise": "复制动作"
+  },
+  "whatsNew": {
+    "seeUpdate": "看看此更新中的新内容",
+    "title": "新内容",
+    "subtitle": "看看此更新中改进的内容"
+  },
+  "cycleLog": {
+    "saved": "已保存",
+    "updated": "每日记录更新成功。",
+    "saveFailed": "保存失败",
+    "saveError": "无法保存记录条目。请重试。",
+    "deleted": "已删除",
+    "cleared": "每日记录已清除。",
+    "deleteFailed": "删除失败",
+    "deleteError": "无法清除记录条目。请重试。"
+  },
+  "activitySummary": {
+    "avgHeartRate": "平均心率",
+    "maxHeartRate": "最大心率",
+    "elevationGain": "爬升高度",
+    "avgCadence": "平均步频",
+    "zone": "{{zone}} 区",
+    "heartRateZone": "心率区间：{{zone}}",
+    "heartRateZoneLight": "轻度",
+    "heartRateZoneModerate": "中度",
+    "heartRateZoneIntense": "高强度",
+    "heartRateZonePeak": "峰值",
+    "durationMinutesSeconds": "{{minutes}} 分 {{seconds}} 秒"
+  },
+  "copyMeal": {
+    "title": "复制餐食：{{meal}}",
+    "sourceDate": "来源日期：{{date}}",
+    "targetDate": "目标日期",
+    "targetMeal": "目标餐食",
+    "copy": "复制",
+    "copying": "复制中...",
+    "duplicateTitle": "无法复制餐食",
+    "duplicateMessage": "重复的餐食类型名称目前不能用于复制餐食。"
+  },
+  "ingredientRow": {
+    "lastWarning": "这是最后一种食材。保存前请再添加一种，或使用「删除餐食」移除整份餐食。",
+    "removeTitle": "移除 {{name}}？",
+    "edit": "编辑 {{name}}"
+  },
+  "cardioEffort": {
+    "effort": "{{name}} 努力程度",
+    "duration": "时长（分钟）",
+    "distance": "距离（{{unit}}）",
+    "durationHint": "{{name}} 的分钟数时长",
+    "distanceHint": "{{name}} 的{{unit}}距离",
+    "markIncomplete": "将 {{name}} 标记为未完成",
+    "complete": "完成 {{name}}"
+  },
+  "exerciseSetRest": {
+    "overwriteTitle": "覆盖休息时间？",
+    "overwriteMessage": "这些组有不同的休息时间。全部设为 {{rest}}？",
+    "all": "全部",
+    "roundRest": "轮休息",
+    "rest": "休息",
+    "round": "轮",
+    "set": "组"
+  },
+  "pregnancyDueDate": {
+    "errors": {
+      "lmpFuture": "你的末次月经不能在未来。",
+      "conceptionFuture": "受孕日期不能在未来。",
+      "past": "该预产期在过去。请检查日期。",
+      "tooFar": "该预产期太远——孕期约为 40 周。"
+    },
+    "basedOn": "基于",
+    "estimateBy": "按以下方式估算预产期",
+    "estimated": "预计预产期",
+    "options": {
+      "dueDate": "预产期",
+      "ultrasoundScan": "超声检查",
+      "lastPeriod": "末次月经（LMP）",
+      "conceptionDate": "受孕日期"
+    },
+    "fields": {
+      "firstDayLastPeriod": "末次月经第一天",
+      "conceptionDate": "受孕日期",
+      "estimatedDueDate": "预计预产期",
+      "estimatedDueDateFromScan": "预计预产期（来自扫描）"
+    }
+  },
+  "fertility": {
+    "title": "生育",
+    "fertileWindow": "预估易孕期",
+    "ovulation": "预估排卵日",
+    "nextPeriod": "下次经期在",
+    "days_other": "{{count}} 天",
+    "twoWeekWait": "两周等待期",
+    "ovulationDay": "排卵日",
+    "daysPastOvulation_other": "排卵后 {{count}} 天",
+    "testAccuracy": "家用测试通常在排卵后 12 到 14 天最准确。",
+    "disclaimer": "根据你记录的数据估算。不构成医疗建议。"
+  },
+  "pregnancySetup": {
+    "checkDates": "检查日期",
+    "updated": "孕期已更新",
+    "created": "孕期已设置",
+    "saveFailed": "无法保存孕期",
+    "editTitle": "编辑孕期",
+    "title": "孕期设置",
+    "description": "告诉我们如何估算你的预产期。你稍后可以更改。",
+    "numberOfBabies": "宝宝数量"
+  },
+  "foodEntryCopy": {
+    "success": "餐食已复制",
+    "failed": "复制餐食失败"
+  },
+  "foodDelete": {
+    "failed": "删除食物失败",
+    "title": "删除食物",
+    "message": "确定要删除此食物吗？已有的记录条目保持不变。",
+    "hidden": {
+      "title": "食物已隐藏",
+      "usedByOthers": "该食物被其他人使用，因此改为隐藏而非删除。他们的历史记录不受影响。"
+    },
+    "confirmWithHistoryTitle": "也要删除记录吗？",
+    "confirmWithHistoryMessage": "这也会永久删除你为该食物记录的日记条目。此操作无法撤销。",
+    "options": {
+      "hide": "从搜索中隐藏",
+      "hideDescription": "保留一切原状。该食物只是不再出现在搜索结果中。",
+      "delete": "删除",
+      "deleteDescription": "会从你的食物库、餐点和餐点计划中移除。已记录的条目会保留。",
+      "deleteWithHistory": "连同历史记录一起删除",
+      "deleteWithHistoryDescription": "也会永久删除你为该食物记录的日记条目。"
+    }
+  },
+  "exerciseEditing": {
+    "removeTitle": "移除动作？",
+    "removeMessage": "移除「{{name}}」及其所有组？"
+  },
+  "editableSet": {
+    "removeTitle": "第 {{number}} 组"
+  },
+  "mealTypeTime": {
+    "defaultTitle": "默认时间",
+    "clearHint": "清除默认时间",
+    "saveHint": "保存默认时间"
+  },
+  "workoutReorder": {
+    "sets_other": "{{count}} 组",
+    "drag": "拖拽以重新排序",
+    "title": "重新排序动作",
+    "doneHint": "完成重新排序"
+  },
+  "ranges": {
+    "7d": "7 天",
+    "30d": "30 天",
+    "90d": "90 天"
+  },
+  "foodEntryMeal": {
+    "failed": "添加餐食失败"
+  },
+  "foodSave": {
+    "failed": "保存食物失败"
+  },
+  "favorites": {
+    "updateFailed": "更新收藏失败"
+  },
+  "checkIn": {
+    "saveFailed": "保存失败",
+    "saveMessage": "无法保存测量。请重试。"
+  },
+  "symptoms": {
+    "saveFailed": "保存症状失败",
+    "removeFailed": "移除症状失败"
+  },
+  "waterIntake": {
+    "updateFailed": "错误",
+    "updateMessage": "更新饮水摄入失败。请重试。",
+    "noPrimary": "无主容器",
+    "noContainers": "无饮水容器",
+    "multipleNoPrimary": "你有多个饮水容器，但没有一个标记为主容器。请在服务器上设置一个为主容器。",
+    "configure": "请在服务器上配置一个饮水容器以追踪饮水。",
+    "multipleNoPrimaryMobile": "你有多个水容器，但没有标记为主要容器。点击以选择一个。",
+    "configureMobile": "添加水容器以开始追踪水分。",
+    "defaultContainer": "默认"
+  },
+  "activeWorkoutAutosave": {
+    "failedTitle": "训练未保存",
+    "failedMessage": "更改保留在此设备上，将重试。"
+  },
+  "medicalDisclaimer": {
+    "text": "仅供追踪和一般信息使用，不构成医疗建议。如有医疗问题，请与你的医疗保健提供者沟通。"
+  },
+  "pregnancy": {
+    "prompt": {
+      "title": "设置你的孕期",
+      "message": "添加你的预产期，逐周追踪宝宝的发育，并保存孕肚照片记录。",
+      "getStarted": "开始"
+    },
+    "weekBanner": {
+      "due": "预产",
+      "wellnessProgress": "健康进展",
+      "week": "第 {{week}} 周",
+      "weekDay": "{{week}} 周 {{day}} 天",
+      "edit": "编辑孕期详情",
+      "anyDayNow": "随时可能生产",
+      "daysToGo_other": "还有 {{days}} 天"
+    },
+    "trimester": {
+      "first": "孕早期",
+      "second": "孕中期",
+      "third": "孕晚期"
+    },
+    "checklist": {
+      "title": "本周待办",
+      "empty": "本周你的清单上没有任何事项。",
+      "item": "清单事项",
+      "items": {
+        "firstAppt": "预约你的第一次产检",
+        "prenatalVitamin": "开始服用含叶酸的孕期维生素",
+        "ntScan": "安排孕早期筛查",
+        "shareNews": "如果准备好了，分享你的喜讯",
+        "anatomyScan": "参加你的大排畸超声检查",
+        "glucoseTest": "预约你的血糖筛查测试",
+        "countKicks": "开始每天计数胎动",
+        "birthClass": "报名分娩或育儿课程",
+        "birthPlan": "起草你的分娩计划",
+        "hospitalBag": "整理你的待产包",
+        "installCarSeat": "安装并检查安全座椅",
+        "pediatrician": "选择儿科医生"
+      }
+    },
+    "babyDev": {
+      "w4": {
+        "comparison": "一颗罂粟籽",
+        "baby": "胚胎已经着床，胎盘开始形成。",
+        "mom": "你可能刚刚错过了经期。早期激素正在上升。"
+      },
+      "w5": {
+        "comparison": "一颗芝麻",
+        "baby": "神经管——大脑和脊髓的开端——正在形成。",
+        "mom": "乳房胀痛和疲劳等早期症状可能开始出现。"
+      },
+      "w6": {
+        "comparison": "一颗小扁豆",
+        "baby": "一颗微小的心脏开始跳动并泵血。",
+        "mom": "孕吐差不多在此时开始。"
+      },
+      "w7": {
+        "comparison": "一颗蓝莓",
+        "baby": "手臂和腿的芽体正在出现；大脑快速发育。",
+        "mom": "你的子宫开始扩张，虽然还看不出来。"
+      },
+      "w8": {
+        "comparison": "一颗覆盆子",
+        "baby": "手指和脚趾正在形成，细微的胎动开始出现。",
+        "mom": "血量正在增加，以支持你的宝宝。"
+      },
+      "w9": {
+        "comparison": "一颗樱桃",
+        "baby": "重要器官已经形成；宝宝现在正式成为胎儿。",
+        "mom": "你可能会因激素变化而注意到情绪波动。"
+      },
+      "w10": {
+        "comparison": "一颗草莓",
+        "baby": "重要器官正在工作，小指甲开始发育。",
+        "mom": "你的腰围可能开始变化。"
+      },
+      "w11": {
+        "comparison": "一颗青柠",
+        "baby": "宝宝可以张开和握紧拳头；骨骼正在变硬。",
+        "mom": "恶心通常在接下来几周开始缓解。"
+      },
+      "w12": {
+        "comparison": "一颗李子",
+        "baby": "反射正在发育；宝宝可能会蜷曲手指和脚趾。",
+        "mom": "孕早期即将结束——精力通常会恢复。"
+      },
+      "w13": {
+        "comparison": "一个豌豆荚",
+        "baby": "细小的指纹正在形成，声带正在发育。",
+        "mom": "欢迎进入孕中期——通常是最舒适的阶段。"
+      },
+      "w14": {
+        "comparison": "一颗柠檬",
+        "baby": "宝宝会做面部表情，可能还会吮吸拇指。",
+        "mom": "你可能会感觉更像自己了。"
+      },
+      "w15": {
+        "comparison": "一个苹果",
+        "baby": "宝宝能感知光线，并在移动羊水。",
+        "mom": "你可能会注意到小小的孕肚开始显现。"
+      },
+      "w16": {
+        "comparison": "一个牛油果",
+        "baby": "宝宝能听到声音，心脏每天泵送大量血液。",
+        "mom": "有些人这时会第一次感觉到胎动（「初感胎动」）。"
+      },
+      "w17": {
+        "comparison": "一个芜菁",
+        "baby": "脂肪储备开始形成，骨骼变硬。",
+        "mom": "随着孕肚增大，你的重心正在改变。"
+      },
+      "w18": {
+        "comparison": "一个甜椒",
+        "baby": "宝宝能听到你的声音，并可能对声音做出反应。",
+        "mom": "你现在可能会感觉到更清晰的胎动。"
+      },
+      "w19": {
+        "comparison": "一个芒果",
+        "baby": "一层保护性胎脂覆盖着皮肤。",
+        "mom": "随着身体拉伸，圆韧带疼痛很常见。"
+      },
+      "w20": {
+        "comparison": "一根香蕉",
+        "baby": "孕期过半！宝宝正在吞咽并发育味蕾。",
+        "mom": "你的大排畸超声检查通常在这时进行。"
+      },
+      "w21": {
+        "comparison": "一根胡萝卜",
+        "baby": "宝宝动得更多了，睡眠和清醒周期规律化。",
+        "mom": "你可能会更强烈、更有规律地感觉到踢动。"
+      },
+      "w22": {
+        "comparison": "一个意大利面南瓜",
+        "baby": "嘴唇、眼睑和眉毛更加清晰。",
+        "mom": "你的孕肚现在清晰可见。"
+      },
+      "w23": {
+        "comparison": "一个大芒果",
+        "baby": "宝宝能听到响亮的声音，并且正在增重。",
+        "mom": "脚和脚踝的肿胀可能开始出现。"
+      },
+      "w24": {
+        "comparison": "一根玉米",
+        "baby": "肺部正在发育；宝宝达到存活里程碑。",
+        "mom": "你很快可能要做血糖筛查测试。"
+      },
+      "w25": {
+        "comparison": "一个芜菁甘蓝",
+        "baby": "宝宝正在长头发，惊跳反射正在发育。",
+        "mom": "随着孕肚增大，背痛很常见。"
+      },
+      "w26": {
+        "comparison": "一把小葱",
+        "baby": "眼睛开始睁开，肺部练习呼吸动作。",
+        "mom": "你可能会感觉到有节奏的胎动——宝宝在打嗝。"
+      },
+      "w27": {
+        "comparison": "一颗花椰菜",
+        "baby": "大脑活动急剧增加；宝宝可能认得你的声音。",
+        "mom": "欢迎进入孕晚期。"
+      },
+      "w28": {
+        "comparison": "一个茄子",
+        "baby": "宝宝会眨眼了，睫毛已经形成。",
+        "mom": "产检现在通常变得更频繁。"
+      },
+      "w29": {
+        "comparison": "一个冬南瓜",
+        "baby": "肌肉和肺部持续成熟；骨骼完全形成。",
+        "mom": "随着子宫升高，你可能会感到气短。"
+      },
+      "w30": {
+        "comparison": "一颗大卷心菜",
+        "baby": "宝宝现在能更好地调节自己的体温。",
+        "mom": "疲劳在孕晚期可能再次出现。"
+      },
+      "w31": {
+        "comparison": "一个椰子",
+        "baby": "宝宝增重很快，胎动频繁。",
+        "mom": "你可能会注意到布雷希特-希克斯假性宫缩。"
+      },
+      "w32": {
+        "comparison": "一个豆薯",
+        "baby": "肺部在练习呼吸；宝宝通常转为头朝下。",
+        "mom": "考虑开始准备你的分娩计划和待产包。"
+      },
+      "w33": {
+        "comparison": "一个菠萝",
+        "baby": "宝宝骨骼变硬，但颅骨保持柔软。",
+        "mom": "你可能会感到骨盆压力增大。"
+      },
+      "w34": {
+        "comparison": "一个哈密瓜",
+        "baby": "中枢神经系统和肺部发育良好。",
+        "mom": "疲劳和肿胀很常见；有机会就休息。"
+      },
+      "w35": {
+        "comparison": "一个蜜瓜",
+        "baby": "宝宝在长肉；大部分系统接近就绪。",
+        "mom": "你的医生可能会检查宝宝的位置。"
+      },
+      "w36": {
+        "comparison": "一颗罗马生菜",
+        "baby": "宝宝很可能头朝下，每天增重约 28 克。",
+        "mom": "每周检查通常从现在开始。"
+      },
+      "w37": {
+        "comparison": "一把瑞士甜菜",
+        "baby": "宝宝被视为足月早期，并在练习呼吸。",
+        "mom": "留意分娩迹象，并让待产包保持就绪。"
+      },
+      "w38": {
+        "comparison": "一根韭葱",
+        "baby": "器官已为体外生活做好准备；宝宝握力很强。",
+        "mom": "你可能会感觉到宝宝「入盆」下降到骨盆。"
+      },
+      "w39": {
+        "comparison": "一个小西瓜",
+        "baby": "宝宝已足月，准备好与你见面。",
+        "mom": "随时可能——留意规律的宫缩。"
+      },
+      "w40": {
+        "comparison": "一个小南瓜",
+        "baby": "你的预产期到了！宝宝会按自己的节奏出生。",
+        "mom": "如果尚未临产，你的医生会讨论下一步。"
+      }
+    },
+    "safety": {
+      "food": {
+        "cooked_salmon": {
+          "name": "熟三文鱼",
+          "note": "充分烹熟、低汞的鱼是欧米伽-3 的优质来源。目标每周 2–3 份。"
+        },
+        "tuna_canned_light": {
+          "name": "金枪鱼（罐装淡色）",
+          "note": "限制在每周约 2 份；选择淡色而非长鳍，以降低汞摄入。"
+        },
+        "swordfish": {
+          "name": "旗鱼",
+          "note": "孕期应避免高汞鱼类。"
+        },
+        "sushi_raw": {
+          "name": "寿司（生鱼）",
+          "note": "生鱼有寄生虫和细菌风险。熟制寿司卷没问题。"
+        },
+        "shrimp_cooked": {
+          "name": "虾（熟）",
+          "note": "完全烹熟的贝类低汞且安全。"
+        },
+        "soft_cheese_unpasteurized": {
+          "name": "软奶酪（未经巴氏消毒）",
+          "note": "未经巴氏消毒的软奶酪有李斯特菌风险。巴氏消毒版本没问题。"
+        },
+        "hard_cheese": {
+          "name": "硬奶酪",
+          "note": "硬质和巴氏消毒的奶酪是安全的。"
+        },
+        "pasteurized_milk": {
+          "name": "巴氏消毒牛奶",
+          "note": "巴氏消毒乳制品安全且是良好的钙来源。"
+        },
+        "deli_meat_cold": {
+          "name": "熟食肉（冷盘）",
+          "note": "加热至冒热气以降低李斯特菌风险。"
+        },
+        "undercooked_meat": {
+          "name": "未煮熟的肉",
+          "note": "将肉彻底煮熟，以避免弓形虫和细菌。"
+        },
+        "cooked_chicken": {
+          "name": "熟鸡肉",
+          "note": "完全煮熟的家禽是安全的蛋白质来源。"
+        },
+        "runny_raw_eggs": {
+          "name": "溏心/生鸡蛋",
+          "note": "煮至全熟，或使用巴氏消毒鸡蛋，以避免沙门氏菌。"
+        },
+        "coffee": {
+          "name": "咖啡",
+          "note": "将咖啡因限制在每天约 200 毫克（大约一杯 12 盎司咖啡）。"
+        },
+        "alcohol": {
+          "name": "酒精",
+          "note": "孕期任何量的酒精都不被认为是安全的。"
+        },
+        "herbal_tea": {
+          "name": "花草茶",
+          "note": "有些草药不建议使用；请与你的医生确认具体茶品。"
+        },
+        "cooked_leafy_greens": {
+          "name": "煮熟的绿叶蔬菜",
+          "note": "充分清洗；是叶酸和铁的优质来源。"
+        },
+        "unwashed_produce": {
+          "name": "未清洗的农产品",
+          "note": "彻底清洗；避免生豆芽，它们可能滋生细菌。"
+        },
+        "liver_pate": {
+          "name": "肝脏 / 肉酱",
+          "note": "维生素 A 含量非常高，大量摄入可能有害。"
+        },
+        "peanuts": {
+          "name": "花生",
+          "note": "除非你个人过敏，否则安全；是良好的蛋白质来源。"
+        },
+        "honey": {
+          "name": "蜂蜜",
+          "note": "孕期对你安全（避免给 1 岁以下的婴儿）。"
+        }
+      },
+      "med": {
+        "acetaminophen": {
+          "name": "对乙酰氨基酚（泰诺）",
+          "note": "在推荐剂量下，通常被视为缓解疼痛/发烧的首选。请与你的医生确认。"
+        },
+        "ibuprofen": {
+          "name": "布洛芬（Advil）",
+          "note": "尤其在孕晚期要避免；仅在医生建议时使用。"
+        },
+        "aspirin": {
+          "name": "阿司匹林",
+          "note": "仅在处方要求时使用低剂量；常规剂量阿司匹林通常要避免。"
+        },
+        "prenatal_vitamin": {
+          "name": "孕期维生素",
+          "note": "整个孕期推荐服用，提供叶酸、铁和 DHA。"
+        },
+        "antacids_tums": {
+          "name": "抗酸剂（Tums）",
+          "note": "钙基抗酸剂常用于缓解烧心。"
+        },
+        "diphenhydramine": {
+          "name": "苯海拉明（Benadryl）",
+          "note": "通常认为短期可用，但请与你的医生确认。"
+        },
+        "ibuprofen_gel": {
+          "name": "布洛芬凝胶",
+          "note": "使用外用 NSAID 前请与你的医生讨论。"
+        },
+        "isotretinoin": {
+          "name": "异维A酸（Accutane）",
+          "note": "类视黄醇会导致严重出生缺陷，必须避免。"
+        },
+        "pseudoephedrine": {
+          "name": "减充血剂（伪麻黄碱）",
+          "note": "孕早期通常避免；请咨询你的医生。"
+        },
+        "vitamin_a_high_dose": {
+          "name": "维生素 A（高剂量）",
+          "note": "高剂量维生素 A 可能伤害宝宝；请坚持孕期剂量。"
+        }
+      }
+    }
+  },
+  "workoutDraft": {
+    "saveFailed": "保存草稿失败"
+  },
+  "foodPhotoIntro": {
+    "title": "从照片估算营养",
+    "subtitle": "把餐食照片变成可编辑的营养估算。",
+    "weight": "知道重量时添加重量",
+    "description": "添加简短描述",
+    "review": "保存前审阅",
+    "logManually": "改为手动记录",
+    "weightHelp": "餐食总重量有助于估算份量、卡路里和宏量营养素。",
+    "descriptionHelp": "提及酱汁、油、配料、餐厅名称或任何隐藏的内容。",
+    "reviewHelp": "照片估算只是一个起点。记录前你可以编辑一切。"
+  },
+  "barcode": {
+    "title": "条形码",
+    "invalid": "条形码必须为 8-14 位数字。",
+    "help": "可选。标准条形码为 8 到 14 位数字。",
+    "scan": "用相机扫描"
+  },
+  "cycleHub": {
+    "tools": "工具",
+    "trends": "趋势",
+    "wellness": "健康",
+    "pregnancyHub": "孕期中心",
+    "cycleHub": "周期中心",
+    "logEntry": "记录条目",
+    "overview": "概览",
+    "history": "历史",
+    "ring": {
+      "day": "第 {{day}} 天",
+      "dayCycle_other": "{{count}} 天周期"
+    }
+  },
+  "workoutPresetLibrary": {
+    "configure": "请在设置中配置你的服务器连接以查看你的训练预设。"
+  },
+  "time": {
+    "hoursShort": "小时",
+    "minutesShort": "分钟"
+  },
+  "exerciseImage": {
+    "playAnimation": "播放动作动画",
+    "pauseAnimation": "暂停动作动画"
+  },
+  "shareStatus": {
+    "public": "已公开共享",
+    "family": "已与家庭共享"
+  },
+  "cycle": {
+    "phase": {
+      "active": "活跃阶段",
+      "period": "经期",
+      "follicular": "卵泡期",
+      "fertile": "预估易孕期",
+      "ovulation": "预估排卵日",
+      "luteal": "黄体期",
+      "activeCycle": "周期活跃中"
+    }
+  },
+  "healthDataDisplay": {
+    "distance": "{{value}} 公里",
+    "kcal": "{{value}} 千卡",
+    "bpm": "{{value}} bpm",
+    "kg": "{{value}} 千克",
+    "percent": "{{value}}%",
+    "celsius": "{{value}}°C",
+    "mmHg": "{{systolic}}/{{diastolic}} mmHg",
+    "sleepHours": "{{count}} 小时",
+    "sleepMinutes": "{{count}} 分钟",
+    "liters": "{{value}} 升",
+    "cm": "{{value}} 厘米",
+    "mmolL": "{{value}} mmol/L",
+    "ms": "{{value}} 毫秒",
+    "vo2": "{{value}} ml/min/kg",
+    "minutes": "{{count}} 分钟",
+    "meters": "{{value}} 米",
+    "watts": "{{value}} 瓦",
+    "metersPerSecond": "{{value}} 米/秒",
+    "breathsPerMinute": "{{value}}/分钟",
+    "error": "错误",
+    "workouts_other": "{{count}} 次训练",
+    "records_other": "{{count}} 条记录"
+  },
+  "sleep": {
+    "wakeUp": "醒来",
+    "wakeUpA11y": "打开醒来睡眠详情",
+    "bedTime": "就寝时间",
+    "bedTimeA11y": "打开就寝睡眠详情",
+    "napCount_other": "{{count}} 次小睡",
+    "napA11y": "打开小睡详情，{{time}}，{{duration}}",
+    "timeAsleep": "入睡时间",
+    "timeInBed": "卧床时间",
+    "score": "评分",
+    "valueUnavailable": "—",
+    "detailTitle": "睡眠",
+    "loading": "正在加载睡眠...",
+    "notFound": "未找到睡眠条目",
+    "notFoundSubtitle": "此睡眠时段可能已被移除或不再同步。",
+    "loadFailed": "无法加载此睡眠时段",
+    "loadFailedSubtitle": "请检查你的连接，然后重试。",
+    "bedtimeToWake": "{{bedtime}} – {{wakeTime}}",
+    "hypnogram": "睡眠阶段",
+    "hypnogramEmpty": "此来源未记录睡眠阶段。",
+    "stageBreakdown": "阶段明细",
+    "percentValue": "{{percent}}%",
+    "stage": {
+      "awake": "清醒",
+      "rem": "快速眼动",
+      "light": "浅睡",
+      "deep": "深睡",
+      "other": "其他"
+    },
+    "biometrics": "整夜生物指标",
+    "averageSpo2": "平均血氧",
+    "lowestSpo2": "最低血氧",
+    "highestSpo2": "最高血氧",
+    "restingHeartRate": "静息心率",
+    "percentUnit": "%",
+    "bpmUnit": "bpm",
+    "quality": "睡眠质量"
+  },
+  "foodProvenance": {
+    "aiEstimate": "AI 估算",
+    "aiEstimateAccessibility": "营养由 AI 估算"
+  },
+  "notes": {
+    "label": "备注",
+    "placeholder": "添加备注…（支持 markdown）",
+    "write": "编写",
+    "preview": "预览",
+    "nothingToPreview": "暂无预览内容。",
+    "toolbar": {
+      "bold": "粗体",
+      "italic": "斜体",
+      "strikethrough": "删除线",
+      "heading": "标题",
+      "bulletList": "项目符号列表",
+      "numberedList": "编号列表",
+      "taskList": "清单（仅显示）",
+      "quote": "引用",
+      "code": "代码",
+      "link": "链接",
+      "table": "表格",
+      "insertImage": "插入照片",
+      "photoNumber": "照片 {{number}}"
+    },
+    "photoUnavailable": "照片不可用"
+  },
+  "healthTrendsSettings": {
+    "description": "按住图表的手柄拖拽以重新排序。将其拖到「已隐藏」线下方即可从仪表板移除。",
+    "hiddenLabel": "已隐藏",
+    "reorder": "重新排序 {{name}}",
+    "reorderHint": "移到「已隐藏」线下方以隐藏此图表，或移到上方以显示",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "stateShown": "已显示",
+    "stateHidden": "已隐藏",
+    "emptyShown": "没有显示的图表。拖一个到线上方以恢复。",
+    "emptyHidden": "将图表拖到这里以隐藏。"
+  },
+  "progressPhotos": {
+    "card": {
+      "title": "进度",
+      "viewAll": "查看全部",
+      "openA11y": "查看进度照片"
+    },
+    "title": "进度照片",
+    "angle": {
+      "front": "正面",
+      "back": "背面",
+      "side": "侧面"
+    },
+    "noWeight": "未记录体重",
+    "logWeight": "记录体重",
+    "logWeightA11y": "记录你这一天的体重",
+    "openPhotoA11y": "全屏查看此照片",
+    "sincePrevious": "较上次 {{delta}}",
+    "emptyTitle": "暂无{{angle}}照片",
+    "emptyBody": "在上面添加一张，它会连同当天的体重显示在这里。",
+    "loadError": "无法加载你的进度照片。",
+    "takePhoto": "拍照",
+    "chooseLibrary": "从图库选择",
+    "remove": "移除照片",
+    "cameraPermission": "需要相机权限",
+    "cameraPermissionHint": "请在设置中为 SparkyFitness 启用相机访问。",
+    "compare": "对比",
+    "compareTitle": "对比",
+    "before": "之前",
+    "after": "之后",
+    "pickWhich": "点按任一日期以对比不同的一天",
+    "timelapse": "延时摄影",
+    "timelapseTitle": "延时摄影",
+    "timelapseEmpty": "请至少添加两张此角度的照片以播放延时。",
+    "previousFrame": "上一张照片",
+    "nextFrame": "下一张照片",
+    "play": "播放",
+    "pause": "暂停",
+    "speedSlow": "慢速",
+    "speedNormal": "正常",
+    "speedFast": "快速",
+    "daysApart_other": "相隔 {{count}} 天",
+    "noPhotoOnDay": "那天没有此角度的照片",
+    "pickDayA11y": "选择{{side}}日",
+    "range30d": "最近 30 天",
+    "range3m": "最近 3 个月",
+    "chooseDayA11y": "选择日期",
+    "diarySection": "进度照片",
+    "tapToAdd": "点按添加照片",
+    "addDayA11y": "为此天添加进度照片",
+    "angleCount": "{{taken}}/{{total}}",
+    "openDayA11y": "打开这一天的进度照片",
+    "missingAngleA11y": "这一天没有{{angle}}照片",
+    "historySection": "历史",
+    "historyDescription": "此角度的照片，最新的在前。",
+    "historyDescriptionCapped": "你最近的 {{limit}} 张。对比或延时可回看更早。",
+    "slotSheetTitle": "进度照片",
+    "removeTitle": "移除照片？",
+    "removeMessage": "这将删除这一天中的照片。",
+    "uploadError": "无法保存该照片",
+    "deleteError": "无法移除该照片",
+    "viewAngleA11y": "全屏查看{{angle}}照片",
+    "addAngleA11y": "添加{{angle}}照片",
+    "manageAngleA11y": "替换或移除{{angle}}照片",
+    "rangeAll": "全部时间",
+    "rangeCustom": "自定义范围…",
+    "rangeSheetTitle": "播放一个日期范围",
+    "rangeSheetAction": "播放此范围",
+    "rangeSection": "回放",
+    "rangeA11y": "选择回放多久以前",
+    "deltaBadge": "Δ {{value}}",
+    "frameCountRanged": "{{current}}/{{total}} · {{range}}"
+  },
+  "waterContainers": {
+    "title": "水容器",
+    "add": "添加容器",
+    "loading": "正在加载水容器…",
+    "loadFailed": "无法加载水容器",
+    "loadFailedSubtitle": "请检查连接后重试。",
+    "noServer": "未配置服务器",
+    "noServerSubtitle": "配置你的服务器连接以管理水容器。",
+    "goToSettings": "前往设置",
+    "emptyTitle": "还没有水容器",
+    "emptySubtitle": "添加水瓶或水杯来追踪水分——可选择关联食物，这样点一下即可同时记录。",
+    "linkedTo": "已关联{{food}}",
+    "deleteTitle": "删除容器",
+    "deleteMessage": "删除{{name}}？",
+    "deleteNamed": "删除{{name}}",
+    "deleteSuccess": "容器已删除",
+    "deleteFailed": "无法删除容器",
+    "setPrimaryNamed": "将{{name}}设为主要容器",
+    "setPrimaryFailed": "无法设置主要容器",
+    "moveUp": "将{{name}}上移",
+    "moveDown": "将{{name}}下移",
+    "reorderFailed": "无法重新排序容器",
+    "presets": "快速添加预设",
+    "addPresetFailed": "无法添加饮品预设"
+  },
+  "waterContainerEdit": {
+    "createTitle": "添加容器",
+    "editTitle": "编辑容器",
+    "loading": "正在加载容器…",
+    "name": "名称",
+    "namePlaceholder": "例如：我的水瓶",
+    "volume": "容量",
+    "unit": "单位",
+    "units": {
+      "ml": "ml",
+      "oz": "oz",
+      "liter": "升"
+    },
+    "servingsPerContainer": "每个容器的份量数",
+    "primary": "主要容器",
+    "hydrationFactor": "水分系数",
+    "hydrationFactorHint": "仅调整水分计入比例：水为 1，咖啡或茶约 0.9，完全不应计入水分的饮品为 0。热量、咖啡因与酒精一律全额计入。",
+    "linkedFood": "已关联食物",
+    "selectFood": "选择食物（选填）",
+    "unlinkFood": "取消关联食物",
+    "linkedMealType": "餐别",
+    "noMealType": "无（按时间段）",
+    "delete": "删除容器",
+    "saveSuccess": "水容器已保存",
+    "saveFailed": "无法保存水容器",
+    "errors": {
+      "title": "请检查表单",
+      "nameRequired": "名称为必填项。",
+      "volumeInvalid": "容量必须大于零。",
+      "servingsInvalid": "每个容器的份量数至少为 1。",
+      "factorInvalid": "水分系数必须在 0 到 2 之间。",
+      "foodRequired": "请选择这个容器所装的食物。",
+      "quantityInvalid": "数量必须大于零。"
+    },
+    "tabWater": "水",
+    "tabDrink": "饮品（已关联食物）",
+    "quantity": "数量",
+    "hydrationFactorExample": "以 {{factor}} 计算，每按一下会从饮品的 {{total}} {{unit}} 中，将 {{credited}} {{unit}} 加入你的水分环。热量、咖啡因与酒精一律全额计入。",
+    "hydrationFactorApplies": "适用于之后记录的饮品——过去的记录会保留录入时使用的系数。"
+  },
+  "caffeine": {
+    "title": "活性咖啡因",
+    "activeNow": "当前生效中",
+    "atBedtime": "在{{time}}",
+    "lastDose": "最后一剂截止时间",
+    "cutoffPassed": "太晚了",
+    "cutoffOver": "已超标",
+    "anytimeSafe": "任何时间",
+    "crossingNote": "从 {{time}} 起回到 {{threshold}} 毫克以下",
+    "underThreshold": "今晚保持在 {{threshold}} 毫克以下",
+    "estimatedTimes": "部分剂量时间为估算值",
+    "legendCurve": "活性咖啡因",
+    "legendThreshold": "阈值 {{threshold}} 毫克",
+    "unitMg": "mg"
   }
 }

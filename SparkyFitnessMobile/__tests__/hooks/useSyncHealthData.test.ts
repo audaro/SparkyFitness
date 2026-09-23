@@ -70,7 +70,34 @@ describe('useSyncHealthData', () => {
       await waitFor(() => {
         expect(mockHealthConnectSyncData).toHaveBeenCalledWith(
           testParams.timeRange,
-          testParams.healthMetricStates
+          testParams.healthMetricStates,
+          // Telemetry is not forced unless the caller asks: sync-on-open and
+          // background runs must stay cheap.
+          false
+        );
+      });
+    });
+
+    test('forwards forceTelemetry when the user asks to re-send details', async () => {
+      mockHealthConnectSyncData.mockResolvedValue({
+        success: true,
+        syncErrors: [],
+      });
+      mockSaveLastSyncedTime.mockResolvedValue('2024-01-15T10:00:00Z');
+
+      const { result } = renderHook(() => useSyncHealthData(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await act(async () => {
+        result.current.mutate({ ...testParams, forceTelemetry: true });
+      });
+
+      await waitFor(() => {
+        expect(mockHealthConnectSyncData).toHaveBeenCalledWith(
+          testParams.timeRange,
+          testParams.healthMetricStates,
+          true
         );
       });
     });

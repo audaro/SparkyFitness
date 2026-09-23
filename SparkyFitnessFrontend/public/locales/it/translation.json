@@ -100,11 +100,11 @@
       "eaten": "mangiato",
       "burned": "bruciato",
       "burnedCaloriesBreakdown": "Ripartizione delle calorie bruciate:",
-      "otherExerciseCalories": "Altri esercizi: {{exerciseCalories}} cal",
-      "activeCalories": "Calorie attive: {{activeCaloriesFromExercise}} cal",
-      "stepsCalories": "Passi: {{dailySteps}} = {{stepsCalories}} cal",
-      "bmrCalories": "BMR: {{bmr}} cal",
-      "totalCaloriesBurned": "Totale: {{totalCaloriesBurned}} cal",
+      "otherExerciseCalories": "Altri esercizi: {{exerciseCalories}} {{energyUnit}}",
+      "activeCalories": "Calorie attive: {{activeCaloriesFromExercise}} {{energyUnit}}",
+      "stepsCalories": "Passi: {{dailySteps}} = {{stepsCalories}} {{energyUnit}}",
+      "bmrCalories": "BMR: {{bmr}} {{energyUnit}}",
+      "totalCaloriesBurned": "Totale: {{totalCaloriesBurned}} {{energyUnit}}",
       "goal": "obiettivo",
       "caloriesBurnedBreakdownTitle": "Ripartizione delle calorie bruciate",
       "netCalories": "Calorie nette: {{netCalories}}",
@@ -279,7 +279,6 @@
     "editPresetTooltip": "Modifica questa impostazione predefinita",
     "deletePresetTooltip": "Elimina questa preimpostazione",
     "loading": "Caricamento in corso...",
-    "loadMore": "Carica altro",
     "noExercisesInPreset": "Nessun esercizio in questa impostazione predefinita",
     "failedToLoadPresets": "Impossibile caricare le impostazioni predefinite dell'allenamento.",
     "createSuccess": "Impostazione allenamento creata con successo.",
@@ -482,7 +481,28 @@
     },
     "nutrientDisplay": {
       "title": "Visualizzazione dei nutrienti",
-      "description": "Scegli quali nutrienti visualizzare nelle schermate dedicate agli alimenti e ai pasti"
+      "description": "Scegli quali nutrienti visualizzare nelle schermate dedicate agli alimenti e ai pasti",
+      "groups": {
+        "summary": "Riepilogo",
+        "quickInfo": "Info rapide",
+        "foodDatabase": "Database alimenti",
+        "goal": "Obiettivo",
+        "reportTabular": "Report (Tabella)",
+        "reportChart": "Report (Grafico)"
+      },
+      "descriptions": {
+        "summary": "Gestisce il Riepilogo nutrizionale e i Trend a 14 giorni nella pagina del Diario.",
+        "quickInfo": "Gestisce i nutrienti mostrati per i singoli alimenti, i totali dei pasti, i risultati di ricerca e il database alimenti.",
+        "foodDatabase": "Gestisce i nutrienti mostrati durante la modifica degli alimenti nel tuo database.",
+        "goal": "Gestisce i nutrienti mostrati quando imposti o modifichi i tuoi obiettivi.",
+        "reportTabular": "Gestisce le colonne dei nutrienti nella vista a tabella dei Report.",
+        "reportChart": "Gestisce quali nutrienti sono disponibili per i grafici nella sezione Report."
+      },
+      "syncWith": "Sincronizza con {{platform}}",
+      "selectAll": "Seleziona Tutto",
+      "clearAll": "Deseleziona tutto",
+      "resetDefault": "Ripristina Predefiniti",
+      "dragToReorder": "Trascina per riordinare {{nutrient}}"
     },
     "calculationSettings": {
       "title": "Impostazioni di calcolo",
@@ -490,7 +510,25 @@
     },
     "familyAccess": {
       "title": "Accesso famiglia",
-      "description": "Gestisci l'accesso ai tuoi dati per i membri della tua famiglia"
+      "description": "Gestisci l'accesso ai tuoi dati per i membri della tua famiglia",
+      "addFamilyMember": "Aggiungi membro della famiglia",
+      "noAccess": "Nessun accesso familiare consentito finora",
+      "noAccessDescription": "Aggiungi i tuoi familiari per consentire loro di aiutarti a gestire i tuoi dati di fitness",
+      "selectPermissionError": "Seleziona almeno un permesso",
+      "selfAccessError": "Non puoi concedere l'accesso a te stesso",
+      "alreadyGrantedError": "Hai già concesso l'accesso a questo membro della famiglia",
+      "statusInactive": "Non attivo",
+      "statusActive": "Attivo",
+      "statusPending": "In attesa",
+      "statusUnknown": "Sconosciuto",
+      "editDialogTitle": "Modifica Accesso famiglia",
+      "addDialogTitle": "Aggiungi Accesso famiglia",
+      "familyMemberEmail": "Email del membro della famiglia",
+      "emailPlaceholder": "Inserisci l'email del membro della famiglia",
+      "accountHint": "Riceverà l'accesso non appena avrà creato un account SparkyFitness (se non ne ha già uno)",
+      "accessPermissions": "Permessi di accesso",
+      "canManageDiary": "Può gestire il diario",
+      "canManageDiaryHelp": "Consente al delegato di registrare pasti, allenamenti, acqua e obiettivi a tuo nome. I registri del benessere (sonno, umore, digiuno) sono bloccati. Fornisce l'accesso al profilo in sola lettura."
     },
     "customCategories": {
       "title": "Categorie personalizzate",
@@ -692,7 +730,7 @@
       "enterCurrentPassword": "Immetti password attuale"
     },
     "customNutrients": {
-      "title": "Nutrienti Personalizzati",
+      "title": "Gestione Nutrienti Personalizzati",
       "subtitle": "Gestisci la definizione dei tuoi nutrienti personalizzati"
     },
     "customMeals": {
@@ -714,6 +752,10 @@
       "exportSuccessDescription": "Il tuo diario è stato esportato con successo.",
       "exportError": "Errore durante l'esportazione",
       "exportErrorDescription": "Impossibile scaricare il tuo diario. Riprova più tardi per favore."
+    },
+    "nutrientGoalDirection": {
+      "title": "Orientamento obiettivo nutrienti",
+      "description": "Scegli se l'obiettivo di ogni nutriente deve essere un minimo da raggiungere, un massimo da non superare o un intervallo target da centrare"
     }
   },
   "admin": {
@@ -998,7 +1040,17 @@
     "confirm": "Conferma",
     "notApplicable": "Non applicabile",
     "kJ": "kJ",
-    "totalSets": "Set Totali"
+    "totalSets": "Set Totali",
+    "save": "Salva",
+    "back": "Indietro",
+    "next": "Avanti",
+    "close": "Chiudi",
+    "error": "Errore",
+    "delete": "Elimina",
+    "success": "Successo",
+    "edit": "Modifica",
+    "date": "Data",
+    "loading": "Caricamento..."
   },
   "diary": {
     "nutritionSummary": "Riepilogo nutrizionale",
@@ -1154,7 +1206,7 @@
     "addAnotherSleepSession": "Aggiungi un'altra sessione di sonno",
     "savingSleep": "Salvare il sonno...",
     "saveSleep": "Salva sonno",
-    "sleepEntryFor": "Inserimento sonno per",
+    "sleepEntryFor": "Inserimento sonno per {{date}}",
     "cancel": "Annulla",
     "save": "Salva",
     "edit": "Modifica",
@@ -1285,7 +1337,7 @@
     "mealUpdatedSuccess": "Pasto aggiornato con successo!",
     "mealCreatedSuccess": "Pasto creato con successo!",
     "saveMealError": "Impossibile salvare il pasto: {{error}}",
-    "mealName": "Nome del pasto",
+    "mealName": "Nome pasto",
     "mealNamePlaceholder": "ad esempio, colazione ricca di proteine",
     "mealDescription": "Descrizione (facoltativa)",
     "mealDescriptionPlaceholder": "Ad esempio, la mia colazione preferita",
@@ -2296,7 +2348,7 @@
     "importData": "Importa dati",
     "importRecords_one": "Importa {{count}} documento",
     "importRecords_many": "Importa {{count}} documenti",
-    "importRecords_other": "",
+    "importRecords_other": "Importa {{count}} documenti",
     "importErrorTitle": "Errore di importazione",
     "pasteFirst": "Per favore, incolla prima alcuni dati in formato CSV.",
     "invalidFormatTitle": "Formato CSV non valido",
@@ -2393,7 +2445,7 @@
       "sideEffect": "Sintomo da effetto collaterale",
       "snoozedOnly": "Solo posticipate",
       "skipped": "Saltate",
-      "maxSeverity": "Massima gravità"
+      "maxSeverity": "Massima gravità: {{n}}"
     },
     "common": {
       "saving": "Salvataggio…",
@@ -2440,6 +2492,79 @@
     },
     "insights": {
       "title": "Effetti collaterali e indicazioni"
+    },
+    "schedule": {
+      "everyNDays": "Ogni N giorni"
+    },
+    "mealRelation": {
+      "awayFromMeals": "Lontano dai pasti"
     }
+  },
+  "openFoodFactsContribution": {
+    "title": "Contribuisci a Open Food Facts",
+    "unavailable": "Per contribuire sono necessari un alimento personalizzato, l’impostazione del server abilitata e un account Open Food Facts attivo.",
+    "introduction": "Il tuo alimento è salvato in locale. Scegli una foto che hai scattato del prodotto, poi controlla esattamente cosa verrà pubblicato. Preparare o annullare un'anteprima non modifica i dati su Open Food Facts.",
+    "saveAndPreview": "Salva e vedi l'anteprima",
+    "photoLabel": "La tua foto del prodotto",
+    "photoHelp": "Usa una foto nitida del fronte del prodotto, della tabella nutrizionale o della confezione. Posizione e metadati della foto vengono rimossi prima della pubblicazione.",
+    "imageTypeLabel": "Contenuto foto",
+    "nutritionPhoto": "Valori nutrizionali",
+    "frontPhoto": "Fronte del prodotto",
+    "packagingPhoto": "Confezione",
+    "imageError": "Scegli una foto nitida in formato JPEG, PNG o WebP inferiore a 20 MB, che misuri almeno 640 pixel sul lato lungo, 160 pixel sul lato corto e al massimo 40 megapixel.",
+    "preview": "Anteprima del contributo",
+    "preparing": "Preparo l'anteprima…",
+    "previewError": "L'anteprima non può essere preparata.",
+    "previewTitle": "Controlla questo contributo",
+    "existingProduct": "Questo contributo aggiorna un prodotto pubblico già esistente. Controlla le informazioni attuali prima di confermare.",
+    "newProduct": "Questo contributo crea un prodotto pubblico.",
+    "personalAccount": "Il tuo account personale Open Food Facts",
+    "globalAccount": "L'account Open Food Facts del server condiviso",
+    "imageAlt": "Foto da pubblicare",
+    "fieldsCaption": "Tutti i campi che verranno pubblicati",
+    "field": "Campo",
+    "value": "Valore esatto",
+    "dataConsent": "Ho inserito questi dati dalla confezione fisica, ho verificato i valori esatti sopra riportati e acconsento a pubblicarli sotto la licenza ODbL e la Database Contents License.",
+    "imageConsent": "Ho scattato questa foto, detengo i diritti per condividerla e acconsento a pubblicarla sotto licenza CC BY-SA.",
+    "publish": "Pubblica questo contributo",
+    "publishing": "Pubblico…"
+  },
+  "healthMetrics": {
+    "steps": "Passi",
+    "totalCalories": "Calorie totali",
+    "heartRate": "Frequenza cardiaca",
+    "weight": "Peso",
+    "bloodPressure": "Pressione sanguigna",
+    "nutrition": "Valori nutrizionali",
+    "sleepSession": "Sessione di sonno",
+    "stress": "Stress",
+    "basalBodyTemperature": "Temperatura corporea basale",
+    "basalMetabolicRate": "Tasso metabolico basale",
+    "bloodGlucose": "Glicemia",
+    "bodyFat": "Grasso corporeo",
+    "bodyTemperature": "Temperatura corporea",
+    "distance": "Distanza",
+    "floorsClimbed": "Piani saliti",
+    "height": "Altezza",
+    "hydration": "Idratazione",
+    "leanBodyMass": "Massa corporea magra",
+    "respiratoryRate": "Frequenza respiratoria",
+    "restingHeartRate": "Frequenza cardiaca a riposo",
+    "speed": "Velocità",
+    "power": "Potenza",
+    "elevationGained": "Elevazione guadagnata",
+    "boneMass": "Massa ossea",
+    "cyclingPedalingCadence": "Cadenza di pedalata in bicicletta",
+    "stepsCadence": "Cadenza dei passi",
+    "bloodOxygenSaturation": "Saturazione di ossigeno nel sangue",
+    "bloodAlcoholContent": "Contenuto di alcol nel sangue",
+    "appleMoveTime": "Tempo di movimento Apple",
+    "appleExerciseTime": "Tempo di esercizio Apple",
+    "appleStandTime": "Tempo in piedi Apple"
+  },
+  "workout": {
+    "distance": "Distanza",
+    "calories": "Calorie",
+    "reps": "Ripetizioni"
   }
 }

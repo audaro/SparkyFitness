@@ -189,10 +189,24 @@ describe('FoodSummary', () => {
         calorieGoal={2000}
       />
     );
-    // No target chip at all — the custom category must not receive the system
-    // Breakfast target.
+    // No target chip — the custom category must not receive the system Breakfast target.
     expect(queryByText(/\/ 500/)).toBeNull();
     expect(queryByText(/\/ \d+/)).toBeNull();
+  });
+
+  it('a custom type shows the target calories configured for it', () => {
+    const goals = {
+      custom_meal_percentages: { 'pre-workout': 20 },
+    } as unknown as DailyGoals;
+    const { queryByText } = render(
+      <FoodSummary
+        foodEntries={[entry('e4', 'custom-pw', 'Pre-Workout')]}
+        mealTypes={mealTypes}
+        goals={goals}
+        calorieGoal={2000}
+      />
+    );
+    expect(queryByText(/\/ 400/)).not.toBeNull();
   });
 
   it('a historical (unresolved) group never inherits target calories', () => {

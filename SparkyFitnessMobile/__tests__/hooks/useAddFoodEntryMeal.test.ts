@@ -74,7 +74,7 @@ describe('useAddFoodEntryMeal', () => {
     invalidateSpy.mockRestore();
   });
 
-  test('invalidateCache invalidates dailySummary and foods for the date', async () => {
+  test('invalidateCache invalidates dailySummary, caffeine, and foods for the date', async () => {
     const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
     const { result } = renderHook(() => useAddFoodEntryMeal(), {
@@ -87,6 +87,11 @@ describe('useAddFoodEntryMeal', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ['dailySummary', '2026-05-15'],
+      refetchType: 'all',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['caffeineActive', '2026-05-15'],
+      refetchType: 'all',
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['foods'] });
 

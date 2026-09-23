@@ -61,7 +61,16 @@ describe('processHealthData exercise pre-clean', () => {
 
     expect(
       exerciseEntryDb.deleteExerciseEntriesByEntrySourceAndDate
-    ).toHaveBeenCalledWith(userId, '2026-08-28', '2026-08-28', 'HealthKit');
+    ).toHaveBeenCalledWith(
+      userId,
+      '2026-08-28',
+      '2026-08-28',
+      'HealthKit',
+      undefined,
+      // The one record that does carry an id is still held back, so the
+      // delete cannot cascade away telemetry it is about to re-insert (#2300).
+      ['hk-uuid-2']
+    );
   });
 
   it('decides per source', async () => {
@@ -83,7 +92,9 @@ describe('processHealthData exercise pre-clean', () => {
       userId,
       '2026-08-28',
       '2026-08-28',
-      'Health Connect'
+      'Health Connect',
+      undefined,
+      []
     );
   });
 });

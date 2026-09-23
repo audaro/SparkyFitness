@@ -330,7 +330,8 @@ function extractProviderSport(
       );
     }
     case "hevy":
-      // Hevy is a strength-training app; it has no cardio sport enum.
+    case "liftosaur":
+      // Hevy and Liftosaur are strength-training apps; they have no cardio sport enum.
       return "strength";
     case "healthkit":
     case "health connect":

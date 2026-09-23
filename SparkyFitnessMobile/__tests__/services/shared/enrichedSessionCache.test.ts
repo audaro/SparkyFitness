@@ -3,9 +3,13 @@ import {
   MAX_ENRICHED_SESSION_KEYS,
   _resetEnrichedSessionCacheForTests,
   clearEnrichedSessions,
+  enrichedSessionOrder,
+  hasAnyEnrichedSessions,
   hasEnrichedSession,
+  hasHeartRateTelemetry,
   markEnrichedSessions,
   sessionTelemetryKey,
+  shouldCacheEnrichedSession,
 } from '../../../src/services/shared/enrichedSessionCache';
 import { getActiveServerConfigId } from '../../../src/services/storage';
 
@@ -14,7 +18,8 @@ jest.mock('../../../src/services/storage', () => ({
 }));
 
 const mockActiveConfig = getActiveServerConfigId as jest.Mock;
-const keyFor = (scope: string) => `@SparkyFitness/enrichedSessions:${scope}`;
+const keyFor = (scope: string) => `@SparkyFitness/enrichedSessions.v2:${scope}`;
+const v1KeyFor = (scope: string) => `@SparkyFitness/enrichedSessions:${scope}`;
 
 describe('enrichedSessionCache', () => {
   beforeEach(async () => {
@@ -71,6 +76,43 @@ describe('enrichedSessionCache', () => {
       expect(
         await AsyncStorage.getItem('@SparkyFitness/enrichedSessions')
       ).toBeNull();
+    });
+
+    it('never reads v1 entries, so a session cached before the heart-rate gate is re-collected (#2300)', async () => {
+      // v1 entries mean "some telemetry was found", which is what left workouts
+      // stranded without their heart rate. They must not suppress collection.
+      await AsyncStorage.setItem(
+        v1KeyFor('server-a'),
+        JSON.stringify(['rec-1:m'])
+      );
+
+      expect(await hasEnrichedSession('rec-1:m')).toBe(false);
+    });
+
+    it('sweeps the v1 per-server keys so they do not linger', async () => {
+      await AsyncStorage.setItem(
+        v1KeyFor('server-a'),
+        JSON.stringify(['rec-1:m'])
+      );
+      await AsyncStorage.setItem(
+        v1KeyFor('server-b'),
+        JSON.stringify(['rec-2:m'])
+      );
+
+      await hasEnrichedSession('anything');
+
+      expect(await AsyncStorage.getItem(v1KeyFor('server-a'))).toBeNull();
+      expect(await AsyncStorage.getItem(v1KeyFor('server-b'))).toBeNull();
+    });
+
+    it('leaves unrelated app keys alone while sweeping', async () => {
+      await AsyncStorage.setItem('@SparkyFitness/app-preferences', '{"a":1}');
+
+      await hasEnrichedSession('anything');
+
+      expect(await AsyncStorage.getItem('@SparkyFitness/app-preferences')).toBe(
+        '{"a":1}'
+      );
     });
 
     it('falls back to an unscoped bucket when no server is configured', async () => {
@@ -154,5 +196,185 @@ describe('enrichedSessionCache', () => {
 
     expect(await hasEnrichedSession('rec-1:m')).toBe(false);
     expect(await AsyncStorage.getItem(keyFor('server-a'))).toBeNull();
+  });
+
+  describe('hasHeartRateTelemetry', () => {
+    it('is true for an hr series or a device-reported average', () => {
+      expect(
+        hasHeartRateTelemetry({ hr_samples: [{ t: 't', bpm: 120 }] })
+      ).toBe(true);
+      expect(
+        hasHeartRateTelemetry({ telemetry: { avg_heart_rate: 118 } })
+      ).toBe(true);
+    });
+
+    it('is false for non-HR telemetry, which is the #2300 case', () => {
+      // A Google Fit walk yields Speed and StepsCadence from its own summary
+      // long before the ring's heart rate lands. Treating that as "collected"
+      // is what locked the session out for good.
+      expect(
+        hasHeartRateTelemetry({
+          telemetry: { avg_speed_mps: 1.4, avg_cadence: 108 },
+          gps_points: [{ t: 't', lat: 1, lon: 2 }],
+        })
+      ).toBe(false);
+    });
+
+    it('is false for an empty bundle or none at all', () => {
+      expect(hasHeartRateTelemetry({})).toBe(false);
+      expect(hasHeartRateTelemetry({ hr_samples: [] })).toBe(false);
+      expect(hasHeartRateTelemetry(null)).toBe(false);
+      expect(hasHeartRateTelemetry(undefined)).toBe(false);
+    });
+  });
+
+  describe('shouldCacheEnrichedSession', () => {
+    const baseNow = Date.parse('2026-09-17T12:00:00Z');
+    const withHr = { hr_samples: [{ t: 't', bpm: 120 }] };
+    const noHr = {};
+
+    it('caches a session that carries heart rate, regardless of age', () => {
+      expect(
+        shouldCacheEnrichedSession(withHr, '2026-09-17T11:30:00Z', baseNow)
+      ).toBe(true);
+      expect(
+        shouldCacheEnrichedSession(withHr, '2026-09-10T12:00:00Z', baseNow)
+      ).toBe(true);
+    });
+
+    it('does not cache a recent session that has telemetry but no heart rate (#2300)', () => {
+      // The regression the grace window exists for: speed/cadence present,
+      // HR still to arrive from the wearable.
+      expect(
+        shouldCacheEnrichedSession(
+          { telemetry: { avg_speed_mps: 1.4, avg_cadence: 108 } },
+          '2026-09-17T11:00:00Z',
+          baseNow
+        )
+      ).toBe(false);
+    });
+
+    it('does not cache a session without heart rate inside the 24h grace window', () => {
+      // 1 hour ago
+      expect(
+        shouldCacheEnrichedSession(noHr, '2026-09-17T11:00:00Z', baseNow)
+      ).toBe(false);
+
+      // 23 hours ago
+      expect(
+        shouldCacheEnrichedSession(noHr, '2026-09-16T13:00:00Z', baseNow)
+      ).toBe(false);
+
+      // Date instance
+      expect(
+        shouldCacheEnrichedSession(
+          noHr,
+          new Date('2026-09-17T10:00:00Z'),
+          baseNow
+        )
+      ).toBe(false);
+    });
+
+    it('caches a session without heart rate once it is older than the grace window', () => {
+      // Exactly 24 hours ago
+      expect(
+        shouldCacheEnrichedSession(noHr, '2026-09-16T12:00:00Z', baseNow)
+      ).toBe(true);
+
+      // 48 hours ago
+      expect(
+        shouldCacheEnrichedSession(noHr, '2026-09-15T12:00:00Z', baseNow)
+      ).toBe(true);
+    });
+
+    it('caches as a safe fallback when the session end time is missing or invalid', () => {
+      expect(shouldCacheEnrichedSession(noHr, null, baseNow)).toBe(true);
+      expect(shouldCacheEnrichedSession(noHr, undefined, baseNow)).toBe(true);
+      expect(shouldCacheEnrichedSession(noHr, 'invalid-date', baseNow)).toBe(
+        true
+      );
+    });
+  });
+});
+
+// Gates whether the manual sync offers to re-send workout details: with an
+// empty cache nothing is being skipped, so a forced run and a normal one do
+// identical work and the choice would be noise.
+describe('hasAnyEnrichedSessions', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    _resetEnrichedSessionCacheForTests();
+  });
+
+  it('is false before anything has been collected', async () => {
+    mockActiveConfig.mockResolvedValue('server-1');
+    expect(await hasAnyEnrichedSessions()).toBe(false);
+  });
+
+  it('is true once a session is recorded', async () => {
+    mockActiveConfig.mockResolvedValue('server-1');
+    await markEnrichedSessions(['rec-1:m']);
+    expect(await hasAnyEnrichedSessions()).toBe(true);
+  });
+
+  it('is false again after the cache is cleared', async () => {
+    mockActiveConfig.mockResolvedValue('server-1');
+    await markEnrichedSessions(['rec-1:m']);
+    await clearEnrichedSessions();
+    expect(await hasAnyEnrichedSessions()).toBe(false);
+  });
+
+  it('is scoped per server, like the rest of the cache', async () => {
+    mockActiveConfig.mockResolvedValue('server-1');
+    await markEnrichedSessions(['rec-1:m']);
+    expect(await hasAnyEnrichedSessions()).toBe(true);
+
+    _resetEnrichedSessionCacheForTests();
+    mockActiveConfig.mockResolvedValue('server-2');
+    expect(await hasAnyEnrichedSessions()).toBe(false);
+  });
+});
+
+// A forced run bypasses the cache, so the budget alone bounds it. Newest-first
+// would re-read the same few every run and never reach the rest of the range;
+// ordering by collection recency is what makes successive runs progress.
+describe('enrichedSessionOrder', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    _resetEnrichedSessionCacheForTests();
+  });
+
+  it('is empty before anything has been collected', async () => {
+    mockActiveConfig.mockResolvedValue('server-1');
+    expect((await enrichedSessionOrder()).size).toBe(0);
+  });
+
+  it('ranks least recently collected first', async () => {
+    mockActiveConfig.mockResolvedValue('server-1');
+    await markEnrichedSessions(['a:1', 'b:1', 'c:1']);
+    const order = await enrichedSessionOrder();
+    expect(order.get('a:1')).toBeLessThan(order.get('b:1') as number);
+    expect(order.get('b:1')).toBeLessThan(order.get('c:1') as number);
+  });
+
+  it('moves a re-collected session to the back, so the next run skips past it', async () => {
+    mockActiveConfig.mockResolvedValue('server-1');
+    await markEnrichedSessions(['a:1', 'b:1', 'c:1']);
+    // A forced run re-reads the oldest, "a", and re-commits it.
+    await markEnrichedSessions(['a:1']);
+    const order = await enrichedSessionOrder();
+    // "b" is now the least recently collected, so the next forced run takes it
+    // rather than "a" again.
+    expect(order.get('b:1')).toBe(0);
+    expect(order.get('a:1')).toBe(2);
+  });
+
+  it('leaves a never-collected session outranking every cached one', async () => {
+    mockActiveConfig.mockResolvedValue('server-1');
+    await markEnrichedSessions(['a:1']);
+    const order = await enrichedSessionOrder();
+    // Absent from the map: callers rank it -1, ahead of position 0.
+    expect(order.has('never-seen:1')).toBe(false);
+    expect(order.get('a:1')).toBe(0);
   });
 });

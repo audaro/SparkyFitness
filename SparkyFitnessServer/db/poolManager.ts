@@ -40,7 +40,7 @@ function createAppPoolInstance() {
     database: process.env.SPARKY_FITNESS_DB_NAME,
     password: process.env.SPARKY_FITNESS_APP_DB_PASSWORD,
     // @ts-expect-error TS(2322): Type 'string | undefined' is not assignable to typ... Remove this comment to see the full error message
-    port: process.env.SPARKY_FITNESS_DB_PORT,
+    port: process.env.SPARKY_FITNESS_DB_PORT || 5432,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,

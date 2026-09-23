@@ -149,10 +149,12 @@ export const stopObservers = (): void => {};
 
 export const syncHealthData = (
   syncDuration: SyncDuration,
-  healthMetricStates: HealthMetricStates = {}
+  healthMetricStates: HealthMetricStates = {},
+  forceTelemetry = false
 ): Promise<SyncResult> =>
   runForegroundSync(healthReadProvider, syncDuration, healthMetricStates, {
     logTag: '[HealthConnectService]',
     emptyMessage: 'No health data to sync.',
     timeoutLabelPrefix: 'Health Connect query',
+    forceTelemetry,
   });

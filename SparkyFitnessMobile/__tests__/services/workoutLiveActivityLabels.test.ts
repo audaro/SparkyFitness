@@ -4,6 +4,7 @@ import {
   resolveWorkoutLiveActivityLocale,
 } from '../../src/services/workoutLiveActivityLabels';
 import i18n, { initializeI18n } from '../../src/localization/i18n';
+import registry from '../../src/localization/localeRegistry.json';
 
 const EN_EXPECTED = {
   rest: 'Rest',
@@ -173,18 +174,19 @@ describe('workoutLiveActivityLabels', () => {
     });
 
     it('falls back to English for unsupported languages and missing values', () => {
-      expect(resolveWorkoutLiveActivityLocale('de')).toBe('en');
-      expect(resolveWorkoutLiveActivityLocale('fr-FR')).toBe('en');
+      // `sv` and `ta` have Weblate directories but are not in the registry.
+      expect(resolveWorkoutLiveActivityLocale('sv')).toBe('en');
+      expect(resolveWorkoutLiveActivityLocale('ta-IN')).toBe('en');
       expect(resolveWorkoutLiveActivityLocale(null)).toBe('en');
       expect(resolveWorkoutLiveActivityLocale(undefined)).toBe('en');
       expect(resolveWorkoutLiveActivityLocale('')).toBe('en');
     });
 
-    it('isWorkoutLiveActivityLocale narrows en, pl and es only', () => {
-      expect(isWorkoutLiveActivityLocale('en')).toBe(true);
-      expect(isWorkoutLiveActivityLocale('pl')).toBe(true);
-      expect(isWorkoutLiveActivityLocale('es')).toBe(true);
-      expect(isWorkoutLiveActivityLocale('de')).toBe(false);
+    it('isWorkoutLiveActivityLocale narrows to the shipped registry only', () => {
+      for (const locale of Object.keys(registry.locales)) {
+        expect(isWorkoutLiveActivityLocale(locale)).toBe(true);
+      }
+      expect(isWorkoutLiveActivityLocale('sv')).toBe(false);
       expect(isWorkoutLiveActivityLocale(null)).toBe(false);
       expect(isWorkoutLiveActivityLocale(undefined)).toBe(false);
     });

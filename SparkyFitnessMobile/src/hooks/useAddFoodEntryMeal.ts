@@ -6,7 +6,7 @@ import type {
   FoodEntryMeal,
   FoodEntryMealCreateData,
 } from '../types/foodEntryMeals';
-import { dailySummaryQueryKey, foodsQueryKey } from './queryKeys';
+import { invalidateFoodCache } from './invalidateFoodCache';
 import { invalidateMealUsageCaches } from './useMeals';
 
 interface UseAddFoodEntryMealOptions {
@@ -21,6 +21,7 @@ export function useAddFoodEntryMeal(options?: UseAddFoodEntryMealOptions) {
     mutationFn: (payload: FoodEntryMealCreateData) =>
       createFoodEntryMeal(payload),
     onSuccess: (meal) => {
+      invalidateCache(meal.entry_date);
       invalidateMealUsageCaches(queryClient);
       options?.onSuccess?.(meal);
     },
@@ -36,8 +37,7 @@ export function useAddFoodEntryMeal(options?: UseAddFoodEntryMealOptions) {
   });
 
   const invalidateCache = (date: string) => {
-    queryClient.invalidateQueries({ queryKey: dailySummaryQueryKey(date) });
-    queryClient.invalidateQueries({ queryKey: [...foodsQueryKey] });
+    invalidateFoodCache(queryClient, date);
   };
 
   return {

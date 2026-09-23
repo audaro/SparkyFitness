@@ -1,0 +1,58 @@
+:root {
+  --vp-c-brand-1: #3b82f6;
+  --vp-c-brand-2: #2563eb;
+  --vp-c-brand-3: #1d4ed8;
+  --vp-c-brand-soft: rgba(59, 130, 246, 0.14);
+}
+
+.dark {
+  --vp-c-brand-1: #60a5fa;
+  --vp-c-brand-2: #3b82f6;
+  --vp-c-brand-3: #2563eb;
+  --vp-c-brand-soft: rgba(96, 165, 250, 0.16);
+}
+
+/*
+ * Use the full window width at every size. The theme caps the shell at 1440px,
+ * the doc container at 1104px and the prose column at 688px, which leaves most
+ * of a large monitor empty. All three are released here.
+ *
+ * The #app prefix is required: the theme sets these through scoped selectors
+ * like `.VPDoc.has-aside .content-container[data-v-d13f528f]`, which are
+ * (0,4,0); an unprefixed override loses and silently does nothing. An ID
+ * outranks any number of classes.
+ *
+ * Nothing extra is needed for smaller screens — the theme's own breakpoints
+ * still collapse the sidebar and TOC, and 100% simply means "the space that
+ * is actually there".
+ */
+:root {
+  --vp-layout-max-width: 100%;
+}
+
+#app .VPDoc .container {
+  max-width: 100%;
+}
+
+#app .VPDoc.has-aside .content-container {
+  max-width: 100%;
+}
+
+/* Ensure full width for interactive generator */
+.vp-doc .env-generator-container {
+  margin: 1.5rem 0;
+}
+
+/*
+ * The .env generator is a two-column form, not prose. It sets `aside: false`,
+ * so this also takes back the width the TOC would have used. The container cap
+ * that used to live here is gone: the global rules above already give every
+ * page the full window, and 1200px would now narrow this page rather than
+ * widen it.
+ */
+#app .env-generator-page .VPDoc .content,
+#app .env-generator-page .VPDoc:not(.has-sidebar) .content,
+#app .env-generator-page .VPDoc .content-container,
+#app .env-generator-page .VPDoc.has-aside .content-container {
+  max-width: 100%;
+}

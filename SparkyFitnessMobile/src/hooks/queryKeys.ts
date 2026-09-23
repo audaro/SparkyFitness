@@ -13,6 +13,7 @@ export const familyDailySummaryQueryKey = (
   date: string
 ) => ['familyDailySummary', familyUserId, date] as const;
 
+export const caffeineActiveRootQueryKey = ['caffeineActive'] as const;
 export const caffeineActiveQueryKey = (date: string) =>
   ['caffeineActive', date] as const;
 
@@ -224,8 +225,16 @@ export const exercisesLibraryQueryKey = (searchTerm: string) =>
 export const externalExerciseSearchQueryKey = (
   providerType: string,
   searchTerm: string,
-  providerId?: string
-) => ['externalExerciseSearch', providerType, searchTerm, providerId] as const;
+  providerId?: string,
+  language?: string
+) =>
+  [
+    'externalExerciseSearch',
+    providerType,
+    searchTerm,
+    providerId,
+    language,
+  ] as const;
 
 export const workoutSessionQueryKey = (sessionId: string) =>
   ['workoutSession', sessionId] as const;

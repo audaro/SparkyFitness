@@ -13,7 +13,7 @@ import {
   calculateMealNutrition,
   getMealGroupLabel,
   groupFoodEntriesByMealType,
-  getMealPercentage,
+  getMealTargetCalories,
   type MealGroup,
 } from '../utils/mealNutrition';
 
@@ -81,14 +81,10 @@ const MealSection: React.FC<MealSectionProps> = ({
   const icon = systemConfig?.icon ?? 'meal-snack';
 
   const totalCalories = calculateMealNutrition(group.entries).values.calories;
-  const targetCalories = React.useMemo(() => {
-    // Target-calorie percentages are only meaningful for SYSTEM meal types: a
-    // custom type named "breakfast" (or a historical group) must never inherit
-    // the system Breakfast target calories.
-    if (!group.isSystem || !goals || !calorieGoal) return 0;
-    const percentage = getMealPercentage(group.name, goals);
-    return Math.round((calorieGoal * percentage) / 100);
-  }, [group.isSystem, group.name, goals, calorieGoal]);
+  const targetCalories = React.useMemo(
+    () => getMealTargetCalories(group.name, group.isSystem, goals, calorieGoal),
+    [group.isSystem, group.name, goals, calorieGoal]
+  );
 
   const headerContent = (
     <>

@@ -257,7 +257,6 @@
     "editPresetTooltip": "Редагувати цей шаблон",
     "deletePresetTooltip": "Видалити цей шаблон",
     "loading": "Завантаження...",
-    "loadMore": "Завантажити ще",
     "noExercisesInPreset": "У цьому шаблоні немає вправ",
     "failedToLoadPresets": "Не вдалося завантажити шаблони тренувань.",
     "createSuccess": "Шаблон тренування успішно створено.",
