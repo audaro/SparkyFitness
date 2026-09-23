@@ -373,6 +373,16 @@ function ActiveWorkoutSetRow({
   );
   const durationSeedText =
     effectiveDurationSec != null ? String(effectiveDurationSec) : '';
+  // What a hold on this row would count down: the row's own seconds, else the
+  // placeholder it shows grayed-in (live only). A generated plank has only the
+  // latter until it is logged, and the store's `startHold` resolves the same
+  // fallback, so the play control is offered exactly when it would be accepted.
+  const holdTargetSec =
+    effectiveDurationSec ??
+    (isLive && assumed?.duration != null && assumed.duration > 0
+      ? assumed.duration
+      : null);
+  const holdTargetText = holdTargetSec != null ? String(holdTargetSec) : '';
 
   // Local drafts while the row is current — committed on blur/step/log so the
   // store (kg) isn't rewritten on every keystroke of a decimal in progress.
@@ -808,21 +818,21 @@ function ActiveWorkoutSetRow({
         onStartHold != null &&
         durationLike &&
         !isHolding &&
-        effectiveDurationSec != null
+        holdTargetSec != null
       ) {
         return (
           <Pressable
             onPress={handleStartHold}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            // `durationSeedText` rather than `effectiveDurationSec`: the
+            // `holdTargetText` rather than `effectiveDurationSec`: the
             // latter seeds `durationDraft`'s useState, so reading it here
             // merges this scope with the drafts' and the React Compiler then
             // infers the state setters as deps of handleFillFromPrevious.
             // Same value, already stringified.
             accessibilityLabel={t('activeWorkout.setRow.startHold', {
               defaultValue: 'Start {{duration}}s hold for set {{setNumber}}',
-              duration: durationSeedText,
+              duration: holdTargetText,
               setNumber: set.set_number,
             })}
           >
@@ -1160,7 +1170,7 @@ function ActiveWorkoutSetRow({
       onStartHold != null &&
       durationLike &&
       !isHolding &&
-      effectiveDurationSec != null;
+      holdTargetSec != null;
 
     if (readOnly) return face;
 
@@ -1187,7 +1197,7 @@ function ActiveWorkoutSetRow({
               ? t('activeWorkout.setRow.startHold', {
                   defaultValue:
                     'Start {{duration}}s hold for set {{setNumber}}',
-                  duration: durationSeedText,
+                  duration: holdTargetText,
                   setNumber: set.set_number,
                 })
               : t('activeWorkout.setRow.log', {

@@ -423,6 +423,7 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
             secondary_muscles: '[]',
             instructions: ['[]'],
             images: ['[]'],
+            videos: '["fitbod_1/full_480p.mp4"]',
           },
         ],
         pagination: { page: 1, pageSize: 20, totalCount: 1, totalPages: 1 },
@@ -441,6 +442,7 @@ describe('exerciseApi - createExerciseEntry / updateExerciseEntry', () => {
         secondary_muscles: [],
         instructions: [],
         images: [],
+        videos: ['fitbod_1/full_480p.mp4'],
       });
     });
   });

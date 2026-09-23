@@ -15,6 +15,8 @@ import {
   planWorkout,
   IMPERIAL_EQUIPMENT_INCREMENT_KG,
   KG_PER_LB,
+  OPEN_FINAL_SET_TYPE,
+  isAtLoadCeiling,
   prescribeSets,
   rationaleFor,
   workoutRationale,
@@ -1912,9 +1914,11 @@ describe('prescribeSets', () => {
     expect(result.appliedMultiplier).toBeCloseTo(1.025, 6);
   });
 
-  it('remaps a cap that lands exactly on the baseline to a hold', () => {
+  it('pays a cap that lands exactly on the baseline out in reps, not a hold', () => {
     // Dumbbell lunges at 22 kg want +5% = 23.1 → quantized 24; the gym's
-    // 22.5 max floors back to 22 — exactly last session's load.
+    // 22.5 max floors back to 22 — exactly last session's load. Holding there
+    // would repeat 22 x 10 forever while the card said "+5%"; the earned
+    // increase goes into the rep target instead.
     const result = prescribeSets(
       candidate({
         id: 'a',
@@ -1927,8 +1931,11 @@ describe('prescribeSets', () => {
 
     expect(result.workingWeightKg).toBe(22);
     expect(result.capped).toBe(true);
-    expect(result.progression).toBe('hold');
+    expect(result.progression).toBe('more-reps');
     expect(result.appliedMultiplier).toBe(1);
+    expect(result.sets.every((s) => s.reps === 12 && s.weight === 22)).toBe(
+      true
+    );
   });
 
   it('clamps a cold start to a gym stocked lighter than the assumption', () => {
@@ -3117,5 +3124,347 @@ describe('deriveExperienceLevel', () => {
     expect(deriveExperienceLevel(expert - 1)).toBe('intermediate');
     expect(deriveExperienceLevel(expert)).toBe('expert');
     expect(deriveExperienceLevel(expert * 3)).toBe('expert');
+  });
+});
+
+// --- progression at a load ceiling -----------------------------------------
+
+describe('prescribeSets at a load ceiling', () => {
+  // A home rack that ends at 30 lb (13.61 kg per hand), pounds user.
+  const HOME = {
+    loadLimits: { dumbbell: { max_kg: 13.61 } },
+    incrementDefaultsKg: IMPERIAL_EQUIPMENT_INCREMENT_KG,
+    goal: 'hypertrophy' as const,
+  };
+  const curl = candidate({
+    id: 'curl',
+    equipment: ['dumbbell'],
+    primaryMuscles: ['biceps'],
+    mechanic: 'isolation',
+  });
+  const at = (entryDate: string, ...reps: number[]) =>
+    session(
+      entryDate,
+      reps.map((r) => ({ reps: r, weight: 13.61 }))
+    );
+  const working = (sets: readonly RecommendationSet[]) =>
+    sets.filter((s) => s.set_type !== 'Warmup');
+
+  it('recognises the ceiling only when the next step is out of reach', () => {
+    const opts = options(HOME);
+    expect(isAtLoadCeiling(13.61, 2.27, 'dumbbell', opts)).toBe(true);
+    // One step below the max: the rack still has a heavier pair.
+    expect(isAtLoadCeiling(11.34, 2.27, 'dumbbell', opts)).toBe(false);
+    // Above the max: that load has to come down first, a capped decrease.
+    expect(isAtLoadCeiling(15.88, 2.27, 'dumbbell', opts)).toBe(false);
+    // No limit stated, no ceiling; no load step, no rack to run out of.
+    expect(isAtLoadCeiling(13.61, 2.27, 'dumbbell', options())).toBe(false);
+    expect(isAtLoadCeiling(13.61, 0, 'bands', opts)).toBe(false);
+  });
+
+  it('turns an earned increase into two more reps at the same load', () => {
+    const result = prescribeSets(
+      curl,
+      history(at('2026-09-21', 10, 10, 10)),
+      options(HOME)
+    );
+
+    expect(result.progression).toBe('more-reps');
+    expect(result.capped).toBe(true);
+    expect(result.workingWeightKg).toBe(13.61);
+    expect(working(result.sets)).toHaveLength(3);
+    expect(working(result.sets).every((s) => s.reps === 12)).toBe(true);
+    expect(rationaleFor('biceps', result)).toBe(
+      "fresh biceps · at this gym's max load — reps up to 12"
+    );
+  });
+
+  it('carries the rep level forward instead of resetting to the base target', () => {
+    // Already doing 14s at the ceiling: a clean sweep earns 16, and Epley is
+    // not consulted (it would say "raise the load", which cannot happen).
+    const result = prescribeSets(
+      curl,
+      history(at('2026-09-21', 14, 14, 14), at('2026-09-19', 12, 12, 12)),
+      options(HOME)
+    );
+
+    expect(result.progression).toBe('more-reps');
+    expect(working(result.sets).every((s) => s.reps === 16)).toBe(true);
+    expect(result.workingWeightKg).toBe(13.61);
+  });
+
+  it('holds the rep level when a set fell short of it', () => {
+    const result = prescribeSets(
+      curl,
+      history(at('2026-09-21', 14, 14, 12)),
+      options(HOME)
+    );
+
+    expect(result.progression).toBe('hold');
+    expect(result.capped).toBe(true);
+    expect(working(result.sets).every((s) => s.reps === 14)).toBe(true);
+    expect(rationaleFor('biceps', result)).toBe(
+      "fresh biceps · at this gym's max load"
+    );
+  });
+
+  it('brings reps back down after two short sessions, never below the base target', () => {
+    const result = prescribeSets(
+      curl,
+      history(at('2026-09-21', 14, 14, 11), at('2026-09-19', 14, 14, 11)),
+      options(HOME)
+    );
+
+    expect(result.progression).toBe('fewer-reps');
+    expect(working(result.sets).every((s) => s.reps === 12)).toBe(true);
+    expect(rationaleFor('biceps', result)).toBe(
+      "fresh biceps · at this gym's max load — back to 12 reps after two short sessions"
+    );
+
+    // Two short sessions at the base target itself: nothing below it to go
+    // to, so the load and the reps both hold.
+    const floor = prescribeSets(
+      curl,
+      history(at('2026-09-21', 10, 10, 7), at('2026-09-19', 10, 10, 7)),
+      options(HOME)
+    );
+    expect(working(floor.sets).every((s) => s.reps === 10)).toBe(true);
+    expect(floor.progression).toBe('hold');
+    expect(floor.workingWeightKg).toBe(13.61);
+  });
+
+  it('adds a set once the rep ceiling is reached, then declares the movement outgrown', () => {
+    const fourth = prescribeSets(
+      curl,
+      history(at('2026-09-21', 20, 20, 20)),
+      options(HOME)
+    );
+    expect(fourth.progression).toBe('more-sets');
+    expect(working(fourth.sets)).toHaveLength(4);
+    expect(working(fourth.sets).every((s) => s.reps === 20)).toBe(true);
+    expect(rationaleFor('biceps', fourth)).toBe(
+      "fresh biceps · at this gym's max load — adding a set"
+    );
+
+    // Four sets earned last week are not taken away this week.
+    const held = prescribeSets(
+      curl,
+      history(at('2026-09-23', 20, 20, 20, 18)),
+      options(HOME)
+    );
+    expect(held.progression).toBe('hold');
+    expect(working(held.sets)).toHaveLength(4);
+
+    const outgrown = prescribeSets(
+      curl,
+      history(at('2026-09-25', 20, 20, 20, 20, 20)),
+      options(HOME)
+    );
+    expect(outgrown.progression).toBe('outgrown');
+    expect(working(outgrown.sets)).toHaveLength(
+      GENERATION_TUNABLES.workingSetsCeiling
+    );
+    expect(rationaleFor('biceps', outgrown)).toBe(
+      "fresh biceps · outgrown this gym's max load — try a harder variation"
+    );
+  });
+
+  it('steps strength work by one rep to a low ceiling', () => {
+    const result = prescribeSets(
+      curl,
+      history(at('2026-09-21', 5, 5, 5, 5)),
+      options({ ...HOME, goal: 'strength' })
+    );
+    expect(result.progression).toBe('more-reps');
+    expect(working(result.sets).every((s) => s.reps === 6)).toBe(true);
+
+    const ceiling = prescribeSets(
+      curl,
+      history(at('2026-09-21', 8, 8, 8, 8)),
+      options({ ...HOME, goal: 'strength' })
+    );
+    expect(ceiling.progression).toBe('more-sets');
+    expect(working(ceiling.sets).every((s) => s.reps === 8)).toBe(true);
+  });
+
+  it('resumes load progression, reps back at the base target, once a heavier pair exists', () => {
+    // New 40 lb dumbbells: a history of 16s at 30 lb is now off-range history,
+    // which the existing rebase turns into a heavier load at 10 reps — the
+    // classic double progression closing its loop.
+    const result = prescribeSets(
+      curl,
+      history(at('2026-09-21', 16, 16, 16), at('2026-09-19', 16, 16, 16)),
+      options({ ...HOME, loadLimits: { dumbbell: { max_kg: 18.14 } } })
+    );
+
+    expect(result.capped).toBe(false);
+    expect(result.workingWeightKg!).toBeGreaterThan(13.61);
+    expect(working(result.sets).every((s) => s.reps === 10)).toBe(true);
+  });
+
+  it('still treats a load above the ceiling as a capped decrease, not a ceiling', () => {
+    // Logged 35 lb somewhere else; at home the rack ends at 30.
+    const result = prescribeSets(
+      curl,
+      history(session('2026-09-21', [{ reps: 10, weight: 15.88 }])),
+      options(HOME)
+    );
+    expect(result.progression).toBe('decrease');
+    expect(result.capped).toBe(true);
+    expect(result.workingWeightKg).toBe(13.61);
+    expect(working(result.sets).every((s) => s.reps === 10)).toBe(true);
+  });
+
+  it('progresses bodyweight work in reps, and says bodyweight rather than gym', () => {
+    const pushUp = candidate({
+      id: 'pushup',
+      modality: 'reps_only',
+      equipment: ['body only'],
+      primaryMuscles: ['chest'],
+    });
+    const result = prescribeSets(
+      pushUp,
+      history(
+        session('2026-09-21', [
+          { reps: 10, weight: null },
+          { reps: 10, weight: null },
+          { reps: 10, weight: null },
+        ])
+      ),
+      options({ goal: 'hypertrophy' })
+    );
+
+    expect(result.progression).toBe('more-reps');
+    expect(result.capped).toBe(false);
+    expect(result.workingWeightKg).toBeNull();
+    expect(result.sets.every((s) => s.reps === 12 && s.weight === null)).toBe(
+      true
+    );
+    expect(rationaleFor('chest', result)).toBe(
+      'fresh chest · bodyweight — reps up to 12'
+    );
+
+    // Stored weight_reps but done unloaded: the same reps are what there is.
+    const crunch = candidate({
+      id: 'crunch',
+      equipment: ['body only'],
+      primaryMuscles: ['abdominals'],
+    });
+    const unloaded = prescribeSets(
+      crunch,
+      history(
+        session('2026-09-21', [
+          { reps: 15, weight: null },
+          { reps: 15, weight: null },
+          { reps: 15, weight: null },
+        ])
+      ),
+      options({ goal: 'hypertrophy' })
+    );
+    expect(unloaded.progression).toBe('more-reps');
+    expect(unloaded.workingWeightKg).toBeNull();
+    expect(unloaded.sets.every((s) => s.reps === 17)).toBe(true);
+  });
+
+  it('leaves a bodyweight movement with no counted reps alone', () => {
+    // Sets logged with no rep count ("-x-") give nothing to progress from.
+    const plank = candidate({
+      id: 'plank-ish',
+      modality: 'reps_only',
+      equipment: ['body only'],
+      primaryMuscles: ['abdominals'],
+    });
+    const result = prescribeSets(
+      plank,
+      history(session('2026-09-21', [{ reps: null, weight: null }])),
+      options({ goal: 'hypertrophy' })
+    );
+    expect(result.progression).toBe('hold');
+    expect(result.sets.every((s) => s.reps === 10)).toBe(true);
+  });
+});
+
+describe('the open-ended final set', () => {
+  it('marks the last working set on dumbbell, machine and bodyweight work', () => {
+    for (const equipment of [['dumbbell'], ['machine'], ['body only']]) {
+      const result = prescribeSets(
+        candidate({ id: 'a', equipment, primaryMuscles: ['chest'] }),
+        null,
+        options({ goal: 'hypertrophy' })
+      );
+      const types = result.sets.map((s) => s.set_type);
+      expect(types).toEqual([
+        'Working Set',
+        'Working Set',
+        OPEN_FINAL_SET_TYPE,
+      ]);
+    }
+  });
+
+  it('keeps every set at the target on a barbell and for strength work', () => {
+    const barbell = prescribeSets(
+      candidate({ id: 'a', equipment: ['barbell'] }),
+      null,
+      options({ goal: 'hypertrophy' })
+    );
+    expect(barbell.sets.every((s) => s.set_type === 'Working Set')).toBe(true);
+
+    const strength = prescribeSets(
+      candidate({ id: 'a', equipment: ['dumbbell'] }),
+      null,
+      options({ goal: 'strength' })
+    );
+    expect(strength.sets.every((s) => s.set_type === 'Working Set')).toBe(true);
+  });
+
+  it('does not touch holds, cardio or mobility', () => {
+    const hold = prescribeSets(
+      candidate({ id: 'a', modality: 'duration', equipment: ['body only'] }),
+      null,
+      options({ goal: 'hypertrophy' })
+    );
+    expect(hold.sets.every((s) => s.set_type === 'Working Set')).toBe(true);
+    expect(
+      prescribeSets(STRETCH, null, options({ goal: 'hypertrophy' })).sets.every(
+        (s) => s.set_type === 'Working Set'
+      )
+    ).toBe(true);
+  });
+
+  it('counts as a working set and survives the warm-up ramp', () => {
+    const result = prescribeSets(
+      candidate({
+        id: 'a',
+        equipment: ['dumbbell'],
+        primaryMuscles: ['chest'],
+      }),
+      history(session('2026-09-21', [{ reps: 10, weight: 32 }])),
+      options({ goal: 'hypertrophy' })
+    );
+    const sets = withWarmups(
+      result.sets,
+      warmupSetsFor(result.workingWeightKg, ['dumbbell'])
+    );
+    const working = sets.filter((s) => s.set_type !== 'Warmup');
+    expect(working).toHaveLength(3);
+    expect(working[working.length - 1]!.set_type).toBe(OPEN_FINAL_SET_TYPE);
+  });
+
+  it('moves to the new last set when the duration fitter drops one', () => {
+    const four = withSets(
+      recommended({ exercise_id: 'a', equipment: ['dumbbell'] }),
+      4
+    );
+    four.sets[3] = { ...four.sets[3]!, set_type: OPEN_FINAL_SET_TYPE };
+    const item = fittable(four, 'compound', 'chest');
+    // 90s setup + 4 × (40s work + 120s rest) = 730s ≈ 13 min; a 10-minute
+    // budget fits three sets but not four.
+    const fitted = fitToDuration([item], 10, [], ['chest']);
+    const sets = fitted[0]!.sets;
+    expect(sets).toHaveLength(3);
+    expect(sets[2]!.set_type).toBe(OPEN_FINAL_SET_TYPE);
+    expect(sets.slice(0, 2).every((s) => s.set_type === 'Working Set')).toBe(
+      true
+    );
   });
 });

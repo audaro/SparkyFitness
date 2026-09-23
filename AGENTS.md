@@ -1,6 +1,6 @@
 # AGENTS.md
 
-*Last updated: 2026-09-16*
+*Last updated: 2026-09-18*
 
 This is the repo-root monorepo guide for SparkyFitness. Use it to choose the right package, understand shared repo-level rules, and find the next guide to read.
 
@@ -27,7 +27,7 @@ Package-level guides win. For work inside a package, follow that package's `AGEN
 - Mobile: `SparkyFitnessMobile/AGENTS.md`
 - Shared: `shared/AGENTS.md`
 
-For `docs/` and `SparkyFitnessGarmin/`, there is no package-level `AGENTS.md`. `SparkyFitnessGarmin/` is only a handful of Python files (`main.py`, `routes.py`, `service.py`, `schemas.py`); read them directly. For `docs/`, inspect the local manifest and content layout.
+For `docs/`, `SparkyFitnessGarmin/` and `SparkyFitnessVision/`, there is no package-level `AGENTS.md`. `SparkyFitnessGarmin/` is only a handful of Python files (`main.py`, `routes.py`, `service.py`, `schemas.py`); read them directly. `SparkyFitnessVision/` has a `README.md` that carries its design decisions - read that before changing anything about how a photo is measured, because most of what it documents is a choice that has a wrong-looking alternative. For `docs/`, inspect the local manifest and content layout.
 
 ## Monorepo Map
 
@@ -37,6 +37,7 @@ For `docs/` and `SparkyFitnessGarmin/`, there is no package-level `AGENTS.md`. `
 - `shared/` - source-first TypeScript workspace package for `@workspace/shared` schemas, constants, and timezone/day helpers.
 - `docs/` - Nuxt / Docus docs site.
 - `SparkyFitnessGarmin/` - standalone Python integration service outside the current `pnpm` workspace.
+- `SparkyFitnessVision/` - standalone Python service that measures a progress photo (pose landmarks, person mask, scale-free body ratios, pair alignment). Outside the `pnpm` workspace, stateless, and optional: with `VISION_MICROSERVICE_URL` unset the app behaves exactly as it did before it existed.
 - `docker/`, `helm/`, `.github/` - infra and deployment assets.
 - `qa/` - Maestro UI harness for the mobile app: flows drive the iOS Simulator, and every verdict comes from an oracle that queries the database rather than reading the screen. See `qa/README.md`.
 - `db_schema_backup.sql` - repo-root schema snapshot kept in sync by CI (`.github/workflows/schema-backup.yml`); never hand-edit or regenerate locally.

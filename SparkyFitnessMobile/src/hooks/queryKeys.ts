@@ -131,6 +131,23 @@ export const checkInPhotoDatesQueryKey = [
   'dates',
 ] as const;
 
+// --- Progress photo comparison (the optional vision sidecar) ---
+/** Whether this server has the sidecar, and whether it is up. */
+export const visionAvailabilityQueryKey = ['visionAvailability'] as const;
+/** One measured pair, keyed on the two photos rather than on the row id. */
+export const progressPhotoComparisonQueryKey = (
+  beforePhotoId: string,
+  afterPhotoId: string
+) => ['progressPhotoComparison', beforePhotoId, afterPhotoId] as const;
+/**
+ * The aligned frames of one comparison. Kept out of the comparison's own key
+ * because it is hundreds of kilobytes of image data against a few hundred
+ * bytes of numbers, and only one of the two should sit in the cache after a
+ * screen that merely wanted the verdict.
+ */
+export const alignedPairQueryKey = (comparisonId: string) =>
+  ['progressPhotoComparison', 'aligned', comparisonId] as const;
+
 export const customCategoriesQueryKey = ['customCategories'] as const;
 export const customMeasurementsByDateQueryKey = (date: string) =>
   ['customMeasurements', date] as const;

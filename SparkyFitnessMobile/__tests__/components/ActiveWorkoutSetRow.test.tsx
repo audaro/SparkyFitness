@@ -1737,6 +1737,33 @@ describe('ActiveWorkoutSetRow', () => {
       expect(callbacks.onStartHold).toHaveBeenCalledWith('101');
     });
 
+    it('offers the hold on the placeholder seconds when the set has none of its own', () => {
+      // A generated plank: the set is empty and the 60s lives in the plan the
+      // row shows grayed-in. The store resolves the same fallback, so the
+      // control is live rather than a dead play button.
+      const { getByLabelText, queryByLabelText, callbacks } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        set: { id: 101, duration: null, reps: null, weight: null },
+        assumed: { weight: null, reps: null, duration: 60 },
+      });
+      expect(queryByLabelText('Log set 1')).toBeNull();
+      fireEvent.press(getByLabelText('Start 60s hold for set 1'));
+      expect(callbacks.onStartHold).toHaveBeenCalledWith('101');
+    });
+
+    it('keeps the log ring on an empty timed row with nothing assumed', () => {
+      const { getByLabelText, queryByTestId } = renderRow({
+        state: 'current',
+        modality: 'duration',
+        enableStartHold: true,
+        set: { id: 101, duration: null, reps: null, weight: null },
+      });
+      expect(getByLabelText('Log set 1')).toBeTruthy();
+      expect(queryByTestId('start-hold-control')).toBeNull();
+    });
+
     it('keeps the ordinary log ring on a reps row', () => {
       const { getByLabelText, queryByTestId } = renderRow({
         state: 'current',

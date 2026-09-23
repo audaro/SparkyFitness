@@ -46,6 +46,7 @@ import nutrientGoalPreferenceRoutes from './routes/nutrientGoalPreferenceRoutes.
 import chatRoutes from './routes/chatRoutes.js';
 import measurementRoutes from './routes/measurementRoutes.js';
 import checkInPhotoRoutes from './routes/checkInPhotoRoutes.js';
+import progressPhotoComparisonRoutes from './routes/progressPhotoComparisonRoutes.js';
 import goalRoutes from './routes/goalRoutes.js';
 import goalPresetRoutes from './routes/goalPresetRoutes.js';
 // @ts-expect-error TS1192
@@ -720,6 +721,7 @@ app.use('/api/preferences/nutrient-display', nutrientDisplayPreferenceRoutes);
 app.use('/api/nutrient-goal-preferences', nutrientGoalPreferenceRoutes);
 app.use('/api/measurements', measurementRoutes);
 app.use('/api/measurements/check-in-photos', checkInPhotoRoutes);
+app.use('/api/progress-photo-comparisons', progressPhotoComparisonRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/user-goals', goalRoutes);
 app.use('/api/goal-presets', goalPresetRoutes);

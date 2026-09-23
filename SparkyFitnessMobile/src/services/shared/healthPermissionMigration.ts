@@ -4,7 +4,14 @@ import type {
   HealthMetricStates,
 } from '../../types/healthRecords';
 
-const REQUIRED_HEALTH_PERMISSION_VERSION = 4;
+// Bump this whenever the set of identifiers handed to requestAuthorization grows.
+// iOS only ever shows the sheet for types that are still notDetermined, and this
+// gate short-circuits before requestHealthPermissions is called at all, so on an
+// existing install a widened permission set is never presented and the new type
+// stays notDetermined forever — the code change looks correct in the diff and does
+// nothing on the device. v5 adds HKCorrelationTypeIdentifierFood to the Nutrition
+// read set (see services/healthkit/index.ts).
+const REQUIRED_HEALTH_PERMISSION_VERSION = 5;
 const REQUIRED_HEALTH_PERMISSION_VERSION_KEY = 'healthPermissionsVersion';
 
 type PermissionedMetric = {

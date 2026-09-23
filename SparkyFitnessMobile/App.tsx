@@ -73,6 +73,7 @@ import {
   SafeImportHistory,
   SafeMeasurementsAdd,
   SafeProgressPhotos,
+  SafeProgressPhotoCapture,
   SafeProgressPhotoCompare,
   SafeProgressPhotoTimelapse,
   SafeChat,
@@ -733,6 +734,15 @@ function AppContent() {
             name="ProgressPhotos"
             component={SafeProgressPhotos}
             options={createStackScreenOptions(t('screens.progressPhotos', { defaultValue: 'Progress Photos' }), { headerBackButtonDisplayMode: 'minimal' })}
+          />
+          <Stack.Screen
+            name="ProgressPhotoCapture"
+            component={SafeProgressPhotoCapture}
+            options={createStackScreenOptions(t('screens.progressPhotoCapture', { defaultValue: 'Guided Capture' }), {
+              presentation: 'modal',
+              headerShown: false,
+              ...(Platform.OS === 'android' ? androidModalAnimation : {}),
+            })}
           />
           <Stack.Screen
             name="ProgressPhotoCompare"

@@ -12,9 +12,45 @@ import {
   CheckInPhotoUploadParamSchema,
   CheckInPhotoIdParamSchema,
   CheckInPhotoGalleryResponseSchema,
+  CheckInPhotoCaptureMetaSchema,
+  type CaptureMeta,
 } from '../schemas/checkInPhotoSchemas.js';
 
 const router = express.Router();
+
+/**
+ * Reads the optional `capture_meta` multipart field off an upload.
+ *
+ * Three outcomes, and the middle one is the point: absent means the client sent
+ * no capture conditions (an older app, or a library import) and the photo is
+ * stored with none; valid means they are stored; **malformed is a hard error**.
+ * Dropping an unparseable payload would leave a photo that looks guided but
+ * carries no conditions, and a later comparison would quietly score the pair as
+ * if it had been framed against its predecessor. A 400 the client can surface
+ * beats a plausible-but-wrong report weeks later.
+ */
+const parseCaptureMeta = (
+  raw: unknown
+): { ok: true; value?: CaptureMeta } | { ok: false; error: string } => {
+  if (raw === undefined || raw === null || raw === '') return { ok: true };
+  if (typeof raw !== 'string') {
+    return { ok: false, error: 'capture_meta must be a JSON string' };
+  }
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: 'capture_meta is not valid JSON' };
+  }
+  const parsed = CheckInPhotoCaptureMetaSchema.safeParse(decoded);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: `capture_meta is invalid: ${parsed.error.issues[0]?.message}`,
+    };
+  }
+  return { ok: true, value: parsed.data };
+};
 
 /**
  * @swagger
@@ -250,11 +286,21 @@ router.get(
  *               photo:
  *                 type: string
  *                 format: binary
+ *               capture_meta:
+ *                 type: string
+ *                 description: >
+ *                   Optional JSON describing how the photo was taken
+ *                   (capture_mode, device, facing, reference_photo_id,
+ *                   reference_opacity, timer_seconds, pitch_deg, roll_deg,
+ *                   local_time). Omit it for a library import or an older
+ *                   client; a malformed payload is rejected rather than
+ *                   dropped, so a later comparison never scores a pair on
+ *                   conditions it never had.
  *     responses:
  *       200:
  *         description: Photo uploaded successfully.
  *       400:
- *         description: Invalid parameters or file type.
+ *         description: Invalid parameters, file type, or capture_meta payload.
  */
 router.post(
   '/:date/:type',
@@ -290,13 +336,23 @@ router.post(
       });
       return;
     }
+    // multer puts the multipart text fields on req.body; this one rides along
+    // with the image so the conditions and the photo land in one transaction.
+    const captureMeta = parseCaptureMeta(
+      (req.body as { capture_meta?: unknown } | undefined)?.capture_meta
+    );
+    if (!captureMeta.ok) {
+      res.status(400).json({ error: captureMeta.error });
+      return;
+    }
     try {
       const photo = await checkInPhotoService.upsertPhoto(
         req.userId,
         date,
         type,
         extension,
-        file.buffer
+        file.buffer,
+        captureMeta.value
       );
       res.json(photo);
     } catch (err) {

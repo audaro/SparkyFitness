@@ -139,12 +139,16 @@ export interface GenerateOptions {
   /**
    * The equipment on hand for this one session, stated in the request rather
    * than read from a gym profile — "I have dumbbells and a bench today".
-   * When present it REPLACES the profile's constraints wholesale (equipment,
-   * apparatus, load limits, equipment items, preference): the user is
-   * somewhere else, so the profile's dumbbell ceiling and machine list say
-   * nothing about where they are. Nothing is persisted and the stored row
-   * carries no gym profile id, because none was used. `apparatus` follows the
-   * profile column's tri-state: `null` = not stated, infer from equipment.
+   * When present it REPLACES the profile's constraints (equipment, apparatus,
+   * equipment items, preference). Load limits are the one exception, and only
+   * when the session names a SUBSET of the active profile's equipment: "just
+   * dumbbells and a bench" at home is the same room with less of it out, and
+   * the profile's dumbbell ceiling still describes those dumbbells. Naming
+   * anything the profile lacks means somewhere else, whose racks the profile
+   * knows nothing about, so no ceiling applies. Nothing is persisted and the
+   * stored row carries no gym profile id, because none was used. `apparatus`
+   * follows the profile column's tri-state: `null` = not stated, infer from
+   * equipment.
    */
   equipmentOverride?: {
     equipment: readonly string[];
@@ -581,11 +585,24 @@ async function generateRecommendation(
   // A stated per-session constraint stands in for the profile entirely; see
   // `GenerateOptions.equipmentOverride`. `null` here means "no constraint".
   const override = opts.equipmentOverride;
+  // A session that names a SUBSET of the active profile's equipment is the
+  // same place with less of it out — "just dumbbells and a bench" at home —
+  // and the profile's load ceilings still describe those dumbbells. Naming
+  // anything the profile does not have means somewhere else, whose racks
+  // the profile knows nothing about, so no ceiling applies.
+  const overrideKeepsProfileLoads =
+    override !== undefined &&
+    gymProfile !== null &&
+    override.equipment.every((item) =>
+      (gymProfile.equipment as readonly string[]).includes(item)
+    );
   const constraint = override
     ? {
         equipment: [...override.equipment],
         apparatus: override.apparatus === null ? null : [...override.apparatus],
-        load_limits: null,
+        load_limits: overrideKeepsProfileLoads
+          ? (gymProfile.load_limits ?? null)
+          : null,
         equipment_items: null,
         equipment_preference: null,
       }

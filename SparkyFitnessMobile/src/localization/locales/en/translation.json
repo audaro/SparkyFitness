@@ -535,7 +535,8 @@
     "progressPhotos": "Progress Photos",
     "progressPhotoCompare": "Compare",
     "progressPhotoTimelapse": "Time-lapse",
-    "medicationSettings": "Medication Settings"
+    "medicationSettings": "Medication Settings",
+    "progressPhotoCapture": "Guided Capture"
   },
   "healthMetrics": {
     "steps": "Steps",
@@ -5259,7 +5260,32 @@
     "rangeSection": "Play back",
     "rangeA11y": "Choose how far back to play",
     "deltaBadge": "Δ {{value}}",
-    "frameCountRanged": "{{current}} of {{total}} · {{range}}"
+    "frameCountRanged": "{{current}} of {{total}} · {{range}}",
+    "guidedCapture": "Guided Capture",
+    "capture": {
+      "permission": "We need your permission to show the camera",
+      "grantPermission": "Grant permission",
+      "flipCamera": "Flip camera",
+      "ghostOpacity": "Ghost opacity",
+      "timer": "Self-timer",
+      "timerOff": "Off",
+      "shutter": "Take photo",
+      "ghostHint": "Line yourself up with the photo from {{date}}",
+      "loadingReference": "Finding your last shot at this angle…",
+      "firstShotHint": "Your first shot at this angle — every later one lines up with it, so stand square and leave room above and below.",
+      "armsHint": "Hold your arms slightly away from your sides, or the waist and hip measurements follow your arms instead of you.",
+      "ghostOpacityValue": "{{percent}}%",
+      "timerValue": "{{seconds}}s"
+    },
+    "aligned": {
+      "toggle": "Align the two photos",
+      "toggleHint": "Fits the later photo onto the earlier one and matches the light, so only the body is left to differ.",
+      "working": "Measuring both photos…",
+      "failed": "These two photos could not be aligned. Turn this off to compare them side by side.",
+      "caveat": "These two shots differ in more than the body — read the overlay as a rough guide rather than a measurement.",
+      "sliderA11y": "Before and after, aligned. Swipe up or down to move the divider.",
+      "sliderValueA11y": "{{percent}}% before"
+    }
   },
   "caffeine": {
     "title": "Active Caffeine",

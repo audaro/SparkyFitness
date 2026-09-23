@@ -413,6 +413,26 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
     });
   }, [navigation, route.key, entryId, entry?.exercise_id]);
 
+  /**
+   * Replacing a *planned* exercise, which this sheet cannot do itself: the
+   * server re-prescribes the whole workout and returns it, so a sheet that
+   * spliced one exercise would be holding a workout the server never agreed
+   * to. It hands the outgoing id back to Up Next and closes, and Up Next runs
+   * the identical flow its own row menu runs — one replace path, not two.
+   */
+  const planReplaceNonceRef = useRef(0);
+  const handleReplacePlanned = useCallback(() => {
+    if (planReturnKey == null || planDraft == null) return;
+    navigation.dispatch({
+      ...CommonActions.setParams({
+        replaceExerciseId: planDraft.exercise.exercise_id,
+        replaceNonce: ++planReplaceNonceRef.current,
+      }),
+      source: planReturnKey,
+    });
+    navigation.goBack();
+  }, [navigation, planReturnKey, planDraft]);
+
   // Only the active-workout arm carries the picker's return params; the
   // weak-type check on the other arm is the type system saying the same thing.
   useSelectedExercise(
@@ -602,19 +622,18 @@ function ExerciseSheetScreen({ navigation, route }: ExerciseSheetScreenProps) {
               testID="exercise-sheet-history-chip"
             />
             {/*
-            Replace is active-workout only. Swapping a *planned* exercise
-            re-prescribes the whole workout server-side, so it belongs to Up
-            Next's row menu, which owns the payload; a chip here would hand
-            back one exercise the server never agreed to.
+            Both contexts offer Replace, but they run different swaps. The live
+            workout's is local — the store swaps the entry and the sheet stays
+            open on the incoming exercise. A planned one re-prescribes the whole
+            workout server-side, so the sheet hands the id to Up Next and closes
+            rather than splicing a workout the server never agreed to.
           */}
-            {!isPlan && (
-              <SheetChip
-                icon="swap-vertical"
-                label={t('exerciseSheet.replace', { defaultValue: 'Replace' })}
-                onPress={handleReplace}
-                testID="exercise-sheet-replace-chip"
-              />
-            )}
+            <SheetChip
+              icon="swap-vertical"
+              label={t('exerciseSheet.replace', { defaultValue: 'Replace' })}
+              onPress={isPlan ? handleReplacePlanned : handleReplace}
+              testID="exercise-sheet-replace-chip"
+            />
           </View>
 
           {historyOpen ? (

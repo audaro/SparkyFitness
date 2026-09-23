@@ -1062,19 +1062,39 @@ function scheduleGuardedHoldNotification(
 /**
  * The target seconds a hold for `setId` would run for, or `null` when the set
  * is not one that can be held. `effectiveSetDurationSec` is the authority on
- * where the target lives — legacy isometric sets keep it in `reps`.
+ * where the target lives — legacy isometric sets keep it in `reps`. A set
+ * with no duration of its own falls back to the assumed (placeholder) seconds
+ * the row shows grayed-in — a generated plank arrives as a plan, not a value,
+ * and a hold has to count what the user was told to hold.
  */
 function holdTargetSecForSet(
-  session: PresetSessionResponse | null,
+  state: Pick<
+    ActiveWorkoutState,
+    | 'session'
+    | 'previousSessionSets'
+    | 'plannedSetValues'
+    | 'sourceRecommendationId'
+  >,
   setId: string
 ): number | null {
+  const session = state.session;
   if (!session) return null;
   const located = locateSet(session, setId);
   if (!located) return null;
   const { exercise, setIndex } = located;
   const modality = resolveSnapshotModality(exercise.exercise_snapshot);
   if (!isDurationModality(modality)) return null;
-  const target = effectiveSetDurationSec(exercise.sets[setIndex], modality);
+  const own = effectiveSetDurationSec(exercise.sets[setIndex], modality);
+  const target =
+    own ??
+    resolveAssumedSetValues(
+      exercise.sets,
+      historyForExercise(state.previousSessionSets, exercise.exercise_id),
+      state.plannedSetValues,
+      null,
+      state.sourceRecommendationId != null
+    )[setIndex]?.duration ??
+    null;
   if (target == null || target <= 0) return null;
   return target;
 }
@@ -1770,7 +1790,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         if (state.activeSetId !== setId) return;
         const step = state.steps.find((s) => s.setId === setId);
         if (!step) return;
-        const targetSec = holdTargetSecForSet(state.session, setId);
+        const targetSec = holdTargetSecForSet(state, setId);
         if (targetSec == null) return;
 
         const token = ++holdInstanceCounter;

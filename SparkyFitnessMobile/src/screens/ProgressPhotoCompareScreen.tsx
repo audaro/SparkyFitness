@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Platform,
   ScrollView,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -14,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import i18n from '../localization/i18n';
 import Icon from '../components/Icon';
+import AlignedPhotoSlider from '../components/AlignedPhotoSlider';
 import ProgressPhotoViewer from '../components/ProgressPhotoViewer';
 import SafeImage from '../components/SafeImage';
 import PhotoDayWeight from '../components/PhotoDayWeight';
@@ -23,6 +25,10 @@ import CalendarSheet, {
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import { useCheckInPhotoGallery } from '../hooks/useCheckInPhotos';
 import { useCheckInPhotoSource } from '../hooks/useCheckInPhotoSource';
+import {
+  useAlignedPhotoPair,
+  useVisionAvailability,
+} from '../hooks/useAlignedPhotoPair';
 import { usePreferences } from '../hooks/usePreferences';
 import { formatShortDate } from '../utils/dateUtils';
 import {
@@ -63,6 +69,7 @@ const ProgressPhotoCompareScreen: React.FC<Props> = ({ navigation, route }) => {
   const { preferences } = usePreferences();
   const weightMode: WeightDisplayMode =
     preferences?.default_weight_unit ?? 'kg';
+  const [alignedMode, setAlignedMode] = useState(false);
 
   // Oldest first reads left-to-right as progression, which is how the two
   // panes are laid out.
@@ -117,6 +124,20 @@ const ProgressPhotoCompareScreen: React.FC<Props> = ({ navigation, route }) => {
   const beforeDay = dayFor(beforeDate);
   const afterDay = dayFor(afterDate);
 
+  // The sidecar is optional server-side, so the toggle only exists where the
+  // feature does — an always-failing switch is worse than no switch.
+  const { isAvailable: canAlign } = useVisionAvailability();
+  const {
+    pair,
+    comparison,
+    isLoading: aligning,
+    error: alignError,
+  } = useAlignedPhotoPair(
+    beforeDay?.photos[angle]?.id ?? null,
+    afterDay?.photos[angle]?.id ?? null,
+    canAlign && alignedMode
+  );
+
   /** The days that actually have this angle, for marking the picker. */
   const availableDates = useMemo(
     () => timeline.map((day) => day.entry_date),
@@ -164,6 +185,51 @@ const ProgressPhotoCompareScreen: React.FC<Props> = ({ navigation, route }) => {
     return `${rounded > 0 ? '+' : ''}${rounded} ${unit}`;
   };
 
+  /**
+   * The date button and the day's weight, shared by both layouts.
+   *
+   * The aligned view has one image where the side-by-side has two, but it is
+   * still the same two days: the pickers have to be reachable there too, or
+   * turning alignment on would take away the ability to change what is being
+   * compared.
+   */
+  const renderDayFooter = (
+    day: ProgressPhotoDay | undefined,
+    label: string,
+    which: Side
+  ) => (
+    <View>
+      <TouchableOpacity
+        onPress={() => openPicker(which)}
+        activeOpacity={0.7}
+        className="flex-row items-center justify-center mt-1.5"
+        accessibilityRole="button"
+        accessibilityLabel={t('progressPhotos.pickDayA11y', {
+          defaultValue: 'Choose the {{side}} day',
+          side: label,
+        })}
+      >
+        <Text className="text-text-primary text-sm font-semibold">
+          {day ? formatShortDate(day.entry_date, dateLocale) : '—'}
+        </Text>
+        <Icon
+          name="chevron-down"
+          size={11}
+          color={accentPrimary}
+          style={{ marginLeft: 4 }}
+        />
+      </TouchableOpacity>
+      <View className="items-center">
+        <PhotoDayWeight
+          weight={day?.weight ?? null}
+          mode={weightMode}
+          onLogWeight={() => day && openWeightEntry(day.entry_date)}
+          className="text-text-secondary text-xs"
+        />
+      </View>
+    </View>
+  );
+
   const renderPane = (
     day: ProgressPhotoDay | undefined,
     label: string,
@@ -197,34 +263,7 @@ const ProgressPhotoCompareScreen: React.FC<Props> = ({ navigation, route }) => {
             }
           />
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => openPicker(which)}
-          activeOpacity={0.7}
-          className="flex-row items-center justify-center mt-1.5"
-          accessibilityRole="button"
-          accessibilityLabel={t('progressPhotos.pickDayA11y', {
-            defaultValue: 'Choose the {{side}} day',
-            side: label,
-          })}
-        >
-          <Text className="text-text-primary text-sm font-semibold">
-            {day ? formatShortDate(day.entry_date, dateLocale) : '—'}
-          </Text>
-          <Icon
-            name="chevron-down"
-            size={11}
-            color={accentPrimary}
-            style={{ marginLeft: 4 }}
-          />
-        </TouchableOpacity>
-        <View className="items-center">
-          <PhotoDayWeight
-            weight={day?.weight ?? null}
-            mode={weightMode}
-            onLogWeight={() => day && openWeightEntry(day.entry_date)}
-            className="text-text-secondary text-xs"
-          />
-        </View>
+        {renderDayFooter(day, label, which)}
       </View>
     );
   };
@@ -253,18 +292,111 @@ const ProgressPhotoCompareScreen: React.FC<Props> = ({ navigation, route }) => {
       {header}
 
       <ScrollView contentContainerClassName="px-4 py-3">
-        <View className="flex-row gap-3">
-          {renderPane(
-            beforeDay,
-            t('progressPhotos.before', { defaultValue: 'Before' }),
-            'before'
-          )}
-          {renderPane(
-            afterDay,
-            t('progressPhotos.after', { defaultValue: 'After' }),
-            'after'
-          )}
-        </View>
+        {canAlign && (
+          <View className="flex-row items-center justify-between bg-surface rounded-xl px-4 py-3 mb-3">
+            <View className="flex-1 pr-3">
+              <Text className="text-text-primary text-sm font-semibold">
+                {t('progressPhotos.aligned.toggle', {
+                  defaultValue: 'Align the two photos',
+                })}
+              </Text>
+              <Text className="text-text-muted text-xs mt-0.5">
+                {t('progressPhotos.aligned.toggleHint', {
+                  defaultValue:
+                    'Fits the later photo onto the earlier one and matches the light, so only the body is left to differ.',
+                })}
+              </Text>
+            </View>
+            <Switch
+              value={alignedMode}
+              onValueChange={setAlignedMode}
+              accessibilityLabel={t('progressPhotos.aligned.toggle', {
+                defaultValue: 'Align the two photos',
+              })}
+            />
+          </View>
+        )}
+
+        {alignedMode && canAlign ? (
+          <View>
+            {aligning && (
+              <View className="py-16 items-center">
+                <ActivityIndicator size="small" color={accentPrimary} />
+                <Text className="text-text-muted text-xs mt-2">
+                  {t('progressPhotos.aligned.working', {
+                    defaultValue: 'Measuring both photos…',
+                  })}
+                </Text>
+              </View>
+            )}
+            {!aligning && alignError && (
+              <View className="bg-surface rounded-xl px-4 py-5 items-center">
+                <Text className="text-text-secondary text-sm text-center">
+                  {t('progressPhotos.aligned.failed', {
+                    defaultValue:
+                      'These two photos could not be aligned. Turn this off to compare them side by side.',
+                  })}
+                </Text>
+              </View>
+            )}
+            {!aligning && !alignError && pair && (
+              <>
+                <AlignedPhotoSlider
+                  before={pair.before}
+                  after={pair.after}
+                  aspectRatio={pair.aspectRatio}
+                />
+                {/* The labels say which side of the divider is which, since
+                    the slider itself has no room for them. */}
+                <View className="flex-row justify-between mt-1.5">
+                  <Text className="text-text-secondary text-xs">
+                    {t('progressPhotos.before', { defaultValue: 'Before' })}
+                  </Text>
+                  <Text className="text-text-secondary text-xs">
+                    {t('progressPhotos.after', { defaultValue: 'After' })}
+                  </Text>
+                </View>
+                {comparison && comparison.verdict !== 'comparable' && (
+                  <Text className="text-text-muted text-xs mt-2">
+                    {t('progressPhotos.aligned.caveat', {
+                      defaultValue:
+                        'These two shots differ in more than the body — read the overlay as a rough guide rather than a measurement.',
+                    })}
+                  </Text>
+                )}
+              </>
+            )}
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                {renderDayFooter(
+                  beforeDay,
+                  t('progressPhotos.before', { defaultValue: 'Before' }),
+                  'before'
+                )}
+              </View>
+              <View className="flex-1">
+                {renderDayFooter(
+                  afterDay,
+                  t('progressPhotos.after', { defaultValue: 'After' }),
+                  'after'
+                )}
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View className="flex-row gap-3">
+            {renderPane(
+              beforeDay,
+              t('progressPhotos.before', { defaultValue: 'Before' }),
+              'before'
+            )}
+            {renderPane(
+              afterDay,
+              t('progressPhotos.after', { defaultValue: 'After' }),
+              'after'
+            )}
+          </View>
+        )}
 
         {/* The span between the two shoots, below the pair rather than
             between it: a middle column would take ~64pt off photos that are

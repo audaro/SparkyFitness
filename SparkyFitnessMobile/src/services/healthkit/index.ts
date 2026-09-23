@@ -26,6 +26,10 @@ import {
   toLocalDateString,
   mapDayStatisticsToMinMaxAvg,
 } from './dataAggregation';
+import {
+  MAX_MEASURED_BMR_KCAL,
+  MIN_MEASURED_BMR_KCAL,
+} from '@workspace/shared';
 import { BLOOD_GLUCOSE_MG_DL_PER_MMOL_L } from '../shared/dataTransformation';
 import { DIETARY_WRITE_IDENTIFIERS } from './writebackMappers';
 import {
@@ -413,15 +417,20 @@ export const requestHealthPermissions = async (
           writePermissionsSet.add('HKQuantityTypeIdentifierActiveEnergyBurned');
         }
       } else if (p.recordType === 'Nutrition') {
-        // HealthKit authorizes the *contents* of a Food correlation, not the correlation
-        // type itself — passing HKCorrelationTypeIdentifierFood to requestAuthorization
-        // raises an NSInvalidArgumentException. So both directions request only the
-        // contained dietary quantity types: read auth on each lets queryCorrelationSamples
-        // return the correlation (symmetric with how writeback saves a correlation with
-        // write auth on the contained types only). Read and write accumulate into separate
-        // Sets, so the two Nutrition perms (read from HealthMetrics, write from
-        // WritebackMetrics) never clobber.
+        // The two directions are NOT symmetric, and that asymmetry is the whole
+        // reason this branch exists. Writing a Food correlation is authorized by
+        // the samples it contains — a correlation type in `toShare` raises an
+        // NSInvalidArgumentException — but READING one is authorized by the
+        // correlation type as well as its contents, and a type never passed to
+        // requestAuthorization stays notDetermined forever rather than resolving
+        // to granted or denied. Requesting only the contained types therefore
+        // left HKCorrelationQuery throwing "authorization not determined" on
+        // every single sync while all 17 dietary types were granted, so the
+        // whole Nutrition metric read as unreadable and the loose-sample
+        // fallback below it never ran. The contained types stay on the read side
+        // too: readLooseNutrition queries them directly.
         if (p.accessType === 'read') {
+          readPermissionsSet.add('HKCorrelationTypeIdentifierFood');
           DIETARY_WRITE_IDENTIFIERS.forEach((identifier) =>
             readPermissionsSet.add(identifier)
           );
@@ -820,17 +829,33 @@ export const getAggregatedBasalEnergyByDateDetailed = async (
       ) {
         continue;
       }
-      const basal = bucket.sumQuantity?.quantity ?? 0;
-      if (basal > 0) {
-        // Stamp with the FOLLOWING day — bucket.endDate IS local midnight of D+1
-        // (DST-correct, unlike setDate(+1) arithmetic on a pinned clock time).
-        records.push({
-          date: toLocalDateString(bucketEnd),
-          value: Math.round(basal),
-          type: 'basal_metabolic_rate',
-          record_timezone: deviceTz,
-        });
+      const basal = Math.round(bucket.sumQuantity?.quantity ?? 0);
+      // A fully-elapsed day can still be a partly-COVERED one: take the watch
+      // off after breakfast and HealthKit's basal sum for that day is a few
+      // hundred kcal, which is not a resting metabolic rate — it is a fraction
+      // of one. Sending it anyway meant the server rejected the same handful of
+      // days on every single sync, and the app reported "records were rejected"
+      // forever over data that was never going to be accepted. Skip them here,
+      // where the reason is known, and say so in the log rather than silently.
+      if (basal < MIN_MEASURED_BMR_KCAL || basal > MAX_MEASURED_BMR_KCAL) {
+        if (basal > 0) {
+          addLog(
+            `[HealthKitService] Skipping ${toLocalDateString(bucketEnd)} basal energy: ` +
+              `${basal} kcal is outside the plausible ${MIN_MEASURED_BMR_KCAL}-${MAX_MEASURED_BMR_KCAL} kcal ` +
+              'range for a full day, so the day was only partly recorded.',
+            'DEBUG'
+          );
+        }
+        continue;
       }
+      // Stamp with the FOLLOWING day — bucket.endDate IS local midnight of D+1
+      // (DST-correct, unlike setDate(+1) arithmetic on a pinned clock time).
+      records.push({
+        date: toLocalDateString(bucketEnd),
+        value: basal,
+        type: 'basal_metabolic_rate',
+        record_timezone: deviceTz,
+      });
     }
     return { records };
   } catch (error) {

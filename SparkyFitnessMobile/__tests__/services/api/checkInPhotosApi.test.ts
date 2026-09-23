@@ -103,3 +103,66 @@ describe('uploadPhoto HTTPS enforcement', () => {
     expect(mockFetchWithTimeout).toHaveBeenCalled();
   });
 });
+
+/**
+ * The capture conditions travel in the same multipart request as the image, so
+ * the photo and what is known about it commit together. A photo that arrives
+ * without them is a photo no later comparison can score.
+ */
+describe('uploadPhoto capture metadata', () => {
+  const devGlobal = globalThis as typeof globalThis & { __DEV__: boolean };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    devGlobal.__DEV__ = true;
+    mockGetActiveServerConfig.mockResolvedValue(config('https://example.com'));
+    mockFetchWithTimeout.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ id: 'p1' }),
+    } as unknown as Response);
+  });
+
+  // The multipart body is a FormData, whose parts are reachable either through
+  // the WinterCG iterator or React Native's `_parts` array depending on which
+  // implementation the environment supplies. Read whichever is there rather
+  // than pinning the test to one runtime's internals.
+  const bodyParts = (): [string, unknown][] => {
+    const body = mockFetchWithTimeout.mock.calls[0][1]?.body as unknown as {
+      _parts?: [string, unknown][];
+      entries?: () => IterableIterator<[string, unknown]>;
+    };
+    if (body._parts) return body._parts;
+    if (body.entries) return Array.from(body.entries());
+    throw new Error('FormData exposed no readable parts');
+  };
+
+  it('appends the conditions as a capture_meta part', async () => {
+    const captureMeta = {
+      v: 1 as const,
+      capture_mode: 'guided' as const,
+      facing: 'front' as const,
+      timer_seconds: 3,
+    };
+
+    await uploadPhoto({
+      date: '2026-03-20',
+      type: 'front',
+      uri: 'file:///a.jpg',
+      captureMeta,
+    });
+
+    const part = bodyParts().find(([name]) => name === 'capture_meta');
+    expect(part).toBeDefined();
+    expect(JSON.parse(part![1] as string)).toEqual(captureMeta);
+  });
+
+  it('sends no capture_meta part when there are no conditions', async () => {
+    await uploadPhoto({
+      date: '2026-03-20',
+      type: 'front',
+      uri: 'file:///a.jpg',
+    });
+
+    expect(bodyParts().some(([name]) => name === 'capture_meta')).toBe(false);
+  });
+});

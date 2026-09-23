@@ -633,6 +633,66 @@ describe('generateRecommendation', () => {
     expect(gymRepo.getGymProfile).not.toHaveBeenCalled();
   });
 
+  it('keeps the profile load ceiling when the session names a subset of its equipment', async () => {
+    // "Just dumbbells today" at a home whose dumbbells top out at 30 lb: the
+    // same room with less of it out, so the ceiling still applies and the
+    // engine progresses in reps rather than asking for a 35 lb dumbbell.
+    gymRepo.getActiveGymProfile.mockResolvedValue({
+      id: 'gym-1',
+      equipment: ['dumbbell', 'cable'],
+      load_limits: { dumbbell: { max_kg: 13.61 } },
+    });
+    prefsRepo.getUserPreferences.mockResolvedValue({
+      default_weight_unit: 'lbs',
+    });
+    repo.getCandidateExercises.mockResolvedValue([DUMBBELL_ROW]);
+    const atCeiling = (entry_date: string) => ({
+      entry_date,
+      sets: [1, 2, 3].map(() => ({
+        set_type: 'Working Set',
+        reps: 10,
+        weight: 13.61,
+        duration: null,
+        distance: null,
+      })),
+    });
+    entries.getRecentSessionsForExercise.mockResolvedValue([
+      atCeiling('2026-08-20'),
+      atCeiling('2026-08-13'),
+    ]);
+
+    const subset = await workoutRecommendationService.generateRecommendation(
+      USER_ID,
+      { equipmentOverride: { equipment: ['dumbbell'], apparatus: null } }
+    );
+    const row = subset.payload.exercises.find(
+      (e) => e.exercise_id === DUMBBELL_ROW_ID
+    )!;
+    const working = row.sets.filter((s) => s.set_type !== 'Warmup');
+    expect(working.every((s) => s.weight === 13.61)).toBe(true);
+    expect(working.every((s) => s.reps === 12)).toBe(true);
+    expect(row.rationale).toContain('reps up to 12');
+
+    // Somewhere with a barbell the profile never mentioned: no ceiling known.
+    const elsewhere = await workoutRecommendationService.generateRecommendation(
+      USER_ID,
+      {
+        equipmentOverride: {
+          equipment: ['dumbbell', 'barbell'],
+          apparatus: null,
+        },
+      }
+    );
+    const rowElsewhere = elsewhere.payload.exercises.find(
+      (e) => e.exercise_id === DUMBBELL_ROW_ID
+    )!;
+    const workingElsewhere = rowElsewhere.sets.filter(
+      (s) => s.set_type !== 'Warmup'
+    );
+    expect(workingElsewhere[0]!.weight).toBeGreaterThan(13.61);
+    expect(workingElsewhere.every((s) => s.reps === 10)).toBe(true);
+  });
+
   it('prescribes on 5 lb steps for a pounds user without a profile increment', async () => {
     // 20 lb (9.07 kg) dumbbell rows held across two sessions. A kg user gets
     // the metric 2 kg step (10 kg = 22 lb); a pounds user stays on the rack.

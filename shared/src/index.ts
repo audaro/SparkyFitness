@@ -8,6 +8,7 @@ export * from "./schemas/api/LatestCustomEntries.api.zod.ts";
 export * from "./schemas/api/CheckInMeasurements.api.zod.ts";
 export * from "./schemas/api/CoachProfile.api.zod.ts";
 export * from "./schemas/api/CheckInPhotos.api.zod.ts";
+export * from "./schemas/api/ProgressPhotoComparison.api.zod.ts";
 export * from "./schemas/api/DailyGoals.api.zod.ts";
 export * from "./schemas/api/NutrientGoalPreferences.api.zod.ts";
 export * from "./schemas/api/DailySummary.api.zod.ts";
@@ -190,6 +191,8 @@ export * from "./cycle/content.ts";
 export * from "./mood/index.ts";
 
 export * from "./schemas/database/CheckInPhotos.zod.ts";
+export * from "./schemas/database/CheckInPhotoAnalysis.zod.ts";
+export * from "./schemas/database/ProgressPhotoComparisons.zod.ts";
 export * from "./schemas/database/CycleDailyEntries.zod.ts";
 export * from "./schemas/database/CycleSettings.zod.ts";
 export * from "./schemas/database/CycleTestEntries.zod.ts";

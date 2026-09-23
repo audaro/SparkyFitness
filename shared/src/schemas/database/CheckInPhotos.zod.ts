@@ -2,6 +2,14 @@ import { z } from "zod";
 
 export const checkInPhotosIdSchema = z.string().or(z.number());
 
+/**
+ * Versioned capture conditions; see `captureMetaSchema` in
+ * `../api/CheckInPhotos.api.zod.ts` for the shape. Kept loose here because this
+ * layer mirrors the column (jsonb, nullable), while the API layer is what
+ * validates a payload on the way in.
+ */
+const captureMetaColumnSchema = z.record(z.string(), z.unknown());
+
 export const checkInPhotosSchema = z.object({
   id: z.string().optional(),
   user_id: z.string(),
@@ -11,6 +19,7 @@ export const checkInPhotosSchema = z.object({
   file_path: z.string(),
   created_at: z.date().optional(),
   updated_at: z.date().optional(),
+  capture_meta: captureMetaColumnSchema.nullable().optional(),
 });
 
 export const checkInPhotosInitializerSchema = z.object({
@@ -22,6 +31,7 @@ export const checkInPhotosInitializerSchema = z.object({
   file_path: z.string().optional(),
   created_at: z.date().optional(),
   updated_at: z.date().optional(),
+  capture_meta: captureMetaColumnSchema.nullable().optional(),
 });
 
 export const checkInPhotosMutatorSchema =

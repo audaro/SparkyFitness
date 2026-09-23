@@ -401,6 +401,42 @@ describe('ProgressPhotosScreen', () => {
       );
     });
 
+    it('records that an unguided shot came from the system camera', async () => {
+      // Worth storing even though there is no framing behind it: a comparison
+      // can then tell an unguided shot from one taken before capture metadata
+      // existed at all, which is a different kind of unknown.
+      setDayPhotos([]);
+
+      const { getByLabelText } = renderScreen();
+      fireEvent.press(getByLabelText('Add the front photo'));
+
+      const camera = sheetItems()?.find((item) => item.key === 'camera');
+      await act(async () => {
+        camera?.onPress?.();
+      });
+
+      expect(uploadAsync.mock.calls[0][0].captureMeta).toMatchObject({
+        v: 1,
+        capture_mode: 'os_camera',
+      });
+    });
+
+    it('sends the guided path to the capture screen for that day and angle', () => {
+      setDayPhotos([]);
+
+      const { getByLabelText } = renderScreen();
+      fireEvent.press(getByLabelText('Add the back photo'));
+
+      sheetItems()
+        ?.find((item) => item.key === 'guided')
+        ?.onPress?.();
+
+      expect(navigation.navigate).toHaveBeenCalledWith(
+        'ProgressPhotoCapture',
+        expect.objectContaining({ angle: 'back' })
+      );
+    });
+
     it('offers removal only on a slot that has a photo', () => {
       setDayPhotos([]);
 
@@ -408,6 +444,7 @@ describe('ProgressPhotosScreen', () => {
       fireEvent.press(getByLabelText('Add the front photo'));
 
       expect(sheetItems()?.map((item) => item.key)).toEqual([
+        'guided',
         'camera',
         'library',
       ]);

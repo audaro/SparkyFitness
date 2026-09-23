@@ -32,7 +32,7 @@ describe('migrateEnabledMetricPermissionsIfNeeded', () => {
   });
 
   test('skips migration when the stored version is current', async () => {
-    loadHealthPreference.mockResolvedValue(4);
+    loadHealthPreference.mockResolvedValue(5);
 
     const result = await migrateEnabledMetricPermissionsIfNeeded({
       healthMetricStates: { isExerciseSessionSyncEnabled: true },
@@ -46,6 +46,33 @@ describe('migrateEnabledMetricPermissionsIfNeeded', () => {
     expect(result).toBe(true);
     expect(requestHealthPermissions).not.toHaveBeenCalled();
     expect(saveHealthPreference).not.toHaveBeenCalled();
+  });
+
+  test('re-requests permissions for a device left on the previous version', async () => {
+    // The install that shipped the Food correlation read fix was sitting on v4, and
+    // this early return is why the widened set never reached HealthKit: the sheet only
+    // appears for types that are still notDetermined, and requestAuthorization was not
+    // being called at all. Any bump must leave every earlier version re-requesting.
+    loadHealthPreference.mockResolvedValue(4);
+    requestHealthPermissions.mockResolvedValue(true);
+
+    const result = await migrateEnabledMetricPermissionsIfNeeded({
+      healthMetricStates: { isExerciseSessionSyncEnabled: true },
+      metrics,
+      loadHealthPreference,
+      saveHealthPreference,
+      requestHealthPermissions,
+      logTag: '[HealthKitService]',
+    });
+
+    expect(result).toBe(true);
+    expect(requestHealthPermissions).toHaveBeenCalledWith(
+      metrics[0].permissions
+    );
+    expect(saveHealthPreference).toHaveBeenCalledWith(
+      'healthPermissionsVersion',
+      5
+    );
   });
 
   test('saves the new version without prompting when no metrics are enabled', async () => {
@@ -64,7 +91,7 @@ describe('migrateEnabledMetricPermissionsIfNeeded', () => {
     expect(requestHealthPermissions).not.toHaveBeenCalled();
     expect(saveHealthPreference).toHaveBeenCalledWith(
       'healthPermissionsVersion',
-      4
+      5
     );
   });
 
@@ -90,7 +117,7 @@ describe('migrateEnabledMetricPermissionsIfNeeded', () => {
     );
     expect(saveHealthPreference).toHaveBeenCalledWith(
       'healthPermissionsVersion',
-      4
+      5
     );
   });
 

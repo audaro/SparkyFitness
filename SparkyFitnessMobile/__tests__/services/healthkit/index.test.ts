@@ -663,6 +663,65 @@ describe('getAggregatedBasalEnergyByDate (statistics collection)', () => {
     expect(result).toEqual([]);
   });
 
+  test('drops a day the watch only partly recorded', async () => {
+    // A fully-elapsed day can still be a partly-covered one. 240 kcal is not a
+    // resting metabolic rate, it is a fraction of one, and the server rejects
+    // anything under 600 — so sending it meant the same days were rejected on
+    // every sync and the app reported failures forever over data that could
+    // never be accepted.
+    await initHealthConnect();
+
+    mockQueryStatisticsCollection.mockResolvedValue([
+      sumBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), 240, 'kcal'),
+      sumBucket(localDate(2024, 1, 16), localDate(2024, 1, 17), 1700, 'kcal'),
+    ]);
+
+    const result = await getAggregatedBasalEnergyByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 18)
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      date: toLocalDateString(localDate(2024, 1, 17)),
+      value: 1700,
+    });
+  });
+
+  test('drops an implausibly high day rather than letting it be rejected', async () => {
+    await initHealthConnect();
+
+    mockQueryStatisticsCollection.mockResolvedValue([
+      sumBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), 8200, 'kcal'),
+    ]);
+
+    const result = await getAggregatedBasalEnergyByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 18)
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  test('keeps a day sitting exactly on the plausibility bounds', async () => {
+    // The server's check is inclusive, so the client's must be too, or a
+    // legitimate boundary reading is dropped by one side and accepted by the
+    // other.
+    await initHealthConnect();
+
+    mockQueryStatisticsCollection.mockResolvedValue([
+      sumBucket(localDate(2024, 1, 15), localDate(2024, 1, 16), 600, 'kcal'),
+      sumBucket(localDate(2024, 1, 16), localDate(2024, 1, 17), 6000, 'kcal'),
+    ]);
+
+    const result = await getAggregatedBasalEnergyByDate(
+      localDate(2024, 1, 15),
+      localDate(2024, 1, 18)
+    );
+
+    expect(result.map((record) => record.value)).toEqual([600, 6000]);
+  });
+
   test('the Detailed variant surfaces native errors', async () => {
     await initHealthConnect();
 

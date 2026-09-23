@@ -224,6 +224,7 @@ export const transformExerciseRow = (
       : Number(row.calories_per_hour) || 0,
   source: String(row.source ?? ''),
   images: parseJsonArray(row.images),
+  videos: parseJsonArray(row.videos),
   tags: [],
   force: (row.force as string | null) ?? null,
   level: (row.level as string | null) ?? null,

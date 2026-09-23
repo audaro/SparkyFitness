@@ -295,6 +295,14 @@ export type RootStackParamList = {
         /** A plan exercise the sheet edited, handed back for `editPlan`. */
         editedExercise?: PlannedExercise;
         editNonce?: number;
+        /**
+         * A planned exercise the sheet asked to replace. The sheet cannot run
+         * the swap itself — replacing re-prescribes the whole workout on the
+         * server — so it hands the id back and Up Next runs the same flow its
+         * own row menu does.
+         */
+        replaceExerciseId?: string;
+        replaceNonce?: number;
       }
     | undefined;
   // Split list and muscle grid for the next generated workout. Takes no
@@ -366,6 +374,12 @@ export type RootStackParamList = {
    * day the screen opens on.
    */
   ProgressPhotos: { date?: string } | undefined;
+  /**
+   * Guided capture for one angle on one day: the previous shoot of that angle
+   * ghosted under the viewfinder. Both params are required — there is no
+   * sensible default for which angle a shot belongs to.
+   */
+  ProgressPhotoCapture: { date: string; angle: PhotoType };
   /** Side-by-side comparison of two days for one angle. */
   ProgressPhotoCompare: { angle?: PhotoType } | undefined;
   /** Cross-fading time-lapse of every photo for one angle, oldest to newest. */

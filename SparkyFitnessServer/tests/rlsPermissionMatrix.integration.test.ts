@@ -203,6 +203,8 @@ describe.runIf(RUN)('RLS permission matrix', () => {
     // check-in / wellness
     check_in_measurements: 'checkin',
     check_in_photos: 'checkin',
+    check_in_photo_analysis: 'checkin',
+    progress_photo_comparisons: 'checkin',
     custom_categories: 'checkin',
     custom_measurements: 'checkin',
     daily_health_metrics: 'checkin',
