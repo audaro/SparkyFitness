@@ -25,6 +25,7 @@ import { convertWeight, MILES_TO_KM } from './unitConversion.js';
 import workoutPresetService from '../../services/workoutPresetService.js';
 import workoutPlanTemplateService from '../../services/workoutPlanTemplateService.js';
 import workoutPlanTemplateRepository from '../../models/workoutPlanTemplateRepository.js';
+import type { WorkoutPlanTemplateRow } from '../../models/workoutPlanTemplateRepository.js';
 import exerciseDb from '../../models/exercise.js';
 import exerciseEntryDb from '../../models/exerciseEntry.js';
 import workoutPresetRepository from '../../models/workoutPresetRepository.js';
@@ -580,37 +581,7 @@ function toPlanAssignments(assignments: PlanAssignmentInput[]) {
 // The joined rows the workout-plan repository returns (template + assignment
 // + set aggregation). Surrogate row ids are typed so the projection can drop
 // them: the tool's replace-style updates must not echo them back.
-interface WorkoutPlanSetRow {
-  id?: number;
-  set_number: number;
-  set_type: string | null;
-  reps: number | null;
-  weight: number | null;
-  duration: number | null;
-  rest_time: number | null;
-  notes: string | null;
-}
-
-interface WorkoutPlanAssignmentRow {
-  id?: number;
-  day_of_week: number;
-  sort_order: number;
-  workout_preset_id: number | null;
-  workout_preset_name: string | null;
-  exercise_id: string | null;
-  exercise_name: string | null;
-  sets?: WorkoutPlanSetRow[] | null;
-}
-
-interface WorkoutPlanRow {
-  id: number;
-  plan_name: string;
-  description: string | null;
-  start_date: unknown;
-  end_date: unknown | null;
-  is_active: boolean;
-  assignments?: WorkoutPlanAssignmentRow[] | null;
-}
+type WorkoutPlanRow = WorkoutPlanTemplateRow;
 
 // Full structured projection: update_workout_plan REPLACES the whole
 // schedule, so the model must be able to read back every id, sort_order, and
@@ -618,27 +589,30 @@ interface WorkoutPlanRow {
 function projectWorkoutPlan(p: WorkoutPlanRow) {
   return {
     id: p.id,
-    plan_name: p.plan_name,
+    plan_name: p.plan_name ?? null,
     description: p.description ?? null,
-    is_active: p.is_active,
+    is_active: p.is_active ?? false,
     start_date: dayString(p.start_date),
     end_date: p.end_date ? dayString(p.end_date) : null,
     assignments: (p.assignments ?? []).map((a) => ({
-      day_of_week: a.day_of_week,
-      day: DAY_NAMES[a.day_of_week],
-      sort_order: a.sort_order,
-      workout_preset_id: a.workout_preset_id,
-      workout_preset_name: a.workout_preset_name,
-      exercise_id: a.exercise_id,
-      exercise_name: a.exercise_name,
+      day_of_week: a.day_of_week ?? null,
+      day:
+        a.day_of_week === null || a.day_of_week === undefined
+          ? null
+          : DAY_NAMES[a.day_of_week],
+      sort_order: a.sort_order ?? null,
+      workout_preset_id: a.workout_preset_id ?? null,
+      workout_preset_name: a.workout_preset_name ?? null,
+      exercise_id: a.exercise_id ?? null,
+      exercise_name: a.exercise_name ?? null,
       sets: (a.sets ?? []).map((s) => ({
         set_number: s.set_number,
-        set_type: s.set_type,
-        reps: s.reps,
-        weight: s.weight,
-        duration: s.duration,
-        rest_time: s.rest_time,
-        notes: s.notes,
+        set_type: s.set_type ?? null,
+        reps: s.reps ?? null,
+        weight: s.weight ?? null,
+        duration: s.duration ?? null,
+        rest_time: s.rest_time ?? null,
+        notes: s.notes ?? null,
       })),
     })),
   };
@@ -1791,7 +1765,7 @@ Actions:
                     currentClientDate: todayInZone(tz),
                   }
                 );
-              const base = `Workout plan "${plan.plan_name}" created: ${plan.assignments.length} day assignments.`;
+              const base = `Workout plan "${plan.plan_name}" created: ${(plan.assignments ?? []).length} day assignments.`;
               return formatConfirmation(
                 plan.is_active
                   ? `${base} Plan is active — workout diary entries were generated.`
@@ -1846,7 +1820,7 @@ Actions:
                     `Multiple plans are named "${args.plan_name}" — use plan_id (see get_workout_plans)`
                   );
                 }
-                planId = matches[0].id;
+                planId = Number(matches[0].id);
               }
               if (planId === undefined) {
                 return ERRORS.VALIDATION(
@@ -1857,7 +1831,7 @@ Actions:
               // defaults — omitting plan_name would blank it and omitting
               // is_active would deactivate the plan — so merge the request
               // over the current row before sending complete data.
-              const existing: (WorkoutPlanRow & { user_id: string }) | null =
+              const existing: WorkoutPlanRow | null =
                 await workoutPlanTemplateRepository.getWorkoutPlanTemplateById(
                   planId,
                   userId

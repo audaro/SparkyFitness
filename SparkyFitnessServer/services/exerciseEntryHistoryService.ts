@@ -123,7 +123,6 @@ function _buildExerciseEntryWithSnapshot(
     _updated_by_user_id,
     _created_at,
     _updated_at,
-    _workout_plan_assignment_id,
     ...entryData
   } = row;
 
@@ -150,6 +149,8 @@ function _buildExerciseEntryWithSnapshot(
     avg_heart_rate: (entryData.avg_heart_rate as number) ?? null,
     steps: (entryData.steps as number) ?? null,
     superset_group: (entryData.superset_group as number) ?? null,
+    workout_plan_assignment_id:
+      (entryData.workout_plan_assignment_id as string | number | null) ?? null,
     source: (source as string) ?? null,
     image_url: (entryData.image_url as string) ?? null,
     sets: ((entryData.sets as unknown[]) ?? []) as ExerciseEntrySetResponse[],
@@ -698,11 +699,19 @@ async function _getExerciseEntriesByDateWithClient(
         0
       );
 
+      const childAssignmentId =
+        children.find(
+          (c) =>
+            c.workout_plan_assignment_id !== null &&
+            c.workout_plan_assignment_id !== undefined
+        )?.workout_plan_assignment_id ?? null;
+
       sessions.push({
         type: 'preset' as const,
         id: stub.id,
         entry_date: selectedDate,
         workout_preset_id: (presetRow.workout_preset_id as number) ?? null,
+        workout_plan_assignment_id: childAssignmentId,
         name: (presetRow.name as string) ?? 'Workout',
         description: (presetRow.description as string) ?? null,
         notes: (presetRow.notes as string) ?? null,

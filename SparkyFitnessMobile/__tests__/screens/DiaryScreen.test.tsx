@@ -148,6 +148,22 @@ jest.mock('../../src/stores/activeWorkoutStore', () => ({
   useActiveWorkoutStore: { getState: () => ({ sessionId: null }) },
 }));
 
+jest.mock('../../src/hooks/useStartLiveWorkout', () => ({
+  useStartLiveWorkout: () => ({
+    startLiveWorkout: jest.fn(),
+    isStarting: false,
+  }),
+}));
+
+jest.mock('../../src/hooks/useActiveWorkoutPlan', () => ({
+  useActiveWorkoutPlan: () => ({ plan: null, plans: [], isLoading: false }),
+  useActiveWorkoutPlans: () => ({ plan: null, plans: [], isLoading: false }),
+}));
+
+jest.mock('../../src/hooks/useWorkoutPresets', () => ({
+  useWorkoutPresets: () => ({ presets: [], isLoading: false }),
+}));
+
 jest.mock('../../src/components/ActiveWorkoutBar', () => ({
   useActiveWorkoutBarPadding: jest.fn(() => 0),
 }));

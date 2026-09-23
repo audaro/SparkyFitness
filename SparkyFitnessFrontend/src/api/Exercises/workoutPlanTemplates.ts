@@ -39,3 +39,14 @@ export const deleteWorkoutPlanTemplate = async (
     method: 'DELETE',
   });
 };
+
+export const getActiveWorkoutPlans = async (
+  date: string
+): Promise<WorkoutPlanTemplate[]> => {
+  const data = await apiCall(`/workout-plan-templates/active/${date}`, {
+    method: 'GET',
+  });
+  if (Array.isArray(data)) return data;
+  if (data) return [data];
+  return [];
+};

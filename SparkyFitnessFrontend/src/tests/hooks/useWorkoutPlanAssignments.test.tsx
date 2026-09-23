@@ -254,3 +254,190 @@ describe('useWorkoutPlanAssignments preset naming', () => {
     );
   });
 });
+
+describe('useWorkoutPlanAssignments sequential mode', () => {
+  const sequentialPlan = {
+    id: 'plan-seq',
+    user_id: 'user-1',
+    plan_name: 'PPL Cycle',
+    schedule_type: 'sequential',
+    assignments: [
+      {
+        id: 'asgn-1',
+        template_id: 'plan-seq',
+        day_of_week: null,
+        sort_order: 1,
+        workout_preset_id: 'preset-1',
+        workout_preset_name: 'Push',
+        sets: [],
+      },
+      {
+        id: 'asgn-2',
+        template_id: 'plan-seq',
+        day_of_week: null,
+        sort_order: 2,
+        workout_preset_id: 'preset-2',
+        workout_preset_name: 'Pull',
+        sets: [],
+      },
+    ],
+  } as unknown as WorkoutPlanTemplate;
+
+  it('loads scheduleType as sequential and maintains assignments', () => {
+    const { result } = renderHook(() =>
+      useWorkoutPlanAssignments(sequentialPlan)
+    );
+
+    expect(result.current.scheduleType).toBe('sequential');
+    expect(result.current.assignments).toHaveLength(2);
+  });
+
+  it('buildAssignmentsForSave assigns sort_order and nulls day_of_week for sequential mode', () => {
+    const { result } = renderHook(() => useWorkoutPlanAssignments(null));
+
+    act(() => {
+      result.current.setScheduleType('sequential');
+    });
+
+    act(() => {
+      result.current.handleAddExerciseOrPreset(
+        { id: 'preset-1', name: 'Push A' } as unknown as WorkoutPreset,
+        'preset'
+      );
+    });
+    act(() => {
+      result.current.handleAddExerciseOrPreset(
+        { id: 'preset-2', name: 'Pull A' } as unknown as WorkoutPreset,
+        'preset'
+      );
+    });
+
+    const saved = result.current.buildAssignmentsForSave();
+    expect(saved).toHaveLength(2);
+    expect(saved[0]).toEqual(
+      expect.objectContaining({
+        day_of_week: null,
+        sort_order: 0,
+        workout_preset_id: 'preset-1',
+      })
+    );
+    expect(saved[1]).toEqual(
+      expect.objectContaining({
+        day_of_week: null,
+        sort_order: 1,
+        workout_preset_id: 'preset-2',
+      })
+    );
+  });
+
+  it('reorders sequential items correctly via handleDragEnd', () => {
+    const { result } = renderHook(() =>
+      useWorkoutPlanAssignments(sequentialPlan)
+    );
+
+    act(() => {
+      // Drag asgn-1 over asgn-2
+      result.current.handleDragEnd({
+        active: { id: 'asgn-1' },
+        over: { id: 'asgn-2' },
+      } as unknown as Parameters<typeof result.current.handleDragEnd>[0]);
+    });
+
+    const saved = result.current.buildAssignmentsForSave();
+    expect(saved[0]?.workout_preset_name).toBe('Pull');
+    expect(saved[0]?.sort_order).toBe(0);
+    expect(saved[1]?.workout_preset_name).toBe('Push');
+    expect(saved[1]?.sort_order).toBe(1);
+  });
+
+  it('allows adding multiple exercises to the same session', () => {
+    const { result } = renderHook(() => useWorkoutPlanAssignments(null));
+
+    act(() => {
+      result.current.setScheduleType('sequential');
+      result.current.setSelectedSessionForAssignment(1);
+    });
+
+    act(() => {
+      result.current.handleAddExerciseOrPreset(
+        { id: 'preset-1', name: 'Bench Press' } as unknown as WorkoutPreset,
+        'preset',
+        1
+      );
+    });
+
+    act(() => {
+      result.current.handleAddExerciseOrPreset(
+        {
+          id: 'preset-2',
+          name: 'Incline Dumbbell',
+        } as unknown as WorkoutPreset,
+        'preset',
+        1
+      );
+    });
+
+    act(() => {
+      result.current.addSession();
+      result.current.handleAddExerciseOrPreset(
+        { id: 'preset-3', name: 'Squats' } as unknown as WorkoutPreset,
+        'preset',
+        2
+      );
+    });
+
+    expect(result.current.sessionList).toEqual([1, 2]);
+    const saved = result.current.buildAssignmentsForSave();
+    expect(saved).toHaveLength(3);
+    expect(saved[0]).toEqual(
+      expect.objectContaining({
+        session_index: 1,
+        sort_order: 0,
+        workout_preset_id: 'preset-1',
+      })
+    );
+    expect(saved[1]).toEqual(
+      expect.objectContaining({
+        session_index: 1,
+        sort_order: 1,
+        workout_preset_id: 'preset-2',
+      })
+    );
+    expect(saved[2]).toEqual(
+      expect.objectContaining({
+        session_index: 2,
+        sort_order: 0,
+        workout_preset_id: 'preset-3',
+      })
+    );
+  });
+
+  it('removes a session and re-indexes subsequent sessions', () => {
+    const multiSessionPlan = {
+      id: 'plan-multi',
+      schedule_type: 'sequential',
+      assignments: [
+        { id: 'a-1', session_index: 1, sort_order: 0, workout_preset_id: 'p1' },
+        { id: 'a-2', session_index: 2, sort_order: 0, workout_preset_id: 'p2' },
+        { id: 'a-3', session_index: 3, sort_order: 0, workout_preset_id: 'p3' },
+      ],
+    } as unknown as WorkoutPlanTemplate;
+
+    const { result } = renderHook(() =>
+      useWorkoutPlanAssignments(multiSessionPlan)
+    );
+
+    expect(result.current.sessionList).toEqual([1, 2, 3]);
+
+    act(() => {
+      result.current.removeSession(2);
+    });
+
+    expect(result.current.sessionList).toEqual([1, 2]);
+    const saved = result.current.buildAssignmentsForSave();
+    expect(saved).toHaveLength(2);
+    expect(saved[0]?.session_index).toBe(1);
+    expect(saved[1]?.session_index).toBe(2);
+    expect(saved[1]?.workout_preset_id).toBe('p3');
+  });
+});

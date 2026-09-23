@@ -19,6 +19,10 @@ export const workoutPlanTemplatesSchema = z.object({
   is_active: z.boolean().nullable(),
   created_at: z.date().nullable(),
   updated_at: z.date().nullable(),
+  // Manually added (file is ts-to-zod generated; precedent: UserWaterContainers.zod.ts).
+  // Keep on regen. #1836: sequential workout plan mode & entry mode.
+  schedule_type: z.enum(["weekly", "sequential"]),
+  entry_mode: z.enum(["prompt", "prefill"]),
 });
 
 export const workoutPlanTemplatesInitializerSchema = z.object({
@@ -31,6 +35,8 @@ export const workoutPlanTemplatesInitializerSchema = z.object({
   is_active: z.boolean().optional().nullable(),
   created_at: z.date().optional().nullable(),
   updated_at: z.date().optional().nullable(),
+  schedule_type: z.enum(["weekly", "sequential"]).optional(),
+  entry_mode: z.enum(["prompt", "prefill"]).optional(),
 });
 
 export const workoutPlanTemplatesMutatorSchema = z.object({
@@ -43,6 +49,8 @@ export const workoutPlanTemplatesMutatorSchema = z.object({
   is_active: z.boolean().optional().nullable(),
   created_at: z.date().optional().nullable(),
   updated_at: z.date().optional().nullable(),
+  schedule_type: z.enum(["weekly", "sequential"]).optional(),
+  entry_mode: z.enum(["prompt", "prefill"]).optional(),
 });
 
 export type WorkoutPlanTemplates = z.infer<typeof workoutPlanTemplatesSchema>;

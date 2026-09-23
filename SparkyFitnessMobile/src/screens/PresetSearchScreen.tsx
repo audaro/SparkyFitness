@@ -21,6 +21,7 @@ import {
   useRefetchOnFocus,
   useProfile,
 } from '../hooks';
+import { useActiveWorkoutPlan } from '../hooks/useActiveWorkoutPlan';
 import {
   deriveShareStatus,
   filterByOwnership,
@@ -77,6 +78,7 @@ const PresetSearchScreen: React.FC<PresetSearchScreenProps> = ({
   const [startingId, setStartingId] = useState<string | number | null>(null);
 
   const { presets, isLoading, isError, refetch } = useWorkoutPresets();
+  const { plan: activePlan } = useActiveWorkoutPlan();
   const { searchResults, isSearching, isSearchActive, isSearchError } =
     useWorkoutPresetSearch(searchText);
   const filteredPresets = useMemo(
@@ -223,6 +225,17 @@ const PresetSearchScreen: React.FC<PresetSearchScreenProps> = ({
                 >
                   {item.name}
                 </Text>
+                {activePlan?.next_assignment?.workout_preset_id != null &&
+                  Number(activePlan.next_assignment.workout_preset_id) ===
+                    Number(item.id) && (
+                    <View className="bg-primary/20 px-1.5 py-0.5 rounded">
+                      <Text className="text-[10px] text-primary font-bold">
+                        {t('exerciseSummary.suggestedPlanSession', {
+                          defaultValue: 'Suggested',
+                        })}
+                      </Text>
+                    </View>
+                  )}
                 <ShareStatusBadge status={status} />
               </View>
               <Text className="text-sm mt-0.5" style={{ color: textSecondary }}>
@@ -269,6 +282,7 @@ const PresetSearchScreen: React.FC<PresetSearchScreenProps> = ({
       getImageSource,
       profile,
       t,
+      activePlan,
     ]
   );
 

@@ -112,16 +112,21 @@ export const useLogWorkoutPresetMutation = () => {
     mutationFn: ({
       presetId,
       date,
+      workoutPlanAssignmentId,
     }: {
       presetId: string | number;
       date: string;
-    }) => logWorkoutPreset(presetId, date),
+      workoutPlanAssignmentId?: number | string | null;
+    }) => logWorkoutPreset(presetId, date, workoutPlanAssignmentId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: exerciseEntryKeys.byDate(variables.date),
       });
       queryClient.invalidateQueries({
         queryKey: dailyProgressKeys.all,
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['workoutPlanTemplates'],
       });
     },
     meta: {
@@ -146,6 +151,7 @@ export const useCreatePresetSessionMutation = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: exerciseEntryKeys.all });
       queryClient.invalidateQueries({ queryKey: dailyProgressKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['workoutPlanTemplates'] });
     },
     meta: {
       successMessage: t(
@@ -171,6 +177,7 @@ export const useDeleteExercisePresetEntryMutation = () => {
       queryClient.invalidateQueries({
         queryKey: dailyProgressKeys.all,
       });
+      queryClient.invalidateQueries({ queryKey: ['workoutPlanTemplates'] });
     },
     meta: {
       successMessage: t(

@@ -2353,7 +2353,6 @@ describe('get_workout_plans', () => {
             exercise_name: 'Squat',
             sets: [
               {
-                id: 900,
                 set_number: 1,
                 set_type: 'Working Set',
                 reps: 5,
@@ -2448,9 +2447,10 @@ describe('create_workout_plan', () => {
     vi.mocked(
       workoutPlanTemplateService.createWorkoutPlanTemplate
     ).mockResolvedValue({
+      id: 7,
       plan_name: 'PPL Week',
       is_active: false,
-      assignments: [{}, {}, {}],
+      assignments: [{ id: 1 }, { id: 2 }, { id: 3 }],
     });
 
     const result = await tools.sparky_manage_exercise.execute!(
@@ -2522,9 +2522,10 @@ describe('create_workout_plan', () => {
     vi.mocked(
       workoutPlanTemplateService.createWorkoutPlanTemplate
     ).mockResolvedValue({
+      id: 7,
       plan_name: 'PPL Week',
       is_active: true,
-      assignments: [{}],
+      assignments: [{ id: 1 }],
     });
 
     const result = await tools.sparky_manage_exercise.execute!(
@@ -2650,11 +2651,11 @@ describe('update_workout_plan', () => {
       start_date: new Date(2026, 7, 17),
       end_date: null,
       is_active: true,
-      assignments: [{ day_of_week: 1 }],
+      assignments: [{ id: 1, day_of_week: 1 }],
     });
     vi.mocked(
       workoutPlanTemplateService.updateWorkoutPlanTemplate
-    ).mockResolvedValue({ plan_name: 'PPL Week' });
+    ).mockResolvedValue({ id: PLAN_ID, plan_name: 'PPL Week' });
 
     const result = await tools.sparky_manage_exercise.execute!(
       {
@@ -2696,7 +2697,7 @@ describe('update_workout_plan', () => {
     });
     vi.mocked(
       workoutPlanTemplateService.updateWorkoutPlanTemplate
-    ).mockResolvedValue({ plan_name: 'PPL Week' });
+    ).mockResolvedValue({ id: PLAN_ID, plan_name: 'PPL Week' });
 
     const result = await tools.sparky_manage_exercise.execute!(
       {

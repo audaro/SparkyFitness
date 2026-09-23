@@ -51,6 +51,7 @@ export interface WorkoutPlaybackExerciseDraft {
   notes: string | null;
   started_at?: string | null;
   ended_at?: string | null;
+  workout_plan_assignment_id?: string | number | null;
   // Progression fields
   progression_mode?:
     'rep_goal' | 'fixed' | 'step_load' | 'manual' | string | null;
@@ -101,6 +102,7 @@ export interface WorkoutPlaybackDraft {
   exercises: WorkoutPlaybackExerciseDraft[];
   started_at: string;
   updated_at: string;
+  workout_plan_assignment_id?: string | number | null;
 }
 
 export interface WorkoutSetPointer {
@@ -396,6 +398,11 @@ export function createWorkoutPlaybackDraftFromPreset(
             : null,
         started_at: null,
         ended_at: null,
+        workout_plan_assignment_id:
+          'workout_plan_assignment_id' in exercise
+            ? ((exercise as { workout_plan_assignment_id?: number | null })
+                .workout_plan_assignment_id ?? null)
+            : null,
         // Preserve progression settings
         ...('progression_mode' in exercise
           ? {
@@ -959,6 +966,7 @@ export function buildPresetSessionCreateRequestFromDraft(
         duration_minutes: deriveExerciseDurationMinutes(exercise),
         notes: exercise.notes ?? null,
         entry_time: entryTime,
+        workout_plan_assignment_id: exercise.workout_plan_assignment_id ?? null,
         sets: completedSets.map((set, setIndex) => ({
           set_number: setIndex + 1,
           set_type: set.set_type ?? null,
@@ -979,6 +987,12 @@ export function buildPresetSessionCreateRequestFromDraft(
     })
     .filter((exercise): exercise is NonNullable<typeof exercise> => !!exercise);
 
+  const primaryPlanAssignmentId =
+    draft.workout_plan_assignment_id ||
+    draft.exercises.find((e) => e.workout_plan_assignment_id)
+      ?.workout_plan_assignment_id ||
+    null;
+
   return {
     name: draft.name,
     description: draft.description,
@@ -986,5 +1000,6 @@ export function buildPresetSessionCreateRequestFromDraft(
     entry_date: draft.entry_date,
     source: draft.source,
     exercises,
+    workoutPlanAssignmentId: primaryPlanAssignmentId,
   };
 }

@@ -45,4 +45,11 @@ export function invalidateExerciseCache(
   void queryClient.invalidateQueries({
     queryKey: weeklySetTargetsRootQueryKey,
   });
+  // A logged workout can complete a sequential plan's step, so the day's plan
+  // entry is stale. The prefix covers the active-day key as well; upstream's
+  // sibling call on ['activeWorkoutPlan'] is dropped because no query is
+  // registered under that key.
+  void queryClient.invalidateQueries({
+    queryKey: ['workoutPlanTemplates'],
+  });
 }

@@ -302,6 +302,10 @@ export const muscleRecoveryQueryKey = ['muscleRecovery'] as const;
 export const exerciseAlternativesQueryKey = (exerciseId: string) =>
   ['exerciseAlternatives', exerciseId] as const;
 
+/** The plan entry standing for one day, weekly or sequential. */
+export const activeWorkoutPlanQueryKey = (date: string) =>
+  ['workoutPlanTemplates', 'active', date] as const;
+
 export const activeAiServiceSettingQueryKey = [
   'ai-service-settings',
   'active',

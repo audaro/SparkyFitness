@@ -11,6 +11,7 @@ import {
   CheckSquare,
   X,
   MoreHorizontal,
+  Repeat,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -26,11 +27,13 @@ import { usePreferences } from '@/contexts/PreferencesContext';
 import { error } from '@/utils/logging';
 import type { WorkoutPlanTemplate } from '@/types/workout';
 import AddWorkoutPlanDialog from './AddWorkoutPlanDialog';
+import { formatDateToYYYYMMDD } from '@/lib/utils';
 import {
   useCreateWorkoutPlanTemplateMutation,
   useDeleteWorkoutPlanTemplateMutation,
   useUpdateWorkoutPlanTemplateMutation,
   useWorkoutPlanTemplates,
+  useActiveWorkoutPlan,
 } from '@/hooks/Exercises/useWorkoutPlans';
 
 import { useBulkSelection } from '@/hooks/useBulkSelection';
@@ -56,6 +59,10 @@ const WorkoutPlansManager = () => {
   );
 
   const { data: plans } = useWorkoutPlanTemplates(user?.id);
+  const { data: activePlan } = useActiveWorkoutPlan(
+    formatDateToYYYYMMDD(new Date()),
+    user?.id
+  );
   const { mutateAsync: createWorkoutPlanTemplate } =
     useCreateWorkoutPlanTemplateMutation();
   const { mutateAsync: updateWorkoutPlanTemplate } =
@@ -215,6 +222,40 @@ const WorkoutPlansManager = () => {
         },
       },
       {
+        accessorKey: 'schedule_type',
+        header: t('workoutPlansManager.scheduleType', 'Mode'),
+        cell: ({ row }) => {
+          const plan = row.original;
+          const isSequential = plan.schedule_type === 'sequential';
+          return (
+            <Badge
+              variant="outline"
+              className="font-normal text-[10px] gap-1 py-0.5"
+            >
+              {isSequential ? (
+                <>
+                  <Repeat className="h-2.5 w-2.5 text-primary" />
+                  {t('workoutPlansManager.sequentialMode', 'Sequential')}
+                </>
+              ) : (
+                <>
+                  <CalendarDays className="h-2.5 w-2.5 text-muted-foreground" />
+                  {plan.entry_mode === 'prompt'
+                    ? t(
+                        'workoutPlansManager.weeklyPromptMode',
+                        'Weekly (Prompt)'
+                      )
+                    : t(
+                        'workoutPlansManager.weeklyPrefillMode',
+                        'Weekly (Pre-fill)'
+                      )}
+                </>
+              )}
+            </Badge>
+          );
+        },
+      },
+      {
         accessorKey: 'is_active',
         header: t('workoutPlansManager.status', 'Status'),
         cell: ({ row }) => {
@@ -319,6 +360,54 @@ const WorkoutPlansManager = () => {
 
   return (
     <div className="space-y-6">
+      {activePlan && activePlan.next_assignment && (
+        <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 flex items-center justify-between shadow-xs">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Badge variant="default" className="text-xs font-semibold gap-1">
+                {activePlan.schedule_type === 'sequential' ? (
+                  <>
+                    <Repeat className="h-3 w-3" />
+                    {t(
+                      'workoutPlansManager.upNextBadge',
+                      'Up Next in Sequence'
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <CalendarDays className="h-3 w-3" />
+                    {t(
+                      'workoutPlansManager.scheduledTodayBadge',
+                      'Scheduled Today'
+                    )}
+                  </>
+                )}
+              </Badge>
+              <span className="font-semibold text-sm">
+                {activePlan.sequence_position?.session_name ||
+                  activePlan.next_assignment.session_name ||
+                  activePlan.next_assignment.workout_preset_name ||
+                  activePlan.next_assignment.exercise_name ||
+                  t('workoutPlansManager.scheduledWorkout', 'Workout Session')}
+              </span>
+              {activePlan.sequence_position && (
+                <span className="text-xs text-muted-foreground font-medium">
+                  ({activePlan.sequence_position.current} of{' '}
+                  {activePlan.sequence_position.total})
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                'workoutPlansManager.activePlanLabel',
+                'Active plan: {{name}}',
+                { name: activePlan.plan_name }
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">

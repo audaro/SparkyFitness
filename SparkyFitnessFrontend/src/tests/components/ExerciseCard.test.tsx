@@ -64,6 +64,9 @@ jest.mock('@/hooks/Exercises/useExerciseEntries', () => ({
 
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ fetchQuery: jest.fn() }),
+  // The card reads the day's plans and the preset list through react-query;
+  // neither is what these cases are about, so every read answers empty.
+  useQuery: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 
 jest.mock('@/hooks/Exercises/useExercises', () => ({

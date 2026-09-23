@@ -41,6 +41,7 @@ export const useDiaryInvalidation = () => {
     queryClient.invalidateQueries({ queryKey: sleepKeys.all });
     queryClient.invalidateQueries({ queryKey: goalKeys.all });
     queryClient.invalidateQueries({ queryKey: reportKeys.all });
+    queryClient.invalidateQueries({ queryKey: ['workoutPlanTemplates'] });
   }, [queryClient]);
 };
 

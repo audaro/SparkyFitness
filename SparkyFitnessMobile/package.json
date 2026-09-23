@@ -28,7 +28,7 @@
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --maxWorkers=2",
     "typecheck": "tsc --noEmit",
-    "format": "prettier . --write",
+    "format": "prettier . --write --log-level warn",
     "format:check": "prettier . --check",
     "validate": "pnpm run i18n:generate:check && pnpm run typecheck && pnpm run lint && pnpm run i18n:audit && pnpm run knip && pnpm run native-locales:check && pnpm run format:check && pnpm run muscle-art:check",
     "i18n:generate": "node scripts/generate-locale-resources.mjs",

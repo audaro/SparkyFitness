@@ -16,7 +16,11 @@ const exercisesIdSchema = z.any();
 export const workoutPlanTemplateAssignmentsSchema = z.object({
   id: workoutPlanTemplateAssignmentsIdSchema,
   template_id: workoutPlanTemplatesIdSchema,
-  day_of_week: z.number(),
+  // Manually updated (file is ts-to-zod generated; precedent: UserWaterContainers.zod.ts).
+  // Keep on regen. #1836: sequential assignments have null day_of_week, session_index, and session_name.
+  day_of_week: z.number().nullable(),
+  session_index: z.number().nullable().optional(),
+  session_name: z.string().nullable().optional(),
   workout_preset_id: workoutPresetsIdSchema.nullable(),
   exercise_id: exercisesIdSchema.nullable(),
   created_at: z.date().nullable(),
@@ -27,7 +31,9 @@ export const workoutPlanTemplateAssignmentsSchema = z.object({
 export const workoutPlanTemplateAssignmentsInitializerSchema = z.object({
   id: workoutPlanTemplateAssignmentsIdSchema.optional(),
   template_id: workoutPlanTemplatesIdSchema,
-  day_of_week: z.number(),
+  day_of_week: z.number().optional().nullable(),
+  session_index: z.number().optional().nullable(),
+  session_name: z.string().optional().nullable(),
   workout_preset_id: workoutPresetsIdSchema.optional().nullable(),
   exercise_id: exercisesIdSchema.optional().nullable(),
   created_at: z.date().optional().nullable(),
@@ -38,7 +44,9 @@ export const workoutPlanTemplateAssignmentsInitializerSchema = z.object({
 export const workoutPlanTemplateAssignmentsMutatorSchema = z.object({
   id: workoutPlanTemplateAssignmentsIdSchema.optional(),
   template_id: workoutPlanTemplatesIdSchema.optional(),
-  day_of_week: z.number().optional(),
+  day_of_week: z.number().optional().nullable(),
+  session_index: z.number().optional().nullable(),
+  session_name: z.string().optional().nullable(),
   workout_preset_id: workoutPresetsIdSchema.optional().nullable(),
   exercise_id: exercisesIdSchema.optional().nullable(),
   created_at: z.date().optional().nullable(),

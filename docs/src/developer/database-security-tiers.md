@@ -79,7 +79,7 @@ These tables contain user profiles, layouts, display settings, and custom databa
 | `workout_presets` | Custom workouts/presets created by the user | **Owner-Only** | Delegate with `can_view_exercise_library`, `can_manage_diary`, or `can_view_reports` |
 | `workout_preset_exercises` | Exercises assigned inside a workout preset | **Owner-Only** | Delegate with `can_view_exercise_library`, `can_manage_diary`, or `can_view_reports` |
 | `workout_preset_exercise_sets` | Reps/sets configured inside a preset exercise | **Owner-Only** | Delegate with `can_view_exercise_library`, `can_manage_diary`, or `can_view_reports` |
-| `workout_plan_templates` | Templates for weekly workout schedules | **Owner-Only** | Delegate with `can_view_exercise_library`, `can_manage_diary`, or `can_view_reports` |
+| `workout_plan_templates` | Templates for weekly and sequential workout schedules | **Owner-Only** | Delegate with `can_view_exercise_library`, `can_manage_diary`, or `can_view_reports` |
 | `meal_plan_templates` | Reusable meal plan templates | **Owner-Only** | Delegate with `can_view_food_library` or `can_view_reports` (never publicly shared — the policy passes `false` for the shared column) |
 | `external_data_providers` | Configured API integration credentials, including personal or global Open Food Facts accounts | **Owner-Only** | Delegate with `share_external_providers` for search only; contribution credentials are not shared. Manual contribution endpoints require the food owner to be the authenticated actor and require separate data/photo confirmation for the exact preview. |
 | `family_access` | Sharing rules & delegation credentials | **Owner-Only** | Owner or Switched Delegate |
