@@ -31,7 +31,11 @@ import {
   resolveExerciseModality,
   type ExerciseModality,
 } from "../constants/exercise.ts";
-import { DEFAULT_SET_TYPE, isWarmupSetType } from "../constants/setTypes.ts";
+import {
+  DEFAULT_SET_TYPE,
+  isWarmupSetType,
+  type CanonicalSetType,
+} from "../constants/setTypes.ts";
 import type { ExperienceLevel } from "../constants/experience.ts";
 import { MAX_PRIORITY_MUSCLE_GROUPS } from "../constants/trainingPlan.ts";
 import {
@@ -250,6 +254,32 @@ export const GENERATION_TUNABLES = {
   /** Reps this far under target, twice running, means the load is too heavy. */
   deloadRepShortfall: 2,
   /**
+   * Progression once the load can go no higher — a home rack that ends at
+   * 30 lb, or bodyweight. Reps rise first, by this many per earned session,
+   * up to the ceiling; then sets, up to theirs; past that the movement has
+   * outgrown the equipment and the card says so rather than repeating last
+   * session forever. Sets to within a rep or two of failure build muscle
+   * about equally anywhere from ~6 to ~30 reps, so a rising rep target is a
+   * real progression for hypertrophy. Strength is load-specific, so its rep
+   * ceiling is low: past it the answer is a heavier implement, not a longer
+   * set.
+   */
+  repStepUnderCeiling: 2,
+  repStepUnderCeilingStrength: 1,
+  repCeilingHypertrophy: 20,
+  repCeilingStrength: 8,
+  workingSetsCeiling: 5,
+  /**
+   * Equipment on which the final working set is NOT prescribed open-ended.
+   * A last set taken to within a rep or two of failure is what tells the
+   * engine whether the rep target was a limit or a formality — a lifter who
+   * stops at exactly the prescribed ten every set looks identical whether
+   * ten was hard or trivial. On dumbbell, machine, cable and bodyweight work
+   * that is ordinary practice; on a loaded barbell compound it is a spotter
+   * question, so those keep every set at the target.
+   */
+  openFinalSetExcludedEquipment: ["barbell"] as readonly string[],
+  /**
    * When every recent session's modal working reps sit further than this
    * from today's rep target, the load is rebased through Epley before
    * progressing rather than compared rep-for-rep — a 5-rep strength history
@@ -320,6 +350,14 @@ export const GENERATION_TUNABLES = {
  * Absent equipment means no load worth guessing — the prescription comes back
  * reps-only rather than inventing a number.
  */
+/**
+ * The set type stamped on an open-ended final working set. `Failure` is the
+ * canonical vocabulary's nearest word for "as many as the target allows,
+ * stopping a rep or two short" — mobile's picker already renders it, and no
+ * reader treats it specially, so it costs no schema change.
+ */
+export const OPEN_FINAL_SET_TYPE: CanonicalSetType = "Failure";
+
 export const COLD_START_LOAD_KG: Readonly<Record<string, number>> = {
   barbell: 20,
   "e-z curl bar": 10,
@@ -547,7 +585,15 @@ export type ProgressionDecision =
   | "decrease"
   | "hold"
   | "rebased"
-  | "cold-start";
+  | "cold-start"
+  /** Load is at its ceiling (or there is none — bodyweight); reps rose. */
+  | "more-reps"
+  /** Reps are at their ceiling too; a working set was added. */
+  | "more-sets"
+  /** At the ceiling and two short sessions running; reps came back down. */
+  | "fewer-reps"
+  /** Reps and sets are both at their ceilings; nothing left to add here. */
+  | "outgrown";
 
 export interface Prescription {
   sets: RecommendationSet[];
@@ -1451,6 +1497,112 @@ function progressionMultiplier(
     : GENERATION_TUNABLES.progressionUpperBody;
 }
 
+/** The rep target a rising-reps progression stops at, per goal. */
+export function repCeilingFor(goal: WorkoutGoal): number {
+  return goal === "strength"
+    ? GENERATION_TUNABLES.repCeilingStrength
+    : GENERATION_TUNABLES.repCeilingHypertrophy;
+}
+
+function repStepFor(goal: WorkoutGoal): number {
+  return goal === "strength"
+    ? GENERATION_TUNABLES.repStepUnderCeilingStrength
+    : GENERATION_TUNABLES.repStepUnderCeiling;
+}
+
+/**
+ * True when the gym's stated ceiling for this equipment sits exactly at the
+ * baseline: the load itself is stocked, and one step up is not. A baseline
+ * already *above* the ceiling is not "at" it — that load has to come down
+ * first, which the cap handles as a capped decrease — and equipment with no
+ * load step (bands, bodyweight) has no rack to run out of.
+ */
+export function isAtLoadCeiling(
+  baselineKg: number,
+  stepKg: number,
+  equipment: string | undefined,
+  options: Pick<GenerationOptions, "loadLimits" | "incrementDefaultsKg">,
+): boolean {
+  if (!(baselineKg > 0) || !(stepKg > 0)) return false;
+  const here = capLoadKg(
+    baselineKg,
+    equipment,
+    options.loadLimits,
+    options.incrementDefaultsKg,
+  );
+  // 2 dp storage rounding can put a 30 lb max (13.608) a hair under the
+  // logged 13.61; the cap's own flooring already resolves that to the same
+  // step, so compare with a tolerance rather than exactly.
+  if (here < baselineKg - 0.005) return false;
+  const next = capLoadKg(
+    baselineKg + stepKg,
+    equipment,
+    options.loadLimits,
+    options.incrementDefaultsKg,
+  );
+  return next <= baselineKg + 0.005;
+}
+
+interface CeilingProgression {
+  decision: ProgressionDecision;
+  reps: number;
+  sets: number;
+}
+
+/**
+ * Progression when there is no heavier load to reach for: the same
+ * earn-it-with-a-clean-sweep / deload-after-two rules as
+ * {@link decideProgression}, read against the reps the user was actually
+ * doing rather than the goal's base target, and paid out in reps, then
+ * sets, then an honest "outgrown".
+ *
+ * The rep level carried forward is the last session's modal working reps —
+ * a user already doing sixteen at the ceiling is not sent back to ten —
+ * clamped to the goal's ceiling, and the set count likewise carries forward
+ * from the last session so a fourth set earned last week is not taken away
+ * this week. Both reset naturally the moment the load can rise again,
+ * because that path prescribes the goal's base target: that is the classic
+ * double progression, reps up until a heavier implement, then reps back
+ * down with the new load.
+ */
+function progressUnderCeiling(
+  history: ExerciseHistoryInput,
+  latest: HistorySession,
+  repTarget: number,
+  setCount: number,
+  goal: WorkoutGoal,
+): CeilingProgression {
+  const ceiling = repCeilingFor(goal);
+  const step = repStepFor(goal);
+  const lastReps = modalWorkingReps(latest);
+  const repsNow = Math.min(ceiling, Math.max(repTarget, lastReps ?? repTarget));
+  const setsNow = Math.min(
+    GENERATION_TUNABLES.workingSetsCeiling,
+    Math.max(setCount, workingSetsOf(latest).length),
+  );
+  const decision = decideProgression(history, repsNow);
+  if (decision === "increase") {
+    if (repsNow < ceiling) {
+      return {
+        decision: "more-reps",
+        reps: Math.min(ceiling, repsNow + step),
+        sets: setsNow,
+      };
+    }
+    if (setsNow < GENERATION_TUNABLES.workingSetsCeiling) {
+      return { decision: "more-sets", reps: ceiling, sets: setsNow + 1 };
+    }
+    return { decision: "outgrown", reps: ceiling, sets: setsNow };
+  }
+  if (decision === "decrease") {
+    const fewer = Math.max(repTarget, repsNow - step);
+    if (fewer < repsNow) {
+      return { decision: "fewer-reps", reps: fewer, sets: setsNow };
+    }
+  }
+  return { decision: "hold", reps: repsNow, sets: setsNow };
+}
+
 /**
  * The conservative first-session load, with the equipment value it was read
  * from — the cap has to be applied against that same equipment, not the row's
@@ -1647,6 +1799,26 @@ export function prescribeSets(
   let workingWeightKg: number | null = null;
   let appliedMultiplier = 1;
   let capped = false;
+  let repsPrescribed = repTarget;
+  let setsPrescribed = setCount;
+  const progressWithoutLoad = () => {
+    // Nothing heavier to reach for — bodyweight, or a rack that ends here —
+    // so progression is paid out in reps and sets instead.
+    const under = progressUnderCeiling(
+      history!,
+      latest!,
+      repTarget,
+      setCount,
+      options.goal,
+    );
+    decision = under.decision;
+    repsPrescribed = under.reps;
+    setsPrescribed = under.sets;
+    appliedMultiplier = 1;
+  };
+  if (exercise.modality === "reps_only" && latest) {
+    progressWithoutLoad();
+  }
   if (exercise.modality === "weight_reps") {
     // A logged session with no usable weights (all reps-only, or all zero)
     // leaves nothing to progress from, so it cold-starts like a first session
@@ -1677,6 +1849,10 @@ export function prescribeSets(
         workingWeightKg = clamped;
         capped = clamped < onRack;
       }
+      // A movement stored as weight_reps but done unloaded — push-ups, a
+      // weighted-optional crunch — has a history of reps and nothing else.
+      // Those reps are what there is to progress.
+      if (workingWeightKg == null && latest) progressWithoutLoad();
     } else {
       const incrementEquipment = exercise.equipment[0];
       const quantize = (kg: number) =>
@@ -1686,100 +1862,132 @@ export function prescribeSets(
           options.loadLimits,
           options.incrementDefaultsKg,
         );
-
-      // History logged at a different rep range says nothing rep-for-rep
-      // about today's target: 4x5 at 100 kg read against a 10-rep target
-      // looks like two failed sessions and deloads a weight the user never
-      // failed, while 3x15 at 40 kg read against 10 looks like an easy
-      // "+2.5%". When every recent session sits on the same far side of the
-      // target — a goal change, not a bad day — rebase the load through
-      // Epley to today's reps and hold there; progression resumes next
-      // session. One off-range session among on-range ones is still noise,
-      // and `decideProgression` keeps its hold-once-deload-twice reading.
-      let workingBaseline = baseline;
-      const lastReps = latest ? modalWorkingReps(latest) : null;
-      if (lastReps != null && isConsistentRepMismatch(history!, repTarget)) {
-        const rebased = quantize(
-          estimateRepMaxKg(baseline, lastReps, repTarget),
-        );
-        if (rebased > 0) {
-          workingBaseline = rebased;
-          decision = "rebased";
-        }
-      }
-
-      appliedMultiplier = progressionMultiplier(
-        decision,
-        exercise.primaryMuscles,
-      );
-      workingWeightKg = quantize(workingBaseline * appliedMultiplier);
-
-      // Rounding to the nearest plate erases any step smaller than half an
-      // increment — 2.5% of a 30 kg dumbbell press is 0.75 kg, and the pair
-      // only comes in 2 kg steps — so below ~50 kg a progression would snap
-      // straight back to last session's load and stay there forever, while
-      // the card kept promising "+2.5%". When the rounding swallowed the
-      // step, take one real increment in the decided direction instead.
       const step = incrementForEquipmentKg(
         incrementEquipment,
         options.loadLimits,
         options.incrementDefaultsKg,
       );
-      if (step > 0) {
-        if (decision === "increase" && workingWeightKg <= workingBaseline) {
-          workingWeightKg = quantize(workingBaseline + step);
-        } else if (
-          decision === "decrease" &&
-          workingWeightKg >= workingBaseline
-        ) {
-          const stepped = quantize(workingBaseline - step);
-          // The lightest load on the floor cannot deload any further.
-          workingWeightKg = stepped > 0 ? stepped : workingBaseline;
-        }
-      }
 
-      const clamped = capLoadKg(
-        workingWeightKg,
-        incrementEquipment,
-        options.loadLimits,
-        options.incrementDefaultsKg,
-      );
-      if (clamped < workingWeightKg) {
-        // The gym stops where the progression wanted to go. Prescribe what
-        // is actually on the rack.
-        workingWeightKg = clamped;
+      if (isAtLoadCeiling(baseline, step, incrementEquipment, options)) {
+        // The rack ends here. Last session's load is what there is; the
+        // progression, if earned, is paid out in reps and sets. This has to
+        // run ahead of the rebase below: a history of sixteen reps at the
+        // ceiling reads to Epley as "the load should be higher", and clamping
+        // that back down would reset the reps to the base target every
+        // session — the exact treadmill this branch exists to end.
+        workingWeightKg = baseline;
         capped = true;
-      }
+        progressWithoutLoad();
+      } else {
+        // History logged at a different rep range says nothing rep-for-rep
+        // about today's target: 4x5 at 100 kg read against a 10-rep target
+        // looks like two failed sessions and deloads a weight the user never
+        // failed, while 3x15 at 40 kg read against 10 looks like an easy
+        // "+2.5%". When every recent session sits on the same far side of the
+        // target — a goal change, not a bad day — rebase the load through
+        // Epley to today's reps and hold there; progression resumes next
+        // session. One off-range session among on-range ones is still noise,
+        // and `decideProgression` keeps its hold-once-deload-twice reading.
+        let workingBaseline = baseline;
+        const lastReps = latest ? modalWorkingReps(latest) : null;
+        if (lastReps != null && isConsistentRepMismatch(history!, repTarget)) {
+          const rebased = quantize(
+            estimateRepMaxKg(baseline, lastReps, repTarget),
+          );
+          if (rebased > 0) {
+            workingBaseline = rebased;
+            decision = "rebased";
+          }
+        }
 
-      // Keep the description honest whenever the load that came out is not
-      // the one the nominal multiplier would have produced: the multiplier
-      // becomes the one that was really applied, and the decision is
-      // remapped from it so `rationaleFor` never claims a step the sets
-      // were not built with. A rebase is its own sentence and keeps its
-      // decision; the nominal multiplier is kept when quantising merely
-      // nudged a real step (80 -> 82.5 still reads as the 2.5% it was).
-      const nominal = quantize(workingBaseline * appliedMultiplier);
-      const unmoved =
-        decision !== "hold" && workingWeightKg === workingBaseline;
-      if (decision !== "rebased" && (workingWeightKg !== nominal || unmoved)) {
-        appliedMultiplier =
-          workingBaseline > 0 ? workingWeightKg / workingBaseline : 1;
-        decision =
-          appliedMultiplier > 1
-            ? "increase"
-            : appliedMultiplier === 1
-              ? "hold"
-              : "decrease";
+        appliedMultiplier = progressionMultiplier(
+          decision,
+          exercise.primaryMuscles,
+        );
+        workingWeightKg = quantize(workingBaseline * appliedMultiplier);
+
+        // Rounding to the nearest plate erases any step smaller than half an
+        // increment — 2.5% of a 30 kg dumbbell press is 0.75 kg, and the pair
+        // only comes in 2 kg steps — so below ~50 kg a progression would snap
+        // straight back to last session's load and stay there forever, while
+        // the card kept promising "+2.5%". When the rounding swallowed the
+        // step, take one real increment in the decided direction instead.
+        if (step > 0) {
+          if (decision === "increase" && workingWeightKg <= workingBaseline) {
+            workingWeightKg = quantize(workingBaseline + step);
+          } else if (
+            decision === "decrease" &&
+            workingWeightKg >= workingBaseline
+          ) {
+            const stepped = quantize(workingBaseline - step);
+            // The lightest load on the floor cannot deload any further.
+            workingWeightKg = stepped > 0 ? stepped : workingBaseline;
+          }
+        }
+
+        const clamped = capLoadKg(
+          workingWeightKg,
+          incrementEquipment,
+          options.loadLimits,
+          options.incrementDefaultsKg,
+        );
+        if (clamped < workingWeightKg) {
+          // The gym stops where the progression wanted to go. Prescribe what
+          // is actually on the rack.
+          workingWeightKg = clamped;
+          capped = true;
+        }
+
+        // Keep the description honest whenever the load that came out is not
+        // the one the nominal multiplier would have produced: the multiplier
+        // becomes the one that was really applied, and the decision is
+        // remapped from it so `rationaleFor` never claims a step the sets
+        // were not built with. A rebase is its own sentence and keeps its
+        // decision; the nominal multiplier is kept when quantising merely
+        // nudged a real step (80 -> 82.5 still reads as the 2.5% it was).
+        const nominal = quantize(workingBaseline * appliedMultiplier);
+        const unmoved =
+          decision !== "hold" && workingWeightKg === workingBaseline;
+        if (
+          decision !== "rebased" &&
+          (workingWeightKg !== nominal || unmoved)
+        ) {
+          appliedMultiplier =
+            workingBaseline > 0 ? workingWeightKg / workingBaseline : 1;
+          decision =
+            appliedMultiplier > 1
+              ? "increase"
+              : appliedMultiplier === 1
+                ? "hold"
+                : "decrease";
+        }
       }
     }
     if (workingWeightKg != null && workingWeightKg <= 0) workingWeightKg = null;
   }
 
+  // The last working set is open-ended — as many reps as the target allows,
+  // stopping a rep or two short of failure — wherever that is safe practice.
+  // Its logged count is the effort signal the next session's progression
+  // reads; the prescribed reps stay on it as the floor.
+  const openFinalSet =
+    options.goal !== "strength" &&
+    (exercise.modality === "weight_reps" ||
+      exercise.modality === "reps_only") &&
+    !exercise.equipment.some((item) =>
+      GENERATION_TUNABLES.openFinalSetExcludedEquipment.includes(
+        normalizeEquipmentName(item),
+      ),
+    );
+
   return {
-    sets: Array.from({ length: setCount }, (_, index) => ({
+    sets: Array.from({ length: setsPrescribed }, (_, index) => ({
       set_number: index + 1,
-      set_type: DEFAULT_SET_TYPE,
-      reps: repTarget,
+      set_type:
+        openFinalSet && index === setsPrescribed - 1
+          ? OPEN_FINAL_SET_TYPE
+          : DEFAULT_SET_TYPE,
+      reps: repsPrescribed,
       weight: workingWeightKg,
       duration: null,
       distance: null,
@@ -1824,7 +2032,26 @@ export function rationaleFor(
   if (prescription.capped && prescription.progression === "decrease") {
     return `${fresh} · at this gym's max load`;
   }
+  // Ceiling progressions name the ceiling: "reps up to 12" with no reason
+  // would read as a whim, and a bodyweight movement has no gym load to be
+  // at.
+  const reps = prescription.sets[0]?.reps ?? null;
+  const ceiling =
+    prescription.workingWeightKg == null
+      ? "bodyweight"
+      : "at this gym's max load";
   switch (prescription.progression) {
+    case "more-reps":
+      return `${fresh} · ${ceiling} — reps up to ${reps}`;
+    case "more-sets":
+      return `${fresh} · ${ceiling} — adding a set`;
+    case "fewer-reps":
+      return `${fresh} · ${ceiling} — back to ${reps} reps after two short sessions`;
+    case "outgrown":
+      return `${fresh} · outgrown ${prescription.workingWeightKg == null ? "bodyweight" : "this gym's max load"} — try a harder variation`;
+    case "hold":
+      if (prescription.capped) return `${fresh} · at this gym's max load`;
+      return `${fresh} · holding last session's load`;
     case "cold-start":
       return `${fresh} · first time — starting light`;
     case "increase":
@@ -2057,7 +2284,18 @@ function dropLastWorkingSet(
   const sets = [...exercise.sets];
   for (let i = sets.length - 1; i >= 0; i--) {
     if (!isWarmupSetType(sets[i]!.set_type)) {
-      sets.splice(i, 1);
+      const [removed] = sets.splice(i, 1);
+      // The open-ended set is "the last working set", not "set four": when
+      // the fitter takes that one, the set now last inherits the marking, so
+      // a workout trimmed for time still carries its effort signal.
+      if (removed?.set_type === OPEN_FINAL_SET_TYPE) {
+        for (let j = i - 1; j >= 0; j--) {
+          if (!isWarmupSetType(sets[j]!.set_type)) {
+            sets[j] = { ...sets[j]!, set_type: OPEN_FINAL_SET_TYPE };
+            break;
+          }
+        }
+      }
       break;
     }
   }
