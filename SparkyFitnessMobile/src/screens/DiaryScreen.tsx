@@ -51,6 +51,7 @@ import {
   useRecentMeals,
   useServerConnection,
 } from '../hooks';
+import { useActiveWorkoutPlans } from '../hooks/useActiveWorkoutPlan';
 import {
   useCheckInPhotoDates,
   useCheckInPhotosByDate,
@@ -365,6 +366,8 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
     [customMeasurements]
   );
 
+  const { plans: activePlans } = useActiveWorkoutPlans(selectedDate);
+
   const [refreshing, setRefreshing] = useState(false);
   const activeWorkoutBarPadding = useActiveWorkoutBarPadding();
   const onRefresh = useCallback(async () => {
@@ -416,7 +419,8 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
       !isPhotosLoading &&
       dayPhotos.length === 0 &&
       naps.length === 0 &&
-      bedTime === null
+      bedTime === null &&
+      !activePlans.some((plan) => plan.next_assignment)
     );
   }, [
     isSleepLoading,
@@ -427,6 +431,7 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
     dayPhotos,
     naps,
     bedTime,
+    activePlans,
   ]);
 
   // The day's half of the tab. It renders inside the scroll view rather than
@@ -521,9 +526,10 @@ const DiaryScreen: React.FC<DiaryScreenProps> = ({ navigation }) => {
               }
               onPressMealType={openMealTypeDetail}
             />
-            {/* Logged exercise lives on the Exercise tab. It still counts
-                towards the calorie balance above, and towards whether the day
-                is empty — a day with a workout on it is not an empty day. */}
+            {/* Logged exercise, and the plan session standing for the day,
+                live on the Exercise tab. Both still count towards the calorie
+                balance above and towards whether the day is empty — a day with
+                a workout or a pending plan session on it is not empty. */}
             <NapsCard naps={naps} day={selectedDate} navigation={navigation} />
             <BedTimeCard
               entry={bedTime}

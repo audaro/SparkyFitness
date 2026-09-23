@@ -12,7 +12,7 @@ export const getWorkoutPresets = async (
 };
 
 export const getWorkoutPresetById = async (
-  id: string
+  id: string | number
 ): Promise<WorkoutPreset> => {
   return apiCall(`/workout-presets/${id}`, {
     method: 'GET',

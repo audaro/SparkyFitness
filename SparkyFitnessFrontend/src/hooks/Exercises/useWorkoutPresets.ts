@@ -11,6 +11,11 @@ import {
 import type { WorkoutPreset } from '@/types/workout';
 import { presetKeys } from '@/api/keys/exercises';
 
+export const workoutPresetByIdOptions = (id: string | number) => ({
+  queryKey: presetKeys.detail(String(id)),
+  queryFn: () => getWorkoutPresetById(id),
+});
+
 // --- Queries ---
 
 /**

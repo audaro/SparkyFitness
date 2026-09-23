@@ -42,6 +42,7 @@ import {
   useUpdateCoachProfile,
 } from '../hooks/useCoachProfile';
 import { useDailySummary } from '../hooks/useDailySummary';
+import { useStartPlanAssignment } from '../hooks/useStartPlanAssignment';
 import { useExerciseImageSource } from '../hooks/useExerciseImageSource';
 import { useGymProfiles } from '../hooks/useGymProfiles';
 import { useNavigationActionGuard } from '../hooks/useNavigationActionGuard';
@@ -203,6 +204,8 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({
     percent: group.percent,
     color: groupColors[group.group],
   }));
+
+  const { startPlanAssignment } = useStartPlanAssignment(navigation);
 
   const openWorkout = (session: ExerciseSessionResponse) => {
     if (session.type === 'preset') {
@@ -432,6 +435,7 @@ const ExerciseHomeScreen: React.FC<ExerciseHomeScreenProps> = ({
             onAddExercise={() =>
               addSheetRef.current?.present({ initialMenu: 'exercise' })
             }
+            onPressPlanAssignment={startPlanAssignment}
             onPressWorkout={openWorkout}
           />
         </View>

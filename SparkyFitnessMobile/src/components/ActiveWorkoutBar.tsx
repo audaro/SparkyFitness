@@ -44,6 +44,10 @@ import LiquidGlassSurface, {
   createLiquidGlassPillStyle,
 } from './LiquidGlassSurface';
 import { withAlpha } from '../utils/colors';
+import { deleteWorkout } from '../services/api/exerciseApi';
+import { invalidateExerciseCache } from '../hooks/invalidateExerciseCache';
+import { normalizeDate } from '../utils/dateUtils';
+import { addLog } from '../services/LogService';
 
 /**
  * Shared navigation ref — must be passed to the app's `<NavigationContainer ref={...} />`.
@@ -606,6 +610,57 @@ const ActiveWorkoutBar: React.FC<ActiveWorkoutBarProps> = ({
   };
 
   const handleClear = () => {
+    const state = useActiveWorkoutStore.getState();
+    const createdByLiveStart = state.createdByLiveStart;
+    const sessionId = state.sessionId;
+    const entryDate = state.session?.entry_date
+      ? normalizeDate(state.session.entry_date)
+      : null;
+    const completedSetCount = Object.keys(state.completedSetIds).length;
+
+    if (createdByLiveStart && sessionId != null && completedSetCount === 0) {
+      Alert.alert(
+        t('workout.discardWorkoutTitle', { defaultValue: 'Discard workout?' }),
+        t('workout.discardWorkoutMessage', {
+          defaultValue: 'This deletes the workout from your diary.',
+        }),
+        [
+          {
+            text: t('common.cancel', { defaultValue: 'Cancel' }),
+            style: 'cancel',
+          },
+          {
+            text: t('workout.discard', { defaultValue: 'Discard' }),
+            style: 'destructive',
+            onPress: () => {
+              useActiveWorkoutStore.getState().clearWorkout();
+              deleteWorkout(sessionId)
+                .then(() => {
+                  if (entryDate != null)
+                    invalidateExerciseCache(queryClient, entryDate);
+                })
+                .catch((error: unknown) => {
+                  addLog(
+                    `Failed to delete discarded live-start workout: ${error}`,
+                    'ERROR'
+                  );
+                  if (entryDate != null)
+                    invalidateExerciseCache(queryClient, entryDate);
+                  Alert.alert(
+                    t('common.error', { defaultValue: 'Error' }),
+                    t('activeWorkout.failedToDeleteWorkout', {
+                      defaultValue:
+                        'Failed to delete discarded workout session from diary.',
+                    })
+                  );
+                });
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     if (isWorkoutComplete) {
       void flushAndClear();
       return;

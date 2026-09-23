@@ -996,10 +996,9 @@ async function updateExerciseEntriesDateByPresetEntryIdWithClient(
   );
 }
 /**
- * The single non-null workout plan assignment id shared by the child
+ * The non-null workout plan assignment id associated with the child
  * exercise_entries of a grouped session, or null when the session is not
- * linked to a workout plan. Throws if the children carry more than one
- * distinct non-null assignment id.
+ * linked to a workout plan.
  */
 async function getWorkoutPlanAssignmentIdByPresetEntryIdWithClient(
   client: PoolClient,
@@ -1017,12 +1016,6 @@ async function getWorkoutPlanAssignmentIdByPresetEntryIdWithClient(
         AND workout_plan_assignment_id IS NOT NULL`,
     [userId, presetEntryId]
   );
-
-  if (result.rows.length > 1) {
-    throw new Error(
-      'Grouped workout contains multiple workout plan assignment ids.'
-    );
-  }
 
   return result.rows[0]?.workout_plan_assignment_id ?? null;
 }

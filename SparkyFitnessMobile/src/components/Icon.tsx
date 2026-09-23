@@ -59,6 +59,7 @@ const ICON_MAP = {
   stop: { sf: 'stop.fill', ion: 'stop' },
   forward: { sf: 'forward.fill', ion: 'play-skip-forward' },
   'skip-forward': { sf: 'forward.end.fill', ion: 'play-skip-forward' },
+  repeat: { sf: 'repeat', ion: 'repeat' },
   measurements: { sf: 'ruler', ion: 'analytics-outline' },
   scale: { sf: 'scalemass', ion: 'scale-outline' },
   // Android uses -outline variants for stroke-weight consistency with the set.

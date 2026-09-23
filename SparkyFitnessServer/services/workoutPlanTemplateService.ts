@@ -17,7 +17,9 @@ export interface WorkoutPlanAssignmentSetInput {
 
 export interface WorkoutPlanAssignmentInput {
   id?: number | string | null;
-  day_of_week: number;
+  day_of_week?: number | null;
+  session_index?: number | null;
+  session_name?: string | null;
   workout_preset_id?: number | string | null;
   exercise_id?: string | null;
   sort_order?: number | null;
@@ -30,6 +32,8 @@ export interface CreateWorkoutPlanTemplateInput {
   start_date?: string | null;
   end_date?: string | null;
   is_active?: boolean | null;
+  schedule_type?: 'weekly' | 'sequential';
+  entry_mode?: 'prompt' | 'prefill';
   assignments?: WorkoutPlanAssignmentInput[] | null;
   currentClientDate?: string | null;
 }
@@ -40,8 +44,55 @@ export interface UpdateWorkoutPlanTemplateInput {
   start_date?: string | null;
   end_date?: string | null;
   is_active?: boolean | null;
+  schedule_type?: 'weekly' | 'sequential';
+  entry_mode?: 'prompt' | 'prefill';
   assignments?: WorkoutPlanAssignmentInput[] | null;
   currentClientDate?: string | null;
+}
+
+async function validateAndNormalizeAssignments(
+  assignments: WorkoutPlanAssignmentInput[],
+  scheduleType: 'weekly' | 'sequential',
+  userId: string
+): Promise<void> {
+  for (const assignment of assignments) {
+    if (scheduleType === 'weekly') {
+      if (
+        assignment.day_of_week === undefined ||
+        assignment.day_of_week === null ||
+        assignment.day_of_week < 0 ||
+        assignment.day_of_week > 6
+      ) {
+        throw new Error(
+          'Weekly workout plan assignments must have a valid day_of_week (0-6).'
+        );
+      }
+    } else if (scheduleType === 'sequential') {
+      assignment.day_of_week = null;
+    }
+    if (assignment.workout_preset_id) {
+      const preset = await workoutPresetRepository.getWorkoutPresetById(
+        Number(assignment.workout_preset_id),
+        userId
+      );
+      if (!preset) {
+        throw new Error(
+          `Workout Preset with ID ${assignment.workout_preset_id} not found.`
+        );
+      }
+    }
+    if (assignment.exercise_id) {
+      const exercise = await exerciseRepository.getExerciseById(
+        assignment.exercise_id,
+        userId
+      );
+      if (!exercise) {
+        throw new Error(
+          `Exercise with ID ${assignment.exercise_id} not found.`
+        );
+      }
+    }
+  }
 }
 
 async function createWorkoutPlanTemplate(
@@ -54,36 +105,20 @@ async function createWorkoutPlanTemplate(
     planData
   );
   // Validate assignments
+  const scheduleType = planData.schedule_type || 'weekly';
   if (planData.assignments) {
-    for (const assignment of planData.assignments) {
-      if (assignment.workout_preset_id) {
-        const preset = await workoutPresetRepository.getWorkoutPresetById(
-          Number(assignment.workout_preset_id),
-          userId
-        );
-        if (!preset) {
-          throw new Error(
-            `Workout Preset with ID ${assignment.workout_preset_id} not found.`
-          );
-        }
-      }
-      if (assignment.exercise_id) {
-        const exercise = await exerciseRepository.getExerciseById(
-          assignment.exercise_id,
-          userId
-        );
-        if (!exercise) {
-          throw new Error(
-            `Exercise with ID ${assignment.exercise_id} not found.`
-          );
-        }
-      }
-    }
+    await validateAndNormalizeAssignments(
+      planData.assignments,
+      scheduleType,
+      userId
+    );
   }
   try {
     const newPlan =
       await workoutPlanTemplateRepository.createWorkoutPlanTemplate({
         ...planData,
+        schedule_type: scheduleType,
+        entry_mode: planData.entry_mode || 'prompt',
         user_id: userId,
       });
     log(
@@ -91,10 +126,14 @@ async function createWorkoutPlanTemplate(
       'createWorkoutPlanTemplate service - newPlan created:',
       newPlan
     );
-    if (newPlan.is_active) {
+    if (
+      newPlan.is_active &&
+      newPlan.schedule_type !== 'sequential' &&
+      newPlan.entry_mode === 'prefill'
+    ) {
       log(
         'info',
-        `createWorkoutPlanTemplate service - New plan is active, creating exercise entries from template ${newPlan.id}`
+        `createWorkoutPlanTemplate service - New plan is active, weekly, and prefill, creating exercise entries from template ${newPlan.id}`
       );
       const today = await resolveTemplateStartDay(
         userId,
@@ -108,7 +147,7 @@ async function createWorkoutPlanTemplate(
     } else {
       log(
         'info',
-        'createWorkoutPlanTemplate service - New plan is not active, skipping exercise entry creation.'
+        'createWorkoutPlanTemplate service - Skipping exercise entry creation (inactive, sequential, or prompt mode).'
       );
     }
     return newPlan;
@@ -158,37 +197,47 @@ async function updateWorkoutPlanTemplate(
       templateId,
       userId
     );
+  if (!ownerId) {
+    throw new Error('Workout plan template not found.');
+  }
   if (ownerId !== userId) {
     throw new Error(
       'Forbidden: You do not have permission to update this workout plan template.'
     );
   }
+  let existingTemplate: Awaited<
+    ReturnType<typeof workoutPlanTemplateRepository.getWorkoutPlanTemplateById>
+  > | null = null;
+  if (updateData.schedule_type || updateData.assignments) {
+    existingTemplate =
+      await workoutPlanTemplateRepository.getWorkoutPlanTemplateById(
+        templateId,
+        userId
+      );
+  }
+  // If schedule_type changed between weekly and sequential, require updated assignments
+  if (
+    updateData.schedule_type &&
+    existingTemplate?.schedule_type &&
+    updateData.schedule_type !== existingTemplate.schedule_type &&
+    !updateData.assignments
+  ) {
+    throw new Error(
+      'Changing schedule_type requires providing updated assignments.'
+    );
+  }
   // Validate assignments if they are being updated
   if (updateData.assignments) {
-    for (const assignment of updateData.assignments) {
-      if (assignment.workout_preset_id) {
-        const preset = await workoutPresetRepository.getWorkoutPresetById(
-          Number(assignment.workout_preset_id),
-          userId
-        );
-        if (!preset) {
-          throw new Error(
-            `Workout Preset with ID ${assignment.workout_preset_id} not found.`
-          );
-        }
-      }
-      if (assignment.exercise_id) {
-        const exercise = await exerciseRepository.getExerciseById(
-          assignment.exercise_id,
-          userId
-        );
-        if (!exercise) {
-          throw new Error(
-            `Exercise with ID ${assignment.exercise_id} not found.`
-          );
-        }
-      }
-    }
+    const scheduleType: 'weekly' | 'sequential' =
+      updateData.schedule_type ||
+      (existingTemplate?.schedule_type === 'sequential'
+        ? 'sequential'
+        : 'weekly');
+    await validateAndNormalizeAssignments(
+      updateData.assignments,
+      scheduleType,
+      userId
+    );
   }
   try {
     const today = await resolveTemplateStartDay(
@@ -205,21 +254,35 @@ async function updateWorkoutPlanTemplate(
       userId,
       today
     );
+    const shouldUnlinkHistoricalEntries =
+      existingTemplate?.schedule_type === 'weekly' &&
+      updateData.schedule_type === 'sequential';
+    if (shouldUnlinkHistoricalEntries) {
+      log(
+        'info',
+        `updateWorkoutPlanTemplate service - Unlinking historical exercise entries for template ${templateId} on transition to sequential`
+      );
+    }
     const updatedPlan =
       await workoutPlanTemplateRepository.updateWorkoutPlanTemplate(
         templateId,
         userId,
-        updateData
+        updateData,
+        shouldUnlinkHistoricalEntries
       );
     log(
       'info',
       'updateWorkoutPlanTemplate service - updatedPlan:',
       updatedPlan
     );
-    if (updatedPlan.is_active) {
+    if (
+      updatedPlan.is_active &&
+      updatedPlan.schedule_type !== 'sequential' &&
+      updatedPlan.entry_mode === 'prefill'
+    ) {
       log(
         'info',
-        `updateWorkoutPlanTemplate service - Updated plan is active, creating exercise entries from template ${updatedPlan.id}`
+        `updateWorkoutPlanTemplate service - Updated plan is active, weekly, and prefill, creating exercise entries from template ${updatedPlan.id}`
       );
       await exerciseRepository.createExerciseEntriesFromTemplate(
         updatedPlan.id,
@@ -229,7 +292,7 @@ async function updateWorkoutPlanTemplate(
     } else {
       log(
         'info',
-        'updateWorkoutPlanTemplate service - Updated plan is not active, skipping exercise entry creation.'
+        'updateWorkoutPlanTemplate service - Skipping exercise entry creation (inactive, sequential, or prompt mode).'
       );
     }
     return updatedPlan;

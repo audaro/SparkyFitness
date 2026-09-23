@@ -8,7 +8,21 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Dumbbell, Play } from 'lucide-react';
+import {
+  Dumbbell,
+  Play,
+  Repeat,
+  ChevronDown,
+  CalendarDays,
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
+import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useActiveUser } from '@/contexts/ActiveUserContext';
 import EditExerciseEntryDialog from './EditExerciseEntryDialog';
@@ -18,8 +32,11 @@ import { debug, info, error } from '@/utils/logging';
 import type {
   WorkoutPresetSet,
   WorkoutPreset,
+  WorkoutPresetExercise,
   PresetExercise,
   ExerciseToLog,
+  WorkoutPlanAssignment,
+  WorkoutPlanTemplate,
 } from '@/types/workout';
 import { formatMinutesToHHMM } from '@/utils/timeFormatters';
 import ExerciseEntryDisplay from './ExerciseEntryDisplay';
@@ -32,10 +49,19 @@ import {
   useDeleteExercisePresetEntryMutation,
   useExerciseEntries,
 } from '@/hooks/Exercises/useExerciseEntries';
+import { useActiveWorkoutPlans } from '@/hooks/Exercises/useWorkoutPlans';
 import {
+  useWorkoutPresets,
+  workoutPresetByIdOptions,
+} from '@/hooks/Exercises/useWorkoutPresets';
+import {
+  isCardioModality,
   resolveExerciseCalories,
+  resolveExerciseModality,
   setsDurationMinutes,
 } from '@workspace/shared';
+import { defaultSetForModality } from '@/constants/exercises';
+import { generateClientId } from '@/utils/generateClientId';
 import { useQueryClient } from '@tanstack/react-query';
 import { exerciseByIdOptions } from '@/hooks/Exercises/useExercises';
 import { createWorkoutPlaybackDraftFromPreset } from '@/utils/workoutPlayback';
@@ -95,6 +121,9 @@ const ExerciseCard = ({
   ] = useState(false);
   const [exerciseToEditInDatabase, setExerciseToEditInDatabase] =
     useState<Exercise | null>(null);
+  const [selectedSessionMap, setSelectedSessionMap] = useState<
+    Record<string | number, string | number>
+  >({});
 
   const currentUserId = activeUserId || user?.id;
   debug(loggingLevel, 'Current user ID:', currentUserId);
@@ -103,10 +132,145 @@ const ExerciseCard = ({
   const { mutateAsync: deleteExerciseEntry } = useDeleteExerciseEntryMutation();
   const { mutateAsync: deleteExercisePresetEntry } =
     useDeleteExercisePresetEntryMutation();
+  const { data: activePlans = [] } = useActiveWorkoutPlans(
+    selectedDate,
+    currentUserId
+  );
+
+  const { data: presetData } = useWorkoutPresets(currentUserId);
+  const workoutPresets = useMemo(() => presetData?.presets ?? [], [presetData]);
+
   const { data: exerciseEntries, isLoading: loading } = useExerciseEntries(
     selectedDate,
     currentUserId
   );
+
+  const handleStartPlanSession = async (
+    targetPlan: WorkoutPlanTemplate,
+    assignment: WorkoutPlanAssignment
+  ) => {
+    if (!targetPlan) return;
+
+    // Collect all assignments in this session
+    const isSequential = targetPlan.schedule_type === 'sequential';
+    const sessionAssignments = isSequential
+      ? targetPlan.assignments?.filter(
+          (a: WorkoutPlanAssignment) =>
+            (a.session_index ?? 1) === (assignment.session_index ?? 1)
+        ) || [assignment]
+      : targetPlan.assignments?.filter(
+          (a: WorkoutPlanAssignment) => a.day_of_week === assignment.day_of_week
+        ) || [assignment];
+
+    const combinedExercises: WorkoutPresetExercise[] = [];
+
+    for (const a of sessionAssignments) {
+      if (a.workout_preset_id) {
+        let preset = workoutPresets.find(
+          (p) => String(p.id) === String(a.workout_preset_id)
+        );
+        if (!preset) {
+          try {
+            preset = await queryClient.fetchQuery(
+              workoutPresetByIdOptions(a.workout_preset_id)
+            );
+          } catch (err) {
+            error(
+              loggingLevel,
+              `Failed to fetch preset for session: ${a.workout_preset_id}`,
+              err
+            );
+          }
+        }
+        if (preset && preset.exercises && preset.exercises.length > 0) {
+          combinedExercises.push(
+            ...preset.exercises.map((ex) => ({
+              ...ex,
+              workout_plan_assignment_id: a.id ?? null,
+            }))
+          );
+        }
+      } else if (a.exercise_id) {
+        try {
+          const fullExercise = await queryClient.fetchQuery(
+            exerciseByIdOptions(a.exercise_id)
+          );
+          const modality = resolveExerciseModality(
+            fullExercise.modality,
+            fullExercise.category
+          );
+          combinedExercises.push({
+            id: String(a.id || generateClientId()),
+            exercise_id: fullExercise.id,
+            exercise_name: fullExercise.name,
+            exercise: fullExercise,
+            category: fullExercise.category ?? undefined,
+            modality,
+            superset_group: null,
+            workout_plan_assignment_id: a.id ?? null,
+            sets:
+              a.sets && a.sets.length > 0
+                ? a.sets.map((set: WorkoutPresetSet, sIdx: number) => ({
+                    set_number: sIdx + 1,
+                    set_type: set.set_type ?? 'normal',
+                    reps: set.reps ?? null,
+                    weight: set.weight ?? null,
+                    duration: set.duration ?? null,
+                    distance: isCardioModality(modality)
+                      ? (set.distance ?? null)
+                      : null,
+                    rest_time: isCardioModality(modality)
+                      ? 0
+                      : (set.rest_time ?? null),
+                    notes: set.notes ?? null,
+                    rpe: null,
+                    completed_at: null,
+                  }))
+                : [defaultSetForModality(modality)],
+          });
+        } catch (err) {
+          error(
+            loggingLevel,
+            `Failed to fetch exercise for session: ${a.exercise_id}`,
+            err
+          );
+        }
+      }
+    }
+
+    if (combinedExercises.length === 0) {
+      toast({
+        title: t('common.error', 'Error'),
+        description: t(
+          'exerciseCard.noExercisesInPlanSession',
+          'No exercises found in this session.'
+        ),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const sessionName =
+      assignment.session_name ||
+      targetPlan.sequence_position?.session_name ||
+      assignment.workout_preset_name ||
+      assignment.exercise_name ||
+      targetPlan.plan_name;
+
+    const sessionPreset: WorkoutPreset = {
+      id: `plan-${targetPlan.id}-session-${assignment.session_index ?? assignment.day_of_week ?? 1}`,
+      user_id: currentUserId || '',
+      name: sessionName,
+      description: targetPlan.description || `${targetPlan.plan_name} session`,
+      exercises: combinedExercises,
+    };
+
+    requestStart({
+      entryDate: selectedDate,
+      createDraft: () =>
+        createWorkoutPlaybackDraftFromPreset(sessionPreset, selectedDate),
+    });
+  };
 
   // Effect to handle initialExercisesToLog prop
   useEffect(() => {
@@ -399,6 +563,96 @@ const ExerciseCard = ({
     };
   }, [exerciseEntries]);
 
+  const loggedAssignmentIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!exerciseEntries || !Array.isArray(exerciseEntries)) return ids;
+    for (const groupedEntry of exerciseEntries) {
+      if (groupedEntry.workout_plan_assignment_id != null) {
+        ids.add(String(groupedEntry.workout_plan_assignment_id));
+      }
+      if (
+        groupedEntry.type === 'preset' &&
+        Array.isArray(groupedEntry.exercises)
+      ) {
+        for (const item of groupedEntry.exercises) {
+          if (item.workout_plan_assignment_id != null) {
+            ids.add(String(item.workout_plan_assignment_id));
+          }
+        }
+      }
+    }
+    return ids;
+  }, [exerciseEntries]);
+
+  const uncompletedActivePlans = useMemo(() => {
+    return (activePlans as WorkoutPlanTemplate[]).filter(
+      (plan: WorkoutPlanTemplate) => {
+        if (!plan.next_assignment) return false;
+        const planAssignmentIds = (plan.assignments || []).map(
+          (a: WorkoutPlanAssignment) => String(a.id)
+        );
+        const isPlanCompletedToday = planAssignmentIds.some((id: string) =>
+          loggedAssignmentIds.has(id)
+        );
+        return !isPlanCompletedToday;
+      }
+    );
+  }, [activePlans, loggedAssignmentIds]);
+
+  const getDistinctSessionsForPlan = (plan: WorkoutPlanTemplate) => {
+    if (!plan.assignments || plan.assignments.length === 0) return [];
+    const map = new Map<
+      number | string,
+      {
+        assignment: WorkoutPlanAssignment;
+        sessionIndex: number;
+        name: string;
+        exerciseCount: number;
+        isSuggested: boolean;
+      }
+    >();
+
+    for (const a of plan.assignments) {
+      const key =
+        plan.schedule_type === 'sequential'
+          ? (a.session_index ?? 0)
+          : (a.day_of_week ?? 0);
+      const isSuggested =
+        plan.schedule_type === 'sequential'
+          ? (a.session_index ?? 0) ===
+            (plan.next_assignment?.session_index ?? 0)
+          : a.id === plan.next_assignment?.id;
+
+      const existing = map.get(key);
+      if (existing) {
+        existing.exerciseCount += 1;
+        if (isSuggested) existing.isSuggested = true;
+      } else {
+        const name =
+          a.session_name ||
+          a.workout_preset_name ||
+          a.exercise_name ||
+          (plan.schedule_type === 'sequential'
+            ? t('exerciseCard.sessionNumber', {
+                num: a.session_index ?? 1,
+                defaultValue: `Session ${a.session_index ?? 1}`,
+              })
+            : t('exerciseCard.dayNumber', {
+                num: (a.day_of_week ?? 0) + 1,
+                defaultValue: `Day ${(a.day_of_week ?? 0) + 1}`,
+              }));
+        map.set(key, {
+          assignment: a,
+          sessionIndex: a.session_index ?? 1,
+          name,
+          exerciseCount: 1,
+          isSuggested,
+        });
+      }
+    }
+    return Array.from(map.values());
+  };
+
   if (loading) {
     return <div>Loading exercises...</div>;
   }
@@ -453,6 +707,146 @@ const ExerciseCard = ({
         </div>
       </CardHeader>
       <CardContent>
+        {uncompletedActivePlans.map((plan: WorkoutPlanTemplate) => {
+          const distinctSessions = getDistinctSessionsForPlan(plan);
+          const currentAssignmentId =
+            selectedSessionMap[plan.id] ||
+            (plan.next_assignment?.id ? String(plan.next_assignment.id) : '');
+          const currentSessionItem =
+            distinctSessions.find(
+              (s) => String(s.assignment.id) === String(currentAssignmentId)
+            ) ||
+            distinctSessions.find(
+              (s) =>
+                String(s.assignment.id) === String(plan.next_assignment?.id)
+            ) ||
+            distinctSessions[0];
+          const currentAssignment =
+            currentSessionItem?.assignment || plan.next_assignment;
+          if (!currentAssignment) return null;
+
+          const sessionName =
+            currentAssignment.session_name ||
+            currentAssignment.workout_preset_name ||
+            currentAssignment.exercise_name ||
+            t('exerciseCard.scheduledWorkout', 'Workout Session');
+
+          const sessionIndex =
+            currentAssignment.session_index ??
+            (plan.sequence_position?.current || 1);
+          const totalSessions =
+            plan.sequence_position?.total ?? distinctSessions.length ?? 1;
+
+          return (
+            <div
+              key={plan.id}
+              className="mb-3 p-3.5 rounded-lg border bg-muted/40 hover:bg-muted/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge
+                    variant="secondary"
+                    className="text-xs font-semibold gap-1"
+                  >
+                    {plan.schedule_type === 'sequential' ? (
+                      <>
+                        <Repeat className="h-3 w-3 text-primary" />
+                        {t('exerciseCard.upNextInPlanBadge', 'Plan Up Next')}
+                      </>
+                    ) : (
+                      <>
+                        <CalendarDays className="h-3 w-3 text-primary" />
+                        {t(
+                          'exerciseCard.scheduledTodayBadge',
+                          'Scheduled Today'
+                        )}
+                      </>
+                    )}
+                  </Badge>
+                  {distinctSessions.length > 1 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 font-semibold text-sm gap-1 hover:bg-muted/80 text-foreground"
+                        >
+                          <span>{sessionName}</span>
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                          {t(
+                            'exerciseCard.switchSessionLabel',
+                            'Switch / Pick Session:'
+                          )}
+                        </div>
+                        {distinctSessions.map((sessionItem, index: number) => (
+                          <DropdownMenuItem
+                            key={sessionItem.assignment.id || index}
+                            onClick={() =>
+                              setSelectedSessionMap((prev) => ({
+                                ...prev,
+                                [plan.id]: sessionItem.assignment.id ?? '',
+                              }))
+                            }
+                            className="flex items-center justify-between gap-2 cursor-pointer"
+                          >
+                            <span className="truncate">
+                              {index + 1}. {sessionItem.name}
+                            </span>
+                            {sessionItem.isSuggested && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px] px-1.5 py-0 shrink-0"
+                              >
+                                {t('exerciseCard.suggestedBadge', 'Suggested')}
+                              </Badge>
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <span className="font-semibold text-sm">{sessionName}</span>
+                  )}
+                  {plan.schedule_type === 'sequential' && (
+                    <span className="text-xs text-muted-foreground font-medium">
+                      ({sessionIndex} of {totalSessions})
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {plan.schedule_type === 'sequential'
+                    ? t(
+                        'exerciseCard.activePlanHint',
+                        'Sequential plan: {{name}}',
+                        { name: plan.plan_name }
+                      )
+                    : t(
+                        'exerciseCard.activeWeeklyPlanHint',
+                        'Active plan: {{name}}',
+                        { name: plan.plan_name }
+                      )}
+                </p>
+              </div>
+              <div className="flex items-center shrink-0">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() =>
+                    handleStartPlanSession(plan, currentAssignment)
+                  }
+                >
+                  <Play className="w-3.5 h-3.5 mr-1" />
+                  {t('exerciseCard.startWorkoutButton', 'Start Workout')}
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+
         {exerciseEntries?.length === 0 ? (
           <p className="dark:text-slate-300">
             {t('exerciseCard.noEntries', 'No exercise entries for this day.')}

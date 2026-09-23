@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { formatDateToYYYYMMDD } from '@/lib/utils';
 import {
   getWorkoutPlanTemplates,
+  getActiveWorkoutPlans,
   createWorkoutPlanTemplate,
   updateWorkoutPlanTemplate,
   deleteWorkoutPlanTemplate,
@@ -13,6 +15,7 @@ export const workoutPlanKeys = {
   lists: () => [...workoutPlanKeys.all, 'list'] as const,
   details: () => [...workoutPlanKeys.all, 'detail'] as const,
   detail: (id: string) => [...workoutPlanKeys.details(), id] as const,
+  active: (date: string) => [...workoutPlanKeys.all, 'active', date] as const,
 };
 
 // --- Queries ---
@@ -35,6 +38,31 @@ export const useWorkoutPlanTemplates = (userId?: string) => {
   });
 };
 
+export const useActiveWorkoutPlans = (date?: string, userId?: string) => {
+  const { t } = useTranslation();
+  const queryDate = date || formatDateToYYYYMMDD(new Date());
+  return useQuery({
+    queryKey: workoutPlanKeys.active(queryDate),
+    queryFn: () => getActiveWorkoutPlans(queryDate),
+    enabled: !!userId,
+    meta: {
+      errorMessage: t(
+        'workoutPlansManager.failedToLoadActivePlan',
+        'Failed to load active workout plan.'
+      ),
+    },
+  });
+};
+
+export const useActiveWorkoutPlan = (date?: string, userId?: string) => {
+  const query = useActiveWorkoutPlans(date, userId);
+  return {
+    ...query,
+    data: query.data?.[0] ?? null,
+    plans: query.data ?? [],
+  };
+};
+
 // --- Mutations ---
 
 export const useCreateWorkoutPlanTemplateMutation = () => {
@@ -53,7 +81,7 @@ export const useCreateWorkoutPlanTemplateMutation = () => {
       >;
     }) => createWorkoutPlanTemplate(userId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workoutPlanKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: workoutPlanKeys.all });
     },
     meta: {
       successMessage: t(
@@ -80,11 +108,8 @@ export const useUpdateWorkoutPlanTemplateMutation = () => {
       id: string;
       data: Partial<WorkoutPlanTemplate>;
     }) => updateWorkoutPlanTemplate(id, data),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: workoutPlanKeys.lists() });
-      queryClient.invalidateQueries({
-        queryKey: workoutPlanKeys.detail(variables.id),
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workoutPlanKeys.all });
     },
     meta: {
       errorMessage: t(
@@ -120,7 +145,7 @@ export const useDeleteWorkoutPlanTemplateMutation = () => {
   return useMutation({
     mutationFn: (id: string) => deleteWorkoutPlanTemplate(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workoutPlanKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: workoutPlanKeys.all });
     },
     meta: {
       successMessage: t(

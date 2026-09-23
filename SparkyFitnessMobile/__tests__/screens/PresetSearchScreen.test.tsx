@@ -53,6 +53,10 @@ jest.mock('../../src/services/nativeTabBarPreference', () => ({
   useNativeIOSHeadersActive: jest.fn(() => false),
 }));
 
+jest.mock('../../src/hooks/useActiveWorkoutPlan', () => ({
+  useActiveWorkoutPlan: jest.fn(() => ({ plan: null, isLoading: false })),
+}));
+
 const mockUseWorkoutPresets = useWorkoutPresets as jest.MockedFunction<
   typeof useWorkoutPresets
 >;

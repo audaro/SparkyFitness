@@ -25,7 +25,7 @@ import {
 } from '../utils/workoutSession';
 import type { RootStackParamList } from '../types/navigation';
 
-type StartLiveWorkoutNavigation = Pick<
+export type StartLiveWorkoutNavigation = Pick<
   NativeStackNavigationProp<RootStackParamList>,
   'replace' | 'isFocused' | 'navigate'
 >;
@@ -42,6 +42,8 @@ interface StartLiveWorkoutArgs {
   sourcePresetId?: number;
   /** Up Next recommendation the exercises came from; marked completed on finish. */
   sourceRecommendationId?: string;
+  /** Plan assignment id if starting from a workout plan session. */
+  workoutPlanAssignmentId?: number;
 }
 
 /**
@@ -120,6 +122,7 @@ export function useStartLiveWorkout(navigation: StartLiveWorkoutNavigation): {
       exercises,
       sourcePresetId,
       sourceRecommendationId,
+      workoutPlanAssignmentId,
     }: StartLiveWorkoutArgs) => {
       if (exercises.length === 0) {
         Toast.show({
@@ -160,6 +163,7 @@ export function useStartLiveWorkout(navigation: StartLiveWorkoutNavigation): {
           // server keeps the client-supplied exercises verbatim when both
           // fields are present instead of substituting the preset's own.
           workout_preset_id: sourcePresetId,
+          workoutPlanAssignmentId,
         });
         invalidateCache(entryDate);
         // Chained so the exact-alarm prompt never stacks on top of the OS

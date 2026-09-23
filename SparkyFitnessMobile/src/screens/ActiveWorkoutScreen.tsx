@@ -300,6 +300,16 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     );
   }, [storeHydrated]);
 
+  const safeGoBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // Upstream falls back to its Diary tab, which is where it lists
+      // exercise; in this fork the day's workout lives on the Exercise tab.
+      navigation.navigate('Tabs', { screen: 'Exercise' });
+    }
+  }, [navigation]);
+
   // If the route is opened with no live workout (stale deep link), bail out.
   // Finish/Discard clear the session themselves and own their navigation, so
   // this only auto-pops when the screen *arrived* without a session.
@@ -310,8 +320,8 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
       return;
     }
     if (!storeHydrated) return;
-    if (!hadSessionRef.current && navigation.canGoBack()) navigation.goBack();
-  }, [sessionId, storeHydrated, navigation]);
+    if (!hadSessionRef.current) safeGoBack();
+  }, [sessionId, storeHydrated, safeGoBack]);
 
   const activeExerciseId = useMemo(() => {
     if (session == null || activeSetId == null) return null;
@@ -948,7 +958,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
               // debounce and frees the user immediately; the delete finishes in
               // the background (a racing autosave 404s harmlessly server-side).
               clearActiveWorkout(queryClient, 'abandoned');
-              navigation.goBack();
+              safeGoBack();
               deleteWorkout(idToDelete)
                 .then(() => {
                   if (entryDate != null)
@@ -992,12 +1002,12 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
           style: 'destructive',
           onPress: () => {
             clearActiveWorkout(queryClient, 'abandoned');
-            navigation.goBack();
+            safeGoBack();
           },
         },
       ]
     );
-  }, [createdByLiveStart, sessionId, session, queryClient, navigation, t]);
+  }, [createdByLiveStart, sessionId, session, queryClient, safeGoBack, t]);
 
   // A second "End Workout" tap while the flush is in flight would run the
   // finish twice — two celebration pushes over an already-cleared store.
@@ -1027,7 +1037,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
             style: 'destructive',
             onPress: () => {
               clearActiveWorkout(queryClient, 'abandoned');
-              navigation.goBack();
+              safeGoBack();
             },
           },
         ]
@@ -1089,7 +1099,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
       } else {
         // Nothing logged: ending is abandoning, and Today's Workout is offered again.
         clearActiveWorkout(queryClient, 'abandoned');
-        navigation.goBack();
+        safeGoBack();
       }
     }
     // `.finally` rather than try/finally: a try/finally around the await makes
@@ -1098,7 +1108,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
     await attempt().finally(() => {
       finishingRef.current = false;
     });
-  }, [flush, navigation, queryClient, t]);
+  }, [flush, navigation, queryClient, safeGoBack, t]);
 
   // Long-gap guard on the way out: a workout left open across a long break
   // (forgotten overnight, one straggler set the next morning) would stamp the
@@ -1364,7 +1374,7 @@ function ActiveWorkoutScreen({ navigation, route }: Props) {
         startedAt={startedAt}
         now={now}
         progress={progress}
-        onBack={() => navigation.goBack()}
+        onBack={safeGoBack}
         onDiscard={handleDiscard}
         onEndWorkout={handleConfirmEnd}
         onRename={() => setRenameVisible(true)}

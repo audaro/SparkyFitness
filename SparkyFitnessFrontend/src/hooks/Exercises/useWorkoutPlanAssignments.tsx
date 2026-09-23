@@ -26,6 +26,13 @@ export function useWorkoutPlanAssignments(
   const { user } = useAuth();
   const { loggingLevel } = usePreferences();
 
+  const [scheduleType, setScheduleType] = useState<'weekly' | 'sequential'>(
+    () => initialData?.schedule_type || 'sequential'
+  );
+  const [entryMode, setEntryMode] = useState<'prompt' | 'prefill'>(
+    () => initialData?.entry_mode || 'prompt'
+  );
+
   const { data: presetData } = useWorkoutPresets(user?.id);
   const workoutPresets = useMemo(() => presetData?.presets ?? [], [presetData]);
 
@@ -34,6 +41,15 @@ export function useWorkoutPlanAssignments(
       initialData?.assignments?.map((a) => ({
         ...a,
         id: a.id ? String(a.id) : generateClientId(),
+        day_of_week: a.day_of_week ?? null,
+        session_index:
+          a.session_index ??
+          (initialData.schedule_type === 'sequential'
+            ? a.day_of_week !== null && a.day_of_week !== undefined
+              ? a.day_of_week + 1
+              : 1
+            : null),
+        sort_order: a.sort_order ?? 0,
         sets:
           a.sets?.map((s) => ({
             ...s,
@@ -43,6 +59,123 @@ export function useWorkoutPlanAssignments(
       })) || []
   );
 
+  const initialSessions = useMemo(() => {
+    if (!initialData?.assignments || initialData.assignments.length === 0)
+      return [1];
+    const sessionSet = new Set(
+      initialData.assignments.map(
+        (a) =>
+          a.session_index ??
+          (a.day_of_week !== null && a.day_of_week !== undefined
+            ? a.day_of_week + 1
+            : 1)
+      )
+    );
+    const sorted = Array.from(sessionSet).sort((a, b) => a - b);
+    return sorted.length > 0 ? sorted : [1];
+  }, [initialData]);
+
+  const initialSessionNames = useMemo(() => {
+    const names: Record<number, string> = {};
+    if (initialData?.assignments) {
+      for (const a of initialData.assignments) {
+        const sIdx =
+          a.session_index ??
+          (initialData.schedule_type === 'sequential'
+            ? a.day_of_week !== null && a.day_of_week !== undefined
+              ? a.day_of_week + 1
+              : 1
+            : 1);
+        if (a.session_name && !names[sIdx]) {
+          names[sIdx] = a.session_name;
+        }
+      }
+    }
+    return names;
+  }, [initialData]);
+
+  const [sessionList, setSessionList] = useState<number[]>(initialSessions);
+  const [sessionNames, setSessionNames] =
+    useState<Record<number, string>>(initialSessionNames);
+
+  const setSessionName = useCallback((sessionNum: number, name: string) => {
+    setSessionNames((prev) => ({
+      ...prev,
+      [sessionNum]: name,
+    }));
+  }, []);
+
+  const addSession = useCallback(() => {
+    setSessionList((prev) => {
+      const nextNum = prev.length > 0 ? Math.max(...prev) + 1 : 1;
+      return [...prev, nextNum];
+    });
+  }, []);
+
+  const removeSession = useCallback((sessionNumToRemove: number) => {
+    setAssignments((prev) => {
+      const remaining = prev.filter(
+        (a) => (a.session_index ?? 1) !== sessionNumToRemove
+      );
+      return remaining.map((a) => {
+        const curr = a.session_index ?? 1;
+        if (curr > sessionNumToRemove) {
+          return { ...a, session_index: curr - 1 };
+        }
+        return a;
+      });
+    });
+    setSessionNames((prev) => {
+      const updated: Record<number, string> = {};
+      Object.entries(prev).forEach(([key, val]) => {
+        const k = Number(key);
+        if (k < sessionNumToRemove) {
+          updated[k] = val;
+        } else if (k > sessionNumToRemove) {
+          updated[k - 1] = val;
+        }
+      });
+      return updated;
+    });
+    setSessionList((prev) => {
+      const filtered = prev.filter((s) => s !== sessionNumToRemove);
+      if (filtered.length === 0) return [1];
+      return filtered.map((_, idx) => idx + 1);
+    });
+  }, []);
+
+  const moveSession = useCallback(
+    (sessionNum: number, direction: 'up' | 'down') => {
+      const targetSessionNum =
+        direction === 'up' ? sessionNum - 1 : sessionNum + 1;
+      if (targetSessionNum < 1 || targetSessionNum > sessionList.length) return;
+
+      setAssignments((prev) => {
+        return prev.map((a) => {
+          const curr = a.session_index ?? 1;
+          if (curr === sessionNum) {
+            return { ...a, session_index: targetSessionNum };
+          }
+          if (curr === targetSessionNum) {
+            return { ...a, session_index: sessionNum };
+          }
+          return a;
+        });
+      });
+
+      setSessionNames((prev) => {
+        const name1 = prev[sessionNum] ?? '';
+        const name2 = prev[targetSessionNum] ?? '';
+        return {
+          ...prev,
+          [sessionNum]: name2,
+          [targetSessionNum]: name1,
+        };
+      });
+    },
+    [sessionList.length]
+  );
+
   const [copiedAssignment, setCopiedAssignment] =
     useState<WorkoutPlanAssignment | null>(null);
 
@@ -50,6 +183,8 @@ export function useWorkoutPlanAssignments(
   const [selectedDayForAssignment, setSelectedDayForAssignment] = useState<
     number | null
   >(null);
+  const [selectedSessionForAssignment, setSelectedSessionForAssignment] =
+    useState<number | null>(null);
 
   const handleRemoveAssignment = useCallback((index: number) => {
     setAssignments((prev) => prev.filter((_, i) => i !== index));
@@ -166,6 +301,35 @@ export function useWorkoutPlanAssignments(
           const activeAssignment = assignments[activeAssignmentIdx];
           const overAssignment = assignments[overAssignmentIdx];
 
+          if (scheduleType === 'sequential') {
+            if (
+              (activeAssignment?.session_index ?? 1) !==
+              (overAssignment?.session_index ?? 1)
+            ) {
+              setAssignments((prev) => {
+                const sourceItem = prev[activeAssignmentIdx];
+                if (!sourceItem) return prev;
+                const newItems = [...prev];
+                const item: WorkoutPlanAssignment = {
+                  ...sourceItem,
+                  session_index: overAssignment?.session_index ?? 1,
+                  template_id: sourceItem.template_id ?? '',
+                };
+                newItems.splice(activeAssignmentIdx, 1);
+                const newOverIdx = newItems.findIndex(
+                  (a) => String(a.id) === overId
+                );
+                newItems.splice(newOverIdx, 0, item);
+                return newItems;
+              });
+            } else {
+              setAssignments((items) =>
+                arrayMove(items, activeAssignmentIdx, overAssignmentIdx)
+              );
+            }
+            return;
+          }
+
           if (activeAssignment?.day_of_week !== overAssignment?.day_of_week) {
             setAssignments((prev) => {
               const sourceItem = prev[activeAssignmentIdx];
@@ -222,15 +386,22 @@ export function useWorkoutPlanAssignments(
         }
       }
     },
-    [assignments]
+    [assignments, scheduleType]
   );
 
   const handleAddExerciseOrPreset = useCallback(
     (
       item: Exercise | WorkoutPreset,
-      sourceMode: 'internal' | 'external' | 'custom' | 'preset'
+      sourceMode: 'internal' | 'external' | 'custom' | 'preset',
+      customSessionIndex?: number | null
     ) => {
-      if (selectedDayForAssignment === null) return;
+      const isSeq = scheduleType === 'sequential';
+      const targetDay = isSeq ? null : selectedDayForAssignment;
+      const targetSession = isSeq
+        ? (customSessionIndex ?? selectedSessionForAssignment ?? 1)
+        : null;
+
+      if (!isSeq && targetDay === null) return;
 
       if (sourceMode === 'preset') {
         const preset = item as WorkoutPreset;
@@ -238,11 +409,11 @@ export function useWorkoutPlanAssignments(
           ...prev,
           {
             id: generateClientId(),
-            day_of_week: selectedDayForAssignment,
+            day_of_week: targetDay,
+            session_index: targetSession,
+            sort_order: prev.length,
             template_id: '',
             workout_preset_id: preset.id as string,
-            // Carried on the assignment so the copy/paste toasts can name the
-            // preset without searching a page of the preset list.
             workout_preset_name: preset.name,
             exercise_id: undefined,
             sets: [],
@@ -258,7 +429,9 @@ export function useWorkoutPlanAssignments(
           ...prev,
           {
             id: generateClientId(),
-            day_of_week: selectedDayForAssignment,
+            day_of_week: targetDay,
+            session_index: targetSession,
+            sort_order: prev.length,
             template_id: '',
             workout_preset_id: undefined,
             exercise_id: exercise.id,
@@ -273,16 +446,11 @@ export function useWorkoutPlanAssignments(
       }
       setIsAddExerciseDialogOpen(false);
       setSelectedDayForAssignment(null);
+      setSelectedSessionForAssignment(null);
     },
-    [selectedDayForAssignment]
+    [scheduleType, selectedDayForAssignment, selectedSessionForAssignment]
   );
 
-  /**
-   * Resolves the display name of an assignment. The preset query only holds one
-   * page, so the assignment's own `workout_preset_name` (joined by the backend,
-   * or carried over when the preset was added) is the only reliable name for
-   * presets beyond the first page.
-   */
   const resolvePresetName = useCallback(
     (assignment: WorkoutPlanAssignment) =>
       assignment.workout_preset_name ??
@@ -308,12 +476,18 @@ export function useWorkoutPlanAssignments(
   );
 
   const handlePasteAssignment = useCallback(
-    (dayOfWeek: number) => {
+    (targetDayOrSession: number | null) => {
       if (!copiedAssignment) return;
+      const isSeq = scheduleType === 'sequential';
+      const targetDay = isSeq ? null : targetDayOrSession;
+      const targetSession = isSeq ? (targetDayOrSession ?? 1) : null;
+
       const newAssignment: WorkoutPlanAssignment = {
         ...copiedAssignment,
         id: generateClientId(),
-        day_of_week: dayOfWeek,
+        day_of_week: targetDay,
+        session_index: targetSession,
+        sort_order: assignments.length,
         template_id: '',
         sets:
           copiedAssignment.sets?.map((s) => ({
@@ -333,34 +507,65 @@ export function useWorkoutPlanAssignments(
         }),
       });
     },
-    [copiedAssignment, t, resolvePresetName]
+    [assignments.length, copiedAssignment, scheduleType, t, resolvePresetName]
   );
 
-  const buildAssignmentsForSave = useCallback(
-    () =>
-      assignments
+  const buildAssignmentsForSave = useCallback(() => {
+    if (scheduleType === 'sequential') {
+      return assignments
         .filter((a) => a.workout_preset_id || a.exercise_id)
         .map((a) => {
-          const dayAssignments = assignments.filter(
-            (da) => da.day_of_week === a.day_of_week
+          const sIdx = a.session_index ?? 1;
+          const sessionAssignments = assignments.filter(
+            (sa) => (sa.session_index ?? 1) === sIdx
           );
+          const sName = sessionNames[sIdx]?.trim() || a.session_name || null;
           return {
             ...a,
-            sort_order: dayAssignments.indexOf(a),
+            day_of_week: null,
+            session_index: sIdx,
+            session_name: sName,
+            sort_order: sessionAssignments.indexOf(a),
             sets: a.sets || [],
           };
-        }),
-    [assignments]
-  );
+        });
+    }
+    return assignments
+      .filter((a) => a.workout_preset_id || a.exercise_id)
+      .map((a) => {
+        const dayAssignments = assignments.filter(
+          (da) => da.day_of_week === a.day_of_week
+        );
+        return {
+          ...a,
+          session_index: null,
+          session_name: null,
+          sort_order: dayAssignments.indexOf(a),
+          sets: a.sets || [],
+        };
+      });
+  }, [assignments, scheduleType, sessionNames]);
 
   return {
     assignments,
+    sessionList,
+    sessionNames,
+    setSessionName,
+    addSession,
+    removeSession,
+    moveSession,
+    scheduleType,
+    setScheduleType,
+    entryMode,
+    setEntryMode,
     copiedAssignment,
     workoutPresets,
     isAddExerciseDialogOpen,
     setIsAddExerciseDialogOpen,
     selectedDayForAssignment,
     setSelectedDayForAssignment,
+    selectedSessionForAssignment,
+    setSelectedSessionForAssignment,
     handleRemoveAssignment,
     handleSetChangeInPlan,
     handleAddSetInPlan,

@@ -16,7 +16,7 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format:check": "prettier . --check",
-    "format": "prettier . --write"
+    "format": "prettier . --write --log-level warn"
   },
   "keywords": [],
   "author": "",
