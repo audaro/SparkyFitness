@@ -209,6 +209,38 @@ describe('activeWorkoutStore — hold timer', () => {
       expect(mockScheduleHold).not.toHaveBeenCalled();
     });
 
+    it('holds the planned seconds when the set itself has none yet', () => {
+      // A generated plank arrives with empty sets and the prescription in the
+      // live-start plan — the row shows "60" grayed-in, and the hold must
+      // count that down rather than offer nothing.
+      const session = makeSession();
+      (session.exercises[0] as any).sets[0].duration = null;
+      (session.exercises[0] as any).sets[1].duration = null;
+      useActiveWorkoutStore.getState().startWorkout(session, {
+        plannedSetValues: [
+          [
+            { weight: null, reps: null, duration: 60 },
+            { weight: null, reps: null, duration: 60 },
+          ],
+          [{ weight: 60, reps: 10 }],
+        ],
+        sourceRecommendationId: 'rec-1',
+      });
+      useActiveWorkoutStore.getState().startHold('101');
+
+      const { hold } = useActiveWorkoutStore.getState();
+      expect(hold.state).toBe('holding');
+      expect(hold.targetSec).toBe(60);
+      expect(mockScheduleHold).toHaveBeenCalledWith('Plank', 60);
+
+      jest.advanceTimersByTime(60_000);
+      expect(useActiveWorkoutStore.getState().hold.state).toBe('idle');
+      expect(durationOf('101')).toBe(60);
+      expect(
+        useActiveWorkoutStore.getState().completedSetIds['101']
+      ).toBeDefined();
+    });
+
     it('refuses a duration set with no target', () => {
       const session = makeSession();
       (session.exercises[0] as any).sets[0].duration = null;
