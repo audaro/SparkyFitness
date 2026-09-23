@@ -596,7 +596,10 @@ function projectWorkoutPlan(p: WorkoutPlanRow) {
     end_date: p.end_date ? dayString(p.end_date) : null,
     assignments: (p.assignments ?? []).map((a) => ({
       day_of_week: a.day_of_week ?? null,
-      day: a.day_of_week != null ? DAY_NAMES[a.day_of_week] : null,
+      day:
+        a.day_of_week === null || a.day_of_week === undefined
+          ? null
+          : DAY_NAMES[a.day_of_week],
       sort_order: a.sort_order ?? null,
       workout_preset_id: a.workout_preset_id ?? null,
       workout_preset_name: a.workout_preset_name ?? null,
